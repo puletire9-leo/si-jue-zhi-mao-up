@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>下载功能测试页面</title>
+    <!-- 引入Element Plus样式 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-plus/dist/index.css">
+    <!-- 引入Vue 3 -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.0/dist/vue.global.js"></script>
+    <!-- 引入Element Plus -->
+    <script src="https://cdn.jsdelivr.net/npm/element-plus/dist/index.full.js"></script>
+    <!-- 引入JSZip和FileSaver -->
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e4e7ed;
+            border-radius: 8px;
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #303133;
+        }
+        .btn-group {
+            margin-bottom: 15px;
+        }
+        .btn-group .el-button {
+            margin-right: 10px;
+        }
+        .log-container {
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: #f5f7fa;
+            border: 1px solid #e4e7ed;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-item {
+            margin-bottom: 5px;
+        }
+        .log-info {
+            color: #606266;
+        }
+        .log-success {
+            color: #67c23a;
+        }
+        .log-error {
+            color: #f56c6c;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h1>下载功能测试</h1>
+        
+        <div class="test-section">
+            <h2>1. 单个文件下载测试</h2>
+            <div class="btn-group">
+                <el-button type="primary" @click="testSingleDownload">测试单文件下载</el-button>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>2. 批量下载测试</h2>
+            <div class="btn-group">
+                <el-button type="success" @click="testBatchDownload">测试批量下载</el-button>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>3. 日志输出</h2>
+            <div class="log-container">
+                <div v-for="(log, index) in logs" :key="index" :class="['log-item', `log-${log.type}`]">
+                    [{{ log.timestamp }}] {{ log.message }}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 下载工具函数（简化版，与项目中的实现保持一致）
+        const isValidUrl = (url) => {
+            try {
+                new URL(url);
+                return true;
+            } catch {
+                return false;
+            }
+        };
+        
+        const loadImageAsBlob = async (url, retryCount = 3) => {
+            if (!url || typeof url !== 'string') {
+                throw new Error(`Invalid URL: ${url}`);
+            }
+            
+            let fixedUrl = url;
+            if (!fixedUrl.startsWith('http')) {
+                fixedUrl = `https://${fixedUrl}`;
+            }
+            
+            if (!isValidUrl(fixedUrl)) {
+                throw new Error(`Invalid URL format after fixing: ${fixedUrl}`);
+            }
+            
+            log(`开始加载图片: ${fixedUrl}`, 'info');
+            
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                const timeoutId = setTimeout(() => {
+                    if (retryCount > 0) {
+                        const delay = Math.random() * 1500 + 1000;
+                        log(`图片加载超时，${retryCount}次重试中... 延迟 ${delay.toFixed(0)}ms`, 'info');
+                        clearTimeout(timeoutId);
+                        setTimeout(() => {
+                            loadImageAsBlob(fixedUrl, retryCount - 1)
+                                .then(resolve)
+                                .catch(reject);
+                        }, delay);
+                    } else {
+                        reject(new Error(`Image load timeout after multiple attempts (URL: ${fixedUrl})`));
+                    }
+                }, 15000);
+                
+                img.crossOrigin = 'anonymous';
+                
+                img.onload = () => {
+                    clearTimeout(timeoutId);
+                    log(`图片加载成功: ${fixedUrl}`, 'success');
+                    
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    
+                    if (!ctx) {
+                        log(`无法获取canvas上下文: ${fixedUrl}`, 'error');
+                        if (retryCount > 0) {
+                            const delay = Math.random() * 1500 + 1000;
+                            setTimeout(() => {
+                                loadImageAsBlob(fixedUrl, retryCount - 1)
+                                    .then(resolve)
+                                    .catch(reject);
+                            }, delay);
+                        } else {
+                            reject(new Error(`Failed to get canvas context after multiple attempts (URL: ${fixedUrl})`));
+                        }
+                        return;
+                    }
+                    
+                    try {
+                        ctx.drawImage(img, 0, 0);
+                    } catch (drawError) {
+                        log(`绘制图片失败: ${fixedUrl}`, 'error');
+                        if (retryCount > 0) {
+                            const delay = Math.random() * 1500 + 1000;
+                            setTimeout(() => {
+                                loadImageAsBlob(fixedUrl, retryCount - 1)
+                                    .then(resolve)
+                                    .catch(reject);
+                            }, delay);
+                        } else {
+                            reject(new Error(`Failed to draw image to canvas after multiple attempts (URL: ${fixedUrl})`));
+                        }
+                        return;
+                    }
+                    
+                    canvas.toBlob((blob) => {
+                        if (blob) {
+                            log(`图片转换为Blob成功: ${fixedUrl}, 大小: ${(blob.size / 1024).toFixed(2)}KB`, 'success');
+                            resolve(blob);
+                        } else {
+                            log(`图片转换为Blob失败: ${fixedUrl}`, 'error');
+                            if (retryCount > 0) {
+                                const delay = Math.random() * 1500 + 1000;
+                                setTimeout(() => {
+                                    loadImageAsBlob(fixedUrl, retryCount - 1)
+                                        .then(resolve)
+                                        .catch(reject);
+                                }, delay);
+                            } else {
+                                reject(new Error(`Failed to convert image to blob after multiple attempts (URL: ${fixedUrl})`));
+                            }
+                        }
+                    }, 'image/png');
+                };
+                
+                img.onerror = () => {
+                    clearTimeout(timeoutId);
+                    log(`图片加载失败: ${fixedUrl}`, 'error');
+                    if (retryCount > 0) {
+                        const delay = Math.random() * 1500 + 1000;
+                        log(`图片加载失败，${retryCount}次重试中... 延迟 ${delay.toFixed(0)}ms`, 'info');
+                        setTimeout(() => {
+                            loadImageAsBlob(fixedUrl, retryCount - 1)
+                                .then(resolve)
+                                .catch(reject);
+                        }, delay);
+                    } else {
+                        reject(new Error(`Failed to load image after multiple attempts (URL: ${fixedUrl})`));
+                    }
+                };
+                
+                img.src = fixedUrl;
+            });
+        };
+        
+        const downloadFile = async (url, filename) => {
+            try {
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                log(`直接下载成功: ${filename}`, 'success');
+                return true;
+            } catch (error) {
+                log(`直接下载失败: ${filename}，尝试使用fetch方式`, 'error');
+                
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 15000);
+                    
+                    const response = await fetch(url, {
+                        mode: 'no-cors',
+                        signal: controller.signal,
+                        headers: {
+                            'Accept': '*/*',
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                        }
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const blob = await response.blob();
+                    const blobUrl = URL.createObjectURL(blob);
+                    
+                    const link = document.createElement('a');
+                    link.href = blobUrl;
+                    link.download = filename;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+                    
+                    log(`fetch下载成功: ${filename}`, 'success');
+                    return true;
+                } catch (fetchError) {
+                    log(`fetch下载也失败: ${filename}`, 'error');
+                    return false;
+                }
+            }
+        };
+        
+        const throttleAsync = async (items, limit, handler) => {
+            const results = [];
+            const executing = [];
+            
+            for (const item of items) {
+                const task = async () => {
+                    const result = await handler(item);
+                    results.push(result);
+                };
+                
+                const promise = task();
+                executing.push(promise);
+                
+                if (executing.length >= limit) {
+                    await Promise.race(executing);
+                    const index = executing.findIndex(p => p === promise);
+                    if (index > -1) {
+                        executing.splice(index, 1);
+                    }
+                }
+            }
+            
+            await Promise.all(executing);
+            return results;
+        };
+        
+        const downloadImagesAsZip = async (files, zipFilename) => {
+            log(`开始批量下载，共 ${files.length} 个文件，准备打包为 ${zipFilename}`, 'info');
+            
+            try {
+                if (!window.JSZip || !window.saveAs) {
+                    throw new Error('JSZip or FileSaver not loaded from CDN');
+                }
+                
+                const zip = new window.JSZip();
+                
+                const validFiles = files.filter(file => file && file.url && file.filename);
+                if (validFiles.length !== files.length) {
+                    log(`过滤掉了 ${files.length - validFiles.length} 个无效文件`, 'info');
+                }
+                
+                const MAX_PARALLEL_DOWNLOADS = 4;
+                let successCount = 0;
+                let failedCount = 0;
+                
+                await throttleAsync(validFiles, MAX_PARALLEL_DOWNLOADS, async (file) => {
+                    try {
+                        const blob = await loadImageAsBlob(file.url);
+                        zip.file(file.filename, blob);
+                        successCount++;
+                        log(`✅ 成功添加文件到zip: ${file.filename} (${successCount}/${validFiles.length})`, 'success');
+                    } catch (error) {
+                        failedCount++;
+                        log(`❌ 添加文件到zip失败: ${file.filename} (${failedCount}/${validFiles.length})`, 'error');
+                    }
+                });
+                
+                log(`📊 图片下载完成，成功 ${successCount} 个，失败 ${failedCount} 个`, 'info');
+                
+                if (successCount === 0) {
+                    log('❌ 所有图片下载失败，无法生成zip文件', 'error');
+                    return false;
+                }
+                
+                log('📦 开始生成zip文件...', 'info');
+                const content = await zip.generateAsync({ type: 'blob' }, (metadata) => {
+                    const progress = Math.round(metadata.percent * 100);
+                    log(`📦 zip文件生成进度: ${progress}%`, 'info');
+                });
+                
+                log(`✅ zip文件生成成功，大小: ${(content.size / 1024 / 1024).toFixed(2)}MB`, 'success');
+                log(`🚀 开始下载zip文件: ${zipFilename}`, 'info');
+                
+                window.saveAs(content, zipFilename);
+                
+                log(`✅ 下载完成: ${zipFilename}`, 'success');
+                return true;
+            } catch (error) {
+                log('❌ 生成zip文件失败，使用降级方案', 'error');
+                
+                const folderName = zipFilename.replace('.zip', '');
+                let successCount = 0;
+                
+                log(`🔄 使用降级方案：直接下载所有文件，文件夹前缀: ${folderName}`, 'info');
+                
+                const MAX_PARALLEL_DOWNLOADS = 4;
+                await throttleAsync(files, MAX_PARALLEL_DOWNLOADS, async (file) => {
+                    try {
+                        const folderFilename = `${folderName}/${file.filename}`;
+                        const success = await downloadFile(file.url, folderFilename);
+                        if (success) {
+                            successCount++;
+                            log(`✅ 直接下载成功: ${folderFilename}`, 'success');
+                        } else {
+                            log(`❌ 直接下载失败: ${folderFilename}`, 'error');
+                        }
+                    } catch (directError) {
+                        log(`❌ 直接下载出错: ${file.filename}`, 'error');
+                    }
+                });
+                
+                log(`📊 降级方案完成，成功下载 ${successCount} 个文件`, 'info');
+                
+                return successCount > 0;
+            }
+        };
+        
+        // 日志记录
+        const logs = [];
+        const log = (message, type = 'info') => {
+            const timestamp = new Date().toLocaleTimeString();
+            logs.push({ message, type, timestamp });
+            console.log(`[${timestamp}] ${message}`);
+        };
+        
+        // Vue应用
+        const { createApp } = Vue;
+        createApp({
+            data() {
+                return {
+                    logs: logs,
+                    testImages: [
+                        { url: 'https://via.placeholder.com/300x200?text=Test+Image+1', filename: 'test1.jpg' },
+                        { url: 'https://via.placeholder.com/300x200?text=Test+Image+2', filename: 'test2.png' },
+                        { url: 'https://via.placeholder.com/300x200?text=Test+Image+3', filename: 'test3.webp' },
+                        { url: 'https://via.placeholder.com/300x200?text=Test+Image+4', filename: 'test4.jpg' },
+                        { url: 'https://via.placeholder.com/300x200?text=Test+Image+5', filename: 'test5.png' }
+                    ]
+                };
+            },
+            methods: {
+                testSingleDownload() {
+                    log('开始测试单文件下载...', 'info');
+                    downloadFile(this.testImages[0].url, this.testImages[0].filename);
+                },
+                testBatchDownload() {
+                    log('开始测试批量下载...', 'info');
+                    downloadImagesAsZip(this.testImages, `test-images-${Date.now()}.zip`);
+                },
+                clearLogs() {
+                    this.logs = [];
+                }
+            }
+        }).use(ElementPlus).mount('#app');
+    </script>
+</body>
+</html>

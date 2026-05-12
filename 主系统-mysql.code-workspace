@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "D:/项目/新思觉智贸同步/wiki"
+		},
+		{
+			"path": "D:/项目/新思觉智贸同步/知识库"
+		}
+	],
+	"settings": {
+		"git.ignoreLimitWarning": true
+	}
+}

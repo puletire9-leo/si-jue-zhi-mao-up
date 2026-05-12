@@ -1,0 +1,18 @@
+# 思觉智贸前端 - 开发模式 Dockerfile
+# 使用 Vite 开发服务器，支持热重载
+FROM node:20-alpine
+
+WORKDIR /app
+
+# 安装依赖
+COPY package*.json ./
+RUN npm install
+
+# 复制源代码
+COPY . .
+
+# 暴露端口（Vite 开发服务器 5174）
+EXPOSE 5174
+
+# Vite 开发服务器（不构建，直接运行源码）
+CMD ["npm", "run", "dev:development"]

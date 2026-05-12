@@ -1,0 +1,55 @@
+name: 命名规范检查
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  check-naming-convention:
+    name: 检查命名规范
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+      
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+      
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install watchdog
+      
+      - name: 运行命名规范检查（增量）
+        id: naming-check
+        run: |
+          python check/check_naming_convention_advanced.py --incremental --report naming-report.md
+        continue-on-error: true
+      
+      - name: 上传检查报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: naming-convention-report
+          path: naming-report.md
+          retention-days: 30
+      
+      - name: 检查结果
+        if: steps.naming-check.outcome == 'failure'
+        run: |
+          echo "❌ 命名规范检查失败"
+          echo ""
+          echo "💡 请查看检查报告并修复问题"
+          echo "📄 报告已上传为 artifact"
+          exit 1
+      
+      - name: 检查通过
+        if: steps.naming-check.outcome == 'success'
+        run: |
+          echo "✅ 命名规范检查通过"

@@ -1,0 +1,42 @@
+# 依赖
+node_modules/
+
+# 构建产物（Docker 中重新构建）
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 测试
+tests/
+coverage/
+test-result.txt
+
+# 日志
+*.log
+
+# 环境配置
+.env.*
+!.env.production
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+
+# 文档
+*.md
+docs/
+
+# 开发工具
+.claude/
+.codebuddy/
+.trae/
+.github/
+scripts/
