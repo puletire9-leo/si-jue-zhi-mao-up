@@ -1,0 +1,1604 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>产品数据双周期对比 | 领星ERP</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0b1120;
+  --surface: #131c31;
+  --card: #1a2540;
+  --border: #243352;
+  --hover: #243352;
+  --text: #e8edf5;
+  --text-dim: #7b8ba5;
+  --accent: #3b82f6;
+  --accent-light: #60a5fa;
+  --green: #22c55e;
+  --red: #ef4444;
+  --yellow: #f59e0b;
+  --purple: #a855f7;
+  --purple-light: #c084fc;
+  --cyan: #06b6d4;
+  --orange: #f97316;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* 顶部栏 */
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.topbar h1 {
+  font-size: 20px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent), var(--purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.nav-links {
+  display: flex;
+  gap: 16px;
+}
+
+.nav-links a {
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 14px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.nav-links a:hover {
+  color: var(--text);
+  background: var(--card);
+}
+
+.nav-links a.active {
+  color: var(--accent);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+/* 筛选栏 */
+.filter-bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: flex-start;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.filter-bar.collapsed {
+  padding: 12px 24px;
+}
+
+.filter-bar.collapsed .filter-content {
+  display: none;
+}
+
+/* 折叠按钮 */
+.filter-toggle-btn {
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  z-index: 100;
+}
+
+.filter-toggle-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.filter-toggle-btn.collapsed {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+/* 折叠时显示的简化信息 */
+.filter-summary {
+  display: none;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--text-dim);
+  padding-right: 50px;
+}
+
+.filter-bar.collapsed .filter-summary {
+  display: flex;
+}
+
+.filter-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-summary-item .label {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.filter-summary-item .value {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.period-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.period-selector label {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.period-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.period-inputs input[type="date"] {
+  padding: 8px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.period-inputs input[type="date"]:focus {
+  border-color: var(--accent);
+}
+
+.period-inputs span {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.period-a .period-inputs input:focus {
+  border-color: var(--accent);
+}
+
+.period-b .period-inputs input:focus {
+  border-color: var(--purple);
+}
+
+/* 快捷按钮 */
+.quick-buttons {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+/* ===== 时间范围滑块 ===== */
+.time-slider-container {
+  width: 100%;
+  min-width: 280px;
+  padding: 8px 0;
+  margin-top: 4px;
+}
+
+.time-slider-track {
+  position: relative;
+  height: 6px;
+  background: var(--card);
+  border-radius: 3px;
+  cursor: pointer;
+  margin: 0 10px;
+}
+
+.time-slider-range {
+  position: absolute;
+  height: 100%;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.period-a .time-slider-range {
+  background: linear-gradient(90deg, var(--accent), var(--accent-light));
+}
+
+.period-b .time-slider-range {
+  background: linear-gradient(90deg, var(--purple), var(--purple-light));
+}
+
+.time-slider-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 3px solid var(--text);
+  border-radius: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  transition: transform 0.1s, box-shadow 0.1s;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* 开始手柄 - 左侧半圆 */
+.time-slider-handle-start {
+  border-radius: 50% 0 0 50%;
+  width: 18px;
+  margin-left: -2px;
+}
+
+/* 结束手柄 - 右侧半圆 */
+.time-slider-handle-end {
+  border-radius: 0 50% 50% 0;
+  width: 18px;
+  margin-left: 2px;
+}
+
+.period-a .time-slider-handle {
+  background: linear-gradient(135deg, var(--accent), var(--accent-light));
+}
+
+.period-b .time-slider-handle {
+  background: linear-gradient(135deg, var(--purple), var(--purple-light));
+}
+
+/* 确保结束手柄在开始手柄之上 */
+.time-slider-handle-end {
+  z-index: 11;
+}
+
+.time-slider-handle:hover {
+  transform: translate(-50%, -50%) scale(1.3);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.6);
+}
+
+.time-slider-handle:active {
+  cursor: grabbing;
+  transform: translate(-50%, -50%) scale(1.4);
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
+}
+
+.time-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  padding: 0 10px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.quick-btn {
+  padding: 4px 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quick-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* 搜索和筛选 */
+.search-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 300px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.search-input:focus {
+  border-color: var(--accent);
+}
+
+.search-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.shop-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shop-filter label {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.shop-select {
+  padding: 10px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  min-width: 150px;
+}
+
+/* 查询按钮 */
+.query-btn {
+  padding: 10px 24px;
+  background: linear-gradient(135deg, var(--accent), var(--purple));
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  align-self: flex-end;
+}
+
+.query-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.query-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 主内容区 */
+.main-content {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* 下滑警告 */
+.decline-warning {
+  background: linear-gradient(135deg, #dc2626, #ef4444);
+  border-radius: 12px;
+  padding: 16px 24px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+}
+
+.decline-warning .icon {
+  font-size: 24px;
+}
+
+.decline-warning .text {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.decline-warning .percent {
+  font-size: 20px;
+  font-weight: 700;
+  margin-left: auto;
+}
+
+/* 对比卡片区 */
+.comparison-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.period-card {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid var(--border);
+}
+
+.period-card.period-a {
+  border-top: 3px solid var(--accent);
+}
+
+.period-card.period-b {
+  border-top: 3px solid var(--purple);
+}
+
+.period-card .header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.period-card .label {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+.period-card.period-a .label {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--accent-light);
+}
+
+.period-card.period-b .label {
+  background: rgba(168, 85, 247, 0.15);
+  color: var(--purple-light);
+}
+
+.period-card .date-range {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.period-card .main-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.metric {
+  text-align: center;
+}
+
+.metric .value {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.metric .label {
+  font-size: 12px;
+  color: var(--text-dim);
+  background: none;
+  padding: 0;
+}
+
+.period-card.period-a .metric .value {
+  color: var(--accent-light);
+}
+
+.period-card.period-b .metric .value {
+  color: var(--purple-light);
+}
+
+/* 数据表格 */
+.data-table-section {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid var(--border);
+}
+
+.data-table-section h2 {
+  font-size: 16px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 14px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.data-table td {
+  font-size: 14px;
+}
+
+.data-table tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.data-table .category-header {
+  background: var(--surface);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.data-table .category-header td {
+  padding: 10px 16px;
+  color: var(--text-dim);
+}
+
+.data-table .metric-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.data-table .metric-icon {
+  font-size: 16px;
+}
+
+/* 数值样式 */
+.value-cell {
+  font-weight: 600;
+}
+
+.period-a-value {
+  color: var(--accent-light);
+}
+
+.period-b-value {
+  color: var(--purple-light);
+}
+
+/* 变化指示 */
+.change-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.change-up {
+  color: var(--green);
+}
+
+.change-down {
+  color: var(--red);
+}
+
+.change-neutral {
+  color: var(--text-dim);
+}
+
+.change-arrow {
+  font-size: 12px;
+}
+
+/* 加载状态 */
+.loading-state {
+  text-align: center;
+  padding: 60px;
+  color: var(--text-dim);
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 空状态 */
+.empty-state {
+  text-align: center;
+  padding: 60px;
+  color: var(--text-dim);
+}
+
+.empty-state .icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.empty-state .title {
+  font-size: 18px;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+/* 图表区域 */
+.chart-section {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+
+.chart-section h2 {
+  font-size: 16px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chart-container {
+  position: relative;
+  height: 300px;
+  width: 100%;
+}
+
+.chart-legend {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 16px;
+  font-size: 13px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+/* 响应式 */
+@media (max-width: 1024px) {
+  .comparison-cards {
+    grid-template-columns: 1fr;
+  }
+  
+  .filter-bar {
+    flex-direction: column;
+  }
+  
+  .period-inputs {
+    flex-wrap: wrap;
+  }
+  
+  .chart-container {
+    height: 250px;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- 顶部栏 -->
+<div class="topbar">
+  <h1>📊 产品数据双周期对比</h1>
+  <div class="nav-links">
+    <a href="product_sales_dashboard_v2.html">周销量趋势</a>
+    <a href="product_comparison_dashboard.html" class="active">双周期对比</a>
+  </div>
+</div>
+
+<!-- 筛选栏 -->
+<div class="filter-bar" id="filterBar">
+  <!-- 折叠按钮 -->
+  <button class="filter-toggle-btn" id="filterToggleBtn" onclick="toggleFilterBar()" title="收起/展开搜索选项">
+    ▼
+  </button>
+  
+  <!-- 折叠时显示的简化信息 -->
+  <div class="filter-summary" id="filterSummary">
+    <div class="filter-summary-item">
+      <span class="label">🔵 周期A:</span>
+      <span class="value" id="summaryPeriodA">2025-05-27 ~ 2025-06-02</span>
+    </div>
+    <div class="filter-summary-item">
+      <span class="label">🟣 周期B:</span>
+      <span class="value" id="summaryPeriodB">2025-10-01 ~ 2025-10-07</span>
+    </div>
+    <div class="filter-summary-item">
+      <span class="label">🏪 店铺:</span>
+      <span class="value" id="summaryShop">全部</span>
+    </div>
+    <div class="filter-summary-item">
+      <span class="label">🔍 ASIN:</span>
+      <span class="value" id="summaryAsin">未输入</span>
+    </div>
+  </div>
+  
+  <!-- 筛选内容 -->
+  <div class="filter-content" id="filterContent">
+    <!-- 周期A选择 -->
+    <div class="period-selector period-a">
+      <label>🔵 周期A（基准周期）</label>
+      <div class="period-inputs">
+        <input type="date" id="periodAStart" value="2025-05-27">
+        <span>~</span>
+        <input type="date" id="periodAEnd" value="2025-06-02">
+      </div>
+      <!-- 时间滑块 -->
+      <div class="time-slider-container">
+        <div class="time-slider-track" id="timeSliderTrackA">
+          <div class="time-slider-range" id="timeSliderRangeA"></div>
+          <div class="time-slider-handle time-slider-handle-start" id="timeSliderHandleAStart"></div>
+          <div class="time-slider-handle time-slider-handle-end" id="timeSliderHandleAEnd"></div>
+        </div>
+        <div class="time-slider-labels" id="timeSliderLabelsA"></div>
+      </div>
+      <div class="quick-buttons">
+        <button class="quick-btn" onclick="setQuickPeriod('a', 'last_week')">上周</button>
+        <button class="quick-btn" onclick="setQuickPeriod('a', 'last_month')">上月</button>
+      </div>
+    </div>
+    
+    <!-- 周期B选择 -->
+    <div class="period-selector period-b">
+      <label>🟣 周期B（对比周期）</label>
+      <div class="period-inputs">
+        <input type="date" id="periodBStart" value="2025-10-01">
+        <span>~</span>
+        <input type="date" id="periodBEnd" value="2025-10-07">
+      </div>
+      <!-- 时间滑块 -->
+      <div class="time-slider-container">
+        <div class="time-slider-track" id="timeSliderTrackB">
+          <div class="time-slider-range" id="timeSliderRangeB"></div>
+          <div class="time-slider-handle time-slider-handle-start" id="timeSliderHandleBStart"></div>
+          <div class="time-slider-handle time-slider-handle-end" id="timeSliderHandleBEnd"></div>
+        </div>
+        <div class="time-slider-labels" id="timeSliderLabelsB"></div>
+      </div>
+      <div class="quick-buttons">
+        <button class="quick-btn" onclick="setQuickPeriod('b', 'this_week')">本周</button>
+        <button class="quick-btn" onclick="setQuickPeriod('b', 'this_month')">本月</button>
+      </div>
+    </div>
+    
+    <!-- ASIN搜索 -->
+    <div class="search-section">
+      <label style="font-size: 12px; color: var(--text-dim); font-weight: 500;">🔍 ASIN搜索</label>
+      <input type="text" class="search-input" id="asinInput" placeholder="输入ASIN，支持批量（逗号/空格/换行分隔）">
+      <div class="search-hint">支持批量输入，最多100个ASIN</div>
+    </div>
+    
+    <!-- 店铺筛选 -->
+    <div class="shop-filter">
+      <label>🏪 店铺筛选</label>
+      <select class="shop-select" id="shopSelect">
+        <option value="">全部店铺</option>
+      </select>
+    </div>
+    
+    <!-- 查询按钮 -->
+    <button class="query-btn" id="queryBtn" onclick="loadComparisonData()">查询对比</button>
+  </div>
+</div>
+
+<!-- 主内容区 -->
+<div class="main-content" id="mainContent">
+  <!-- 初始空状态 -->
+  <div class="empty-state">
+    <div class="icon">📊</div>
+    <div class="title">选择两个时间周期进行对比</div>
+    <div>输入ASIN并点击"查询对比"按钮开始分析</div>
+  </div>
+</div>
+
+<script>
+// ==================== 配置 ====================
+const API_BASE_URL = window.location.hostname === 'localhost' 
+  ? 'http://localhost:8002' 
+  : `http://${window.location.hostname}:8002`;
+
+// ==================== 状态 ====================
+let allShops = [];
+let sliderMinDate = null;
+let sliderMaxDate = null;
+
+// 滑块状态
+const sliderState = {
+  a: { isDragging: false, currentHandle: null },
+  b: { isDragging: false, currentHandle: null }
+};
+
+// ==================== 初始化 ====================
+async function init() {
+  await loadShops();
+  await loadDateRange();
+  setDefaultPeriods();
+  initSliders();
+}
+
+// ==================== 加载日期范围 ====================
+async function loadDateRange() {
+  try {
+    const data = await apiGet('/api/products/date-range');
+    if (data.min_date && data.max_date) {
+      sliderMinDate = new Date(data.min_date);
+      sliderMaxDate = new Date(data.max_date);
+    }
+  } catch (e) {
+    console.error('加载日期范围失败:', e);
+    // 使用默认日期范围
+    sliderMinDate = new Date('2025-01-01');
+    sliderMaxDate = new Date('2026-12-31');
+  }
+}
+
+// ==================== 初始化滑块 ====================
+function initSliders() {
+  initSlider('a');
+  initSlider('b');
+}
+
+function initSlider(period) {
+  const prefix = period === 'a' ? 'A' : 'B';
+  const track = document.getElementById(`timeSliderTrack${prefix}`);
+  const handleStart = document.getElementById(`timeSliderHandle${prefix}Start`);
+  const handleEnd = document.getElementById(`timeSliderHandle${prefix}End`);
+  
+  if (!track || !handleStart || !handleEnd) return;
+  
+  // 更新滑块位置
+  updateSliderPosition(period);
+  
+  // 绑定拖拽事件
+  handleStart.addEventListener('mousedown', (e) => startDrag(e, period, 'start'));
+  handleEnd.addEventListener('mousedown', (e) => startDrag(e, period, 'end'));
+  
+  // 点击轨道直接跳转
+  track.addEventListener('click', (e) => {
+    if (sliderState[period].isDragging) return;
+    
+    const rect = track.getBoundingClientRect();
+    const percent = (e.clientX - rect.left) / rect.width;
+    const clickedDate = dateFromPercent(percent);
+    
+    // 判断点击位置更接近哪个手柄
+    const startInput = document.getElementById(`period${prefix}Start`);
+    const endInput = document.getElementById(`period${prefix}End`);
+    const startDate = new Date(startInput.value);
+    const endDate = new Date(endInput.value);
+    const distToStart = Math.abs(clickedDate - startDate);
+    const distToEnd = Math.abs(clickedDate - endDate);
+    
+    if (distToStart < distToEnd) {
+      // 点击位置更接近开始手柄
+      // 确保至少比结束日期早1天
+      const minStartDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000);
+      if (clickedDate >= endDate) {
+        startInput.value = formatDate(minStartDate);
+      } else if (clickedDate > minStartDate) {
+        startInput.value = formatDate(minStartDate);
+      } else {
+        startInput.value = formatDate(clickedDate);
+      }
+    } else {
+      // 点击位置更接近结束手柄
+      // 确保至少比开始日期晚1天
+      const minEndDate = new Date(startDate.getTime() + 24 * 60 * 60 * 1000);
+      if (clickedDate <= startDate) {
+        endInput.value = formatDate(minEndDate);
+      } else if (clickedDate < minEndDate) {
+        endInput.value = formatDate(minEndDate);
+      } else {
+        endInput.value = formatDate(clickedDate);
+      }
+    }
+    
+    updateSliderPosition(period);
+  });
+  
+  // 日期输入框变化时更新滑块
+  document.getElementById(`period${prefix}Start`).addEventListener('change', () => updateSliderPosition(period));
+  document.getElementById(`period${prefix}End`).addEventListener('change', () => updateSliderPosition(period));
+  
+  // 更新标签
+  updateSliderLabels(period);
+}
+
+function updateSliderLabels(period) {
+  const prefix = period === 'a' ? 'A' : 'B';
+  const labels = document.getElementById(`timeSliderLabels${prefix}`);
+  if (!labels || !sliderMinDate || !sliderMaxDate) return;
+  
+  const totalDays = (sliderMaxDate - sliderMinDate) / (1000 * 60 * 60 * 24);
+  const labelCount = 5;
+  
+  let html = '';
+  for (let i = 0; i < labelCount; i++) {
+    const percent = i / (labelCount - 1);
+    const date = new Date(sliderMinDate.getTime() + totalDays * percent * 24 * 60 * 60 * 1000);
+    html += `<span>${formatDate(date).slice(5)}</span>`;
+  }
+  labels.innerHTML = html;
+}
+
+function startDrag(e, period, handle) {
+  sliderState[period].isDragging = true;
+  sliderState[period].currentHandle = handle;
+  e.preventDefault();
+}
+
+function onDrag(e) {
+  ['a', 'b'].forEach(period => {
+    if (!sliderState[period].isDragging) return;
+    
+    const prefix = period === 'a' ? 'A' : 'B';
+    const track = document.getElementById(`timeSliderTrack${prefix}`);
+    const rect = track.getBoundingClientRect();
+    let percent = (e.clientX - rect.left) / rect.width;
+    percent = Math.max(0, Math.min(1, percent));
+    
+    const date = dateFromPercent(percent);
+    const startInput = document.getElementById(`period${prefix}Start`);
+    const endInput = document.getElementById(`period${prefix}End`);
+    
+    if (sliderState[period].currentHandle === 'start') {
+      // 开始手柄：确保至少比结束日期早1天
+      const endDate = new Date(endInput.value);
+      const minStartDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000);
+      if (date >= endDate) {
+        startInput.value = formatDate(minStartDate);
+      } else {
+        startInput.value = formatDate(date);
+      }
+    } else {
+      // 结束手柄：确保至少比开始日期晚1天
+      const startDate = new Date(startInput.value);
+      const minEndDate = new Date(startDate.getTime() + 24 * 60 * 60 * 1000);
+      if (date <= startDate) {
+        endInput.value = formatDate(minEndDate);
+      } else {
+        endInput.value = formatDate(date);
+      }
+    }
+    
+    updateSliderPosition(period);
+  });
+}
+
+function stopDrag() {
+  ['a', 'b'].forEach(period => {
+    sliderState[period].isDragging = false;
+    sliderState[period].currentHandle = null;
+  });
+}
+
+function updateSliderPosition(period) {
+  const prefix = period === 'a' ? 'A' : 'B';
+  const handleStart = document.getElementById(`timeSliderHandle${prefix}Start`);
+  const handleEnd = document.getElementById(`timeSliderHandle${prefix}End`);
+  const range = document.getElementById(`timeSliderRange${prefix}`);
+  
+  if (!handleStart || !handleEnd || !range) return;
+  
+  const startDate = new Date(document.getElementById(`period${prefix}Start`).value);
+  const endDate = new Date(document.getElementById(`period${prefix}End`).value);
+  
+  const startPercent = dateToPercent(startDate);
+  const endPercent = dateToPercent(endDate);
+  
+  handleStart.style.left = `${startPercent * 100}%`;
+  handleEnd.style.left = `${endPercent * 100}%`;
+  
+  range.style.left = `${startPercent * 100}%`;
+  range.style.width = `${(endPercent - startPercent) * 100}%`;
+}
+
+function dateToPercent(date) {
+  if (!sliderMinDate || !sliderMaxDate) return 0;
+  const total = sliderMaxDate - sliderMinDate;
+  const current = date - sliderMinDate;
+  return Math.max(0, Math.min(1, current / total));
+}
+
+function dateFromPercent(percent) {
+  if (!sliderMinDate || !sliderMaxDate) return new Date();
+  const total = sliderMaxDate - sliderMinDate;
+  const current = total * percent;
+  return new Date(sliderMinDate.getTime() + current);
+}
+
+// 全局鼠标事件
+document.addEventListener('mousemove', onDrag);
+document.addEventListener('mouseup', stopDrag);
+
+// ==================== 加载店铺列表 ====================
+async function loadShops() {
+  try {
+    const data = await apiGet('/api/products/shops');
+    allShops = data.map(s => s.name);
+    
+    const select = document.getElementById('shopSelect');
+    allShops.forEach(shop => {
+      const option = document.createElement('option');
+      option.value = shop;
+      option.textContent = shop;
+      select.appendChild(option);
+    });
+  } catch (e) {
+    console.error('加载店铺列表失败:', e);
+  }
+}
+
+// ==================== 设置默认周期 ====================
+function setDefaultPeriods() {
+  const today = new Date();
+  
+  // 周期B：本周（周一到周日）
+  const thisMonday = new Date(today);
+  thisMonday.setDate(today.getDate() - today.getDay() + 1);
+  const thisSunday = new Date(thisMonday);
+  thisSunday.setDate(thisMonday.getDate() + 6);
+  
+  // 周期A：上周
+  const lastMonday = new Date(thisMonday);
+  lastMonday.setDate(thisMonday.getDate() - 7);
+  const lastSunday = new Date(thisSunday);
+  lastSunday.setDate(thisSunday.getDate() - 7);
+  
+  document.getElementById('periodBStart').value = formatDate(thisMonday);
+  document.getElementById('periodBEnd').value = formatDate(thisSunday);
+  document.getElementById('periodAStart').value = formatDate(lastMonday);
+  document.getElementById('periodAEnd').value = formatDate(lastSunday);
+  
+  // 初始化滑块位置（延迟执行，确保DOM已更新）
+  setTimeout(() => {
+    updateSliderPosition('a');
+    updateSliderPosition('b');
+  }, 100);
+}
+
+// ==================== 快捷设置周期 ====================
+function setQuickPeriod(period, type) {
+  const today = new Date();
+  let start, end;
+  
+  switch(type) {
+    case 'this_week':
+      start = new Date(today);
+      start.setDate(today.getDate() - today.getDay() + 1);
+      end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      break;
+    case 'last_week':
+      start = new Date(today);
+      start.setDate(today.getDate() - today.getDay() - 6);
+      end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      break;
+    case 'this_month':
+      start = new Date(today.getFullYear(), today.getMonth(), 1);
+      end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      break;
+    case 'last_month':
+      start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      end = new Date(today.getFullYear(), today.getMonth(), 0);
+      break;
+  }
+  
+  const prefix = period === 'a' ? 'periodA' : 'periodB';
+  document.getElementById(`${prefix}Start`).value = formatDate(start);
+  document.getElementById(`${prefix}End`).value = formatDate(end);
+  
+  // 更新滑块位置
+  updateSliderPosition(period);
+}
+
+// ==================== 格式化日期 ====================
+function formatDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// ==================== API调用 ====================
+async function apiGet(endpoint) {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`);
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`API错误: ${response.status} - ${error}`);
+  }
+  return response.json();
+}
+
+async function apiPost(endpoint, data) {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`API错误: ${response.status} - ${error}`);
+  }
+  return response.json();
+}
+
+// ==================== 解析批量ASIN ====================
+function parseBatchAsins(input) {
+  if (!input || !input.trim()) return [];
+  
+  const separators = /[,，\s\n\t]+/;
+  const parts = input.split(separators);
+  
+  const asinPattern = /^[A-Z0-9]{10}$/i;
+  const asins = parts
+    .map(p => p.trim().toUpperCase())
+    .filter(p => p && asinPattern.test(p));
+  
+  return [...new Set(asins)];
+}
+
+// ==================== 加载对比数据 ====================
+async function loadComparisonData() {
+  const asinInput = document.getElementById('asinInput').value.trim();
+  const asins = parseBatchAsins(asinInput);
+  
+  if (asins.length === 0) {
+    alert('请输入至少一个ASIN');
+    return;
+  }
+  
+  if (asins.length > 100) {
+    alert('最多支持100个ASIN');
+    return;
+  }
+  
+  const btn = document.getElementById('queryBtn');
+  btn.disabled = true;
+  btn.textContent = '查询中...';
+  
+  // 显示加载状态
+  document.getElementById('mainContent').innerHTML = `
+    <div class="loading-state">
+      <div class="loading-spinner"></div>
+      <div>正在加载对比数据...</div>
+    </div>
+  `;
+  
+  try {
+    const requestData = {
+      asins: asins,
+      period_a: {
+        start_date: document.getElementById('periodAStart').value,
+        end_date: document.getElementById('periodAEnd').value
+      },
+      period_b: {
+        start_date: document.getElementById('periodBStart').value,
+        end_date: document.getElementById('periodBEnd').value
+      },
+      shops: document.getElementById('shopSelect').value 
+        ? [document.getElementById('shopSelect').value]
+        : null
+    };
+    
+    // 同时加载汇总数据和趋势数据
+    const [comparisonData, trendData] = await Promise.all([
+      apiPost('/api/products/period-comparison', requestData),
+      apiPost('/api/products/period-trend', requestData)
+    ]);
+    
+    renderComparison(comparisonData, trendData);
+  } catch (e) {
+    console.error('加载对比数据失败:', e);
+    document.getElementById('mainContent').innerHTML = `
+      <div class="empty-state">
+        <div class="icon">❌</div>
+        <div class="title">加载失败</div>
+        <div>${e.message}</div>
+      </div>
+    `;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '查询对比';
+  }
+}
+
+// ==================== 渲染对比结果 ====================
+// 全局图表实例
+let trendChart = null;
+
+function renderComparison(data, trendData) {
+  const { period_a, period_b, changes, is_declining, decline_percent } = data;
+  
+  let html = '';
+  
+  // 下滑警告
+  if (is_declining) {
+    html += `
+      <div class="decline-warning">
+        <span class="icon">📉</span>
+        <span class="text">销量下滑警告：周期B比周期A销量高 ${decline_percent}%</span>
+        <span class="percent">+${decline_percent}%</span>
+      </div>
+    `;
+  }
+  
+  // 对比卡片
+  html += `
+    <div class="comparison-cards">
+      ${renderPeriodCard(period_a, 'a')}
+      ${renderPeriodCard(period_b, 'b')}
+    </div>
+  `;
+  
+  // 趋势图表
+  html += `
+    <div class="chart-section">
+      <h2>📈 每日销量趋势对比</h2>
+      <div class="chart-container">
+        <canvas id="trendChart"></canvas>
+      </div>
+      <div class="chart-legend">
+        <div class="legend-item">
+          <div class="legend-color" style="background: var(--accent);"></div>
+          <span>周期A (${period_a.date_range})</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background: var(--purple);"></div>
+          <span>周期B (${period_b.date_range})</span>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // 详细数据表格
+  html += renderDataTable(period_a, period_b, changes);
+  
+  document.getElementById('mainContent').innerHTML = html;
+  
+  // 渲染图表
+  if (trendData) {
+    renderTrendChart(trendData);
+  }
+}
+
+// ==================== 渲染周期卡片 ====================
+function renderPeriodCard(period, type) {
+  const isA = type === 'a';
+  return `
+    <div class="period-card period-${type}">
+      <div class="header">
+        <span class="label">${period.label}</span>
+        <span class="date-range">${period.date_range}</span>
+      </div>
+      <div class="main-metrics">
+        <div class="metric">
+          <div class="value">${period.sales.toLocaleString()}</div>
+          <div class="label">销量</div>
+        </div>
+        <div class="metric">
+          <div class="value">£${period.revenue.toLocaleString()}</div>
+          <div class="label">销售额</div>
+        </div>
+        <div class="metric">
+          <div class="value">${period.orders.toLocaleString()}</div>
+          <div class="label">订单量</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ==================== 渲染数据表格 ====================
+function renderDataTable(periodA, periodB, changes) {
+  const metrics = [
+    { category: '销售数据', items: [
+      { key: 'orders', name: '订单量', icon: '📦', format: v => v.toLocaleString() },
+      { key: 'sales', name: '销量', icon: '📊', format: v => v.toLocaleString() },
+      { key: 'revenue', name: '销售额', icon: '💰', format: v => `£${v.toLocaleString()}` },
+    ]},
+    { category: '利润数据', items: [
+      { key: 'gross_profit', name: '毛利润', icon: '💵', format: v => `£${v.toLocaleString()}` },
+      { key: 'gross_profit_rate', name: '毛利率', icon: '📈', format: v => `${v}%`, isRate: true },
+      { key: 'settlement_profit', name: '结算利润', icon: '💵', format: v => `£${v.toLocaleString()}` },
+      { key: 'settlement_profit_rate', name: '结算利润率', icon: '📈', format: v => `${v}%`, isRate: true },
+    ]},
+    { category: '广告数据', items: [
+      { key: 'ad_spend', name: '广告花费', icon: '📢', format: v => `£${v.toLocaleString()}` },
+      { key: 'ad_orders', name: '广告出单', icon: '🛒', format: v => v.toLocaleString() },
+      { key: 'ad_acos', name: 'ACOS', icon: '📊', format: v => `${v}%`, isRate: true },
+    ]},
+    { category: '退款数据', items: [
+      { key: 'refund_amount', name: '退款金额', icon: '↩️', format: v => `£${v.toLocaleString()}` },
+      { key: 'refund_count', name: '退款数量', icon: '📦', format: v => v.toLocaleString() },
+      { key: 'refund_rate', name: '退款率', icon: '📉', format: v => `${v}%`, isRate: true },
+    ]},
+  ];
+  
+  let rows = '';
+  metrics.forEach(cat => {
+    rows += `
+      <tr class="category-header">
+        <td colspan="4">${cat.category}</td>
+      </tr>
+    `;
+    cat.items.forEach(item => {
+      const valA = item.format(periodA[item.key]);
+      const valB = item.format(periodB[item.key]);
+      const change = changes[item.key];
+      const changeClass = change > 0 ? 'change-up' : change < 0 ? 'change-down' : 'change-neutral';
+      const arrow = change > 0 ? '↑' : change < 0 ? '↓' : '→';
+      const changeText = item.isRate 
+        ? `${change > 0 ? '+' : ''}${change}%`
+        : `${change > 0 ? '+' : ''}${change}%`;
+      
+      rows += `
+        <tr>
+          <td>
+            <div class="metric-name">
+              <span class="metric-icon">${item.icon}</span>
+              <span>${item.name}</span>
+            </div>
+          </td>
+          <td class="value-cell period-a-value">${valA}</td>
+          <td class="value-cell period-b-value">${valB}</td>
+          <td class="change-cell ${changeClass}">
+            <span class="change-arrow">${arrow}</span>
+            <span>${changeText}</span>
+          </td>
+        </tr>
+      `;
+    });
+  });
+  
+  return `
+    <div class="data-table-section">
+      <h2>📋 详细数据对比</h2>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>指标</th>
+            <th style="color: var(--accent-light)">周期A</th>
+            <th style="color: var(--purple-light)">周期B</th>
+            <th>变化</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ==================== 渲染趋势图表 ====================
+function renderTrendChart(trendData) {
+  const ctx = document.getElementById('trendChart');
+  if (!ctx) return;
+  
+  // 销毁旧图表
+  if (trendChart) {
+    trendChart.destroy();
+  }
+  
+  const { period_a, period_b } = trendData;
+  
+  // 处理周期A数据 - 显示为第1天、第2天...
+  const daysA = period_a.dates.map((_, i) => `第${i + 1}天`);
+  
+  // 如果两个周期天数不同，取较长的那个
+  const maxDays = Math.max(period_a.dates.length, period_b.dates.length);
+  const labels = Array.from({ length: maxDays }, (_, i) => `第${i + 1}天`);
+  
+  // 补齐数据（如果某个周期天数较少）
+  const salesA = [...period_a.sales];
+  const salesB = [...period_b.sales];
+  while (salesA.length < maxDays) salesA.push(null);
+  while (salesB.length < maxDays) salesB.push(null);
+  
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: '周期A',
+          data: salesA,
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          borderWidth: 2,
+          pointRadius: 4,
+          pointBackgroundColor: '#3b82f6',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          tension: 0.3,
+          fill: true
+        },
+        {
+          label: '周期B',
+          data: salesB,
+          borderColor: '#a855f7',
+          backgroundColor: 'rgba(168, 85, 247, 0.1)',
+          borderWidth: 2,
+          pointRadius: 4,
+          pointBackgroundColor: '#a855f7',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          tension: 0.3,
+          fill: true
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          display: false  // 使用自定义图例
+        },
+        tooltip: {
+          backgroundColor: 'rgba(19, 28, 49, 0.95)',
+          titleColor: '#e8edf5',
+          bodyColor: '#e8edf5',
+          borderColor: '#243352',
+          borderWidth: 1,
+          padding: 12,
+          callbacks: {
+            title: function(context) {
+              return context[0].label;
+            },
+            label: function(context) {
+              const value = context.parsed.y;
+              if (value === null) return `${context.dataset.label}: 无数据`;
+              return `${context.dataset.label}: ${value} 销量`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: {
+            color: 'rgba(36, 51, 82, 0.5)',
+            drawBorder: false
+          },
+          ticks: {
+            color: '#7b8ba5',
+            font: { size: 11 }
+          }
+        },
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: 'rgba(36, 51, 82, 0.5)',
+            drawBorder: false
+          },
+          ticks: {
+            color: '#7b8ba5',
+            font: { size: 11 },
+            callback: function(value) {
+              return value;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// ==================== 筛选栏折叠/展开 ====================
+let isFilterCollapsed = false;
+
+function toggleFilterBar() {
+  const filterBar = document.getElementById('filterBar');
+  const toggleBtn = document.getElementById('filterToggleBtn');
+  
+  isFilterCollapsed = !isFilterCollapsed;
+  
+  if (isFilterCollapsed) {
+    filterBar.classList.add('collapsed');
+    toggleBtn.classList.add('collapsed');
+    toggleBtn.innerHTML = '▶';
+    toggleBtn.title = '展开搜索选项';
+  } else {
+    filterBar.classList.remove('collapsed');
+    toggleBtn.classList.remove('collapsed');
+    toggleBtn.innerHTML = '▼';
+    toggleBtn.title = '收起搜索选项';
+  }
+  
+  // 更新简化信息
+  updateFilterSummary();
+}
+
+function updateFilterSummary() {
+  // 更新周期A
+  const periodAStart = document.getElementById('periodAStart').value;
+  const periodAEnd = document.getElementById('periodAEnd').value;
+  document.getElementById('summaryPeriodA').textContent = `${periodAStart} ~ ${periodAEnd}`;
+  
+  // 更新周期B
+  const periodBStart = document.getElementById('periodBStart').value;
+  const periodBEnd = document.getElementById('periodBEnd').value;
+  document.getElementById('summaryPeriodB').textContent = `${periodBStart} ~ ${periodBEnd}`;
+  
+  // 更新店铺
+  const shopSelect = document.getElementById('shopSelect');
+  const shopText = shopSelect.value || '全部';
+  document.getElementById('summaryShop').textContent = shopText;
+  
+  // 更新ASIN
+  const asinInput = document.getElementById('asinInput').value.trim();
+  const asinCount = asinInput ? parseBatchAsins(asinInput).length : 0;
+  document.getElementById('summaryAsin').textContent = asinCount > 0 ? `${asinCount}个` : '未输入';
+}
+
+// 监听输入变化，更新简化信息
+document.addEventListener('DOMContentLoaded', () => {
+  const inputs = ['periodAStart', 'periodAEnd', 'periodBStart', 'periodBEnd', 'asinInput', 'shopSelect'];
+  inputs.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('change', updateFilterSummary);
+      el.addEventListener('input', updateFilterSummary);
+    }
+  });
+});
+
+// ==================== 启动 ====================
+init();
+</script>
+
+</body>
+</html>

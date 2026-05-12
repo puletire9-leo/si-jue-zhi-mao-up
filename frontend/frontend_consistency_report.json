@@ -1,0 +1,13 @@
+{
+  "total_issues": 1,
+  "error_issues": 0,
+  "warning_issues": 1,
+  "issues": [
+    {
+      "severity": "WARNING",
+      "category": "API配置",
+      "description": "API请求工具未使用环境变量API_BASE_URL",
+      "file_path": "d:\\项目\\系统开发\\搭建图片数据库\\主系统\\frontend\\src\\utils\\request.ts"
+    }
+  ]
+}

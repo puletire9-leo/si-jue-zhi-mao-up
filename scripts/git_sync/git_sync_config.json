@@ -1,0 +1,75 @@
+{
+  "git": {
+    "enabled": true,
+    "auto_commit": true,
+    "auto_push": true,
+    "auto_pull": true,
+    "commit_message_template": "Auto-sync: {timestamp} - {env} changes",
+    "branch": "main"
+  },
+  "environments": {
+    "development": {
+      "branch": "development",
+      "paths": [
+        "development/backend",
+        "development/database",
+        "development/frontend",
+        "scripts/sync",
+        "scripts/git_sync"
+      ],
+      "exclude_patterns": [
+        "*.log",
+        "*.pyc",
+        "__pycache__",
+        ".env",
+        "node_modules",
+        ".venv*",
+        "venv/"
+      ]
+    },
+    "production": {
+      "branch": "production",
+      "paths": [
+        "production/backend",
+        "production/database",
+        "production/frontend",
+        "scripts/sync",
+        "scripts/git_sync"
+      ],
+      "exclude_patterns": [
+        "*.log",
+        "*.pyc",
+        "__pycache__",
+        ".env",
+        "node_modules",
+        ".venv*",
+        "venv/"
+      ]
+    }
+  },
+  "sync": {
+    "auto_sync_enabled": true,
+    "sync_interval": 300,
+    "conflict_resolution": "manual",
+    "merge_strategy": "theirs",
+    "auto_merge": false
+  },
+  "hooks": {
+    "pre_commit_enabled": true,
+    "post_commit_enabled": true,
+    "pre_push_enabled": true,
+    "post_merge_enabled": true
+  },
+  "remote": {
+    "enabled": false,
+    "url": "",
+    "username": "",
+    "token": "",
+    "ssh_key_path": ""
+  },
+  "logging": {
+    "enabled": true,
+    "log_file": "logs/git_sync.log",
+    "log_level": "INFO"
+  }
+}

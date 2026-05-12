@@ -1,0 +1,148 @@
+# ============================================
+# 思觉智贸 - 生产环境覆盖
+# ============================================
+# 启动: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# ============================================
+
+services:
+  # MySQL - 生产使用独立数据库
+  mysql:
+    image: mysql:8.0
+    container_name: sijue-mysql
+    environment:
+      MYSQL_DATABASE: sijuelishi
+      MYSQL_USER: sijue
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-sijue123456}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: sijue-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+
+  # Qdrant
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: sijue-qdrant
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  # Java 后端 - 生产模式 (核心业务 + 高并发)
+  java-backend:
+    container_name: sijue-java-backend
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=${MYSQL_USER:-sijue}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-sijue123456}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-sijuelishi}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - JWT_EXPIRATION=${JWT_EXPIRATION:-86400000}
+      - TZ=Asia/Shanghai
+    ports:
+      - "${JAVA_BACKEND_PORT:-8080}:8080"
+    volumes:
+      - java_backend_logs:/app/logs
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 4G
+
+  # Python 后端 - 生产模式 (AI 功能)
+  backend:
+    container_name: sijue-python-backend
+    environment:
+      - ENVIRONMENT=production
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=${MYSQL_USER:-sijue}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-sijue123456}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-sijuelishi}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_COLLECTION_NAME=designs
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - LOG_LEVEL=INFO
+      - RATE_LIMIT_ENABLED=true
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - COS_ENABLED=${COS_ENABLED:-false}
+      - COS_SECRET_ID=${COS_SECRET_ID:-}
+      - COS_SECRET_KEY=${COS_SECRET_KEY:-}
+      - COS_BUCKET=${COS_BUCKET:-}
+      - COS_REGION=${COS_REGION:-ap-beijing}
+      - PARQUET_DATA_DIR=/app/data
+    ports:
+      - "${PYTHON_BACKEND_PORT:-8000}:8000"
+    volumes:
+      - backend_logs:/app/logs
+      - backend_models:/app/model_cache
+      - product_data:/app/data
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4G
+
+  # Celery - 生产模式
+  celery-worker:
+    container_name: sijue-celery
+    environment:
+      - ENVIRONMENT=production
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=${MYSQL_USER:-sijue}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-sijue123456}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-sijuelishi}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - PARQUET_DATA_DIR=/app/data
+    volumes:
+      - backend_logs:/app/logs
+      - backend_models:/app/model_cache
+      - product_data:/app/data
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+
+  # 前端 - 生产模式（Nginx 静态托管）
+  frontend:
+    container_name: sijue-frontend
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    environment:
+      - VITE_API_BASE_URL=
+
+volumes:
+  backend_logs:
+  backend_models:
+  product_data:
+  java_backend_logs:
+  mysql_data:
+  redis_data:
+  qdrant_data:

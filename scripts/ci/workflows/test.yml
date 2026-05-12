@@ -1,0 +1,143 @@
+name: 自动化测试
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+
+    - name: 设置Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: 安装依赖
+      run: npm ci
+
+    - name: 运行单元测试
+      run: npm run test:unit
+
+    - name: 运行集成测试
+      run: npm run test:integration
+
+    - name: 运行系统测试
+      run: npm run test:system
+
+    - name: 运行用户验收测试
+      run: npm run test:uat
+
+    - name: 生成测试覆盖率报告
+      run: npm run test:coverage
+
+    - name: 上传测试覆盖率报告
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    - name: 上传测试报告
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-reports-node-${{ matrix.node-version }}
+        path: |
+          coverage/
+          coverage/test-report.html
+          coverage/detailed-test-report.html
+        retention-days: 30
+
+    - name: 检查测试覆盖率
+      run: |
+        if [ -f coverage/coverage-summary.json ]; then
+          echo "测试覆盖率报告已生成"
+        else
+          echo "测试覆盖率报告未生成"
+          exit 1
+        fi
+      shell: bash
+
+  test-parallel:
+    runs-on: windows-latest
+
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+
+    - name: 设置Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: 安装依赖
+      run: npm ci
+
+    - name: 并行运行所有测试
+      run: npm run test:parallel
+
+    - name: 上传测试结果
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: parallel-test-results
+        path: coverage/
+        retention-days: 30
+
+  env-consistency-check:
+    runs-on: windows-latest
+    needs: [test, test-parallel]
+    if: always()
+
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+
+    - name: 设置Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: 安装Python依赖
+      run: pip install -r backend/requirements.txt
+
+    - name: 运行环境一致性验证
+      run: python scripts/env_consistency/validate_env_consistency.py --strict
+      working-directory: .
+
+    - name: 上传环境一致性报告
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: env-consistency-report
+        path: env_consistency_report.json
+        retention-days: 30
+
+  notify:
+    needs: [test, test-parallel, env-consistency-check]
+    runs-on: windows-latest
+    if: always()
+
+    steps:
+    - name: 检查测试结果
+      run: |
+        echo "测试工作流完成"
+        echo "测试状态: ${{ needs.test.result }}"
+        echo "并行测试状态: ${{ needs.test-parallel.result }}"
+        echo "环境一致性检查状态: ${{ needs.env-consistency-check.result }}"

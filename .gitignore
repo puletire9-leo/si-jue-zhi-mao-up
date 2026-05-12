@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+venv/
+backend/venv/
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/../static/vue-dist/
+
+# Env secrets
+.env
+.env.local
+
+# Data / Uploads / Cache
+data/
+uploads/
+images/
+logs/
+*.log
+backup/
+model_cache/
+*.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.pid
+
+# Java
+*.class
+java-backend/target/
+
+# Generated
+frontend/src/api/generated/
+
+# Temp
+temp/
+tmp/
+
+# Tool binaries (too large)
+tool/node.js/

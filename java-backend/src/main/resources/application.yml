@@ -1,0 +1,257 @@
+server:
+  port: 8080
+  undertow:
+    io-threads: 8
+    worker-threads: 256
+    buffer-size: 16384
+    buffers-per-region: 20
+    direct-buffers: true
+    max-http-post-size: 100MB
+    always-set-keep-alive: true
+    max-connections: 100000
+
+spring:
+  application:
+    name: sjzm-backend
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  main:
+    allow-bean-definition-overriding: true
+
+dev:
+  mode:
+    enabled: true
+
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:sijuelishi}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true&cachePrepStmts=true&prepStmtCacheSize=250&prepStmtCacheSqlLimit=2048&useServerPrepStmts=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 10
+      maximum-pool-size: 30
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      pool-name: HikariCP-SJZM
+      leak-detection-threshold: 60000
+      auto-commit: true
+      connection-test-query: SELECT 1
+      validation-timeout: 5000
+      register-mbeans: true
+      data-source-properties:
+        cachePrepStmts: true
+        prepStmtCacheSize: 250
+        prepStmtCacheSqlLimit: 2048
+        useServerPrepStmts: true
+        useLocalSessionState: true
+        rewriteBatchedStatements: true
+        cacheResultSetMetadata: true
+        cacheServerConfiguration: true
+        elideSetAutoCommits: true
+        maintainTimeStats: false
+    master:
+      url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:sijuelishi}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      username: ${MYSQL_USERNAME:root}
+      password: ${MYSQL_PASSWORD:root}
+    slave:
+      url: ${MYSQL_SLAVE_URL:}
+      username: ${MYSQL_SLAVE_USERNAME:}
+      password: ${MYSQL_SLAVE_PASSWORD:}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      lettuce:
+        pool:
+          min-idle: 5
+          max-idle: 10
+          max-active: 20
+          max-wait: 5000ms
+        shutdown-timeout: 200ms
+
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=500,expireAfterWrite=10m
+
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.sjzm.entity
+  global-config:
+    db-config:
+      id-type: assign_id
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+      table-prefix: ""
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+idempotent:
+  enabled: true
+  default-expire-seconds: 60
+  lock-key-prefix: "idempotent:"
+  exclude-paths:
+    - /api/v1/auth/login
+    - /api/v1/auth/refresh
+    - /health
+    - /actuator/**
+
+jwt:
+  secret: ${JWT_SECRET:sjzm-default-secret-key-must-change-in-production-2024}
+  expiration: ${JWT_EXPIRATION:604800}
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:2592000}
+  issuer: sjzm-backend
+
+redisson:
+  address: redis://${REDIS_HOST:localhost}:${REDIS_PORT:6379}
+  password: ${REDIS_PASSWORD:}
+  database: ${REDIS_DATABASE:0}
+  connection-pool-size: 20
+  connection-minimum-idle-size: 5
+  idle-connection-timeout: 10000
+  connect-timeout: 10000
+  timeout: 3000
+  retry-attempts: 3
+  retry-interval: 1500
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      productService:
+        register-health-indicator: true
+        sliding-window-type: count_based
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+      selectionService:
+        register-health-indicator: true
+        sliding-window-type: count_based
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+  ratelimiter:
+    instances:
+      defaultApi:
+        limit-for-period: 100
+        limit-refresh-period: 1s
+        timeout-duration: 0
+
+rocketmq:
+  name-server: ${ROCKETMQ_NAMESRVADDR:localhost:9876}
+  producer:
+    group: sjzm-producer-group
+    send-message-timeout: 3000
+    max-message-size: 4194304
+    retry-times-when-send-async-failed: 2
+    retry-next-server: true
+  consumer:
+    group: sjzm-consumer-group
+    push:
+      max-consume: 20
+      consume-timeout: 15m
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,caches,beans,env,loggers
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
+  tracing:
+    sampling:
+      probability: 1.0
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: method
+
+logging:
+  config: classpath:logback-spring.xml
+  level:
+    root: info
+    com.sjzm: debug
+    com.baomidou.mybatisplus: debug
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+    allowed-methods: GET,POST,PUT,DELETE,OPTIONS,PATCH
+    allowed-headers: "*"
+    allow-credentials: true
+    max-age: 3600
+    allow-localhost-all-ports: ${CORS_ALLOW_LOCALHOST_ALL_PORTS:true}
+  rate-limit:
+    global-qps: 500
+    api-qps: 100
+    ip-qps: 30
+  vector:
+    local:
+      enabled: ${VECTOR_LOCAL_ENABLED:false}
+  clip:
+    model: ${CLIP_MODEL:clip-vit-base-patch32}
+
+async:
+  executor:
+    core-pool-size: 10
+    max-pool-size: 50
+    queue-capacity: 200
+    keep-alive-seconds: 60
+    thread-name-prefix: async-task-
+
+parquet:
+  data:
+    dir: ${PARQUET_DATA_DIR:/data/parquet}
+    file-name: ${PARQUET_FILE_NAME:product_sales.parquet}
+  product:
+    data:
+      dir: ${PARQUET_PRODUCT_DATA_DIR:/data/parquet}
+      file: ${PARQUET_PRODUCT_DATA_FILE:product_data_merged.parquet}
+
+python:
+  ai:
+    service:
+      url: ${PYTHON_AI_SERVICE_URL:http://localhost:8000}
+      enabled: ${PYTHON_AI_SERVICE_ENABLED:false}
+      timeout: ${PYTHON_AI_SERVICE_TIMEOUT:30000}
+
+dynamic:
+  datasource:
+    primary: master
+    strict: false
+    strict-datasource-solution: false

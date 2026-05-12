@@ -1,0 +1,4 @@
+$env:Path = "C:\Program Files\Docker\Docker\resources\bin;C:\Windows\system32;C:\Windows"
+docker exec sjzm-mysql mysql -e "CREATE TABLE IF NOT EXISTS `user` (`id` BIGINT NOT NULL,`username` VARCHAR(50) NOT NULL,`password` VARCHAR(255) NOT NULL,`nickname` VARCHAR(100),`role` VARCHAR(20) NOT NULL DEFAULT 'USER',`status` TINYINT NOT NULL DEFAULT 1,`created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,`updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`id`),UNIQUE KEY `uk_username` (`username`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;" sijuelishi
+docker exec sjzm-mysql mysql -e "INSERT INTO `user` (`id`, `username`, `password`, `nickname`, `role`, `status`) VALUES (1, 'admin', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.AF0.7KyJ/Z3Gq', '管理员', 'ADMIN', 1) ON DUPLICATE KEY UPDATE `username`=`username`;" sijuelishi
+docker exec sjzm-mysql mysql -e "SELECT * FROM `user`;" sijuelishi
