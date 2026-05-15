@@ -7,6 +7,7 @@
 """
 import os
 import sys
+import json
 import argparse
 import subprocess
 import time
@@ -39,6 +40,12 @@ env_roots = {
 BACKEND_ROOT = os.path.join(PROJECT_ROOT, 'backend')
 FRONTEND_ROOT = os.path.join(PROJECT_ROOT, 'frontend')
 CONFIG_ROOT = os.path.join(PROJECT_ROOT, 'config')
+STATIC_DIST = os.path.join(PROJECT_ROOT, 'static', 'vue-dist').replace('\\', '/')
+JAVA_BACKEND_DIR = os.path.join(PROJECT_ROOT, 'java-backend')
+JAVA_HOME = 'E:/软件/PyCharm 2025.2.1.1/jbr'
+MAVEN_HOME = 'E:/tool/apache-maven-3.9.9'
+JAVA_PORT = 7090
+PYTHON_AI_PORT = 7100
 
 
 # 默认环境
@@ -55,7 +62,8 @@ thread_pool_size = DEFAULT_THREAD_POOL_SIZE
 
 # 定义虚拟环境路径选项
 VENV_OPTIONS = [
-    os.path.join(PROJECT_ROOT, ".venv公司")  # 仅使用公司虚拟环境
+    os.path.join(PROJECT_ROOT, "backend", "venv"),
+    os.path.join(PROJECT_ROOT, ".venv公司")  # 兼容旧项目
 ]  
 
 # ========== 按照优先级选择虚拟环境 ==========
@@ -775,63 +783,103 @@ def get_port_process_info(port: int) -> Optional[dict]:
         logger.warning(f"获取端口进程信息失败: {e}")
         return None
 
-def handle_port_conflict(port: int, service_name: str) -> bool:
-    """处理端口冲突问题"""
-    logger.warning(f"{service_name}端口 {port} 已被占用，正在自动清理...")
-    
-    # 尝试导入端口管理工具
+def _get_port_pids(port: int) -> list:
+    """获取占用指定端口的所有 PID"""
+    pids = []
     try:
-        from scripts.port_manager import kill_port_processes, kill_project_processes, check_port_status
-        HAS_PORT_MANAGER = True
-    except ImportError:
-        HAS_PORT_MANAGER = False
-    
-    # 使用端口管理工具清理端口
-    if HAS_PORT_MANAGER:
-        logger.info(f"使用端口管理工具清理端口 {port}...")
-        success = kill_port_processes(port, max_retries=3)
-        if success:
-            logger.info(f"✅ 端口 {port} 已成功释放")
-            return True
-        else:
-            logger.error(f"❌ 无法释放端口 {port}")
-            return False
-    
-    # 回退到原有逻辑
-    process_info = get_port_process_info(port)
-    if process_info:
-        logger.info(f"占用进程: {process_info['name']} (PID: {process_info['pid']})")
-        logger.info(f"正在自动结束进程...")
-        
+        r = subprocess.run(['netstat', '-ano'], capture_output=True, text=True, timeout=5)
+        for line in r.stdout.split('\n'):
+            if f':{port}' in line and 'LISTENING' in line:
+                parts = line.split()
+                pid = parts[-1]
+                if pid.isdigit():
+                    pids.append(int(pid))
+    except Exception:
+        pass
+    return pids
+
+
+def _get_root_pid(pid: int) -> int:
+    """向上追溯进程树，找到根进程 PID（杀它才能断根）"""
+    seen = set()
+    for _ in range(10):  # 最多 10 层
+        if pid in seen:
+            break
+        seen.add(pid)
         try:
-            if sys.platform == "win32":
-                subprocess.run(
-                    ['taskkill', '/PID', process_info['pid'], '/F'],
-                    capture_output=True,
-                    timeout=10
-                )
-            else:
-                subprocess.run(
-                    ['kill', '-9', process_info['pid']],
-                    capture_output=True,
-                    timeout=10
-                )
-            
-            logger.info(f"✅ 进程 {process_info['name']} (PID: {process_info['pid']}) 已结束")
-            time.sleep(2)
-            
-            if is_port_available(port):
-                logger.info(f"✅ 端口 {port} 现在可用")
-                return True
-            else:
-                logger.error(f"❌ 端口 {port} 仍被占用")
-                return False
-        except Exception as e:
-            logger.error(f"❌ 结束进程失败: {e}")
-            return False
-    
-    logger.error(f"❌ 无法获取端口 {port} 的占用信息")
-    return False
+            r = subprocess.run(
+                ['wmic', 'process', 'where', f'ProcessId={pid}',
+                 'get', 'ParentProcessId', '/format:csv'],
+                capture_output=True, text=True, timeout=5
+            )
+            for line in r.stdout.strip().split('\n')[2:]:  # skip header
+                parts = [p.strip() for p in line.split(',') if p.strip()]
+                if parts and parts[-1].isdigit():
+                    ppid = int(parts[-1])
+                    if ppid == 0 or ppid == pid:
+                        return pid
+                    pid = ppid
+                    break
+        except Exception:
+            return pid
+    return pid
+
+
+PID_FILE = os.path.join(PROJECT_ROOT, 'production', '.runtime.pid')
+
+
+def _clean_previous_instance():
+    """读取 PID 文件，杀掉上次启动留下的旧进程"""
+    if not os.path.exists(PID_FILE):
+        return
+    try:
+        with open(PID_FILE, 'r') as f:
+            data = json.loads(f.read())
+        for name, pid in data.items():
+            try:
+                subprocess.run(['taskkill', '/F', '/T', '/PID', str(pid)],
+                               capture_output=True, timeout=5)
+                logger.info(f"  已清理旧进程: {name} (PID={pid})")
+            except Exception:
+                pass
+    except Exception:
+        pass
+    os.remove(PID_FILE)
+
+
+def _save_pid(name: str, pid: int):
+    """记录进程 PID（下次启动时清理）"""
+    data = {}
+    if os.path.exists(PID_FILE):
+        try:
+            with open(PID_FILE, 'r') as f:
+                data = json.loads(f.read())
+        except Exception:
+            pass
+    data[name] = pid
+    os.makedirs(os.path.dirname(PID_FILE), exist_ok=True)
+    with open(PID_FILE, 'w') as f:
+        f.write(json.dumps(data))
+
+def force_kill_ports():
+    """强制清理所有项目相关端口（通过 netstat + taskkill 彻底杀进程树）"""
+    ports = [7080, 7090, 7100, 7178]  # 生产模式：Python后端、Java后端、Python AI、前端
+    killed = []
+    try:
+        procs = subprocess.run(['netstat', '-ano'], capture_output=True, text=True, timeout=5)
+        for line in procs.stdout.split('\n'):
+            for port in ports:
+                if f':{port}' in line and 'LISTENING' in line:
+                    parts = line.split()
+                    pid = parts[-1]
+                    if pid.isdigit() and pid not in killed:
+                        subprocess.run(['taskkill', '/F', '/T', '/PID', pid],
+                                       capture_output=True, timeout=5)
+                        killed.append(pid)
+                        logger.info(f"  已强制清理端口 {port} (PID={pid})")
+    except Exception as e:
+        logger.warning(f"端口清理异常: {e}")
+
 
 def cleanup_temp_files():
     """清理临时文件"""
@@ -867,13 +915,20 @@ def cleanup_resources():
     try:
         # 停止前端监控线程
         stop_frontend_monitor()
-        
+
         # 清理进程
         cleanup_processes()
-        
+
+        # 强制清理所有项目端口
+        force_kill_ports()
+
+        # 清理 PID 文件
+        if os.path.exists(PID_FILE):
+            os.remove(PID_FILE)
+
         # 关闭线程池
         shutdown_thread_pool()
-        
+
         # 清理临时文件
         cleanup_temp_files()
         
@@ -988,8 +1043,8 @@ def check_dependencies():
 @handle_exception
 def check_nodejs():
     """检查Node.js是否存在"""
-    node_path = os.path.join(PROJECT_ROOT, 'scripts', 'tools', 'tool', 'node', 'node.exe')
-    npm_cmd_path = os.path.join(PROJECT_ROOT, 'scripts', 'tools', 'tool', 'node', 'npm.cmd')
+    node_path = os.path.join('E:/tool/node-v24.15.0', 'node.exe')
+    npm_cmd_path = os.path.join('E:/tool/node-v24.15.0', 'npm.cmd')
 
     if not os.path.exists(node_path):
         error_msg = f"Node.js未找到: {node_path}"
@@ -1134,8 +1189,8 @@ def start_frontend_dev_server(args):
     """启动前端服务器（适配简化架构）"""
     # 使用统一的前端目录（简化架构）
     frontend_dir = FRONTEND_ROOT
-    node_path = os.path.join(PROJECT_ROOT, 'scripts', 'tools', 'tool', 'node', 'node.exe')
-    npm_cmd_path = os.path.join(PROJECT_ROOT, 'scripts', 'tools', 'tool', 'node', 'npm.cmd')
+    node_path = os.path.join('E:/tool/node-v24.15.0', 'node.exe')
+    npm_cmd_path = os.path.join('E:/tool/node-v24.15.0', 'npm.cmd')
     
     if not os.path.exists(frontend_dir):
         logger.warning(f"前端目录不存在: {frontend_dir}")
@@ -1145,13 +1200,8 @@ def start_frontend_dev_server(args):
         logger.warning(f"Node.js未找到: {node_path}")
         return False, None
     
-    # 检查端口是否被占用
-    frontend_port = 5175  # 生产模式固定使用5175端口
-    if not is_port_available(frontend_port):
-        logger.warning(f"前端端口 {frontend_port} 已被占用")
-        if not handle_port_conflict(frontend_port, "前端服务"):
-            logger.error("无法解决端口冲突,前端服务启动失败")
-            return False, None
+    # 固定端口 7178（启动前 _clean_previous_instance 已清掉旧实例）
+    frontend_port = 7178
     
     try:
         logger.info(f"正在启动前端开发服务器 (模式: {args.env})...")
@@ -1226,14 +1276,42 @@ def start_frontend_dev_server(args):
                 continue
         
         if nginx_path:
-            # 使用Nginx
-            nginx_conf = os.path.join(PROJECT_ROOT, 'nginx.conf')
+            # 动态生成 Nginx 配置（端口可能自动回退）
             nginx_prefix = "E:/tool/nginx-1.26.3"
-            command_args = [
-                nginx_path,
-                '-c', nginx_conf,
-                '-p', nginx_prefix
-            ]
+            nginx_conf = os.path.join(nginx_prefix, 'conf', 'sjzm_runtime.conf')
+            nginx_conf_content = f"""events {{ worker_connections 1024; }}
+http {{
+    include       {nginx_prefix}/conf/mime.types;
+    default_type  application/octet-stream;
+    sendfile on; keepalive_timeout 65;
+    gzip on; gzip_types text/plain text/css application/json application/javascript text/xml;
+    server {{
+        listen {frontend_port};
+        server_name localhost;
+        root {STATIC_DIST};
+        index index.html;
+        location ~* \\.(js|css|png|jpg|jpeg|gif|ico|woff|woff2|ttf|svg)$ {{
+            expires 1y; add_header Cache-Control \"public, immutable\";
+        }}
+        # 业务 API → Java 后端
+        location /api/ {{
+            proxy_pass http://127.0.0.1:{JAVA_PORT};
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }}
+        location /dashboards/ {{
+            alias {os.path.join(PROJECT_ROOT, '产品数据', '实时看').replace(chr(92), '/')}/;
+        }}
+        location / {{
+            try_files $uri $uri/ /index.html;
+        }}
+    }}
+}}
+"""
+            with open(nginx_conf, 'w', encoding='utf-8') as f:
+                f.write(nginx_conf_content)
+            command_args = [nginx_path, '-c', nginx_conf, '-p', nginx_prefix]
             logger.info(f"使用Nginx服务器，端口: {frontend_port}")
             cwd = nginx_prefix
         else:
@@ -1277,7 +1355,8 @@ def start_frontend_dev_server(args):
         time.sleep(3)
         
         if process.poll() is None:
-            logger.info(f"✅ 前端开发服务器已启动 (PID: {process.pid})")
+            _save_pid('nginx', process.pid)
+            logger.info(f"✅ 前端 Nginx 已启动 (PID: {process.pid})")
             logger.info(f"前端访问地址: http://localhost:{frontend_port}/")
             return True, frontend_port
         else:
@@ -1297,7 +1376,7 @@ def start_frontend_dev_server(args):
 
 def check_qdrant():
     """检查Qdrant是否正在运行"""
-    qdrant_path = os.path.join(PROJECT_ROOT, 'scripts', 'tools', 'tool', 'qdrant-x86_64-pc-windows-msvc', 'qdrant.exe')
+    qdrant_path = os.path.join(PROJECT_ROOT, 'tool', 'qdrant-x86_64-pc-windows-msvc', 'qdrant.exe')
     
     if not os.path.exists(qdrant_path):
         logger.warning(f"Qdrant未找到: {qdrant_path}")
@@ -1338,7 +1417,7 @@ def check_qdrant():
 
 def check_redis():
     """检查Redis是否正在运行，没有则启动（优化版）"""
-    redis_path = os.path.join(PROJECT_ROOT, 'scripts', 'tools', 'tool', 'Redis-x64-3.0.504', 'redis-server.exe')
+    redis_path = os.path.join(PROJECT_ROOT, 'tool', 'Redis-x64-3.0.504', 'redis-server.exe')
     
     if not os.path.exists(redis_path):
         logger.warning(f"Redis未找到: {redis_path}")
@@ -1501,13 +1580,12 @@ def start_application_normal_multithreaded(args):
 def start_backend_server(args):
     """启动后端服务器"""
     # 检查后端端口
-    backend_port = args.port
-    if not is_port_available(backend_port):
-        logger.warning(f"后端端口 {backend_port} 仍被占用")
-        if not handle_port_conflict(backend_port, "后端服务"):
-            logger.error("无法解决端口冲突,后端服务启动失败")
-            return False
-    
+    if is_port_available(PYTHON_AI_PORT):
+        backend_port = PYTHON_AI_PORT
+    else:
+        logger.warning(f"Python AI 端口 {PYTHON_AI_PORT} 已被占用，跳过")
+        return False
+
     # 启动FastAPI
     try:
         # 使用统一的后端目录（简化架构）
@@ -1568,21 +1646,88 @@ def start_backend_server(args):
         )
         
         register_process(uvicorn_process)
-        
+        _save_pid('backend', uvicorn_process.pid)
+
         # 等待进程结束
         try:
             uvicorn_process.wait()
         except KeyboardInterrupt:
             logger.info("服务已被用户中断")
             uvicorn_process.terminate()
-        
+
         return True
-        
+
     except Exception as e:
-        logger.error(f"后端服务启动失败: {str(e)}")
+        logger.error(f"Python AI 后端启动失败: {str(e)}")
         cleanup_resources()
         traceback.print_exc()
         return False
+
+
+def start_java_backend():
+    """启动 Java 主业务后端"""
+    logger.info("正在启动 Java 业务后端...")
+
+    if not os.path.exists(JAVA_HOME):
+        logger.error(f"JDK 未找到: {JAVA_HOME}")
+        return False, None
+
+    if not os.path.exists(JAVA_BACKEND_DIR):
+        logger.error(f"Java 后端目录不存在: {JAVA_BACKEND_DIR}")
+        return False, None
+
+    java_exe = os.path.join(JAVA_HOME, 'bin', 'java.exe')
+    mvn_exe = os.path.join(MAVEN_HOME, 'bin', 'mvn.cmd')
+
+    if not os.path.exists(mvn_exe):
+        logger.error(f"Maven 未找到: {mvn_exe}")
+        return False, None
+
+    # 检查并清理端口
+    if not is_port_available(JAVA_PORT):
+        logger.warning(f"Java 端口 {JAVA_PORT} 已被占用，正在清理...")
+        for pid in _get_port_pids(JAVA_PORT):
+            subprocess.run(['taskkill', '/F', '/T', '/PID', str(pid)], capture_output=True, timeout=5)
+        time.sleep(2)
+
+    env = os.environ.copy()
+    env['JAVA_HOME'] = JAVA_HOME
+    env['PATH'] = os.path.dirname(java_exe) + os.pathsep + os.path.dirname(mvn_exe) + os.pathsep + env.get('PATH', '')
+
+    process = subprocess.Popen(
+        [mvn_exe, 'spring-boot:run', '-Dspring-boot.run.arguments=--server.port=' + str(JAVA_PORT)],
+        cwd=JAVA_BACKEND_DIR,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True, encoding='utf-8', errors='replace'
+    )
+    process_manager.register("java-backend", process)
+    register_process(process)
+    _save_pid('java-backend', process.pid)
+
+    # 等待启动
+    logger.info("等待 Java 后端启动...")
+    for i in range(30):
+        time.sleep(2)
+        if process.poll() is not None:
+            stdout, stderr = process.communicate()
+            logger.error(f"Java 后端启动失败(exit={process.returncode})")
+            if stderr:
+                logger.error(f"stderr: {stderr[-500:]}")
+            return False, None
+        try:
+            import urllib.request
+            r = urllib.request.urlopen(f'http://127.0.0.1:{JAVA_PORT}/actuator/health', timeout=2)
+            if r.status == 200:
+                logger.info(f"✅ Java 业务后端就绪 (PID={process.pid}, port={JAVA_PORT})")
+                return True, process
+        except Exception:
+            if i % 5 == 4:
+                logger.info(f"  等待中... ({i+1}/30)")
+
+    logger.error("Java 后端启动超时")
+    return False, None
 
 def start_application_normal(args):
     """启动应用程序（普通模式）"""
@@ -1655,11 +1800,15 @@ def start_application_normal(args):
         logger.warning(f"更新前端配置时出现错误: {e}")
         logger.info("继续启动服务...")
     
-    # 启动FastAPI
+    # 启动 Java 业务后端（主力）
+    java_ok, java_proc = start_java_backend()
+    if not java_ok:
+        logger.error("Java 业务后端启动失败")
+
+    # 启动 Python AI 后端（辅助）
     try:
-        # 简化架构：使用统一的后端目录
         backend_dir = BACKEND_ROOT
-        logger.info(f"后端代码目录: {backend_dir}")
+        logger.info(f"Python AI 后端代码目录: {backend_dir}")
         logger.info(f"环境配置: {args.env}")
         
         # 构建uvicorn命令
@@ -1667,7 +1816,7 @@ def start_application_normal(args):
             VENV_PYTHON, '-m', 'uvicorn',
             'app.main:app',
             '--host', args.host,
-            '--port', str(args.port),
+            '--port', str(PYTHON_AI_PORT),
             '--log-level', args.log_level.lower()
         ]
         
@@ -1685,16 +1834,16 @@ def start_application_normal(args):
         logger.info("系统访问地址")
         logger.info("=" * 60)
         logger.info("前端页面:")
-        frontend_port = 5175  # 生产模式固定使用5175端口
-        logger.info(f"  - 本地访问: http://localhost:{frontend_port}/")
+        frontend_port = 7178  # 生产 Nginx 端口
+        logger.info(f"  前端: http://localhost:{frontend_port}/")
         if local_ip:
-            logger.info(f"  - 局域网访问: http://{local_ip}:{frontend_port}/")
-        logger.info("后端API:")
-        logger.info(f"  - 本地访问: http://localhost:{args.port}/")
+            logger.info(f"        http://{local_ip}:{frontend_port}/")
+        logger.info(f"  Java: http://localhost:{JAVA_PORT} (业务主力)")
         if local_ip:
-            logger.info(f"  - 局域网访问: http://{local_ip}:{args.port}/")
-        logger.info(f"  - API文档: http://localhost:{args.port}/docs")
-        logger.info(f"  - 健康检查: http://localhost:{args.port}/health")
+            logger.info(f"        http://{local_ip}:{JAVA_PORT}")
+        logger.info(f"  Python: http://localhost:{PYTHON_AI_PORT} (AI服务)")
+        logger.info(f"  Swagger: http://localhost:{JAVA_PORT}/swagger-ui.html")
+        logger.info(f"  健康检查: http://localhost:{JAVA_PORT}/actuator/health")
         logger.info("=" * 60)
         
         # 启动uvicorn，使用项目根目录作为工作目录，确保配置加载正确
@@ -1717,7 +1866,8 @@ def start_application_normal(args):
         )
         
         register_process(uvicorn_process)
-        
+        _save_pid('backend', uvicorn_process.pid)
+
         # 自动打开浏览器 - 已禁用
         # if not args.no_browser:
         #     try:
@@ -1780,7 +1930,7 @@ def main():
     parser.add_argument('--mode', choices=['prod'], default='prod',
                        help='启动模式: prod (生产模式专用)')
     parser.add_argument('--port', type=int, default=None,
-                       help='服务器端口 (默认: 生产环境8000)')
+                       help='服务器端口 (默认: 生产环境7100)')
     parser.add_argument('--host', default='0.0.0.0',
                        help='服务器主机 (默认: 0.0.0.0)')
     parser.add_argument('--workers', type=int, default=None,
@@ -1820,14 +1970,28 @@ def main():
     global logger
     setup_logging_system(args.env)
     logger = logging.getLogger(__name__)
+
+    # 清理上次启动残留的旧进程（PID 文件追踪）
+    _clean_previous_instance()
     
+    # 加载生产环境变量（.env.production 覆盖 .env 中的开发配置）
+    prod_env_file = os.path.join(PROJECT_ROOT, 'backend', '.env.production')
+    if os.path.exists(prod_env_file):
+        with open(prod_env_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    k, v = line.split('=', 1)
+                    os.environ[k.strip()] = v.strip()
+        logger.info(f"✅ 已加载生产环境变量: {prod_env_file}")
+
     # 设置环境变量（与生产环境保持一致）
     os.environ['ENVIRONMENT'] = args.env
     os.environ['PROJECT_ROOT'] = PROJECT_ROOT
     
     # 生产环境固定配置
     if args.port is None:
-        args.port = 8000  # 生产环境固定端口
+        args.port = 7100  # 生产环境固定端口
     if args.workers is None:
         args.workers = 4  # 生产环境固定进程数 (降低worker数量避免端口耗尽)
     

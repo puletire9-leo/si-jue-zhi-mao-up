@@ -159,6 +159,10 @@
               label="仓库"
               value="仓库"
             />
+            <el-option
+              label="运营"
+              value="运营"
+            />
           </el-select>
         </el-form-item>
         <el-form-item
@@ -345,7 +349,8 @@ const getRoleType = (role) => {
     '管理员': 'danger',
     '开发': 'primary',
     '美术': 'warning',
-    '仓库': 'success'
+    '仓库': 'success',
+    '运营': 'info'
   }
   return roleTypes[role] || ''
 }

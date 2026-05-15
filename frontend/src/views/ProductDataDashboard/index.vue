@@ -10,6 +10,9 @@
       </div>
 
       <div class="flex items-center gap-2 flex-wrap">
+        <!-- 公告栏 -->
+        <AnnouncementBar />
+
         <!-- 数据分析按钮 -->
         <el-button
           type="primary"
@@ -186,6 +189,7 @@ import { useRouter } from 'vue-router'
 import FilterPanel from './components/FilterPanel.vue'
 import DraggableDashboard from './components/DraggableDashboard.vue'
 import ProductDetailTable from './components/ProductDetailTable.vue'
+import AnnouncementBar from './components/AnnouncementBar.vue'
 
 const store = useProductDataStore()
 const clearingCache = ref(false)

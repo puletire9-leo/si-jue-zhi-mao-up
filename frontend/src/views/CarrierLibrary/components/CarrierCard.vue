@@ -184,7 +184,7 @@ const cardWidth = computed(() => props.cardWidth || 200)
 const cardHeight = computed(() => props.cardHeight || 200)
 
 const displayImage = computed(() => {
-  const DEFAULT_IMAGE = 'https://via.placeholder.com/300x200?text=No+Image'
+  const DEFAULT_IMAGE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect fill="#f0f0f0" width="300" height="200"/><text fill="#999" font-family="sans-serif" font-size="14" text-anchor="middle" x="150" y="105">No Image</text></svg>')
   const validImages = getValidImages()
 
   if (validImages.length === 0) return DEFAULT_IMAGE

@@ -1,114 +1,35 @@
-services:
-  # Java 后端服务
-  backend:
-    image: deploy-backend-java:latest
-    container_name: sjzm-backend
-    ports:
-      - "8888:8080"
-    environment:
-      - SPRING_PROFILES_ACTIVE=dev
-      - CORS_ALLOW_LOCALHOST_ALL_PORTS=true
-      - MYSQL_HOST=mysql
-      - MYSQL_PORT=3306
-      - MYSQL_DATABASE=sijuelishi
-      - MYSQL_USERNAME=sjzm
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-sjzm123}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - ROCKETMQ_NAMESRVADDR=rocketmq:9876
-    volumes:
-      - ./logs:/app/logs
-      - ./data:/app/data
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      rocketmq:
-        condition: service_healthy
-    networks:
-      - sjzm-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-        reservations:
-          memory: 1G
+# ============================================
+# 思觉智贸 - 基础设施模板（无端口，由环境 overlay 决定）
+# 开发: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# 生产: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# ============================================
 
-  # MySQL 数据库
+services:
   mysql:
     image: mysql:8.0
-    container_name: sjzm-mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_PASSWORD:-root123}
-      - MYSQL_DATABASE=sijuelishi
-      - MYSQL_USER=sjzm
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-sjzm123}
-    ports:
-      - "${MYSQL_PORT:-3307}:3306"
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: sijue
+      MYSQL_PASSWORD: sijue123456
     volumes:
       - mysql-data:/var/lib/mysql
-      - ./mysql/init:/docker-entrypoint-initdb.d
-      - ./mysql/conf:/etc/mysql/conf.d
-    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    networks:
-      - sjzm-network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_PASSWORD:-root123}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
 
-  # Redis 缓存
   redis:
     image: redis:7-alpine
-    container_name: sjzm-redis
-    ports:
-      - "6379:6379"
     volumes:
       - redis-data:/data
-      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
-    command: redis-server /usr/local/etc/redis/redis.conf
-    networks:
-      - sjzm-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # RocketMQ NameServer
-  rocketmq:
-    image: apache/rocketmq:5.1.0
-    container_name: sjzm-rocketmq-namesrv
-    ports:
-      - "9876:9876"
-    volumes:
-      - rocketmq-data:/home/rocketmq/namesrv/logs
-    environment:
-      - JAVA_OPT_EXT=-Xms512m -Xmx512m
-    command: sh mqnamesrv
-    networks:
-      - sjzm-network
-    healthcheck:
-      test: ["CMD", "sh", "-c", "echo 'test' | nc -z localhost 9876 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-
-networks:
-  sjzm-network:
-    driver: bridge
-
 volumes:
   mysql-data:
   redis-data:
-  rocketmq-data:

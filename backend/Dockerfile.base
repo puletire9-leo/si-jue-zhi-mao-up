@@ -1,0 +1,21 @@
+# ============================================
+# 思觉智贸 - 基础镜像（dev / prod 共用）
+# 构建: docker build -f Dockerfile.base -t sjzm-python-base .
+# 包含所有 Python 依赖，避免 dev/prod 重复安装
+# ============================================
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ default-libmysqlclient-dev curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+RUN mkdir -p /app/static /app/logs /app/model_cache /app/uploads /app/images/thumbnails

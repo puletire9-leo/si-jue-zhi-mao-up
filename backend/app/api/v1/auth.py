@@ -87,7 +87,7 @@ async def login(
         # 密码验证
         bcrypt_start = datetime.now()
         try:
-            if user['password'].startswith('$2b$'):
+            if user['password'].startswith('$2'):
                 password_match = bcrypt.checkpw(login_data.password.encode(), user['password'].encode())
             else:
                 md5_hash = hashlib.md5(login_data.password.encode()).hexdigest()
@@ -143,6 +143,82 @@ async def login(
     except Exception as e:
         logger.error(f"登录失败: {e}")
         raise HTTPException(status_code=500, detail="登录失败")
+
+
+class RegisterRequest(BaseModel):
+    """注册请求模型"""
+    username: str
+    password: str
+    email: Optional[str] = None
+    role: Optional[str] = None
+
+
+@router.post("/register", summary="用户注册")
+async def register(
+    request: Request,
+    register_data: RegisterRequest,
+    repo: MySQLRepository = get_mysql_repo()
+):
+    """用户注册"""
+    logger.info(f">>> 注册请求: {register_data.username}")
+    try:
+        if len(register_data.username) < 3:
+            logger.warning(f"注册失败: 用户名过短 ({register_data.username})")
+            raise HTTPException(status_code=400, detail="用户名至少3个字符")
+        if len(register_data.password) < 6:
+            raise HTTPException(status_code=400, detail="密码至少6个字符")
+
+        existing = await repo.execute_query(
+            "SELECT id FROM users WHERE username = %s",
+            (register_data.username,)
+        )
+        if existing:
+            logger.warning(f"注册失败: 用户名已存在 ({register_data.username})")
+            raise HTTPException(status_code=400, detail="用户名已存在")
+
+        hashed = bcrypt.hashpw(register_data.password.encode(), bcrypt.gensalt(12)).decode()
+
+        email = register_data.email or f"{register_data.username}@example.com"
+        role = register_data.role or 'user'
+        await repo.execute_update(
+            """INSERT INTO users (username, password, email, role, status, created_at, updated_at)
+               VALUES (%s, %s, %s, %s, 1, NOW(), NOW())""",
+            (register_data.username, hashed, email, role)
+        )
+
+        new_user = await repo.execute_query(
+            "SELECT id, username, email, role FROM users WHERE username = %s",
+            (register_data.username,)
+        )
+        user = new_user[0]
+
+        access_token = create_access_token(data={"sub": str(user['id']), "username": user['username'], "role": user['role']})
+        refresh_token = create_refresh_token(data={"sub": str(user['id'])})
+
+        logger.info(f"<<< 注册成功: {register_data.username} (ID={user['id']})")
+
+        return {
+            "code": 200,
+            "message": "注册成功",
+            "data": {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "Bearer",
+                "expires_in": 604800,
+                "user": {
+                    "id": user['id'],
+                    "username": user['username'],
+                    "email": user['email'],
+                    "role": user['role']
+                }
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"注册失败: {e}")
+        raise HTTPException(status_code=500, detail="注册失败")
 
 
 @router.post("/logout", summary="用户登出")

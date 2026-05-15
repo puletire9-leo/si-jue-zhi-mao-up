@@ -1,16 +1,15 @@
 package com.sjzm;
 
-import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.scheduling.annotation.EnableAsync;
 
 /**
- * 思觉智贸 - 跨境电商产品管理系统 Java 后端启动类
+ * 思觉智贸 - 微服务基础骨架
+ * 后续新功能拷贝此项目，按模块添加 controller/entity/mapper/service 即可
  */
 @SpringBootApplication
-@MapperScan("com.sjzm.mapper")
 @EnableCaching
 @EnableAsync
 public class SjzmBackendApplication {

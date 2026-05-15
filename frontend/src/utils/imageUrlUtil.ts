@@ -435,7 +435,7 @@ export class ImageUrlUtil {
    * @returns 默认占位图URL
    */
   public static getDefaultPlaceholder(): string {
-    return 'https://via.placeholder.com/512x512?text=Image+Loading+Failed'
+    return 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect fill="#f5f5f5" width="512" height="512"/><text fill="#999" font-family="sans-serif" font-size="16" text-anchor="middle" x="256" y="262">Image Load Failed</text></svg>')
   }
 
   /**

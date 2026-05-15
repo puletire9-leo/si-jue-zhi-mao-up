@@ -35,12 +35,20 @@ export default defineConfig(({ mode }) => {
       open: false,
       proxy: {
         '^/api': {
-          target: mode === 'development' 
-            ? `http://localhost:${env.VITE_BACKEND_PORT || '8003'}`
-            : (env.VITE_API_BASE_URL || 'http://localhost:8003'),     
+          target: mode === 'development'
+            ? `http://localhost:${env.VITE_BACKEND_PORT || '8090'}`
+            : (env.VITE_API_BASE_URL || 'http://localhost:8090'),
           changeOrigin: true,
           secure: false,
           timeout: 300000,
+          logLevel: 'warn'
+        },
+        '^/dashboards': {
+          target: mode === 'development'
+            ? `http://localhost:${env.VITE_BACKEND_PORT || '8090'}`
+            : (env.VITE_API_BASE_URL || 'http://localhost:8090'),
+          changeOrigin: true,
+          secure: false,
           logLevel: 'warn'
         }
       },

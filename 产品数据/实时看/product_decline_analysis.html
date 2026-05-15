@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>销量下滑分析 | 领星数据</title>
+<style>
+:root {
+  --bg: #FFFBF7;
+  --surface: #FFFFFF;
+  --card: #FFFFFF;
+  --border: #F0EBE6;
+  --hover: #F8F4FF;
+  --text: #2F281D;
+  --text-dim: #6B5E52;
+  --accent: #7C61D4;
+  --accent-light: #9F85E0;
+  --green: #16A34A;
+  --red: #DC2626;
+  --yellow: #D97706;
+  --purple: #a855f7;
+  --cyan: #06b6d4;
+  --orange: #f97316;
+  --pink: #ec4899;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== 顶部栏 ===== */
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.topbar h1 {
+  font-size: 17px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: linear-gradient(135deg, #ef4444, #f97316);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.topbar .sep {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+}
+
+/* ===== 筛选栏 ===== */
+.filter-bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-group label {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* 周期切换按钮组 */
+.period-toggle {
+  display: flex;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.period-toggle button {
+  padding: 6px 14px;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.period-toggle button:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.period-toggle button.active {
+  background: var(--accent);
+  color: white;
+}
+
+.period-toggle button:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+
+/* 周期选择下拉 */
+.period-select {
+  padding: 6px 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  min-width: 140px;
+  cursor: pointer;
+}
+
+.period-select:focus {
+  border-color: var(--accent);
+}
+
+.period-select option {
+  background: var(--card);
+  color: var(--text);
+}
+
+/* 数量设置 */
+.number-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.number-input input {
+  width: 70px;
+  padding: 6px 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  text-align: center;
+  outline: none;
+}
+
+.number-input input:focus {
+  border-color: var(--accent);
+}
+
+.number-input input::-webkit-inner-spin-button,
+.number-input input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.number-input input[type=number] {
+  -moz-appearance: textfield;
+}
+
+.number-input .unit {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* 店铺下拉 */
+.dropdown {
+  position: relative;
+}
+
+.shop-select-btn {
+  padding: 6px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  min-width: 120px;
+  text-align: left;
+}
+
+.shop-select-btn:hover {
+  border-color: var(--accent);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 0;
+  min-width: 220px;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 1000;
+  display: none;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+}
+
+.dropdown-menu.show { display: block; }
+
+.dropdown-item {
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.1s;
+}
+
+.dropdown-item:hover { background: var(--hover); }
+
+.dropdown-item .check {
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--border);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.dropdown-item.checked .check {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.dropdown-actions {
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.dropdown-actions button {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  border: none;
+}
+
+.dropdown-actions .btn-all {
+  background: var(--accent);
+  color: white;
+}
+
+.dropdown-actions .btn-none {
+  background: var(--border);
+  color: var(--text-dim);
+}
+
+/* 刷新按钮 */
+.btn-refresh {
+  padding: 6px 16px;
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s;
+}
+
+.btn-refresh:hover {
+  background: var(--accent-light);
+}
+
+.btn-refresh:disabled {
+  background: var(--border);
+  cursor: not-allowed;
+}
+
+.btn-refresh.spinning::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ===== 主内容区 ===== */
+.main {
+  flex: 1;
+  overflow: auto;
+  padding: 20px;
+}
+
+/* ===== 数据表格 ===== */
+.data-table-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.table-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.table-header h2 {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.table-header .subtitle {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table th {
+  background: var(--card);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sortable { user-select: none; }
+.sortable:hover { color: var(--accent); }
+.sort-icon { font-size: 10px; opacity: 0.3; }
+.sort-icon.active { opacity: 1; color: var(--accent); }
+
+.data-table tbody tr {
+  transition: background 0.15s;
+}
+
+.data-table tbody tr:hover {
+  background: var(--hover);
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* 排名列 */
+.rank {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dim);
+  width: 50px;
+  text-align: center;
+}
+
+.rank.top3 {
+  color: var(--red);
+}
+
+/* 产品信息列 - 卡片式布局 */
+.product-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+}
+
+.product-info .title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  max-width: 350px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.product-info .meta-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.product-info .asin {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-family: 'SF Mono', monospace;
+  background: var(--card);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.product-info .shop {
+  font-size: 12px;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.product-info .shop::before {
+  content: '🏪';
+  font-size: 10px;
+}
+
+/* 数据列 */
+.data-cell {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.data-cell.prev {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.data-cell.curr {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.data-cell.decline {
+  color: var(--red);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.data-cell.decline-pct {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.decline-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: rgba(239, 68, 68, 0.2);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--red);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* 趋势图 */
+.trend-sparkline {
+  width: 80px;
+  height: 30px;
+}
+
+/* 空状态 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-dim);
+  gap: 12px;
+}
+
+.empty-state .icon { font-size: 48px; opacity: 0.3; }
+.empty-state .text { font-size: 15px; }
+.empty-state .hint { font-size: 12px; opacity: 0.6; }
+
+/* 加载状态 */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-dim);
+  gap: 16px;
+}
+
+.loading-state::after {
+  content: '';
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* 错误状态 */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--red);
+  gap: 12px;
+}
+
+.error-state .icon { font-size: 48px; }
+.error-state .text { font-size: 15px; }
+.error-state .hint { font-size: 12px; color: var(--text-dim); }
+
+/* 统计卡片 */
+.stats-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+
+.stat-card .label {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.stat-card .value {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.stat-card .value.negative {
+  color: var(--red);
+}
+
+.stat-card .value.positive {
+  color: var(--green);
+}
+
+/* 滚动条 */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* Toast 提示 */
+.toast-message {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  z-index: 10000;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+</style>
+</head>
+<body>
+
+<!-- 顶部栏 -->
+<div class="topbar">
+  <h1>📉 销量下滑分析</h1>
+  <div class="sep"></div>
+  <span style="font-size:12px;color:var(--text-dim);">领星 ERP · 产品表现</span>
+  <div style="flex:1;"></div>
+  <a href="product_sales_dashboard_v2.html" style="font-size:13px;color:var(--accent);text-decoration:none;padding:6px 12px;background:rgba(59,130,246,0.1);border-radius:6px;">← 返回首页</a>
+</div>
+
+<!-- 筛选栏 -->
+<div class="filter-bar">
+  <div class="filter-group">
+    <label>📅 对比周期</label>
+    <div class="period-toggle">
+      <button id="btnWeek" class="active" onclick="setPeriodType('week')">按周对比</button>
+      <button id="btnMonth" onclick="setPeriodType('month')">按月对比</button>
+    </div>
+  </div>
+
+  <div class="filter-group" id="weekSelectors">
+    <label>前期</label>
+    <select class="period-select" id="prevWeek">
+      <option value="2026-W01">2026年第1周</option>
+    </select>
+    <label style="margin-left:8px;">当期</label>
+    <select class="period-select" id="currWeek">
+      <option value="2026-W02">2026年第2周</option>
+    </select>
+  </div>
+
+  <div class="filter-group" id="monthSelectors" style="display:none;">
+    <label>前期</label>
+    <select class="period-select" id="prevMonth">
+      <option value="2026-01">2026年1月</option>
+    </select>
+    <label style="margin-left:8px;">当期</label>
+    <select class="period-select" id="currMonth">
+      <option value="2026-02">2026年2月</option>
+    </select>
+  </div>
+
+  <div class="filter-group">
+    <label>📊 显示数量</label>
+    <div class="number-input">
+      <input type="number" id="displayCount" value="10" min="1" max="100" onchange="validateDisplayCount()">
+      <span class="unit">个 (1-100)</span>
+    </div>
+  </div>
+
+  <div class="filter-group dropdown">
+    <label>🏪 店铺</label>
+    <button class="shop-select-btn" id="shopBtn" onclick="toggleShopDropdown()">全部</button>
+    <div class="dropdown-menu" id="shopDropdown">
+      <div id="shopList"></div>
+      <div class="dropdown-actions">
+        <button class="btn-none" onclick="setAllShops(false)">清除</button>
+        <button class="btn-all" onclick="setAllShops(true)">全选</button>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn-refresh" id="refreshBtn" onclick="loadDeclineData()">
+    ✓ 确认查询
+  </button>
+</div>
+
+<!-- 主内容 -->
+<div class="main">
+  <!-- 统计卡片 -->
+  <div class="stats-cards" id="statsCards">
+    <div class="stat-card">
+      <div class="label">分析产品总数</div>
+      <div class="value" id="statTotalProducts">-</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">下滑产品数量</div>
+      <div class="value negative" id="statDeclineCount">-</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">平均下滑幅度</div>
+      <div class="value negative" id="statAvgDecline">-</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">最大下滑产品</div>
+      <div class="value" style="font-size:14px;" id="statMaxDecline">-</div>
+    </div>
+  </div>
+
+  <!-- 数据表格 -->
+  <div class="data-table-container">
+    <div class="table-header">
+      <div>
+        <h2>📊 销量下滑最严重的产品</h2>
+        <div class="subtitle" id="tableSubtitle">按下滑百分比排序</div>
+      </div>
+    </div>
+    <div id="tableContent">
+      <div class="loading-state">
+        <div>正在加载数据...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== 配置 ====================
+// API通过同源代理访问（Vite开发服务器/Nginx自动转发到后端）
+const API_BASE_URL = '';
+
+// ==================== 状态 ====================
+let periodType = 'week';  // 周期类型: week 或 month
+let selectedShops = new Set();
+let allShops = [];
+let prevPeriod = '2026-W01';  // 前期（周或月）
+let currPeriod = '2026-W02';  // 当期（周或月）
+let declineData = [];  // 下滑数据
+let availableWeeks = [];  // 可选周列表
+let availableMonths = [];  // 可选月列表
+let displayCount = 10;  // 显示数量，默认10个
+let sortBy = 'decline';  // 默认按下滑数量排序
+let sortDesc = true;     // 默认降序（下滑最多的在前）
+
+// ==================== 初始化 ====================
+/**
+ * 页面初始化函数
+ * 加载店铺列表、日期范围和初始数据
+ */
+async function init() {
+  await Promise.all([
+    loadShops(),
+    loadDateRange()
+  ]);
+  
+  bindEvents();
+  await loadDeclineData();
+}
+
+// ==================== API 调用 ====================
+/**
+ * 发送GET请求到API
+ * @param {string} endpoint - API端点
+ * @returns {Promise<Object>} 响应数据
+ */
+async function apiGet(endpoint) {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`);
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`API错误: ${response.status} - ${error}`);
+  }
+  return response.json();
+}
+
+/**
+ * 加载店铺列表
+ */
+async function loadShops() {
+  try {
+    const data = await apiGet('/api/products/shops');
+    allShops = data.map(s => s.name);
+    selectedShops = new Set(allShops);
+    renderShopList();
+    updateShopBtn();
+  } catch (e) {
+    console.error('加载店铺列表失败:', e);
+    showToast('加载店铺列表失败: ' + e.message);
+  }
+}
+
+/**
+ * 加载可用的周和月列表
+ * 从后端获取数据时间范围，生成可选的周和月
+ */
+async function loadDateRange() {
+  try {
+    const data = await apiGet('/api/products/date-range');
+    if (data.min_date && data.max_date) {
+      // 生成可用的周和月列表
+      generatePeriodOptions(data.min_date, data.max_date);
+    } else {
+      // 使用默认数据生成选项
+      generatePeriodOptions('2025-01-01', '2026-04-28');
+    }
+  } catch (e) {
+    console.error('加载日期范围失败:', e);
+    generatePeriodOptions('2025-01-01', '2026-04-28');
+  }
+}
+
+/**
+ * 生成周期选项（周和月）
+ * @param {string} minDate - 最小日期
+ * @param {string} maxDate - 最大日期
+ */
+function isValidDateStr(s) {
+  return s && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s).getTime())
+}
+
+function generatePeriodOptions(minDate, maxDate) {
+  // 保护：日期格式不正确则用 fallback
+  if (!isValidDateStr(minDate) || !isValidDateStr(maxDate)) {
+    console.warn('日期格式无效，使用默认值', minDate, maxDate)
+    minDate = '2025-01-01'
+    maxDate = '2026-04-28'
+  }
+  const start = new Date(minDate);
+  const end = new Date(maxDate);
+  
+  // 生成周列表
+  availableWeeks = [];
+  let currentWeekStart = new Date(start);
+  // 调整到周一
+  const dayOfWeek = currentWeekStart.getDay();
+  const diff = currentWeekStart.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+  currentWeekStart.setDate(diff);
+  
+  let weekNum = 1;
+  while (currentWeekStart <= end) {
+    const year = currentWeekStart.getFullYear();
+    const weekId = `${year}-W${String(weekNum).padStart(2, '0')}`;
+    const weekLabel = `${year}年第${weekNum}周 (${formatDate(currentWeekStart).slice(5)})`;
+    availableWeeks.push({ id: weekId, label: weekLabel, date: new Date(currentWeekStart) });
+    currentWeekStart.setDate(currentWeekStart.getDate() + 7);
+    weekNum++;
+  }
+  
+  // 生成月列表
+  availableMonths = [];
+  let currentMonth = new Date(start.getFullYear(), start.getMonth(), 1);
+  while (currentMonth <= end) {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth() + 1;
+    const monthId = `${year}-${String(month).padStart(2, '0')}`;
+    const monthLabel = `${year}年${month}月`;
+    availableMonths.push({ id: monthId, label: monthLabel, date: new Date(currentMonth) });
+    currentMonth.setMonth(currentMonth.getMonth() + 1);
+  }
+  
+  // 渲染下拉选项
+  renderPeriodSelectors();
+}
+
+/**
+ * 渲染周期选择器选项
+ */
+function renderPeriodSelectors() {
+  // 渲染周选择器
+  const prevWeekSelect = document.getElementById('prevWeek');
+  const currWeekSelect = document.getElementById('currWeek');
+  
+  const weekOptions = availableWeeks.map(w => 
+    `<option value="${w.id}">${w.label}</option>`
+  ).join('');
+  
+  prevWeekSelect.innerHTML = weekOptions;
+  currWeekSelect.innerHTML = weekOptions;
+  
+  // 设置默认值（倒数第二周和最后一周）
+  if (availableWeeks.length >= 2) {
+    prevWeekSelect.value = availableWeeks[availableWeeks.length - 2].id;
+    currWeekSelect.value = availableWeeks[availableWeeks.length - 1].id;
+    prevPeriod = prevWeekSelect.value;
+    currPeriod = currWeekSelect.value;
+  }
+  
+  // 渲染月选择器
+  const prevMonthSelect = document.getElementById('prevMonth');
+  const currMonthSelect = document.getElementById('currMonth');
+  
+  const monthOptions = availableMonths.map(m => 
+    `<option value="${m.id}">${m.label}</option>`
+  ).join('');
+  
+  prevMonthSelect.innerHTML = monthOptions;
+  currMonthSelect.innerHTML = monthOptions;
+  
+  // 设置默认值（倒数第二月和最后一月）
+  if (availableMonths.length >= 2) {
+    prevMonthSelect.value = availableMonths[availableMonths.length - 2].id;
+    currMonthSelect.value = availableMonths[availableMonths.length - 1].id;
+  }
+}
+
+/**
+ * 加载销量下滑数据
+ * 从后端获取下滑最严重的产品列表
+ */
+async function loadDeclineData() {
+  const btn = document.getElementById('refreshBtn');
+  const container = document.getElementById('tableContent');
+  
+  // 显示加载状态
+  btn.disabled = true;
+  btn.classList.add('spinning');
+  container.innerHTML = '<div class="loading-state"><div>正在分析数据...</div></div>';
+  
+  try {
+    // 获取当前选中的周期
+    const isWeek = periodType === 'week';
+    prevPeriod = isWeek ? document.getElementById('prevWeek').value : document.getElementById('prevMonth').value;
+    currPeriod = isWeek ? document.getElementById('currWeek').value : document.getElementById('currMonth').value;
+
+    // 验证：当期不可早于前期
+    if (prevPeriod >= currPeriod) {
+      container.innerHTML = '<div class="error-state"><div class="icon">⚠️</div><div class="text">当期必须晚于前期</div><div class="hint">请重新选择时间周期</div></div>';
+      btn.disabled = false;
+      btn.classList.remove('spinning');
+      return;
+    }
+
+    // 构建请求参数
+    const params = new URLSearchParams();
+    params.append('period_type', periodType);
+    params.append('prev_period', prevPeriod);
+    params.append('curr_period', currPeriod);
+    if (selectedShops.size > 0 && selectedShops.size < allShops.length) {
+      params.append('shops', Array.from(selectedShops).join(','));
+    }
+
+    // 调用API获取数据
+    const data = await apiGet(`/api/products/decline-analysis?${params.toString()}`);
+
+    declineData = data.products || [];
+    sortData(declineData);
+    const limitedData = declineData.slice(0, displayCount);
+    renderTable(limitedData);
+    updateStats(limitedData);
+    
+  } catch (e) {
+    console.error('加载数据失败:', e);
+    container.innerHTML = `
+      <div class="error-state">
+        <div class="icon">⚠️</div>
+        <div class="text">加载数据失败</div>
+        <div class="hint">${escapeHtml(e.message)}</div>
+      </div>
+    `;
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('spinning');
+  }
+}
+
+/**
+ * 生成模拟数据（用于演示）
+ * 实际使用时应该调用后端API
+ * 使用伪随机数确保每次生成的数据一致
+ * @returns {Object} 模拟的下滑数据
+ */
+function generateMockData() {
+  // 基础产品模板
+  const productTemplates = [
+    { title: 'Wireless Bluetooth Headphones with Noise Cancelling', shop: 'UK-Shop-01' },
+    { title: 'USB C Cable Fast Charging 3Pack 6FT', shop: 'UK-Shop-01' },
+    { title: 'Phone Case for iPhone 13 Pro Max', shop: 'UK-Shop-02' },
+    { title: 'Portable Charger Power Bank 26800mAh', shop: 'UK-Shop-01' },
+    { title: 'Bluetooth Speaker Waterproof Outdoor', shop: 'UK-Shop-03' },
+    { title: 'Wireless Mouse Ergonomic Rechargeable', shop: 'UK-Shop-02' },
+    { title: 'Laptop Stand Adjustable Aluminum', shop: 'UK-Shop-01' },
+    { title: 'LED Desk Lamp with Wireless Charger', shop: 'UK-Shop-03' },
+    { title: 'Car Phone Mount Dashboard Windshield', shop: 'UK-Shop-02' },
+    { title: 'AirPods Pro Case Cover with Keychain', shop: 'UK-Shop-01' },
+    { title: 'HDMI Cable 4K 6FT High Speed', shop: 'UK-Shop-02' },
+    { title: 'Webcam with Microphone 1080P HD', shop: 'UK-Shop-03' },
+    { title: 'Mechanical Gaming Keyboard RGB', shop: 'UK-Shop-01' },
+    { title: 'Wireless Charging Pad 15W Fast', shop: 'UK-Shop-02' },
+    { title: 'Tablet Stand Holder Adjustable', shop: 'UK-Shop-03' },
+    { title: 'Smart Watch Band Replacement', shop: 'UK-Shop-01' },
+    { title: 'USB Hub 7-in-1 Type C Adapter', shop: 'UK-Shop-02' },
+    { title: 'Phone Ring Holder Finger Kickstand', shop: 'UK-Shop-03' },
+    { title: 'Screen Protector Tempered Glass 2Pack', shop: 'UK-Shop-01' },
+    { title: 'Bluetooth Earbuds True Wireless', shop: 'UK-Shop-02' },
+  ];
+
+  // 伪随机数生成器（基于索引，确保每次结果一致）
+  function pseudoRandom(seed) {
+    const x = Math.sin(seed * 9999) * 10000;
+    return x - Math.floor(x);
+  }
+
+  // 生成100个产品数据
+  const products = [];
+  for (let i = 0; i < 100; i++) {
+    const template = productTemplates[i % productTemplates.length];
+    const asinSuffix = String(i + 1).padStart(4, '0');
+    // 使用伪随机数，基于索引生成固定值
+    const prevSales = Math.floor(pseudoRandom(i) * 3000) + 200;
+    const declinePct = -(pseudoRandom(i + 100) * 80 + 5); // -5% 到 -85%
+    const currSales = Math.floor(prevSales * (1 + declinePct / 100));
+    const decline = prevSales - currSales;
+
+    products.push({
+      asin: `B08N5${asinSuffix}`,
+      title: `${template.title} ${Math.floor(i / 20) + 1}`,
+      shop: template.shop,
+      prev_sales: prevSales,
+      curr_sales: currSales,
+      decline: decline,
+      decline_pct: Math.round(declinePct * 10) / 10
+    });
+  }
+
+  // 按下滑百分比排序（下滑最严重的在前）
+  sortData(declineData);
+
+  return { products: products };
+}
+
+// ==================== 店铺选择 ====================
+/**
+ * 渲染店铺列表
+ */
+function renderShopList() {
+  const container = document.getElementById('shopList');
+  container.innerHTML = allShops.map(shop => `
+    <div class="dropdown-item ${selectedShops.has(shop) ? 'checked' : ''}"
+         onclick="toggleShop('${shop}', this)">
+      <div class="check">${selectedShops.has(shop) ? '✓' : ''}</div>
+      <span>${escapeHtml(shop)}</span>
+    </div>
+  `).join('');
+}
+
+/**
+ * 切换店铺选择状态
+ * @param {string} shop - 店铺名称
+ * @param {HTMLElement} el - 点击的元素
+ */
+function toggleShop(shop, el) {
+  if (selectedShops.has(shop)) {
+    selectedShops.delete(shop);
+    el.classList.remove('checked');
+    el.querySelector('.check').textContent = '';
+  } else {
+    selectedShops.add(shop);
+    el.classList.add('checked');
+    el.querySelector('.check').textContent = '✓';
+  }
+  updateShopBtn();
+}
+
+/**
+ * 全选或清除所有店铺
+ * @param {boolean} selectAll - 是否全选
+ */
+function setAllShops(selectAll) {
+  if (selectAll) {
+    selectedShops = new Set(allShops);
+  } else {
+    selectedShops = new Set();
+  }
+  renderShopList();
+  updateShopBtn();
+}
+
+/**
+ * 更新店铺按钮显示文本
+ */
+function updateShopBtn() {
+  const btn = document.getElementById('shopBtn');
+  if (selectedShops.size === allShops.length) {
+    btn.textContent = `全部 (${allShops.length})`;
+  } else if (selectedShops.size === 0) {
+    btn.textContent = '未选择';
+  } else {
+    btn.textContent = `已选 ${selectedShops.size} 个`;
+  }
+}
+
+/**
+ * 切换店铺下拉菜单显示
+ */
+function toggleShopDropdown() {
+  document.getElementById('shopDropdown').classList.toggle('show');
+}
+
+// ==================== 排序 ====================
+function sortData(data) {
+  const col = sortBy
+  data.sort((a, b) => {
+    let cmp = 0
+    if (col === 'decline') cmp = a.decline - b.decline
+    else if (col === 'decline_pct') cmp = -(a.decline_pct - b.decline_pct)
+    else if (col === 'prev_sales') cmp = a.prev_sales - b.prev_sales
+    else if (col === 'curr_sales') cmp = a.curr_sales - b.curr_sales
+    return sortDesc ? -cmp : cmp
+  })
+}
+
+function setSort(col) {
+  if (sortBy === col) {
+    sortDesc = !sortDesc  // 同列切换方向
+  } else {
+    sortBy = col
+    sortDesc = true  // 新列默认降序
+  }
+  sortData(declineData)
+  const limitedData = declineData.slice(0, displayCount)
+  renderTable(limitedData)
+  updateStats(limitedData)
+}
+
+function sortIndicator(col) {
+  if (sortBy !== col) return ' <span class="sort-icon">▸</span>'
+  return sortDesc ? ' <span class="sort-icon active">▼</span>' : ' <span class="sort-icon active">▲</span>'
+}
+
+// ==================== 表格渲染 ====================
+/**
+ * 渲染数据表格
+ * @param {Array} data - 要显示的数据，不传则使用declineData
+ */
+function renderTable(data) {
+  const container = document.getElementById('tableContent');
+  const displayData = data || declineData;
+
+  if (displayData.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">📊</div>
+        <div class="text">暂无数据</div>
+        <div class="hint">请调整时间范围或店铺筛选条件</div>
+      </div>
+    `;
+    return;
+  }
+
+  const periodLabel = periodType === 'week' ? '周' : '月';
+
+  container.innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width:60px;text-align:center;">排名</th>
+          <th>产品信息</th>
+          <th class="sortable" onclick="setSort('prev_sales')" style="width:100px;text-align:right;cursor:pointer;">前期${periodLabel}销量${sortIndicator('prev_sales')}</th>
+          <th class="sortable" onclick="setSort('curr_sales')" style="width:100px;text-align:right;cursor:pointer;">当期${periodLabel}销量${sortIndicator('curr_sales')}</th>
+          <th class="sortable" onclick="setSort('decline')" style="width:100px;text-align:right;cursor:pointer;">下滑数量${sortIndicator('decline')}</th>
+          <th class="sortable" onclick="setSort('decline_pct')" style="width:120px;text-align:right;cursor:pointer;">下滑幅度${sortIndicator('decline_pct')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${displayData.map((item, index) => renderTableRow(item, index)).join('')}
+      </tbody>
+    </table>
+  `;
+
+  // 更新副标题
+  const prevLabel = periodType === 'week'
+    ? availableWeeks.find(w => w.id === prevPeriod)?.label || prevPeriod
+    : availableMonths.find(m => m.id === prevPeriod)?.label || prevPeriod;
+  const currLabel = periodType === 'week'
+    ? availableWeeks.find(w => w.id === currPeriod)?.label || currPeriod
+    : availableMonths.find(m => m.id === currPeriod)?.label || currPeriod;
+  const sortLabels = { decline: '下滑数量', decline_pct: '下滑幅度', prev_sales: '前期销量', curr_sales: '当期销量' }
+  const sortLabel = sortLabels[sortBy] || sortBy
+  document.getElementById('tableSubtitle').textContent =
+    `${prevLabel} vs ${currLabel} · 按${sortLabel}${sortDesc ? '降序' : '升序'} · 显示前 ${displayData.length} 个产品`;
+}
+
+/**
+ * 渲染表格行
+ * @param {Object} item - 产品数据
+ * @param {number} index - 排名索引
+ * @returns {string} HTML字符串
+ */
+/**
+ * 渲染表格行
+ * @param {Object} item - 产品数据
+ * @param {number} index - 排名索引
+ * @returns {string} HTML字符串
+ */
+function renderTableRow(item, index) {
+  const rank = index + 1;
+  const rankClass = rank <= 3 ? 'rank top3' : 'rank';
+
+  return `
+    <tr>
+      <td class="${rankClass}">${rank}</td>
+      <td>
+        <div class="product-info">
+          <div class="title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</div>
+          <div class="meta-row">
+            <span class="asin">${item.asin}</span>
+            <span class="shop">${escapeHtml(item.shop)}</span>
+          </div>
+        </div>
+      </td>
+      <td class="data-cell prev" style="text-align:right;">${item.prev_sales.toLocaleString()}</td>
+      <td class="data-cell curr" style="text-align:right;">${item.curr_sales.toLocaleString()}</td>
+      <td class="data-cell decline" style="text-align:right;">-${item.decline.toLocaleString()}</td>
+      <td style="text-align:right;">
+        <span class="decline-badge">
+          ↓ ${Math.abs(item.decline_pct).toFixed(1)}%
+        </span>
+      </td>
+    </tr>
+  `;
+}
+
+/**
+ * 更新统计卡片
+ * @param {Array} data - 要统计的数据，不传则使用declineData
+ */
+function updateStats(data) {
+  const statsData = data || declineData;
+
+  if (statsData.length === 0) {
+    document.getElementById('statTotalProducts').textContent = '-';
+    document.getElementById('statDeclineCount').textContent = '-';
+    document.getElementById('statAvgDecline').textContent = '-';
+    document.getElementById('statMaxDecline').textContent = '-';
+    return;
+  }
+
+  const totalProducts = statsData.length;
+  const declineCount = statsData.filter(p => p.decline > 0).length;
+  const avgDecline = statsData.reduce((sum, p) => sum + p.decline_pct, 0) / statsData.length;
+  const maxDeclineProduct = statsData[0];
+
+  document.getElementById('statTotalProducts').textContent = totalProducts;
+  document.getElementById('statDeclineCount').textContent = declineCount;
+  document.getElementById('statAvgDecline').textContent = avgDecline.toFixed(1) + '%';
+  document.getElementById('statMaxDecline').textContent =
+    `${maxDeclineProduct.asin.substring(0, 8)}... (${maxDeclineProduct.decline_pct.toFixed(1)}%)`;
+}
+
+// ==================== 周期切换 ====================
+/**
+ * 设置对比周期类型
+ * @param {string} type - 周期类型: 'week' 或 'month'
+ */
+function setPeriodType(type) {
+  periodType = type;
+
+  // 更新按钮状态
+  document.getElementById('btnWeek').classList.toggle('active', type === 'week');
+  document.getElementById('btnMonth').classList.toggle('active', type === 'month');
+
+  // 切换选择器显示
+  document.getElementById('weekSelectors').style.display = type === 'week' ? 'flex' : 'none';
+  document.getElementById('monthSelectors').style.display = type === 'month' ? 'flex' : 'none';
+
+  // 更新当前选中的周期值
+  if (type === 'week') {
+    prevPeriod = document.getElementById('prevWeek').value;
+    currPeriod = document.getElementById('currWeek').value;
+  } else {
+    prevPeriod = document.getElementById('prevMonth').value;
+    currPeriod = document.getElementById('currMonth').value;
+  }
+
+  // 重新加载数据
+  loadDeclineData();
+}
+
+// ==================== 工具函数 ====================
+/**
+ * HTML转义
+ * @param {string} text - 原始文本
+ * @returns {string} 转义后的文本
+ */
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text || '';
+  return div.innerHTML;
+}
+
+/**
+ * 格式化日期
+ * @param {Date} date - 日期对象
+ * @returns {string} 格式化后的日期字符串 (YYYY-MM-DD)
+ */
+function formatDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * 验证并更新显示数量
+ * 确保输入值在1-100范围内
+ */
+function validateDisplayCount() {
+  const input = document.getElementById('displayCount');
+  let value = parseInt(input.value, 10);
+
+  // 验证范围
+  if (isNaN(value) || value < 1) {
+    value = 1;
+  } else if (value > 100) {
+    value = 100;
+  }
+
+  // 更新输入框显示
+  input.value = value;
+
+  // 如果值有变化，更新显示数量并刷新表格
+  if (value !== displayCount) {
+    displayCount = value;
+    // 使用当前数据重新渲染表格
+    const limitedData = declineData.slice(0, displayCount);
+    renderTable(limitedData);
+    updateStats(limitedData);
+    showToast(`已设置为显示前 ${displayCount} 个产品`);
+  }
+}
+
+/**
+ * 显示Toast提示
+ * @param {string} message - 提示消息
+ * @param {number} duration - 显示时长（毫秒）
+ */
+function showToast(message, duration = 3000) {
+  const existingToast = document.querySelector('.toast-message');
+  if (existingToast) {
+    existingToast.remove();
+  }
+  
+  const toast = document.createElement('div');
+  toast.className = 'toast-message';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.remove();
+  }, duration);
+}
+
+// ==================== 事件绑定 ====================
+/**
+ * 绑定页面事件
+ */
+function bindEvents() {
+  // 周期选择变化
+  document.getElementById('prevWeek').addEventListener('change', (e) => {
+    prevPeriod = e.target.value;
+  });
+
+  document.getElementById('currWeek').addEventListener('change', (e) => {
+    currPeriod = e.target.value;
+  });
+
+  document.getElementById('prevMonth').addEventListener('change', (e) => {
+    prevPeriod = e.target.value;
+  });
+
+  document.getElementById('currMonth').addEventListener('change', (e) => {
+    currPeriod = e.target.value;
+  });
+
+  // 点击外部关闭下拉菜单
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.dropdown')) {
+      document.getElementById('shopDropdown').classList.remove('show');
+    }
+  });
+}
+
+// ==================== 启动 ====================
+init();
+</script>
+
+</body>
+</html>

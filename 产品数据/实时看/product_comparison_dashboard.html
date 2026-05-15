@@ -3,24 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>产品数据双周期对比 | 领星ERP</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
 :root {
-  --bg: #0b1120;
-  --surface: #131c31;
-  --card: #1a2540;
-  --border: #243352;
-  --hover: #243352;
-  --text: #e8edf5;
-  --text-dim: #7b8ba5;
-  --accent: #3b82f6;
-  --accent-light: #60a5fa;
-  --green: #22c55e;
-  --red: #ef4444;
-  --yellow: #f59e0b;
+  --bg: #FFFBF7;
+  --surface: #FFFFFF;
+  --card: #FFFFFF;
+  --border: #F0EBE6;
+  --hover: #F8F4FF;
+  --text: #2F281D;
+  --text-dim: #6B5E52;
+  --accent: #7C61D4;
+  --accent-light: #9F85E0;
+  --green: #16A34A;
+  --red: #DC2626;
+  --yellow: #D97706;
   --purple: #a855f7;
-  --purple-light: #c084fc;
+  --purple-light: #9F85E0;
   --cyan: #06b6d4;
   --orange: #f97316;
 }
@@ -840,9 +843,8 @@ body {
 
 <script>
 // ==================== 配置 ====================
-const API_BASE_URL = window.location.hostname === 'localhost' 
-  ? 'http://localhost:8002' 
-  : `http://${window.location.hostname}:8002`;
+// API通过同源代理访问（Vite开发服务器/Nginx自动转发到后端）
+const API_BASE_URL = '';
 
 // ==================== 状态 ====================
 let allShops = [];
@@ -1452,11 +1454,11 @@ function renderTrendChart(trendData) {
         {
           label: '周期A',
           data: salesA,
-          borderColor: '#3b82f6',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          borderColor: '#7C61D4',
+          backgroundColor: 'rgba(124, 97, 212, 0.1)',
           borderWidth: 2,
           pointRadius: 4,
-          pointBackgroundColor: '#3b82f6',
+          pointBackgroundColor: '#7C61D4',
           pointBorderColor: '#fff',
           pointBorderWidth: 2,
           tension: 0.3,

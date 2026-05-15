@@ -10,6 +10,7 @@ import logging
 import sys
 import os
 import asyncio
+import time
 from .utils.performance_monitor import PerformanceMonitor
 
 from .config import settings
@@ -22,6 +23,12 @@ from .middleware import (
 from .repositories import MySQLRepository, RedisRepository, QdrantRepository
 
 # 配置日志
+# Windows CMD 默认 GBK 编码，日志中的 Unicode 字符会导致 StreamHandler 静默崩溃
+try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+except Exception:
+    pass
+
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -213,7 +220,44 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"[FAIL] 目录创建失败: {e}")
     monitor.end("目录创建")
-    
+
+    # 清理过期的缩略图缓存（默认30天）
+    monitor.start("缩略图缓存清理")
+    try:
+        thumbnail_dir = settings.THUMBNAIL_DIR
+        max_age_days = 30
+        max_age_seconds = max_age_days * 24 * 3600
+        now = time.time()
+        cleaned_count = 0
+        cleaned_size = 0
+
+        if os.path.exists(thumbnail_dir):
+            for filename in os.listdir(thumbnail_dir):
+                filepath = os.path.join(thumbnail_dir, filename)
+                if not os.path.isfile(filepath):
+                    continue
+                try:
+                    file_age = now - os.path.getmtime(filepath)
+                    if file_age > max_age_seconds:
+                        file_size = os.path.getsize(filepath)
+                        os.remove(filepath)
+                        cleaned_count += 1
+                        cleaned_size += file_size
+                except OSError:
+                    pass
+
+        if cleaned_count > 0:
+            logger.info(
+                f"[OK] 缩略图缓存清理完成: 删除 {cleaned_count} 个文件, "
+                f"释放 {cleaned_size / 1024 / 1024:.1f} MB "
+                f"(超过 {max_age_days} 天未访问)"
+            )
+        else:
+            logger.info("[OK] 缩略图缓存清理: 无需清理")
+    except Exception as e:
+        logger.warning(f"[WARN] 缩略图缓存清理失败: {e}")
+    monitor.end("缩略图缓存清理")
+
     monitor.end("应用启动总耗时")
     monitor.log_summary()
     
@@ -385,11 +429,7 @@ if os.path.exists(settings.STATIC_DIR):
     app.mount("/static", StaticFiles(directory=settings.STATIC_DIR), name="static")
     logger.info(f"[OK] 本地静态文件服务已配置: {settings.STATIC_DIR}")
 
-# 生产环境前端静态文件服务
-if settings.ENVIRONMENT == "production" and settings.FRONTEND_STATIC_DIR and os.path.exists(settings.FRONTEND_STATIC_DIR):
-    app.mount("/", StaticFiles(directory=settings.FRONTEND_STATIC_DIR, html=True), name="frontend")
-    logger.info(f"[OK] 生产环境前端静态文件服务已配置: {settings.FRONTEND_STATIC_DIR}")
-    logger.info(f"前端应用将通过根路径提供服务")
+# 前端由 Nginx (生产) 或 Vite (开发) serve，后端不挂载
 
 # 图片目录静态文件服务（用于本地图片访问）
 if os.path.exists(settings.IMAGE_ROOT_DIR):
@@ -399,6 +439,12 @@ if os.path.exists(settings.IMAGE_ROOT_DIR):
 if os.path.exists(settings.THUMBNAIL_DIR):
     app.mount("/thumbnails", StaticFiles(directory=settings.THUMBNAIL_DIR), name="thumbnails")
     logger.info(f"[OK] 缩略图目录静态文件服务已配置: {settings.THUMBNAIL_DIR}")
+
+# 数据看板静态文件服务（产品数据/实时看/）
+_dashboard_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '产品数据', '实时看')
+if os.path.exists(_dashboard_dir):
+    app.mount("/dashboards", StaticFiles(directory=_dashboard_dir), name="dashboards")
+    logger.info(f"[OK] 数据看板静态文件服务已配置: {_dashboard_dir}")
 
 # 注册API路由
 from .api.v1 import api_router

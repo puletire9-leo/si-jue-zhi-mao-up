@@ -1,0 +1,20 @@
+# ============================================
+# 公共基础模块（dev / prod 共用）
+# 构建: docker compose -f docker-compose.base.yml build
+# ============================================
+# Python 依赖 + Node 版本，构建一次，两个环境共用
+# ============================================
+
+services:
+  python-base:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.base
+    image: sjzm-python-base
+    container_name: sjzm-python-base-build
+    command: echo "base image built"
+
+  node-base:
+    image: node:20-alpine
+    container_name: sjzm-node-base-build
+    command: echo "node base ready"

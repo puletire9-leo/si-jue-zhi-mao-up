@@ -20,12 +20,13 @@ defineProps<{
   display: flex;
   flex-direction: column;
   background: #FFFBF7;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .lay-content > :deep(*) {
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .fade-transform-enter-active,

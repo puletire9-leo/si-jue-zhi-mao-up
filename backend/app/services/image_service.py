@@ -244,7 +244,15 @@ class ImageService:
             # 清除相关缓存
             if self.redis:
                 await self._clear_image_cache(category)
-            
+
+            # COS上传成功后清理本地临时文件
+            if cos_url and os.path.exists(local_filepath):
+                try:
+                    os.remove(local_filepath)
+                    logger.info(f"[OK] 本地临时文件已清理 | 文件: {local_filepath}")
+                except Exception as e:
+                    logger.warning(f"[WARN] 清理本地临时文件失败 | 文件: {local_filepath} | 错误: {e}")
+
             return {
                 "success": True,
                 "image_id": image_id,
@@ -318,37 +326,45 @@ class ImageService:
                     thumbnail_filename = f"{timestamp}_{random_suffix}.webp"
                     logger.info(f"[OK] 生成缩略图文件名 | ID: {image_id} | 文件名: {thumbnail_filename}")
                     
-                    # 保存到本地存储目录
+                    # 保存到本地存储目录（约定命名：{image_id}.webp，无需DB列）
                     from ..config import settings
-                    local_thumbnail_path = os.path.join(settings.LOCAL_THUMBNAIL_DIR, thumbnail_filename)
-                    logger.info(f"[SYNC] 准备保存到本地 | ID: {image_id} | 本地路径: {local_thumbnail_path}")
-                    
-                    # 确保本地存储目录存在
+                    local_thumbnail_path = os.path.join(settings.LOCAL_THUMBNAIL_DIR, f"{image_id}.webp")
                     os.makedirs(settings.LOCAL_THUMBNAIL_DIR, exist_ok=True)
-                    logger.info(f"[OK] 确保本地存储目录存在 | ID: {image_id} | 目录: {settings.LOCAL_THUMBNAIL_DIR}")
-                    
-                    # 保存文件到本地
                     with open(local_thumbnail_path, 'wb') as f:
                         f.write(thumbnail_data)
-                    logger.info(f"[OK] 缩略图已保存到本地 | ID: {image_id} | 尺寸: {width}x{height} | 路径: {local_thumbnail_path}")
-                    
+                    logger.info(f"[OK] 缩略图已保存到本地 | ID: {image_id} | 路径: {local_thumbnail_path}")
+
                     # 如果COS启用，上传缩略图到COS
+                    thumbnail_cos_key = None
+                    thumbnail_cos_url = None
+
                     if cos_service.is_enabled():
                         logger.info(f"[SYNC] 开始上传到COS | ID: {image_id} | 文件名: {thumbnail_filename}")
-                        success, thumbnail_object_key, thumbnail_url = await cos_service.upload_thumbnail(
+                        success, thumbnail_cos_key, thumbnail_cos_url = await cos_service.upload_thumbnail(
                             thumbnail_data, thumbnail_filename, image_type=image_type
                         )
-                        
+
                         if success:
-                            logger.info(f"[OK] 缩略图已上传到腾讯云COS | ID: {image_id} | 尺寸: {width}x{height} | URL: {thumbnail_url}")
+                            logger.info(f"[OK] 缩略图已上传到腾讯云COS | ID: {image_id} | URL: {thumbnail_cos_url}")
                         else:
-                            logger.warning(f"[WARN] 缩略图COS上传失败 | ID: {image_id} | 尺寸: {width}x{height}")
+                            logger.warning(f"[WARN] 缩略图COS上传失败 | ID: {image_id}")
                     else:
                         logger.info(f"[INFO] COS未启用，跳过上传 | ID: {image_id}")
-                    
+
+                    # 将缩略图COS信息写入已有列 cos_thumbnail_key / cos_thumbnail_url
+                    try:
+                        await self.mysql.update_image_thumbnail(
+                            image_id=image_id,
+                            thumbnail_cos_key=thumbnail_cos_key or '',
+                            thumbnail_cos_url=thumbnail_cos_url or ''
+                        )
+                        logger.info(f"[OK] 缩略图COS信息已写入DB | ID: {image_id} | COS: {thumbnail_cos_url or '无'}")
+                    except Exception as e:
+                        logger.warning(f"[WARN] 缩略图COS信息写入DB失败 | ID: {image_id} | 错误: {e}")
+
                 except Exception as e:
                     logger.warning(f"[WARN] 生成缩略图失败 | ID: {image_id} | 尺寸: {width}x{height} | 错误: {e}")
-            
+
             logger.info(f"[OK] 缩略图生成成功 | ID: {image_id}")
             
         except Exception as e:
@@ -882,3 +898,106 @@ class ImageService:
         
         logger.info(f"[OK] 批量删除完成 | 成功: {results['success_count']} | 失败: {results['failed_count']}")
         return results
+
+    async def ensure_thumbnail(self, image_id: int) -> Dict[str, Any]:
+        """
+        确保缩略图存在：检测缺失则自动从 COS 下载原图 → 生成 → 上传 COS → 更新 DB。
+        供读取时自动修复使用。
+        """
+        image = await self.mysql.get_image_by_id(image_id)
+        if not image:
+            return {"status": "not_found"}
+
+        # 已有COS缩略图，无需修复
+        if image.get("cos_thumbnail_url"):
+            return {"status": "ok", "thumbnail_cos_url": image["cos_thumbnail_url"]}
+
+        cos_url = image.get("cos_url")
+        if not cos_url:
+            return {"status": "no_source"}
+
+        try:
+            import aiohttp
+            import io
+            import uuid
+            from PIL import Image
+            from ..config import settings
+
+            # 从 COS 下载已处理图片
+            async with aiohttp.ClientSession() as session:
+                async with session.get(cos_url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                    if resp.status != 200:
+                        return {"status": "failed", "reason": f"COS download HTTP {resp.status}"}
+                    image_data = await resp.read()
+
+            # 生成 512px 缩略图
+            img = Image.open(io.BytesIO(image_data))
+            img.thumbnail((512, 512), Image.Resampling.LANCZOS)
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+
+            thumb_buffer = io.BytesIO()
+            img.save(thumb_buffer, format="WEBP", quality=70, optimize=True)
+            thumb_data = thumb_buffer.getvalue()
+
+            # 保存本地（约定命名 {image_id}.webp）
+            from ..config import settings
+            local_path = os.path.join(settings.LOCAL_THUMBNAIL_DIR, f"{image_id}.webp")
+            os.makedirs(settings.LOCAL_THUMBNAIL_DIR, exist_ok=True)
+            with open(local_path, "wb") as f:
+                f.write(thumb_data)
+
+            # 上传 COS
+            thumb_cos_key = ""
+            thumb_cos_url = ""
+            if cos_service.is_enabled():
+                thumb_filename = f"{image_id}.webp"
+                success, thumb_cos_key, thumb_cos_url = await cos_service.upload_thumbnail(
+                    thumb_data, thumb_filename, image_type="final"
+                )
+
+            # 更新 DB（已有列 cos_thumbnail_key / cos_thumbnail_url）
+            await self.mysql.update_image_thumbnail(
+                image_id=image_id,
+                thumbnail_cos_key=thumb_cos_key or "",
+                thumbnail_cos_url=thumb_cos_url or ""
+            )
+
+            logger.info(f"[OK] 缩略图自动修复 | ID: {image_id} | COS: {thumb_cos_url} | 本地: {local_path}")
+            return {
+                "status": "fixed",
+                "thumbnail_cos_url": thumb_cos_url,
+            }
+
+        except Exception as e:
+            logger.warning(f"[WARN] 缩略图自动修复失败 | ID: {image_id} | 错误: {e}")
+            return {"status": "failed", "reason": str(e)}
+
+    async def sync_thumbnails(self, check_only: bool = False) -> Dict[str, Any]:
+        """批量同步缩略图（手动触发），复用 ensure_thumbnail"""
+        missing = await self.mysql.get_images_missing_thumbnails()
+        result = {
+            "total_checked": len(missing),
+            "missing_thumbnail": len(missing),
+            "fixed": 0,
+            "failed": 0,
+            "details": []
+        }
+
+        if check_only:
+            result["details"] = [
+                {"id": img["id"], "filename": img["filename"], "cos_url": img.get("cos_url", "")}
+                for img in missing
+            ]
+            return result
+
+        for img in missing:
+            image_id = img["id"]
+            r = await self.ensure_thumbnail(image_id)
+            if r["status"] == "fixed":
+                result["fixed"] += 1
+            else:
+                result["failed"] += 1
+            result["details"].append({"id": image_id, **r})
+
+        return result

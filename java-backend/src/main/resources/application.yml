@@ -236,12 +236,12 @@ async:
 
 parquet:
   data:
-    dir: ${PARQUET_DATA_DIR:/data/parquet}
-    file-name: ${PARQUET_FILE_NAME:product_sales.parquet}
+    dir: ${PARQUET_DATA_DIR:E:/项目/si-jue-zhi-mao-up/产品数据/压缩数据}
+    file-name: ${PARQUET_FILE_NAME:product_data_final.parquet}
   product:
     data:
-      dir: ${PARQUET_PRODUCT_DATA_DIR:/data/parquet}
-      file: ${PARQUET_PRODUCT_DATA_FILE:product_data_merged.parquet}
+      dir: ${PARQUET_PRODUCT_DATA_DIR:E:/项目/si-jue-zhi-mao-up/产品数据/压缩数据}
+      file: ${PARQUET_PRODUCT_DATA_FILE:product_data_final.parquet}
 
 python:
   ai:

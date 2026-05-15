@@ -15,6 +15,7 @@ frontend/../static/vue-dist/
 # Env secrets
 .env
 .env.local
+.env.production
 
 # Data / Uploads / Cache
 data/

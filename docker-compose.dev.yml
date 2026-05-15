@@ -1,130 +1,73 @@
 # ============================================
-# 思觉智贸 - 开发环境覆盖
-# ============================================
+# 思觉智贸 - 开发环境
 # 启动: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 # ============================================
 
 services:
-  # MySQL - 开发环境使用独立数据库
   mysql:
-    container_name: sijue-mysql-dev
-    environment:
-      MYSQL_DATABASE: sijuelishi_dev
-      MYSQL_USER: sijue_dev
-      MYSQL_PASSWORD: dev123456
+    container_name: dev-mysql
     ports:
       - "3307:3306"
-    volumes:
-      - mysql_dev_data:/var/lib/mysql
+    environment:
+      MYSQL_DATABASE: sijuelishi_dev
 
-  # Redis - 开发暴露端口
   redis:
-    container_name: sijue-redis-dev
+    container_name: dev-redis
+    command: redis-server --port 6379
     ports:
       - "6379:6379"
-    volumes:
-      - redis_dev_data:/data
 
-  # Qdrant - 开发暴露端口
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: sijue-qdrant-dev
-    ports:
-      - "6333:6333"
-    volumes:
-      - qdrant_dev_data:/qdrant/storage
-
-  # Java 后端 - 开发模式 (核心业务)
-  java-backend:
-    image: deploy-backend-java:latest
-    container_name: sijue-java-backend-dev
-    environment:
-      - SPRING_PROFILES_ACTIVE=dev
-      - MYSQL_HOST=mysql
-      - MYSQL_PORT=3306
-      - MYSQL_USER=sijue_dev
-      - MYSQL_PASSWORD=dev123456
-      - MYSQL_DATABASE=sijuelishi_dev
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - JWT_SECRET=dev-jwt-secret-key-for-local-development-only
-      - JWT_EXPIRATION=86400000
-      - TZ=Asia/Shanghai
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./java-backend/src:/app/src    # 源码挂载，支持热重载（需配合 spring-boot-devtools）
-      - java_backend_dev_logs:/app/logs
-
-  # Python 后端 - 开发模式 (AI 功能)
   backend:
-    image: deploy-backend-ai:latest
-    container_name: sijue-python-backend-dev
-    environment:
-      - ENVIRONMENT=development
-      - MYSQL_HOST=mysql
-      - MYSQL_PORT=3306
-      - MYSQL_USER=sijue_dev
-      - MYSQL_PASSWORD=dev123456
-      - MYSQL_DATABASE=sijuelishi_dev
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=0
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
-      - QDRANT_COLLECTION_NAME=designs_dev
-      - CELERY_BROKER_URL=redis://redis:6379/3
-      - CELERY_RESULT_BACKEND=redis://redis:6379/4
-      - LOG_LEVEL=DEBUG
-      - RATE_LIMIT_ENABLED=false
-      - CORS_ORIGINS=["*"]
-      - HOT_RELOAD_ENABLED=true
-    ports:
-      - "8002:8000"
-    volumes:
-      - ./backend:/app
-      - backend_dev_logs:/app/logs
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-  # Celery - 开发模式
-  celery-worker:
-    image: deploy-backend-ai:latest
-    container_name: sijue-celery-dev
-    environment:
-      - ENVIRONMENT=development
-      - MYSQL_HOST=mysql
-      - MYSQL_PORT=3306
-      - MYSQL_USER=sijue_dev
-      - MYSQL_PASSWORD=dev123456
-      - MYSQL_DATABASE=sijuelishi_dev
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
-      - CELERY_BROKER_URL=redis://redis:6379/3
-      - CELERY_RESULT_BACKEND=redis://redis:6379/4
-    volumes:
-      - ./backend:/app
-      - celery_dev_logs:/app/logs
-    command: celery -A app.celery worker --loglevel=info
-
-  # 前端 - 开发模式（Vite 热重载）
-  frontend:
-    container_name: sijue-frontend-dev
     build:
-      context: ./frontend
+      context: ./backend
       dockerfile: Dockerfile.dev
-    ports:
-      - "5174:5174"
-    volumes:
-      - ./frontend/src:/app/src
+    image: dev-backend
+    container_name: dev-backend
+    env_file:
+      - ./backend/.env
     environment:
-      - VITE_BACKEND_PORT=8001
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=sijuelishi_dev
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - IMAGE_READ_MODE=cloud
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/uploads:/app/uploads
+      - ./backend/static:/app/static
+      - ./backend/logs:/app/logs
+      - dev-thumbnails:/app/images/thumbnails
+      - dev-models:/app/model_cache
+      - ./产品数据:/app/data:ro
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8090 --reload --reload-dir app
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    image: node:20-alpine
+    container_name: dev-frontend
+    working_dir: /app
+    environment:
+      VITE_BACKEND_PORT: "8090"
+    ports:
+      - "8179:8179"
+    volumes:
+      - ./frontend:/app
+      - dev-node-modules:/app/node_modules
+    command: >
+      sh -c "npm install && npx vite --host 0.0.0.0 --port 8179 --strictPort"
+    depends_on:
+      - backend
 
 volumes:
-  mysql_dev_data:
-  redis_dev_data:
-  qdrant_dev_data:
-  backend_dev_logs:
-  celery_dev_logs:
-  java_backend_dev_logs:
+  dev-thumbnails:
+  dev-models:
+  dev-node-modules:

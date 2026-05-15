@@ -41,7 +41,7 @@
       <div class="login-box">
         <div class="login-header">
           <h2>欢迎回来</h2>
-          <p>请输入您的账号信息登录系统</p>
+          <p>{{ isRegister ? '创建新账号' : '请输入您的账号信息登录系统' }}</p>
         </div>
 
         <el-form
@@ -72,6 +72,20 @@
             />
           </el-form-item>
 
+          <el-form-item v-if="isRegister">
+            <el-select
+              v-model="loginForm.role"
+              placeholder="请选择角色"
+              size="large"
+              style="width: 100%"
+            >
+              <el-option label="开发" value="开发" />
+              <el-option label="美术" value="美术" />
+              <el-option label="仓库" value="仓库" />
+              <el-option label="运营" value="运营" />
+            </el-select>
+          </el-form-item>
+
           <el-form-item>
             <div class="form-options">
               <el-checkbox v-model="loginForm.remember">
@@ -89,13 +103,14 @@
               native-type="submit"
               class="login-button"
             >
-              {{ loading ? '登录中...' : '登 录' }}
+              {{ loading ? (isRegister ? '注册中...' : '登录中...') : (isRegister ? '注 册' : '登 录') }}
             </el-button>
           </el-form-item>
         </el-form>
 
         <div class="login-footer">
-          <p>试试 <code>admin</code> / <code>123456</code></p>
+          <p v-if="!isRegister">没有账号？ <a href="#" @click.prevent="isRegister = true">立即注册</a></p>
+          <p v-if="isRegister">已有账号？ <a href="#" @click.prevent="isRegister = false">返回登录</a></p>
         </div>
       </div>
     </div>
@@ -115,6 +130,7 @@ interface LoginForm {
   username: string
   password: string
   remember: boolean
+  role: string
 }
 
 const router = useRouter()
@@ -124,11 +140,13 @@ const loginFormRef = ref<FormInstance>()
 const loading = ref<boolean>(false)
 const isSubmitting = ref<boolean>(false)
 const lastSubmitTime = ref<number>(0)
+const isRegister = ref<boolean>(false)
 
 const loginForm = reactive<LoginForm>({
   username: '',
   password: '',
-  remember: false
+  remember: false,
+  role: ''
 })
 
 const loginRules = reactive<FormRules<LoginForm>>({
@@ -163,32 +181,56 @@ const handleLogin = async (): Promise<void> => {
     console.log('[Login] 开始尝试登录')
     await loginFormRef.value!.validate()
     
-    if (loginForm.username === 'admin' && loginForm.password === '123456') {
-      const mockToken = 'mock-token-' + Date.now()
-      localStorage.setItem('token', mockToken)
-      localStorage.setItem('userInfo', JSON.stringify({
-        id: '1',
-        username: 'admin',
-        nickname: '管理员',
-        role: 'admin'
-      }))
-      
-      userStore.setToken(mockToken)
-      userStore.setUserInfo({
-        id: '1',
-        username: 'admin',
-        nickname: '管理员',
-        role: 'admin',
-        permissions: []
-      } as UserType)
-      
-      ElMessage.closeAll()
-      ElMessage.success('登录成功')
-      
-      await nextTick()
-      router.push('/dashboard')
+    if (isRegister.value) {
+      // 注册
+      if (loginForm.password.length < 6) {
+        ElMessage.error('密码至少6个字符')
+        loading.value = false; isSubmitting.value = false; return
+      }
+      const res = await fetch('/api/v1/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: loginForm.username,
+          password: loginForm.password,
+          role: loginForm.role || undefined
+        })
+      }).then(r => r.json())
+      if (res.code === 200 && res.data) {
+        const token = res.data.access_token
+        localStorage.setItem('token', token)
+        localStorage.setItem('userInfo', JSON.stringify(res.data.user))
+        userStore.setToken(token)
+        userStore.setUserInfo((res.data.user || { id: '1', username: loginForm.username, role: 'user', permissions: [] }) as UserType)
+        ElMessage.success('注册成功')
+        await nextTick()
+        router.push('/dashboard')
+      } else {
+        ElMessage.error(res.message || '注册失败')
+      }
     } else {
-      ElMessage.error('用户名或密码错误')
+      // 登录
+      const { userApi } = await import('@/api/user')
+      const res = await userApi.login({
+        username: loginForm.username,
+        password: loginForm.password
+      })
+      if (res.code === 200 && res.data) {
+        const token = res.data.access_token || res.data.token
+        localStorage.setItem('token', token)
+        localStorage.setItem('userInfo', JSON.stringify(res.data.user || {
+          id: '1', username: loginForm.username, nickname: loginForm.username, role: 'admin'
+        }))
+        userStore.setToken(token)
+        userStore.setUserInfo((res.data.user || {
+          id: '1', username: loginForm.username, nickname: loginForm.username, role: 'admin', permissions: []
+        }) as UserType)
+        ElMessage.success('登录成功')
+        await nextTick()
+        router.push('/dashboard')
+      } else {
+        ElMessage.error(res.message || '用户名或密码错误')
+      }
     }
   } catch (error: any) {
     console.error('[Login] 登录失败:', error)
