@@ -53,3 +53,30 @@ tmp/
 
 # Tool binaries (too large)
 tool/node.js/
+
+# Large data files
+*.parquet
+产品数据/压缩数据/
+
+# Test / temp files
+backend/test_*.png
+backend/test_*.jpg
+backend/scripts/_check_schema.py
+backend/scripts/_e2e_test.py
+backend/scripts/migrate_thumbnail.py
+backend/dump.rdb
+dump.rdb
+
+# Redis dump
+*.rdb
+
+# Uploads (runtime generated)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Logs (runtime generated)
+backend/logs/*
+!backend/logs/.gitkeep
+
+# Claude
+.claude/
