@@ -1380,7 +1380,7 @@ const loadSystemConfigs = async () => {
 }
 
 onMounted(() => {
-  loadData()
+  handleSearch()
 })
 </script>
 

@@ -130,3 +130,22 @@ class PeriodTrendComparisonResponse(BaseModel):
     """双周期趋势对比响应"""
     period_a: DailyTrendResponse  # 周期A每日趋势
     period_b: DailyTrendResponse  # 周期B每日趋势
+
+
+class DeclineProduct(BaseModel):
+    """下滑分析-单个产品数据"""
+    asin: str
+    title: str
+    shop: str
+    prev_sales: int = 0
+    curr_sales: int = 0
+    decline: int = 0
+    decline_pct: float = 0.0
+
+    class Config:
+        from_attributes = True
+
+
+class DeclineAnalysisResponse(BaseModel):
+    """下滑分析响应"""
+    products: List[DeclineProduct]

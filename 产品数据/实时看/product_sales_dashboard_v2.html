@@ -3,21 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>产品销量追踪 | 领星数据</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
 :root {
-  --bg: #0b1120;
-  --surface: #131c31;
-  --card: #1a2540;
-  --border: #243352;
-  --hover: #243352;
-  --text: #e8edf5;
-  --text-dim: #7b8ba5;
-  --accent: #3b82f6;
-  --green: #22c55e;
-  --red: #ef4444;
-  --yellow: #f59e0b;
+  --bg: #FFFBF7;
+  --surface: #FFFFFF;
+  --card: #FFFFFF;
+  --border: #F0EBE6;
+  --hover: #F8F4FF;
+  --text: #2F281D;
+  --text-dim: #6B5E52;
+  --accent: #7C61D4;
+  --accent-light: #9F85E0;
+  --green: #16A34A;
+  --red: #DC2626;
+  --yellow: #D97706;
   --purple: #a855f7;
   --cyan: #06b6d4;
   --orange: #f97316;
@@ -62,7 +66,7 @@ body {
   font-size: 17px;
   font-weight: 700;
   white-space: nowrap;
-  background: linear-gradient(135deg, #3b82f6, #a855f7);
+  background: linear-gradient(135deg, var(--accent), var(--purple));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -601,6 +605,7 @@ body {
   <span style="font-size:12px;color:var(--text-dim);">领星 ERP · 产品表现</span>
   <span style="font-size:12px;color:var(--text-dim);" id="dateRangeDisplay">📅 加载中...</span>
   <div style="flex:1;"></div>
+  <a href="product_decline_analysis.html" style="font-size:13px;color:var(--red);text-decoration:none;padding:6px 12px;background:rgba(239,68,68,0.1);border-radius:6px;margin-right:8px;">📉 销量下滑分析</a>
   <a href="product_comparison_dashboard.html" style="font-size:13px;color:var(--accent);text-decoration:none;padding:6px 12px;background:rgba(59,130,246,0.1);border-radius:6px;">📊 双周期对比</a>
 </div>
 
@@ -705,15 +710,8 @@ body {
 
 <script>
 // ==================== 配置 ====================
-// 动态获取后端API地址 - 根据当前页面URL自动推断
-function getApiBaseUrl() {
-  // 获取当前页面的主机名
-  const hostname = window.location.hostname;
-  // 后端端口固定为8002（与热重载脚本配置一致）
-  const backendPort = 8002;
-  return `http://${hostname}:${backendPort}`;
-}
-const API_BASE_URL = getApiBaseUrl();  // 后端API地址
+// API通过同源代理访问（Vite开发服务器/Nginx自动转发到后端）
+const API_BASE_URL = '';
 
 // ==================== 状态 ====================
 let selectedProducts = new Set();
@@ -727,8 +725,8 @@ let currentProducts = [];  // 当前显示的产品列表
 let searchDebounceTimer = null;
 
 const COLORS = [
-  '#3b82f6','#22c55e','#a855f7','#f59e0b','#ef4444','#06b6d4',
-  '#f97316','#ec4899','#14b8a6','#8b5cf6'
+  '#7C61D4','#22c55e','#a855f7','#f59e0b','#ef4444','#06b6d4',
+  '#f97316','#ec4899','#14b8a6','#9F85E0'
 ];
 
 // ==================== 初始化 ====================

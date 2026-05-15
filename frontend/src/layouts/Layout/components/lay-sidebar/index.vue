@@ -19,6 +19,7 @@ interface MenuItem {
   title: string
   icon: any
   children?: MenuItem[]
+  external?: boolean
 }
 
 const props = defineProps<{
@@ -70,7 +71,17 @@ const menuItems: MenuItem[] = [
       { index: '/lingxing/import', title: '导入领星', icon: Upload }
     ]
   },
-  { index: '/product-data', title: '产品数据看板', icon: TrendCharts },
+  {
+    index: 'dashboards',
+    title: '数据看板',
+    icon: TrendCharts,
+    children: [
+      { index: '/product-data', title: '产品数据看板', icon: TrendCharts },
+      { index: '/dashboards/product_sales_dashboard_v2.html', title: '销量追踪', icon: TrendCharts, external: true },
+      { index: '/dashboards/product_comparison_dashboard.html', title: '双周期对比', icon: TrendCharts, external: true },
+      { index: '/dashboards/product_decline_analysis.html', title: '销量下滑分析', icon: TrendCharts, external: true }
+    ]
+  },
   { index: '/download-manager', title: '下载管理', icon: Download },
   { index: '/users', title: '用户管理', icon: User },
     { index: '/account-settings', title: '账号设置', icon: User },
@@ -79,8 +90,24 @@ const menuItems: MenuItem[] = [
 
 const activeIndex = computed(() => route.path)
 
+const findItem = (items: MenuItem[], index: string): MenuItem | undefined => {
+  for (const item of items) {
+    if (item.index === index) return item
+    if (item.children) {
+      const found = findItem(item.children, index)
+      if (found) return found
+    }
+  }
+  return undefined
+}
+
 const handleSelect = (index: string) => {
   if (!index.startsWith('/')) return
+  const item = findItem(menuItems, index)
+  if (item?.external) {
+    window.open(index, '_blank')
+    return
+  }
   router.push(index)
 }
 </script>

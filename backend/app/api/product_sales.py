@@ -14,7 +14,8 @@ from ..models.product_sales import (
     PeriodComparisonResponse,
     PeriodData,
     DailyTrendResponse,
-    PeriodTrendComparisonResponse
+    PeriodTrendComparisonResponse,
+    DeclineAnalysisResponse
 )
 from ..services.product_sales_service import get_product_sales_service, ProductSalesService
 
@@ -286,6 +287,39 @@ async def get_period_trend(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取趋势数据失败: {str(e)}")
+
+
+@router.get("/decline-analysis", response_model=DeclineAnalysisResponse)
+async def get_decline_analysis(
+    period_type: str = Query(..., description="周期类型: week 或 month"),
+    prev_period: str = Query(..., description="前期标识，week格式: YYYY-WNN, month格式: YYYY-MM"),
+    curr_period: str = Query(..., description="当期标识，同上"),
+    shops: Optional[str] = Query(None, description="店铺筛选，逗号分隔"),
+    service: ProductSalesService = Depends(get_product_sales_service)
+):
+    """
+    产品销量下滑分析
+
+    对比两个周期的销量，计算下滑幅度，按下滑率排序返回
+    """
+    try:
+        shop_list = None
+        if shops:
+            shop_list = [s.strip() for s in shops.split(',') if s.strip()]
+
+        result = service.get_decline_analysis(
+            period_type=period_type,
+            prev_period=prev_period,
+            curr_period=curr_period,
+            shops=shop_list
+        )
+
+        return result
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"下滑分析失败: {str(e)}")
 
 
 @router.get("/health")

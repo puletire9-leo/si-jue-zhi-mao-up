@@ -3,7 +3,10 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>产品管理</span>
+          <div class="header-left">
+            <span>产品管理</span>
+            <AnnouncementBar />
+          </div>
           <div class="header-actions">
             <el-button type="primary" :icon="Plus" @click="handleAdd">
               添加产品
@@ -399,6 +402,7 @@ import { Plus, Delete, Search, Refresh, Download, Upload, Picture, UploadFilled,
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import UniversalCard from '@/components/UniversalCard/index.vue'
 import ProductDetailDialog from '@/components/ProductDetailDialog/index.vue'
+import AnnouncementBar from '@/views/ProductDataDashboard/components/AnnouncementBar.vue'
 import { productApi, productRecycleApi } from '@/api/product'
 import type { Product } from '@/types/api'
 import type { UploadInstance, UploadFile } from 'element-plus'
@@ -793,6 +797,12 @@ onBeforeMount(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .header-actions {

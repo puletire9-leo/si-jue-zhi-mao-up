@@ -1,148 +1,76 @@
 # ============================================
-# 思觉智贸 - 生产环境覆盖
-# ============================================
+# 思觉智贸 - 生产环境
 # 启动: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 # ============================================
 
 services:
-  # MySQL - 生产使用独立数据库
   mysql:
-    image: mysql:8.0
-    container_name: sijue-mysql
+    container_name: prod-mysql
+    ports:
+      - "3308:3306"
     environment:
       MYSQL_DATABASE: sijuelishi
-      MYSQL_USER: sijue
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-sijue123456}
-    ports:
-      - "${MYSQL_PORT:-3306}:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
 
-  # Redis
   redis:
-    image: redis:7-alpine
-    container_name: sijue-redis
+    container_name: prod-redis
+    command: redis-server --port 6379
     ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - redis_data:/data
+      - "6380:6379"
 
-  # Qdrant
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: sijue-qdrant
-    ports:
-      - "${QDRANT_PORT:-6333}:6333"
-    volumes:
-      - qdrant_data:/qdrant/storage
-
-  # Java 后端 - 生产模式 (核心业务 + 高并发)
-  java-backend:
-    container_name: sijue-java-backend
-    environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - MYSQL_HOST=mysql
-      - MYSQL_PORT=3306
-      - MYSQL_USER=${MYSQL_USER:-sijue}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-sijue123456}
-      - MYSQL_DATABASE=${MYSQL_DATABASE:-sijuelishi}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
-      - JWT_EXPIRATION=${JWT_EXPIRATION:-86400000}
-      - TZ=Asia/Shanghai
-    ports:
-      - "${JAVA_BACKEND_PORT:-8080}:8080"
-    volumes:
-      - java_backend_logs:/app/logs
-    deploy:
-      resources:
-        limits:
-          cpus: "4"
-          memory: 4G
-
-  # Python 后端 - 生产模式 (AI 功能)
   backend:
-    container_name: sijue-python-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: prod-backend
+    container_name: prod-backend
     environment:
       - ENVIRONMENT=production
+      - DEBUG=false
       - MYSQL_HOST=mysql
       - MYSQL_PORT=3306
-      - MYSQL_USER=${MYSQL_USER:-sijue}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-sijue123456}
-      - MYSQL_DATABASE=${MYSQL_DATABASE:-sijuelishi}
+      - MYSQL_DATABASE=sijuelishi
+      - MYSQL_USER=sijue
+      - MYSQL_PASSWORD=sijue123456
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
-      - QDRANT_COLLECTION_NAME=designs
-      - CELERY_BROKER_URL=redis://redis:6379/1
-      - CELERY_RESULT_BACKEND=redis://redis:6379/2
       - LOG_LEVEL=INFO
       - RATE_LIMIT_ENABLED=true
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
-      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost"]}
       - COS_ENABLED=${COS_ENABLED:-false}
       - COS_SECRET_ID=${COS_SECRET_ID:-}
       - COS_SECRET_KEY=${COS_SECRET_KEY:-}
       - COS_BUCKET=${COS_BUCKET:-}
-      - COS_REGION=${COS_REGION:-ap-beijing}
+      - COS_REGION=${COS_REGION:-ap-guangzhou}
       - PARQUET_DATA_DIR=/app/data
     ports:
-      - "${PYTHON_BACKEND_PORT:-8000}:8000"
+      - "7090:7090"
     volumes:
-      - backend_logs:/app/logs
-      - backend_models:/app/model_cache
-      - product_data:/app/data
+      - prod-logs:/app/logs
+      - prod-models:/app/model_cache
+      - ${PARQUET_DATA_HOST_DIR:-./产品数据/压缩数据}:/app/data:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     deploy:
       resources:
         limits:
           cpus: "2"
           memory: 4G
 
-  # Celery - 生产模式
-  celery-worker:
-    container_name: sijue-celery
-    environment:
-      - ENVIRONMENT=production
-      - MYSQL_HOST=mysql
-      - MYSQL_PORT=3306
-      - MYSQL_USER=${MYSQL_USER:-sijue}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-sijue123456}
-      - MYSQL_DATABASE=${MYSQL_DATABASE:-sijuelishi}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
-      - CELERY_BROKER_URL=redis://redis:6379/1
-      - CELERY_RESULT_BACKEND=redis://redis:6379/2
-      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
-      - PARQUET_DATA_DIR=/app/data
-    volumes:
-      - backend_logs:/app/logs
-      - backend_models:/app/model_cache
-      - product_data:/app/data
-    deploy:
-      resources:
-        limits:
-          cpus: "2"
-          memory: 2G
-
-  # 前端 - 生产模式（Nginx 静态托管）
   frontend:
-    container_name: sijue-frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: prod-frontend
     ports:
-      - "${FRONTEND_PORT:-80}:80"
-    environment:
-      - VITE_API_BASE_URL=
+      - "7179:80"
+    depends_on:
+      - backend
 
 volumes:
-  backend_logs:
-  backend_models:
-  product_data:
-  java_backend_logs:
-  mysql_data:
-  redis_data:
-  qdrant_data:
+  prod-logs:
+  prod-models:

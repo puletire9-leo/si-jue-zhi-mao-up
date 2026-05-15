@@ -1,0 +1,10 @@
+# 思觉智贸 - 开发环境
+# 继承基础镜像 (Python + 所有依赖)，挂载源码实现热重载
+FROM sjzm-python-base
+
+EXPOSE 8090
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8090/health || exit 1
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8090", "--reload"]

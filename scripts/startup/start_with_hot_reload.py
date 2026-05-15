@@ -49,7 +49,8 @@ default_env = 'development'
 
 # 定义虚拟环境路径选项（支持多个虚拟环境）
 VENV_OPTIONS = [
-    os.path.join(PROJECT_ROOT, ".venv"),  # 标准虚拟环境，优先使用
+    os.path.join(PROJECT_ROOT, "backend", "venv"),  # 新项目虚拟环境，优先
+    os.path.join(PROJECT_ROOT, ".venv"),
     os.path.join(PROJECT_ROOT, ".venv公司"),
     os.path.join(PROJECT_ROOT, ".venv家")
 ]  
@@ -138,7 +139,7 @@ def check_venv_path():
     return True
 
 # ========== 端口管理功能 ==========
-def get_available_port_with_fallback(start_port: int = 8001, max_attempts: int = 10) -> int:
+def get_available_port_with_fallback(start_port: int = 8090, max_attempts: int = 10) -> int:
     """获取可用的端口号，支持自动备用端口选择
     
     Args:
@@ -830,9 +831,12 @@ def check_dependencies():
 def find_nodejs():
     """查找Node.js可执行文件，优先使用项目工具目录中的Node.js"""
     import shutil
-    
-    # 1. 优先检查项目工具目录中的Node.js
-    tool_node = os.path.join(PROJECT_ROOT, 'scripts', 'tools', 'tool', 'node', 'node.exe')
+
+    # 1. 项目 Node.js 目录
+    tool_node = os.path.join('E:/tool/node-v24.15.0', 'node.exe')
+    if os.path.exists(tool_node):
+        logger.info(f"✅ 找到项目工具Node.js: {tool_node}")
+        return tool_node
     if os.path.exists(tool_node):
         logger.info(f"✅ 找到项目工具Node.js: {tool_node}")
         return tool_node
@@ -901,7 +905,7 @@ def build_frontend_dev_dist(args):
     frontend_dir = FRONTEND_ROOT
     node_path = find_nodejs()
     # 定义前端端口，与start_frontend_dev_server函数保持一致
-    frontend_port = 5174
+    frontend_port = 8178
     
     if not os.path.exists(frontend_dir):
         logger.warning(f"前端目录不存在: {frontend_dir}")
@@ -944,7 +948,7 @@ def build_frontend_dev_dist(args):
         env['VITE_APP_BASE_URL'] = env.get('VITE_APP_BASE_URL', f'http://localhost:{frontend_port}')
         # 不设置VITE_API_BASE_URL，让前端使用默认的Vite代理模式
         # 这样可以解决跨域问题，并支持通过 IP 访问时的端口转发
-        env['VITE_BACKEND_PORT'] = env.get('VITE_BACKEND_PORT', '8001')
+        env['VITE_BACKEND_PORT'] = env.get('VITE_BACKEND_PORT', '8080')
         
         logger.info(f"前端环境: {args.env}")
         logger.info(f"前端端口: {frontend_port}")
@@ -1090,7 +1094,7 @@ def start_frontend_dev_server(args):
         return False, None
     
     # 端口处理 - 开发模式固定使用5174端口，确保前端端口唯一
-    frontend_port = 5174
+    frontend_port = 8178
     
     # 如果启用了跳过端口检查，直接使用指定端口
     if args.skip_port_check:
@@ -1135,7 +1139,7 @@ def start_frontend_dev_server(args):
         env['VITE_APP_BASE_URL'] = env.get('VITE_APP_BASE_URL', f'http://localhost:{frontend_port}')
         # 不设置VITE_API_BASE_URL，让前端使用默认的Vite代理模式
         # 这样可以确保局域网用户也能正确访问后端API
-        env['VITE_BACKEND_PORT'] = env.get('VITE_BACKEND_PORT', '8001')
+        env['VITE_BACKEND_PORT'] = env.get('VITE_BACKEND_PORT', '8080')
         
         logger.info(f"前端环境: {args.env}")
         logger.info(f"前端端口: {frontend_port}")
@@ -1372,7 +1376,7 @@ def start_frontend_dev_server(args):
 
 def check_qdrant():
     """检查Qdrant是否正在运行"""
-    qdrant_path = os.path.join(PROJECT_ROOT, 'scripts', 'tools', 'tool', 'qdrant-x86_64-pc-windows-msvc', 'qdrant.exe')
+    qdrant_path = os.path.join(PROJECT_ROOT, 'tool', 'qdrant-x86_64-pc-windows-msvc', 'qdrant.exe')
     
     if not os.path.exists(qdrant_path):
         logger.warning(f"Qdrant未找到: {qdrant_path}")
@@ -1413,7 +1417,7 @@ def check_qdrant():
 
 def check_redis():
     """检查Redis是否正在运行，没有则启动（优化版）"""
-    redis_path = os.path.join(PROJECT_ROOT, 'scripts', 'tools', 'tool', 'Redis-x64-3.0.504', 'redis-server.exe')
+    redis_path = os.path.join(PROJECT_ROOT, 'tool', 'Redis-x64-3.0.504', 'redis-server.exe')
     
     if not os.path.exists(redis_path):
         logger.warning(f"Redis未找到: {redis_path}")
@@ -1480,29 +1484,102 @@ def check_redis():
         logger.error(f"❌ Redis服务器启动失败: {str(e)}")
         return False
 
+def start_java_backend_dev():
+    """开发模式启动 Java 业务后端"""
+    JAVA_HOME = 'E:/软件/PyCharm 2025.2.1.1/jbr'
+    MAVEN_HOME = 'E:/tool/apache-maven-3.9.9'
+    JAVA_BACKEND_DIR = os.path.join(PROJECT_ROOT, 'java-backend')
+    JAVA_PORT = 8090
+    mvn_exe = os.path.join(MAVEN_HOME, 'bin', 'mvn.cmd')
+
+    if not os.path.exists(mvn_exe):
+        logger.warning(f"Maven 未找到，跳过 Java 后端启动")
+        return False
+
+    # 如果已在运行，先停掉（可能用的旧配置）
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(1)
+    try:
+        s.connect(('127.0.0.1', JAVA_PORT))
+        s.close()
+        logger.info("检测到 Java 已在运行，停止旧实例...")
+        procs = subprocess.run(['netstat', '-ano'], capture_output=True, text=True, timeout=5)
+        for line in procs.stdout.split('\n'):
+            if f':{JAVA_PORT}' in line and 'LISTENING' in line:
+                pid = line.split()[-1]
+                subprocess.run(['taskkill', '/F', '/T', '/PID', pid], capture_output=True, timeout=5)
+        time.sleep(2)
+    except Exception:
+        pass
+
+    logger.info("启动 Java 业务后端...")
+    env = os.environ.copy()
+    env['JAVA_HOME'] = JAVA_HOME
+    env['PATH'] = os.path.join(JAVA_HOME, 'bin') + os.pathsep + os.path.dirname(mvn_exe) + os.pathsep + env.get('PATH', '')
+    env['MYSQL_DATABASE'] = 'sijuelishi_dev'  # 开发模式用开发库
+    # COS 配置从 .env 读取传给 Java
+    backend_env = os.path.join(BACKEND_ROOT, '.env')
+    if os.path.exists(backend_env):
+        with open(backend_env, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith('COS_SECRET_ID='):
+                    env['TENCENT_COS_SECRET_ID'] = line.split('=', 1)[1].strip()
+                elif line.startswith('COS_SECRET_KEY='):
+                    env['TENCENT_COS_SECRET_KEY'] = line.split('=', 1)[1].strip()
+                elif line.startswith('COS_BUCKET='):
+                    env['TENCENT_COS_BUCKET'] = line.split('=', 1)[1].strip()
+                elif line.startswith('COS_ENABLED='):
+                    env['TENCENT_COS_ENABLED'] = line.split('=', 1)[1].strip()
+
+    process = subprocess.Popen(
+        [mvn_exe, 'spring-boot:run', '-Dspring-boot.run.arguments=--server.port=' + str(JAVA_PORT)],
+        cwd=JAVA_BACKEND_DIR, env=env
+    )
+
+    for i in range(30):
+        time.sleep(2)
+        if process.poll() is not None:
+            logger.error(f"Java 后端启动失败 (exit={process.returncode})")
+            return False
+        try:
+            s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s2.settimeout(2)
+            s2.connect(('127.0.0.1', JAVA_PORT))
+            s2.close()
+            logger.info(f"✅ Java 业务后端就绪 (PID={process.pid}, port={JAVA_PORT})")
+            return True
+        except Exception:
+            if i % 5 == 4:
+                logger.info(f"  等待 Java 启动... ({i+1}/30)")
+    logger.error("Java 后端启动超时")
+    return False
+
+
 def start_application_with_hot_reload(args):
     """启动应用程序（开发模式/热更新模式）"""
     logger.info(f"\n=== 图片数据库管理系统启动（{args.env}环境/热更新）===")
     logger.info("=" * 50)
-    
+
     # 跳过端口检查，直接启动服务
     logger.info("跳过端口检查，直接启动服务")
-    
+
     # 执行前置检查
     if not check_python_version():
         return False
-    
+
     if not check_virtual_environment():
         return False
+
+    # 启动 Java 业务后端（已废弃，使用 Python 统一后端）
+    # start_java_backend_dev()
     
     if not check_dependencies():
         return False
     
     if not check_redis():
         return False
-    
-    # 跳过Qdrant检查，减少日志输出
-    # check_qdrant()
+    # check_qdrant() -- Qdrant 非必须
     
     # 检查Node.js
     node_ok, node_path = check_nodejs()
@@ -1511,9 +1588,9 @@ def start_application_with_hot_reload(args):
     
     logger.info(f"当前环境: {args.env}")
     
-    # 检查后端端口 - 开发模式默认使用8001端口，支持自动更换端口
-    backend_port = 8001
-    if args.port != 8001:
+    # Python 开发后端端口（AI 服务）
+    backend_port = 8080
+    if args.port != 8080:
         backend_port = args.port
         logger.info(f"使用自定义后端端口: {backend_port}")
     
@@ -1586,7 +1663,7 @@ def start_application_with_hot_reload(args):
         logger.info("继续启动服务...")
     
     # 启动前端开发服务器
-    frontend_port = 5174
+    frontend_port = 8178
     if node_ok:
         logger.info("正在启动前端开发服务器...")
         frontend_ok, _ = start_frontend_dev_server(args)
@@ -1609,9 +1686,9 @@ def start_application_with_hot_reload(args):
         logger.info("系统访问地址")
         logger.info("=" * 60)
         logger.info("前端页面:")
-        logger.info(f"  - 本地访问: http://localhost:{frontend_port}/")
+        logger.info(f"  前端(Vite): http://localhost:{frontend_port}/")
         if local_ip:
-            logger.info(f"  - 局域网访问: http://{local_ip}:{frontend_port}/")
+            logger.info(f"              http://{local_ip}:{frontend_port}/")
         logger.info("")
         logger.info("后端API:")
         logger.info(f"  - 本地访问: http://localhost:{backend_port}/")
@@ -1685,8 +1762,8 @@ def main():
     parser = argparse.ArgumentParser(description='图片数据库管理系统启动脚本 - 开发模式专用')
     parser.add_argument('--mode', choices=['dev'], default='dev',
                        help='启动模式: dev (开发模式)')
-    parser.add_argument('--port', type=int, default=8001,
-                       help='服务器端口 (默认: 开发环境8001)')
+    parser.add_argument('--port', type=int, default=8080,
+                       help='服务器端口 (默认: 8080)')
     parser.add_argument('--host', default='0.0.0.0',
                        help='服务器主机 (默认: 0.0.0.0)')
     parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], 
@@ -1763,32 +1840,80 @@ def setup_graceful_shutdown():
 
 
 def cleanup_all_resources():
-    """清理所有资源
-    
-    优化后的资源清理函数，确保在热重载场景下能正确执行。
-    区分正常退出和热重载场景，避免不必要的资源清理。
-    """
+    """清理所有资源（Ctrl+C 时自动调用）"""
     try:
-        # 检查logger是否已经初始化
         global logger
-        if logger:
-            logger.info("开始清理所有资源...")
-        
-        # 1. 清理临时文件 - 无论何种场景都需要清理
+
+        # 强制清理所有已知端口
+        force_kill_ports()
+
+        # 1. 杀 Java 后端
+        try:
+            JAVA_PORT = 8090
+            procs = subprocess.run(
+                ['netstat', '-ano'], capture_output=True, text=True, timeout=5
+            )
+            for line in procs.stdout.split('\n'):
+                if f':{JAVA_PORT}' in line and 'LISTENING' in line:
+                    pid = line.split()[-1]
+                    subprocess.run(['taskkill', '/F', '/T', '/PID', pid],
+                                   capture_output=True, timeout=5)
+                    if logger:
+                        logger.info(f"已停止 Java 后端 (PID={pid})")
+        except Exception:
+            pass
+
+        # 2. 停 Vite 前端
+        try:
+            VITE_PORT = 8178
+            procs = subprocess.run(
+                ['netstat', '-ano'], capture_output=True, text=True, timeout=5
+            )
+            for line in procs.stdout.split('\n'):
+                if f':{VITE_PORT}' in line and 'LISTENING' in line:
+                    pid = line.split()[-1]
+                    subprocess.run(['taskkill', '/F', '/T', '/PID', pid],
+                                   capture_output=True, timeout=5)
+                    if logger:
+                        logger.info(f"已停止 Vite 前端 (PID={pid})")
+        except Exception:
+            pass
+
+        # 3. 清理临时文件
         cleanup_temp_files()
-        
-        # 2. 关闭数据库连接等资源 - 确保在脚本退出时关闭所有连接
+
+        # 4. 关闭数据库连接
         close_database_connections()
-        
+
         if logger:
-            logger.info("资源清理完成")
+            logger.info("所有服务已停止")
     except Exception as e:
-        # 如果logger不可用，直接打印到控制台
-        error_msg = f"资源清理过程中发生错误: {e}"
         if logger:
-            logger.error(error_msg)
+            logger.error(f"清理异常: {e}")
         else:
-            print(error_msg)
+            print(f"清理异常: {e}")
+
+
+def force_kill_ports():
+    """强制清理所有项目相关端口（通过 netstat + taskkill 彻底杀进程树）"""
+    ports = [8080, 8090, 8100, 8178]  # 开发模式：Python后端、Java后端、Python AI、前端
+    killed = []
+    try:
+        procs = subprocess.run(['netstat', '-ano'], capture_output=True, text=True, timeout=5)
+        for line in procs.stdout.split('\n'):
+            for port in ports:
+                if f':{port}' in line and 'LISTENING' in line:
+                    parts = line.split()
+                    pid = parts[-1]
+                    if pid.isdigit() and pid not in killed:
+                        subprocess.run(['taskkill', '/F', '/T', '/PID', pid],
+                                       capture_output=True, timeout=5)
+                        killed.append(pid)
+                        if logger:
+                            logger.info(f"  已强制清理端口 {port} (PID={pid})")
+    except Exception as e:
+        if logger:
+            logger.warning(f"端口清理异常: {e}")
 
 
 def cleanup_temp_files():

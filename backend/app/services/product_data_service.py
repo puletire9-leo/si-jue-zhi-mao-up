@@ -25,6 +25,8 @@ class ProductDataService:
             os.path.join(os.getcwd(), "temp_parquet_output"),  # 当前目录
             os.path.join(os.getcwd(), "..", "temp_parquet_output"),  # 上级目录
             os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "temp_parquet_output")),  # 项目根目录
+            r"E:\项目\si-jue-zhi-mao-up\产品数据\压缩数据",  # Windows 本地数据目录
+            r"E:/项目/si-jue-zhi-mao-up/产品数据/压缩数据",  # Windows 正斜杠写法
         ]
         
         parquet_dir = None

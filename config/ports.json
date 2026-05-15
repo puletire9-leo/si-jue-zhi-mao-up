@@ -1,0 +1,14 @@
+{
+  "base": {
+    "mysql": 3307,
+    "redis": 6380
+  },
+  "dev": {
+    "python_backend": 8090,
+    "frontend": 8179
+  },
+  "prod": {
+    "python_backend": 7090,
+    "frontend": 7179
+  }
+}

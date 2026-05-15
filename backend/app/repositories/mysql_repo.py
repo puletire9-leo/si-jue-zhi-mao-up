@@ -635,7 +635,7 @@ class MySQLRepository:
     ) -> int:
         """
         创建图片记录
-        
+
         Args:
             filename: 文件名
             filepath: 文件路径
@@ -656,13 +656,14 @@ class MySQLRepository:
             original_quality: 原始图片质量（1-100）
             original_zip_filepath: 原始图片zip包路径
             original_zip_cos_key: 原始图片zip包COS对象键
-            
+            sku: 产品SKU
+
         Returns:
             插入的图片ID
         """
         # 确定存储类型
         storage_type = 'cos' if cos_object_key else 'local'
-        
+
         query = """
             INSERT INTO images (
                 filename, filepath, file_size, width, height, format,
@@ -670,7 +671,8 @@ class MySQLRepository:
                 storage_type, cos_object_key, cos_url,
                 original_file_size, original_format, original_width, original_height,
                 original_filename, original_quality,
-                original_zip_filepath, original_zip_cos_key, sku
+                original_zip_filepath, original_zip_cos_key,
+                sku
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                       %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
@@ -680,9 +682,10 @@ class MySQLRepository:
             storage_type, cos_object_key, cos_url,
             original_file_size, original_format, original_width, original_height,
             original_filename, original_quality,
-            original_zip_filepath, original_zip_cos_key, sku
+            original_zip_filepath, original_zip_cos_key,
+            sku
         )
-        
+
         result = await self.execute_insert(query, params)
         return result['last_id']
     
@@ -721,6 +724,8 @@ class MySQLRepository:
                 original_quality,
                 original_zip_filepath,
                 original_zip_cos_key,
+                cos_thumbnail_key,
+                cos_thumbnail_url,
                 sku
             FROM images WHERE id = %s
         """
@@ -975,6 +980,44 @@ class MySQLRepository:
         """
         params = (cos_thumbnail_url, datetime.now(), image_id)
         return await self.execute_update(query, params)
+
+    async def update_image_thumbnail(
+        self,
+        image_id: int,
+        thumbnail_cos_key: str,
+        thumbnail_cos_url: str
+    ) -> int:
+        """更新 images 表的缩略图COS信息（已有列 cos_thumbnail_key / cos_thumbnail_url）"""
+        query = """
+            UPDATE images SET
+                cos_thumbnail_key = %s,
+                cos_thumbnail_url = %s,
+                updated_at = %s
+            WHERE id = %s
+        """
+        params = (thumbnail_cos_key, thumbnail_cos_url, datetime.now(), image_id)
+        return await self.execute_update(query, params)
+
+    async def get_images_missing_thumbnails(self) -> list:
+        """获取缺少缩略图COS URL的图片记录"""
+        query = """
+            SELECT id, filename, filepath, cos_url, cos_object_key,
+                   cos_thumbnail_url
+            FROM images
+            WHERE cos_thumbnail_url IS NULL OR cos_thumbnail_url = ''
+            ORDER BY id DESC
+            LIMIT 500
+        """
+        return await self.execute_query(query, fetch_all=True)
+
+    async def get_all_images_with_thumbnails(self) -> list:
+        """获取所有有缩略图COS URL的图片"""
+        query = """
+            SELECT id, cos_thumbnail_url
+            FROM images
+            WHERE cos_thumbnail_url IS NOT NULL AND cos_thumbnail_url != ''
+        """
+        return await self.execute_query(query, fetch_all=True)
 
     async def get_storage_statistics(self) -> Dict[str, Any]:
         """

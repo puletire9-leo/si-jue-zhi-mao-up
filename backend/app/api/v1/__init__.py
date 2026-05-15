@@ -47,6 +47,7 @@ from .reports import router as reports_router
 from .download_tasks import router as download_tasks_router
 from .lingxing import router as lingxing_router
 from .scoring import router as scoring_router
+from .announcement import router as announcement_router
 
 api_router = APIRouter()
 
@@ -76,5 +77,6 @@ api_router.include_router(reports_router, prefix="/reports")
 api_router.include_router(download_tasks_router)
 api_router.include_router(lingxing_router)
 api_router.include_router(scoring_router)
+api_router.include_router(announcement_router)
 
 __all__ = ["api_router"]

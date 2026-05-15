@@ -71,8 +71,12 @@ management:
     health:
       show-details: never
 
-# 生产环境 CORS 配置 - 禁用 localhost 任意端口模式
+# 生产环境路径配置
 app:
+  upload:
+    dir: E:/项目/si-jue-zhi-mao-up/backend/uploads
+  local:
+    thumbnail-dir: E:/项目/si-jue-zhi-mao-up/backend/data/thumbnails
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:https://your-production-domain.com}
     allow-localhost-all-ports: false

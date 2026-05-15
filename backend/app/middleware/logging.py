@@ -70,6 +70,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         user_agent = request.headers.get("user-agent", "unknown")
         
         # 记录请求信息
+        print(f"[REQ] {method} {path} from {client_host}", flush=True)
         logger.info(
             f"[{request_id}] 请求开始 | "
             f"客户端: {client_host} | "

@@ -231,7 +231,7 @@ const imageRefreshKey = ref(0)
 const localThumbnailFailed = ref(false)
 
 // 默认图片URL - 使用公开的占位图片服务
-const DEFAULT_IMAGE = 'https://via.placeholder.com/300x200?text=No+Image'
+const DEFAULT_IMAGE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect fill="#f0f0f0" width="300" height="200"/><text fill="#999" font-family="sans-serif" font-size="14" text-anchor="middle" x="150" y="105">No Image</text></svg>')
 
 // 计算属性
 const validImages = computed(() => {

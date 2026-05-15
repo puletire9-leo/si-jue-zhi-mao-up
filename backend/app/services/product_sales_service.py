@@ -1,245 +1,126 @@
 """
-产品销量数据处理服务
-支持流式读取大Parquet文件，避免内存爆炸
+产品销量数据服务 — 基于 DuckDB 直接查询 Parquet
+所有查询统一按 (ASIN, 日期, 店铺) 去重，取 MAX 值
 """
-import os
-import re
-from typing import List, Dict, Optional, Set, Tuple, Any
+from typing import List, Dict, Optional, Tuple, Any
 from datetime import datetime, timedelta
 from collections import defaultdict
-import pandas as pd
-import pyarrow.parquet as pq
-from ..models.product_sales import ProductSummary, SearchResponse, WeeklySalesResponse
+import re
+import duckdb
+import os
+
 from ..config import settings
+from ..models.product_sales import (
+    ProductSummary, SearchResponse, WeeklySalesResponse,
+    DeclineProduct, DeclineAnalysisResponse
+)
+
+
+def _quote(name: str) -> str:
+    return f'"{name}"'
+
+# 列名简写
+C = lambda name: _quote(name)
 
 
 class ProductSalesService:
-    """产品销量数据服务"""
-    
-    # 列名映射（Parquet中的列名 -> 标准名称）
-    COLUMN_MAPPING = {
-        'ASIN': 'asin',
-        '标题': 'title',
-        'SKU': 'sku',
-        'MSKU': 'msku',
-        '店铺': 'shop',
-        '销量': 'sales',
-        '销售额': 'revenue',
-        '订单量': 'orders',
-        '日期': 'date',
-    }
-    
+    """产品销量数据服务（DuckDB 引擎 + 去重）"""
+
     def __init__(self):
-        self._parquet_file: Optional[pq.ParquetFile] = None
-        self._metadata: Optional[Any] = None
-        self._columns: Optional[List[str]] = None
-        self._date_range: Optional[Tuple[str, str]] = None
-        self._shops: Optional[Set[str]] = None
-        self._index_built = False
-        self._asin_index: Dict[str, List[int]] = {}  # ASIN -> 行号列表
-    
+        self._conn: Optional[duckdb.DuckDBPyConnection] = None
+
     @property
     def PARQUET_PATH(self) -> str:
-        """获取 Parquet 文件路径，从配置读取"""
-        return os.path.join(
-            settings.PARQUET_DATA_DIR,
-            settings.PARQUET_FILE_NAME
-        )
-    
-    def _get_parquet_file(self) -> pq.ParquetFile:
-        """获取Parquet文件对象（懒加载）"""
-        if self._parquet_file is None:
-            if not os.path.exists(self.PARQUET_PATH):
-                raise FileNotFoundError(f"Parquet文件不存在: {self.PARQUET_PATH}")
-            self._parquet_file = pq.ParquetFile(self.PARQUET_PATH)
-            self._metadata = self._parquet_file.metadata
-            self._columns = [col for col in self._parquet_file.schema_arrow.names]
-        return self._parquet_file
-    
-    def get_columns(self) -> List[str]:
-        """获取所有列名"""
-        if self._columns is None:
-            self._get_parquet_file()
-        return self._columns or []
-    
-    def get_total_rows(self) -> int:
-        """获取总行数"""
-        if self._metadata is None:
-            self._get_parquet_file()
-        return self._metadata.num_rows if self._metadata else 0
-    
-    def get_date_range(self) -> Tuple[str, str]:
-        """获取数据日期范围"""
-        if self._date_range is None:
-            self._build_index()
-        return self._date_range or ("", "")
-    
+        return os.path.join(settings.PARQUET_DATA_DIR, settings.PARQUET_FILE_NAME)
+
+    @property
+    def conn(self) -> duckdb.DuckDBPyConnection:
+        if self._conn is None:
+            self._conn = duckdb.connect()
+        return self._conn
+
+    def _ensure_file(self):
+        if not os.path.exists(self.PARQUET_PATH):
+            raise FileNotFoundError(f"Parquet文件不存在: {self.PARQUET_PATH}")
+
+    # ================================================================
+    # 去重数据源 — 每个 (ASIN, 日期, 店铺) 取 MAX，消除重复行
+    # ================================================================
+
+    # 文本列和数值列分开处理
+    _NUMERIC_COLS = {'销量', '销售额', '订单量', '订单毛利润', '结算毛利润',
+                     '广告花费', '广告订单量', '退款金额', '退款量'}
+
+    def _dedup_source(self, extra_cols: List[str] = None) -> str:
+        """返回去重后的子查询 SQL"""
+        text_cols = ['ASIN', '标题', 'SKU', 'MSKU', '店铺', '日期']
+        num_cols = list(self._NUMERIC_COLS)
+        if extra_cols:
+            for c in extra_cols:
+                if c not in text_cols and c not in num_cols:
+                    num_cols.append(c)
+
+        group_cols = ['ASIN', '日期', '店铺']
+        agg = []
+        for c in text_cols + num_cols:
+            q = C(c)
+            if c in group_cols:
+                agg.append(f"{q} AS {q}")
+            elif c in self._NUMERIC_COLS:
+                agg.append(f"MAX(CAST({q} AS DOUBLE)) AS {q}")
+            else:
+                # 文本列：MAX 在相同值间安全（重复行值一样）
+                agg.append(f"MAX({q}) AS {q}")
+
+        return f"""(
+            SELECT {', '.join(agg)}
+            FROM '{{path}}'
+            GROUP BY {C('ASIN')}, {C('日期')}, {C('店铺')}
+        )"""
+
+    def _dedup(self, extra_cols: List[str] = None) -> str:
+        return self._dedup_source(extra_cols).format(path=self.PARQUET_PATH)
+
+    # ================================================================
+    # 基础查询
+    # ================================================================
+
     def get_shops(self) -> List[str]:
-        """获取所有店铺列表"""
-        if self._shops is None:
-            self._build_index()
-        return sorted(list(self._shops)) if self._shops else []
-    
-    def _build_index(self):
+        self._ensure_file()
+        sql = f"""
+            SELECT DISTINCT {C('店铺')} AS shop
+            FROM {self._dedup()}
+            WHERE {C('店铺')} IS NOT NULL
+            ORDER BY shop
         """
-        构建索引：扫描Parquet文件，建立ASIN索引和统计信息
-        使用流式读取，避免内存爆炸
-        """
-        if self._index_built:
-            return
-        
-        print("[ProductSalesService] 正在构建索引...")
-        parquet_file = self._get_parquet_file()
-        
-        # 检查必要的列是否存在
-        cols = self.get_columns()
-        has_asin = 'ASIN' in cols
-        has_date = '日期' in cols
-        has_shop = '店铺' in cols
-        
-        if not has_asin:
-            raise ValueError("Parquet文件缺少ASIN列")
-        
-        # 流式扫描
-        shops_set = set()
-        dates = []
-        row_idx = 0
-        
-        for batch in parquet_file.iter_batches(batch_size=10000, columns=['ASIN', '店铺', '日期'] if has_shop and has_date else ['ASIN']):
-            batch_df = batch.to_pandas()
-            
-            # 索引ASIN
-            if has_asin:
-                for asin in batch_df['ASIN'].dropna().unique():
-                    asin_str = str(asin).strip().upper()
-                    if asin_str not in self._asin_index:
-                        self._asin_index[asin_str] = []
-                    # 只记录行号范围，不记录所有行号以节省内存
-                    if len(self._asin_index[asin_str]) < 100:  # 限制每个ASIN的记录数
-                        self._asin_index[asin_str].append(row_idx)
-            
-            # 收集店铺
-            if has_shop and '店铺' in batch_df.columns:
-                shops_set.update(batch_df['店铺'].dropna().astype(str).unique())
-            
-            # 收集日期
-            if has_date and '日期' in batch_df.columns:
-                dates.extend(batch_df['日期'].dropna().astype(str).tolist())
-            
-            row_idx += len(batch_df)
-        
-        # 计算日期范围
-        if dates:
-            try:
-                date_objs = [datetime.strptime(d, '%Y-%m-%d') for d in dates if '-' in str(d)]
-                if date_objs:
-                    self._date_range = (
-                        min(date_objs).strftime('%Y-%m-%d'),
-                        max(date_objs).strftime('%Y-%m-%d')
-                    )
-            except:
-                pass
-        
-        self._shops = shops_set
-        self._index_built = True
-        print(f"[ProductSalesService] 索引构建完成: {len(self._asin_index)} 个ASIN, {len(shops_set)} 个店铺")
-    
-    def _stream_filter(
-        self,
-        keyword: Optional[str] = None,
-        shops: Optional[List[str]] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        limit: int = 50
-    ) -> List[ProductSummary]:
-        """
-        流式过滤Parquet数据
-        使用迭代器模式，一次只处理一个批次，避免内存爆炸
-        """
-        parquet_file = self._get_parquet_file()
-        columns = self.get_columns()
-        
-        # 确定需要的列
-        need_cols = ['ASIN', '标题', 'SKU', 'MSKU', '店铺', '销量', '销售额']
-        available_cols = [c for c in need_cols if c in columns]
-        
-        # 转换关键词为小写
-        keyword_lower = keyword.lower().strip() if keyword else None
-        
-        # 转换店铺为集合（快速查找）
-        shop_set = set(shops) if shops else None
-        
-        # 日期过滤
-        date_filter = start_date or end_date
-        
-        # 结果收集
-        results = []
-        seen_asins = set()  # 去重
-        
-        # 流式读取
-        for batch in parquet_file.iter_batches(batch_size=10000, columns=available_cols):
-            if len(results) >= limit:
-                break
-            
-            batch_df = batch.to_pandas()
-            
-            # 应用过滤条件
-            mask = pd.Series([True] * len(batch_df), index=batch_df.index)
-            
-            # 关键词过滤
-            if keyword_lower:
-                keyword_mask = pd.Series([False] * len(batch_df), index=batch_df.index)
-                for col in ['ASIN', '标题', 'SKU', 'MSKU']:
-                    if col in batch_df.columns:
-                        col_mask = batch_df[col].astype(str).str.lower().str.contains(keyword_lower, na=False)
-                        keyword_mask = keyword_mask | col_mask
-                mask = mask & keyword_mask
-            
-            # 店铺过滤
-            if shop_set and '店铺' in batch_df.columns:
-                mask = mask & batch_df['店铺'].isin(shop_set)
-            
-            # 应用过滤
-            filtered = batch_df[mask]
-            
-            # 转换为ProductSummary
-            for _, row in filtered.iterrows():
-                asin = str(row.get('ASIN', '')).strip().upper()
-                if not asin or asin in seen_asins:
-                    continue
-                
-                seen_asins.add(asin)
-                
-                # 解析数值
-                try:
-                    sales = int(float(row.get('销量', 0)))
-                except:
-                    sales = 0
-                
-                try:
-                    revenue = float(row.get('销售额', 0))
-                except:
-                    revenue = 0.0
-                
-                product = ProductSummary(
-                    asin=asin,
-                    title=str(row.get('标题', ''))[:100],
-                    sku=str(row.get('SKU', '')) if pd.notna(row.get('SKU')) else None,
-                    msku=str(row.get('MSKU', '')) if pd.notna(row.get('MSKU')) else None,
-                    shop=str(row.get('店铺', '未知')),
-                    total_sales=sales,
-                    total_revenue=revenue
-                )
-                results.append(product)
-                
-                if len(results) >= limit:
-                    break
-        
-        # 按销量排序
-        results.sort(key=lambda x: x.total_sales, reverse=True)
-        
-        return results[:limit]
-    
+        return [row[0] for row in self.conn.execute(sql).fetchall()]
+
+    def get_date_range(self) -> Tuple[str, str]:
+        self._ensure_file()
+        col = C('日期')
+        r1 = self.conn.execute(
+            f"SELECT {col} FROM {self._dedup()} WHERE {col} IS NOT NULL "
+            f"ORDER BY {col} LIMIT 1"
+        ).fetchone()
+        r2 = self.conn.execute(
+            f"SELECT {col} FROM {self._dedup()} WHERE {col} IS NOT NULL "
+            f"ORDER BY {col} DESC LIMIT 1"
+        ).fetchone()
+        return (str(r1[0]) if r1 and r1[0] else "", str(r2[0]) if r2 and r2[0] else "")
+
+    def get_total_rows(self) -> int:
+        self._ensure_file()
+        return self.conn.execute(f"SELECT COUNT(*) FROM {self._dedup()}").fetchone()[0]
+
+    def get_columns(self) -> List[str]:
+        self._ensure_file()
+        rows = self.conn.execute(f"DESCRIBE SELECT * FROM '{self.PARQUET_PATH}'").fetchall()
+        return [r[0] for r in rows]
+
+    # ================================================================
+    # 产品搜索
+    # ================================================================
+
     def search_products(
         self,
         keyword: Optional[str] = None,
@@ -249,43 +130,67 @@ class ProductSalesService:
         limit: int = 50,
         offset: int = 0
     ) -> SearchResponse:
+        self._ensure_file()
+        src = self._dedup()
+
+        where = ["1=1"]
+        if keyword:
+            kw = keyword.replace("'", "''")
+            like = f"'%{kw}%'"
+            clauses = [f"{C(col)} ILIKE {like}" for col in ['ASIN', '标题', 'SKU', 'MSKU']]
+            where.append(f"({' OR '.join(clauses)})")
+        if shops:
+            vals = ", ".join(f"'{s}'" for s in shops)
+            where.append(f"{C('店铺')} IN ({vals})")
+        if start_date:
+            where.append(f"{C('日期')} >= '{start_date}'")
+        if end_date:
+            where.append(f"{C('日期')} <= '{end_date}'")
+
+        where_clause = ' AND '.join(where)
+
+        count_sql = f"SELECT COUNT(DISTINCT {C('ASIN')}) FROM {src} WHERE {where_clause}"
+        total = self.conn.execute(count_sql).fetchone()[0]
+
+        sql = f"""
+            SELECT
+                {C('ASIN')} AS asin,
+                {C('标题')} AS title,
+                {C('SKU')} AS sku,
+                {C('MSKU')} AS msku,
+                {C('店铺')} AS shop,
+                SUM(CAST({C('销量')} AS DOUBLE)) AS total_sales,
+                SUM(CAST({C('销售额')} AS DOUBLE)) AS total_revenue
+            FROM {src}
+            WHERE {where_clause}
+            GROUP BY asin, title, sku, msku, shop
+            ORDER BY total_sales DESC
+            LIMIT {limit} OFFSET {offset}
         """
-        搜索产品
-        流式读取Parquet，避免内存爆炸
-        """
-        # 构建索引（首次）
-        if not self._index_built:
-            self._build_index()
-        
-        # 流式过滤
-        products = self._stream_filter(
-            keyword=keyword,
-            shops=shops,
-            start_date=start_date,
-            end_date=end_date,
-            limit=limit + offset
-        )
-        
-        # 分页
-        total = len(products)
-        products = products[offset:offset + limit]
-        
+        rows = self.conn.execute(sql).fetchall()
+
+        products = []
+        for r in rows:
+            products.append(ProductSummary(
+                asin=r[0] or "",
+                title=(r[1] or "")[:100],
+                sku=r[2] if r[2] else None,
+                msku=r[3] if r[3] else None,
+                shop=r[4] or "未知",
+                total_sales=int(float(r[5] or 0)),
+                total_revenue=float(r[6] or 0)
+            ))
+
         return SearchResponse(
             total=total,
             products=products,
             has_more=total > offset + limit
         )
-    
-    def _get_week_start(self, date_str: str) -> str:
-        """获取日期所在周的开始日期（周一）"""
-        try:
-            date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-            # 计算周一（weekday() 周一=0, 周日=6）
-            monday = date_obj - timedelta(days=date_obj.weekday())
-            return monday.strftime('%Y-%m-%d')
-        except:
-            return date_str
-    
+
+    # ================================================================
+    # 周销量
+    # ================================================================
+
     def get_weekly_sales(
         self,
         asins: List[str],
@@ -293,132 +198,76 @@ class ProductSalesService:
         end_date: Optional[str] = None,
         shops: Optional[List[str]] = None
     ) -> WeeklySalesResponse:
-        """
-        获取产品的周销量数据
-        流式读取，按周聚合
-        修复：按日期和店铺去重，避免重复数据导致销量翻倍
-        """
         if not asins:
             return WeeklySalesResponse(weeks=[], week_labels=[], data={}, revenue_data={})
-        
-        parquet_file = self._get_parquet_file()
-        columns = self.get_columns()
-        
-        # 需要的列
-        need_cols = ['ASIN', '日期', '销量', '销售额', '店铺']
-        available_cols = [c for c in need_cols if c in columns]
-        
-        # 转换ASIN为大写
-        asin_set = set(a.strip().upper() for a in asins)
-        shop_set = set(shops) if shops else None
-        
-        # 日期范围
-        start_dt = datetime.strptime(start_date, '%Y-%m-%d') if start_date else None
-        end_dt = datetime.strptime(end_date, '%Y-%m-%d') if end_date else None
-        
-        # 原始数据收集: {(asin, date, shop): {'sales': x, 'revenue': y}}
-        # 使用字典去重，同一ASIN同一天同一店铺只保留一条记录
-        daily_data: Dict[tuple, Dict[str, float]] = {}
-        all_weeks = set()
-        
-        # 流式读取
-        for batch in parquet_file.iter_batches(batch_size=10000, columns=available_cols):
-            batch_df = batch.to_pandas()
-            
-            # ASIN过滤
-            if 'ASIN' in batch_df.columns:
-                batch_df = batch_df[batch_df['ASIN'].astype(str).str.upper().isin(asin_set)]
-            
-            if batch_df.empty:
-                continue
-            
-            # 店铺过滤
-            if shop_set and '店铺' in batch_df.columns:
-                batch_df = batch_df[batch_df['店铺'].isin(shop_set)]
-            
-            if batch_df.empty:
-                continue
-            
-            # 处理每一行
-            for _, row in batch_df.iterrows():
-                asin = str(row.get('ASIN', '')).strip().upper()
-                date_str = str(row.get('日期', ''))
-                shop = str(row.get('店铺', '未知'))
-                
-                # 日期过滤
-                if start_dt or end_dt:
-                    try:
-                        row_date = datetime.strptime(date_str, '%Y-%m-%d')
-                        if start_dt and row_date < start_dt:
-                            continue
-                        if end_dt and row_date > end_dt:
-                            continue
-                    except:
-                        continue
-                
-                # 解析数值
-                try:
-                    sales = int(float(row.get('销量', 0)))
-                except:
-                    sales = 0
-                
-                try:
-                    revenue = float(row.get('销售额', 0))
-                except:
-                    revenue = 0.0
-                
-                # 使用 (asin, date, shop) 作为键去重
-                key = (asin, date_str, shop)
-                if key not in daily_data:
-                    daily_data[key] = {'sales': sales, 'revenue': revenue}
-                    all_weeks.add(self._get_week_start(date_str))
-        
-        # 聚合到周: {asin: {week_start: {sales, revenue}}}
-        weekly_data: Dict[str, Dict[str, Dict[str, float]]] = defaultdict(lambda: defaultdict(lambda: {'sales': 0, 'revenue': 0}))
-        
-        for (asin, date_str, shop), values in daily_data.items():
-            week_start = self._get_week_start(date_str)
-            weekly_data[asin][week_start]['sales'] += values['sales']
-            weekly_data[asin][week_start]['revenue'] += values['revenue']
-        
-        # 生成周列表（排序）
-        sorted_weeks = sorted(all_weeks)
-        
-        # 生成周标签
+
+        self._ensure_file()
+        src = self._dedup()
+        asin_list = ", ".join(f"'{a.strip().upper()}'" for a in asins)
+
+        where = [f"{C('ASIN')} IN ({asin_list})"]
+        if shops:
+            vals = ", ".join(f"'{s}'" for s in shops)
+            where.append(f"{C('店铺')} IN ({vals})")
+        if start_date:
+            where.append(f"{C('日期')} >= '{start_date}'")
+        if end_date:
+            where.append(f"{C('日期')} <= '{end_date}'")
+
+        sql = f"""
+            SELECT
+                {C('ASIN')} AS asin,
+                date_trunc('week', CAST({C('日期')} AS DATE)) AS week_start,
+                SUM(CAST({C('销量')} AS DOUBLE)) AS sales,
+                SUM(CAST({C('销售额')} AS DOUBLE)) AS revenue
+            FROM {src}
+            WHERE {' AND '.join(where)}
+            GROUP BY asin, week_start
+            ORDER BY week_start
+        """
+        rows = self.conn.execute(sql).fetchall()
+
+        weeks_set = set()
+        asin_weekly: Dict[str, Dict[str, Dict[str, float]]] = defaultdict(
+            lambda: defaultdict(lambda: {'sales': 0, 'revenue': 0})
+        )
+        for r in rows:
+            asin = (r[0] or "").strip().upper()
+            week_start = str(r[1])[:10]
+            weeks_set.add(week_start)
+            asin_weekly[asin][week_start]['sales'] += float(r[2] or 0)
+            asin_weekly[asin][week_start]['revenue'] += float(r[3] or 0)
+
+        sorted_weeks = sorted(weeks_set)
+
         week_labels = []
-        for week in sorted_weeks:
+        for w in sorted_weeks:
             try:
-                week_dt = datetime.strptime(week, '%Y-%m-%d')
-                end_dt_label = week_dt + timedelta(days=6)
-                label = f"{week_dt.month:02d}/{week_dt.day:02d}~{end_dt_label.month:02d}/{end_dt_label.day:02d}"
-                week_labels.append(label)
-            except:
-                week_labels.append(week)
-        
-        # 构建响应数据（填充缺失周为0）
+                wd = datetime.strptime(w, '%Y-%m-%d')
+                ed = wd + timedelta(days=6)
+                week_labels.append(f"{wd.month:02d}/{wd.day:02d}~{ed.month:02d}/{ed.day:02d}")
+            except Exception:
+                week_labels.append(w)
+
         result_data = {}
         result_revenue = {}
-        
         for asin in asins:
-            asin_upper = asin.strip().upper()
-            sales_list = []
-            revenue_list = []
-            
-            for week in sorted_weeks:
-                data = weekly_data[asin_upper].get(week, {'sales': 0, 'revenue': 0})
-                sales_list.append(int(data['sales']))
-                revenue_list.append(round(data['revenue'], 2))
-            
-            result_data[asin_upper] = sales_list
-            result_revenue[asin_upper] = revenue_list
-        
+            au = asin.strip().upper()
+            sd = asin_weekly[au]
+            result_data[au] = [int(sd.get(w, {}).get('sales', 0)) for w in sorted_weeks]
+            result_revenue[au] = [round(sd.get(w, {}).get('revenue', 0), 2) for w in sorted_weeks]
+
         return WeeklySalesResponse(
             weeks=sorted_weeks,
             week_labels=week_labels,
             data=result_data,
             revenue_data=result_revenue
         )
-    
+
+    # ================================================================
+    # 周期汇总数据
+    # ================================================================
+
     def get_period_data(
         self,
         asins: List[str],
@@ -427,117 +276,53 @@ class ProductSalesService:
         shops: Optional[List[str]] = None,
         label: str = "周期"
     ) -> Dict[str, Any]:
-        """
-        获取指定时间周期的汇总数据
-        包含销售、利润、广告、退款等完整数据
-        
-        Args:
-            asins: ASIN列表
-            start_date: 开始日期
-            end_date: 结束日期
-            shops: 店铺筛选
-            label: 周期标签（"周期A" / "周期B"）
-        """
         if not asins:
             return self._empty_period_data(label, start_date, end_date)
-        
-        parquet_file = self._get_parquet_file()
-        columns = self.get_columns()
-        
-        # 需要的列
-        need_cols = [
-            'ASIN', '日期', '店铺',
-            '订单量', '销量', '销售额',
-            '结算毛利润', '结算毛利率', '订单毛利润', '订单毛利率',
-            '广告花费', '广告订单量', 'ACOS',
-            '退款金额', '退款量', '退款率'
+
+        self._ensure_file()
+        src = self._dedup()
+        asin_list = ", ".join(f"'{a.strip().upper()}'" for a in asins)
+
+        where = [
+            f"{C('ASIN')} IN ({asin_list})",
+            f"{C('日期')} >= '{start_date}'",
+            f"{C('日期')} <= '{end_date}'"
         ]
-        available_cols = [c for c in need_cols if c in columns]
-        
-        # 转换ASIN为大写
-        asin_set = set(a.strip().upper() for a in asins)
-        shop_set = set(shops) if shops else None
-        
-        # 日期范围
-        start_dt = datetime.strptime(start_date, '%Y-%m-%d')
-        end_dt = datetime.strptime(end_date, '%Y-%m-%d')
-        
-        # 初始化汇总数据
+        if shops:
+            vals = ", ".join(f"'{s}'" for s in shops)
+            where.append(f"{C('店铺')} IN ({vals})")
+
+        sql = f"""
+            SELECT
+                SUM(CAST({C('订单量')} AS DOUBLE)) AS orders,
+                SUM(CAST({C('销量')} AS DOUBLE)) AS sales,
+                SUM(CAST({C('销售额')} AS DOUBLE)) AS revenue,
+                SUM(CAST({C('订单毛利润')} AS DOUBLE)) AS gross_profit,
+                SUM(CAST({C('结算毛利润')} AS DOUBLE)) AS settlement_profit,
+                SUM(CAST({C('广告花费')} AS DOUBLE)) AS ad_spend,
+                SUM(CAST({C('广告订单量')} AS DOUBLE)) AS ad_orders,
+                SUM(CAST({C('退款金额')} AS DOUBLE)) AS refund_amount,
+                SUM(CAST({C('退款量')} AS DOUBLE)) AS refund_count
+            FROM {src}
+            WHERE {' AND '.join(where)}
+        """
+        r = self.conn.execute(sql).fetchone()
+
         totals = {
-            'orders': 0,
-            'sales': 0,
-            'revenue': 0.0,
-            'gross_profit': 0.0,
-            'settlement_profit': 0.0,
-            'ad_spend': 0.0,
-            'ad_orders': 0,
-            'refund_amount': 0.0,
-            'refund_count': 0,
+            'orders':       int(float(r[0] or 0)),
+            'sales':        int(float(r[1] or 0)),
+            'revenue':      float(r[2] or 0),
+            'gross_profit':      float(r[3] or 0),
+            'settlement_profit': float(r[4] or 0),
+            'ad_spend':          float(r[5] or 0),
+            'ad_orders':         int(float(r[6] or 0)),
+            'refund_amount':     float(r[7] or 0),
+            'refund_count':      int(float(r[8] or 0)),
         }
-        
-        # 用于计算平均值的计数器
-        ad_days = 0  # 有广告数据的天数
-        refund_days = 0  # 有退款数据的天数
-        
-        # 流式读取
-        for batch in parquet_file.iter_batches(batch_size=10000, columns=available_cols):
-            batch_df = batch.to_pandas()
-            
-            # ASIN过滤
-            if 'ASIN' in batch_df.columns:
-                batch_df = batch_df[batch_df['ASIN'].astype(str).str.upper().isin(asin_set)]
-            
-            if batch_df.empty:
-                continue
-            
-            # 店铺过滤
-            if shop_set and '店铺' in batch_df.columns:
-                batch_df = batch_df[batch_df['店铺'].isin(shop_set)]
-            
-            if batch_df.empty:
-                continue
-            
-            # 日期过滤
-            if '日期' in batch_df.columns:
-                batch_df = batch_df[
-                    (batch_df['日期'] >= start_date) & 
-                    (batch_df['日期'] <= end_date)
-                ]
-            
-            if batch_df.empty:
-                continue
-            
-            # 汇总数据
-            for _, row in batch_df.iterrows():
-                # 销售数据
-                totals['orders'] += self._safe_int(row.get('订单量'))
-                totals['sales'] += self._safe_int(row.get('销量'))
-                totals['revenue'] += self._safe_float(row.get('销售额'))
-                
-                # 利润数据（使用结算利润）
-                totals['gross_profit'] += self._safe_float(row.get('订单毛利润'))
-                totals['settlement_profit'] += self._safe_float(row.get('结算毛利润'))
-                
-                # 广告数据
-                ad_spend = self._safe_float(row.get('广告花费'))
-                if ad_spend > 0:
-                    totals['ad_spend'] += ad_spend
-                    totals['ad_orders'] += self._safe_int(row.get('广告订单量'))
-                    ad_days += 1
-                
-                # 退款数据
-                refund_amount = self._safe_float(row.get('退款金额'))
-                if refund_amount > 0:
-                    totals['refund_amount'] += refund_amount
-                    totals['refund_count'] += self._safe_int(row.get('退款量'))
-                    refund_days += 1
-        
-        # 计算比率
-        gross_profit_rate = (totals['gross_profit'] / totals['revenue'] * 100) if totals['revenue'] > 0 else 0.0
-        settlement_profit_rate = (totals['settlement_profit'] / totals['revenue'] * 100) if totals['revenue'] > 0 else 0.0
-        ad_acos = (totals['ad_spend'] / totals['revenue'] * 100) if totals['revenue'] > 0 else 0.0
-        refund_rate = (totals['refund_count'] / totals['sales'] * 100) if totals['sales'] > 0 else 0.0
-        
+
+        rev = totals['revenue']
+        sales = totals['sales']
+
         return {
             'label': label,
             'start_date': start_date,
@@ -545,55 +330,34 @@ class ProductSalesService:
             'date_range': f"{start_date} ~ {end_date}",
             'orders': totals['orders'],
             'sales': totals['sales'],
-            'revenue': round(totals['revenue'], 2),
+            'revenue': round(rev, 2),
             'gross_profit': round(totals['gross_profit'], 2),
-            'gross_profit_rate': round(gross_profit_rate, 2),
+            'gross_profit_rate': round(totals['gross_profit'] / rev * 100, 2) if rev > 0 else 0.0,
             'settlement_profit': round(totals['settlement_profit'], 2),
-            'settlement_profit_rate': round(settlement_profit_rate, 2),
+            'settlement_profit_rate': round(totals['settlement_profit'] / rev * 100, 2) if rev > 0 else 0.0,
             'ad_spend': round(totals['ad_spend'], 2),
             'ad_orders': totals['ad_orders'],
-            'ad_acos': round(ad_acos, 2),
+            'ad_acos': round(totals['ad_spend'] / rev * 100, 2) if rev > 0 else 0.0,
             'refund_amount': round(totals['refund_amount'], 2),
             'refund_count': totals['refund_count'],
-            'refund_rate': round(refund_rate, 2),
+            'refund_rate': round(totals['refund_count'] / sales * 100, 2) if sales > 0 else 0.0,
         }
-    
+
     def _empty_period_data(self, label: str, start_date: str, end_date: str) -> Dict[str, Any]:
-        """返回空的周期数据"""
         return {
-            'label': label,
-            'start_date': start_date,
-            'end_date': end_date,
+            'label': label, 'start_date': start_date, 'end_date': end_date,
             'date_range': f"{start_date} ~ {end_date}",
-            'orders': 0,
-            'sales': 0,
-            'revenue': 0.0,
-            'gross_profit': 0.0,
-            'gross_profit_rate': 0.0,
-            'settlement_profit': 0.0,
-            'settlement_profit_rate': 0.0,
-            'ad_spend': 0.0,
-            'ad_orders': 0,
-            'ad_acos': 0.0,
-            'refund_amount': 0.0,
-            'refund_count': 0,
-            'refund_rate': 0.0,
+            'orders': 0, 'sales': 0, 'revenue': 0.0,
+            'gross_profit': 0.0, 'gross_profit_rate': 0.0,
+            'settlement_profit': 0.0, 'settlement_profit_rate': 0.0,
+            'ad_spend': 0.0, 'ad_orders': 0, 'ad_acos': 0.0,
+            'refund_amount': 0.0, 'refund_count': 0, 'refund_rate': 0.0,
         }
-    
-    def _safe_int(self, value: Any) -> int:
-        """安全转换为整数"""
-        try:
-            return int(float(value)) if value is not None else 0
-        except:
-            return 0
-    
-    def _safe_float(self, value: Any) -> float:
-        """安全转换为浮点数"""
-        try:
-            return float(value) if value is not None else 0.0
-        except:
-            return 0.0
-    
+
+    # ================================================================
+    # 每日趋势
+    # ================================================================
+
     def get_daily_trend(
         self,
         asins: List[str],
@@ -601,90 +365,162 @@ class ProductSalesService:
         end_date: str,
         shops: Optional[List[str]] = None
     ) -> Dict[str, Any]:
-        """
-        获取指定时间范围内的每日销量趋势数据
-        用于折线图展示
-        
-        Args:
-            asins: ASIN列表
-            start_date: 开始日期
-            end_date: 结束日期
-            shops: 店铺筛选
-            
-        Returns:
-            {
-                'dates': ['2025-05-27', '2025-05-28', ...],
-                'sales': [10, 15, ...],
-                'revenue': [100.0, 150.0, ...]
-            }
-        """
         if not asins:
             return {'dates': [], 'sales': [], 'revenue': []}
-        
-        parquet_file = self._get_parquet_file()
-        columns = self.get_columns()
-        
-        # 需要的列
-        need_cols = ['ASIN', '日期', '店铺', '销量', '销售额']
-        available_cols = [c for c in need_cols if c in columns]
-        
-        # 转换ASIN为大写
-        asin_set = set(a.strip().upper() for a in asins)
-        shop_set = set(shops) if shops else None
-        
-        # 生成日期列表
+
+        self._ensure_file()
+        src = self._dedup()
+        asin_list = ", ".join(f"'{a.strip().upper()}'" for a in asins)
+
+        where = [
+            f"{C('ASIN')} IN ({asin_list})",
+            f"{C('日期')} >= '{start_date}'",
+            f"{C('日期')} <= '{end_date}'"
+        ]
+        if shops:
+            vals = ", ".join(f"'{s}'" for s in shops)
+            where.append(f"{C('店铺')} IN ({vals})")
+
+        sql = f"""
+            SELECT
+                {C('日期')} AS date,
+                SUM(CAST({C('销量')} AS DOUBLE)) AS sales,
+                SUM(CAST({C('销售额')} AS DOUBLE)) AS revenue
+            FROM {src}
+            WHERE {' AND '.join(where)}
+            GROUP BY date
+            ORDER BY date
+        """
+        rows = self.conn.execute(sql).fetchall()
+
         start_dt = datetime.strptime(start_date, '%Y-%m-%d')
         end_dt = datetime.strptime(end_date, '%Y-%m-%d')
-        
-        date_list = []
-        current_dt = start_dt
-        while current_dt <= end_dt:
-            date_list.append(current_dt.strftime('%Y-%m-%d'))
-            current_dt += timedelta(days=1)
-        
-        # 初始化每日数据
-        daily_data = {d: {'sales': 0, 'revenue': 0.0} for d in date_list}
-        
-        # 流式读取
-        for batch in parquet_file.iter_batches(batch_size=10000, columns=available_cols):
-            batch_df = batch.to_pandas()
-            
-            # ASIN过滤
-            if 'ASIN' in batch_df.columns:
-                batch_df = batch_df[batch_df['ASIN'].astype(str).str.upper().isin(asin_set)]
-            
-            if batch_df.empty:
-                continue
-            
-            # 店铺过滤
-            if shop_set and '店铺' in batch_df.columns:
-                batch_df = batch_df[batch_df['店铺'].isin(shop_set)]
-            
-            if batch_df.empty:
-                continue
-            
-            # 日期过滤
-            if '日期' in batch_df.columns:
-                batch_df = batch_df[
-                    (batch_df['日期'] >= start_date) & 
-                    (batch_df['日期'] <= end_date)
-                ]
-            
-            if batch_df.empty:
-                continue
-            
-            # 汇总每日数据
-            for _, row in batch_df.iterrows():
-                date_str = str(row.get('日期', ''))
-                if date_str in daily_data:
-                    daily_data[date_str]['sales'] += self._safe_int(row.get('销量'))
-                    daily_data[date_str]['revenue'] += self._safe_float(row.get('销售额'))
-        
+        date_map: Dict[str, Dict[str, Any]] = {}
+        current = start_dt
+        while current <= end_dt:
+            ds = current.strftime('%Y-%m-%d')
+            date_map[ds] = {'sales': 0, 'revenue': 0.0}
+            current += timedelta(days=1)
+
+        for r in rows:
+            ds = str(r[0])[:10]
+            if ds in date_map:
+                date_map[ds]['sales'] += float(r[1] or 0)
+                date_map[ds]['revenue'] += float(r[2] or 0)
+
+        dates = sorted(date_map.keys())
         return {
-            'dates': date_list,
-            'sales': [daily_data[d]['sales'] for d in date_list],
-            'revenue': [round(daily_data[d]['revenue'], 2) for d in date_list]
+            'dates': dates,
+            'sales': [int(date_map[d]['sales']) for d in dates],
+            'revenue': [round(date_map[d]['revenue'], 2) for d in dates]
         }
+
+    # ================================================================
+    # 下滑分析
+    # ================================================================
+
+    def _period_to_dates(self, period_type: str, period: str) -> Tuple[str, str]:
+        if period_type == 'week':
+            m = re.match(r'(\d{4})-W(\d+)', period)
+            if not m:
+                raise ValueError(f"无效的周格式: {period}")
+            week_num = int(m.group(2))
+            min_date, _ = self.get_date_range()
+            start = datetime.strptime(min_date, '%Y-%m-%d')
+            first_monday = start - timedelta(days=start.weekday())
+            week_start = first_monday + timedelta(weeks=week_num - 1)
+            week_end = week_start + timedelta(days=6)
+            return (week_start.strftime('%Y-%m-%d'), week_end.strftime('%Y-%m-%d'))
+
+        elif period_type == 'month':
+            m = re.match(r'(\d{4})-(\d{2})', period)
+            if not m:
+                raise ValueError(f"无效的月格式: {period}")
+            year, month = int(m.group(1)), int(m.group(2))
+            month_start = datetime(year, month, 1)
+            if month == 12:
+                month_end = datetime(year + 1, 1, 1) - timedelta(days=1)
+            else:
+                month_end = datetime(year, month + 1, 1) - timedelta(days=1)
+            return (month_start.strftime('%Y-%m-%d'), month_end.strftime('%Y-%m-%d'))
+
+        raise ValueError(f"未知的周期类型: {period_type}")
+
+    def get_decline_analysis(
+        self,
+        period_type: str,
+        prev_period: str,
+        curr_period: str,
+        shops: Optional[List[str]] = None
+    ) -> DeclineAnalysisResponse:
+        prev_start, prev_end = self._period_to_dates(period_type, prev_period)
+        curr_start, curr_end = self._period_to_dates(period_type, curr_period)
+
+        self._ensure_file()
+        src = self._dedup()
+
+        shop_filter = ""
+        if shops:
+            vals = ", ".join(f"'{s}'" for s in shops)
+            shop_filter = f"AND {C('店铺')} IN ({vals})"
+
+        sql = f"""
+            WITH prev AS (
+                SELECT
+                    {C('ASIN')} AS asin,
+                    {C('店铺')} AS shop,
+                    {C('标题')} AS title,
+                    SUM(CAST({C('销量')} AS DOUBLE)) AS sales
+                FROM {src}
+                WHERE {C('日期')} >= '{prev_start}'
+                  AND {C('日期')} <= '{prev_end}'
+                  {shop_filter}
+                GROUP BY asin, shop, title
+            ),
+            curr AS (
+                SELECT
+                    {C('ASIN')} AS asin,
+                    {C('店铺')} AS shop,
+                    SUM(CAST({C('销量')} AS DOUBLE)) AS sales
+                FROM {src}
+                WHERE {C('日期')} >= '{curr_start}'
+                  AND {C('日期')} <= '{curr_end}'
+                  {shop_filter}
+                GROUP BY asin, shop
+            )
+            SELECT
+                COALESCE(p.asin, c.asin) AS asin,
+                p.title AS title,
+                COALESCE(p.shop, c.shop) AS shop,
+                CAST(COALESCE(p.sales, 0) AS INTEGER) AS prev_sales,
+                CAST(COALESCE(c.sales, 0) AS INTEGER) AS curr_sales,
+                CAST(COALESCE(p.sales, 0) - COALESCE(c.sales, 0) AS INTEGER) AS decline,
+                CASE
+                    WHEN COALESCE(p.sales, 0) > 0
+                    THEN ROUND((COALESCE(c.sales, 0) - COALESCE(p.sales, 0)) * 100.0 / p.sales, 1)
+                    WHEN COALESCE(c.sales, 0) > 0 THEN 100.0
+                    ELSE 0.0
+                END AS decline_pct
+            FROM prev p
+            FULL OUTER JOIN curr c ON p.asin = c.asin AND p.shop = c.shop
+            WHERE COALESCE(p.sales, 0) > 0 OR COALESCE(c.sales, 0) > 0
+            ORDER BY decline_pct ASC
+        """
+        rows = self.conn.execute(sql).fetchall()
+
+        products = []
+        for r in rows:
+            products.append(DeclineProduct(
+                asin=r[0] or "",
+                title=(r[1] or "")[:100],
+                shop=r[2] or "未知",
+                prev_sales=int(r[3] or 0),
+                curr_sales=int(r[4] or 0),
+                decline=int(r[5] or 0),
+                decline_pct=float(r[6] or 0)
+            ))
+
+        return DeclineAnalysisResponse(products=products)
 
 
 # 全局服务实例
@@ -692,7 +528,6 @@ _product_sales_service: Optional[ProductSalesService] = None
 
 
 def get_product_sales_service() -> ProductSalesService:
-    """获取产品销量服务实例（单例）"""
     global _product_sales_service
     if _product_sales_service is None:
         _product_sales_service = ProductSalesService()

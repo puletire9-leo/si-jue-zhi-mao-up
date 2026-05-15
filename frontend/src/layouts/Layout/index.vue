@@ -88,7 +88,7 @@ const handleToggleSidebar = () => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 // 深色主题

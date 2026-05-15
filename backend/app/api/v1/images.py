@@ -323,14 +323,13 @@ async def get_image_file(
                             filename = zip_filename
                             media_type = "application/zip"
         
-        # 检查图片读取模式
-        if settings.IMAGE_READ_MODE == 'cloud':
-            # 云端模式：如果是URL，直接重定向
-            if filepath.startswith('http://') or filepath.startswith('https://'):
-                from fastapi.responses import RedirectResponse
-                return RedirectResponse(url=filepath)
-        
-        # 本地模式或云端模式但不是URL：返回本地文件
+        # 优先使用COS URL（已处理图片）
+        cos_url = image.get('cos_url')
+        if cos_url:
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=cos_url)
+
+        # 降级：返回本地文件
         if not os.path.exists(filepath):
             raise HTTPException(status_code=404, detail="图片文件不存在")
         
@@ -404,34 +403,52 @@ async def get_image_thumbnail(
         from backend.app.config import settings
         
         image = await service.get_image(image_id)
-        
+
         if not image:
             raise HTTPException(status_code=404, detail="图片不存在")
-        
-        thumbnail_path = image.get('thumbnail_path')
-        
-        # 检查图片读取模式
-        if settings.IMAGE_READ_MODE == 'cloud':
-            # 云端模式：如果是URL，直接重定向
-            if thumbnail_path and (thumbnail_path.startswith('http://') or thumbnail_path.startswith('https://')):
-                from fastapi.responses import RedirectResponse
-                return RedirectResponse(url=thumbnail_path)
-        
-        # 本地模式或云端模式但不是URL：使用本地缩略图
-        local_thumbnail_path = os.path.join(settings.THUMBNAIL_DIR, f"{image_id}.jpg")
-        
-        if not os.path.exists(local_thumbnail_path):
-            raise HTTPException(status_code=404, detail="缩略图不存在")
-        
-        # 返回本地缩略图文件，添加Cache-Control响应头
-        response = FileResponse(
-            local_thumbnail_path,
-            media_type="image/jpeg",
-            filename=f"{image_id}_thumbnail.jpg"
-        )
-        # 设置缓存控制头，缓存1年
-        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
-        return response
+
+        # 优先本地缩略图（约定路径：LOCAL_THUMBNAIL_DIR/{image_id}.webp）
+        local_path = os.path.join(settings.LOCAL_THUMBNAIL_DIR, f"{image_id}.webp")
+        if os.path.exists(local_path):
+            return FileResponse(
+                local_path,
+                media_type="image/webp",
+                filename=f"{image_id}_thumbnail.webp",
+                headers={"Cache-Control": "public, max-age=31536000, immutable"}
+            )
+
+        # 降级：COS缩略图URL（已有列 cos_thumbnail_url）
+        thumbnail_cos_url = image.get('cos_thumbnail_url')
+        if thumbnail_cos_url:
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=thumbnail_cos_url)
+
+        # 缩略图完全缺失 → 自动修复
+        ensure_result = await service.ensure_thumbnail(image_id)
+        if ensure_result.get("thumbnail_cos_url"):
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=ensure_result["thumbnail_cos_url"])
+        if ensure_result.get("status") == "fixed":
+            # ensure_thumbnail 已生成，重试本地读取
+            if os.path.exists(local_path):
+                return FileResponse(
+                    local_path,
+                    media_type="image/webp",
+                    filename=f"{image_id}_thumbnail.webp",
+                    headers={"Cache-Control": "public, max-age=31536000, immutable"}
+                )
+
+        # 最终降级：尝试旧路径格式
+        legacy_path = os.path.join(settings.THUMBNAIL_DIR, f"{image_id}.jpg")
+        if os.path.exists(legacy_path):
+            return FileResponse(
+                legacy_path,
+                media_type="image/jpeg",
+                filename=f"{image_id}_thumbnail.jpg",
+                headers={"Cache-Control": "public, max-age=31536000, immutable"}
+            )
+
+        raise HTTPException(status_code=404, detail="缩略图不存在")
         
     except HTTPException:
         raise
@@ -854,3 +871,24 @@ async def refresh_image_urls(
     except Exception as e:
         logger.error(f"批量刷新图片URL失败: {e}")
         raise HTTPException(status_code=500, detail="批量刷新图片URL失败")
+
+
+@router.post("/sync-thumbnails", summary="同步缩略图")
+async def sync_thumbnails(
+    check_only: bool = Body(False, embed=True, description="仅检查不同步"),
+    user_info: dict = Depends(auth_middleware.require_permission("image:edit")),
+    service: ImageService = get_image_service()
+):
+    """
+    检查并同步缩略图
+
+    - 遍历所有有 COS 图片但缺少缩略图记录的行
+    - 从 COS 下载原图 → 本地生成缩略图 → 上传 COS → 更新 DB
+    - **check_only=true**：仅返回缺失统计，不执行修复
+    """
+    try:
+        result = await service.sync_thumbnails(check_only=check_only)
+        return {"code": 200, "message": "缩略图同步完成", "data": result}
+    except Exception as e:
+        logger.error(f"缩略图同步失败: {e}")
+        raise HTTPException(status_code=500, detail=f"缩略图同步失败: {e}")

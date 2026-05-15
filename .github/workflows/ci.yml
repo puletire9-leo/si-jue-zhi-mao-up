@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches-ignore:
+      - 'master'  # master 由 PR 触发
+  pull_request:
+    branches:
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: 前端 — TypeScript 检查 + 构建
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx vue-tsc --noEmit
+      - run: npm run build
+      - name: 确认构建产物
+        run: ls -lh dist/
+
+  backend:
+    name: 后端 — import 检查 + 启动测试
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Python import 检查
+        run: |
+          python -c "
+import sys; sys.path.insert(0, '.')
+print('[OK] 开始 import 检查...')
+from app.models.product_sales import *;           print('  ✓ models.product_sales')
+from app.services.product_sales_service import *; print('  ✓ services.product_sales_service')
+from app.api.product_sales import *;              print('  ✓ api.product_sales')
+print('[OK] 全部 import 通过')
+"
+      - name: 启动 + 健康检查
+        run: |
+          python -m uvicorn app.main:app --host 127.0.0.1 --port 8003 &
+          APP_PID=$!
+          for i in $(seq 1 15); do
+            sleep 2
+            if curl -sf http://127.0.0.1:8003/health > /dev/null 2>&1; then
+              echo "[OK] 服务启动成功 (pid=$APP_PID)"
+              curl -s http://127.0.0.1:8003/health
+              echo ""
+              break
+            fi
+            if [ $i -eq 15 ]; then
+              echo "[FAIL] 服务启动超时"
+              kill $APP_PID 2>/dev/null || true
+              exit 1
+            fi
+            echo "等待启动中... ($i/15)"
+          done
+          kill $APP_PID 2>/dev/null || true
