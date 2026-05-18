@@ -41,10 +41,6 @@ BACKEND_ROOT = os.path.join(PROJECT_ROOT, 'backend')
 FRONTEND_ROOT = os.path.join(PROJECT_ROOT, 'frontend')
 CONFIG_ROOT = os.path.join(PROJECT_ROOT, 'config')
 STATIC_DIST = os.path.join(PROJECT_ROOT, 'static', 'vue-dist').replace('\\', '/')
-JAVA_BACKEND_DIR = os.path.join(PROJECT_ROOT, 'java-backend')
-JAVA_HOME = 'E:/软件/PyCharm 2025.2.1.1/jbr'
-MAVEN_HOME = 'E:/tool/apache-maven-3.9.9'
-JAVA_PORT = 7090
 PYTHON_AI_PORT = 7100
 
 
@@ -863,7 +859,7 @@ def _save_pid(name: str, pid: int):
 
 def force_kill_ports():
     """强制清理所有项目相关端口（通过 netstat + taskkill 彻底杀进程树）"""
-    ports = [7080, 7090, 7100, 7178]  # 生产模式：Python后端、Java后端、Python AI、前端
+    ports = [7080, 7100, 7178]  # 生产模式：Python后端、Python AI、前端
     killed = []
     try:
         procs = subprocess.run(['netstat', '-ano'], capture_output=True, text=True, timeout=5)
@@ -1293,9 +1289,9 @@ http {{
         location ~* \\.(js|css|png|jpg|jpeg|gif|ico|woff|woff2|ttf|svg)$ {{
             expires 1y; add_header Cache-Control \"public, immutable\";
         }}
-        # 业务 API → Java 后端
+        # API → Python 后端
         location /api/ {{
-            proxy_pass http://127.0.0.1:{JAVA_PORT};
+            proxy_pass http://127.0.0.1:{PYTHON_AI_PORT};
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1664,71 +1660,6 @@ def start_backend_server(args):
         return False
 
 
-def start_java_backend():
-    """启动 Java 主业务后端"""
-    logger.info("正在启动 Java 业务后端...")
-
-    if not os.path.exists(JAVA_HOME):
-        logger.error(f"JDK 未找到: {JAVA_HOME}")
-        return False, None
-
-    if not os.path.exists(JAVA_BACKEND_DIR):
-        logger.error(f"Java 后端目录不存在: {JAVA_BACKEND_DIR}")
-        return False, None
-
-    java_exe = os.path.join(JAVA_HOME, 'bin', 'java.exe')
-    mvn_exe = os.path.join(MAVEN_HOME, 'bin', 'mvn.cmd')
-
-    if not os.path.exists(mvn_exe):
-        logger.error(f"Maven 未找到: {mvn_exe}")
-        return False, None
-
-    # 检查并清理端口
-    if not is_port_available(JAVA_PORT):
-        logger.warning(f"Java 端口 {JAVA_PORT} 已被占用，正在清理...")
-        for pid in _get_port_pids(JAVA_PORT):
-            subprocess.run(['taskkill', '/F', '/T', '/PID', str(pid)], capture_output=True, timeout=5)
-        time.sleep(2)
-
-    env = os.environ.copy()
-    env['JAVA_HOME'] = JAVA_HOME
-    env['PATH'] = os.path.dirname(java_exe) + os.pathsep + os.path.dirname(mvn_exe) + os.pathsep + env.get('PATH', '')
-
-    process = subprocess.Popen(
-        [mvn_exe, 'spring-boot:run', '-Dspring-boot.run.arguments=--server.port=' + str(JAVA_PORT)],
-        cwd=JAVA_BACKEND_DIR,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True, encoding='utf-8', errors='replace'
-    )
-    process_manager.register("java-backend", process)
-    register_process(process)
-    _save_pid('java-backend', process.pid)
-
-    # 等待启动
-    logger.info("等待 Java 后端启动...")
-    for i in range(30):
-        time.sleep(2)
-        if process.poll() is not None:
-            stdout, stderr = process.communicate()
-            logger.error(f"Java 后端启动失败(exit={process.returncode})")
-            if stderr:
-                logger.error(f"stderr: {stderr[-500:]}")
-            return False, None
-        try:
-            import urllib.request
-            r = urllib.request.urlopen(f'http://127.0.0.1:{JAVA_PORT}/actuator/health', timeout=2)
-            if r.status == 200:
-                logger.info(f"✅ Java 业务后端就绪 (PID={process.pid}, port={JAVA_PORT})")
-                return True, process
-        except Exception:
-            if i % 5 == 4:
-                logger.info(f"  等待中... ({i+1}/30)")
-
-    logger.error("Java 后端启动超时")
-    return False, None
-
 def start_application_normal(args):
     """启动应用程序（普通模式）"""
     logger.info(f"\n=== 图片数据库管理系统启动（{args.env}环境/普通模式）===")
@@ -1800,12 +1731,7 @@ def start_application_normal(args):
         logger.warning(f"更新前端配置时出现错误: {e}")
         logger.info("继续启动服务...")
     
-    # 启动 Java 业务后端（主力）
-    java_ok, java_proc = start_java_backend()
-    if not java_ok:
-        logger.error("Java 业务后端启动失败")
-
-    # 启动 Python AI 后端（辅助）
+    # 启动 Python 后端
     try:
         backend_dir = BACKEND_ROOT
         logger.info(f"Python AI 后端代码目录: {backend_dir}")
@@ -1838,12 +1764,8 @@ def start_application_normal(args):
         logger.info(f"  前端: http://localhost:{frontend_port}/")
         if local_ip:
             logger.info(f"        http://{local_ip}:{frontend_port}/")
-        logger.info(f"  Java: http://localhost:{JAVA_PORT} (业务主力)")
-        if local_ip:
-            logger.info(f"        http://{local_ip}:{JAVA_PORT}")
-        logger.info(f"  Python: http://localhost:{PYTHON_AI_PORT} (AI服务)")
-        logger.info(f"  Swagger: http://localhost:{JAVA_PORT}/swagger-ui.html")
-        logger.info(f"  健康检查: http://localhost:{JAVA_PORT}/actuator/health")
+        logger.info(f"  Python: http://localhost:{PYTHON_AI_PORT} (后端)")
+        logger.info(f"  健康检查: http://localhost:{PYTHON_AI_PORT}/health")
         logger.info("=" * 60)
         
         # 启动uvicorn，使用项目根目录作为工作目录，确保配置加载正确

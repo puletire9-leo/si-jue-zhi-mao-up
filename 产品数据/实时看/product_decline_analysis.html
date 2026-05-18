@@ -450,6 +450,49 @@ body {
   font-size: 10px;
 }
 
+/* 产品详情列 */
+.product-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0;
+}
+
+.pd-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.pd-label {
+  color: var(--text-dim);
+  min-width: 48px;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.pd-value {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pd-stock {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.pd-tags {
+  background: var(--hover);
+  color: var(--accent);
+  padding: 0 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  max-width: 140px;
+}
+
 /* 数据列 */
 .data-cell {
   font-size: 14px;
@@ -1140,6 +1183,7 @@ function renderTable(data) {
         <tr>
           <th style="width:60px;text-align:center;">排名</th>
           <th>产品信息</th>
+          <th style="min-width:200px;">产品详情</th>
           <th class="sortable" onclick="setSort('prev_sales')" style="width:100px;text-align:right;cursor:pointer;">前期${periodLabel}销量${sortIndicator('prev_sales')}</th>
           <th class="sortable" onclick="setSort('curr_sales')" style="width:100px;text-align:right;cursor:pointer;">当期${periodLabel}销量${sortIndicator('curr_sales')}</th>
           <th class="sortable" onclick="setSort('decline')" style="width:100px;text-align:right;cursor:pointer;">下滑数量${sortIndicator('decline')}</th>
@@ -1181,6 +1225,13 @@ function renderTableRow(item, index) {
   const rank = index + 1;
   const rankClass = rank <= 3 ? 'rank top3' : 'rank';
 
+  const productName = item.product_name || '';
+  const skuCode = item.sku_code || '';
+  const mskuCode = item.msku_code || '';
+  const fbaStock = item.fba_stock != null ? item.fba_stock.toLocaleString() : '-';
+  const tags = item.listing_tags || '';
+  const owner = item.listing_owner || '';
+
   return `
     <tr>
       <td class="${rankClass}">${rank}</td>
@@ -1191,6 +1242,16 @@ function renderTableRow(item, index) {
             <span class="asin">${item.asin}</span>
             <span class="shop">${escapeHtml(item.shop)}</span>
           </div>
+        </div>
+      </td>
+      <td>
+        <div class="product-detail">
+          ${productName ? `<div class="pd-row"><span class="pd-label">品名</span><span class="pd-value">${escapeHtml(productName)}</span></div>` : ''}
+          ${mskuCode ? `<div class="pd-row"><span class="pd-label">MSKU</span><span class="pd-value">${escapeHtml(mskuCode)}</span></div>` : ''}
+          ${skuCode ? `<div class="pd-row"><span class="pd-label">SKU</span><span class="pd-value">${escapeHtml(skuCode)}</span></div>` : ''}
+          <div class="pd-row"><span class="pd-label">FBA可售</span><span class="pd-value pd-stock">${fbaStock}</span></div>
+          ${tags ? `<div class="pd-row"><span class="pd-label">标签</span><span class="pd-value pd-tags">${escapeHtml(tags)}</span></div>` : ''}
+          ${owner ? `<div class="pd-row"><span class="pd-label">负责人</span><span class="pd-value">${escapeHtml(owner)}</span></div>` : ''}
         </div>
       </td>
       <td class="data-cell prev" style="text-align:right;">${item.prev_sales.toLocaleString()}</td>

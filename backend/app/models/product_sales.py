@@ -141,6 +141,14 @@ class DeclineProduct(BaseModel):
     curr_sales: int = 0
     decline: int = 0
     decline_pct: float = 0.0
+    # 产品详情扩展
+    product_name: Optional[str] = None      # 品名
+    sku_code: Optional[str] = None          # SKU
+    msku_code: Optional[str] = None         # MSKU
+    fba_stock: Optional[int] = None         # FBA可售库存
+    listing_tags: Optional[str] = None      # listing标签
+    listing_owner: Optional[str] = None     # 负责人
+    image_url: Optional[str] = None         # 产品图片
 
     class Config:
         from_attributes = True

@@ -487,6 +487,21 @@ class ProductSalesService:
                   AND {C('日期')} <= '{curr_end}'
                   {shop_filter}
                 GROUP BY asin, shop
+            ),
+            product_info AS (
+                SELECT DISTINCT ON ({C('ASIN')}, {C('店铺')})
+                    {C('ASIN')} AS asin,
+                    {C('店铺')} AS shop,
+                    {C('品名')} AS product_name,
+                    {C('SKU')} AS sku_code,
+                    {C('MSKU')} AS msku_code,
+                    TRY_CAST({C('FBA-可售')} AS INTEGER) AS fba_stock,
+                    {C('listing标签')} AS listing_tags,
+                    {C('负责人')} AS listing_owner
+                FROM {src}
+                WHERE {C('日期')} >= '{prev_start}'
+                  AND {C('日期')} <= '{curr_end}'
+                  {shop_filter}
             )
             SELECT
                 COALESCE(p.asin, c.asin) AS asin,
@@ -500,9 +515,16 @@ class ProductSalesService:
                     THEN ROUND((COALESCE(c.sales, 0) - COALESCE(p.sales, 0)) * 100.0 / p.sales, 1)
                     WHEN COALESCE(c.sales, 0) > 0 THEN 100.0
                     ELSE 0.0
-                END AS decline_pct
+                END AS decline_pct,
+                pi.product_name,
+                pi.sku_code,
+                pi.msku_code,
+                pi.fba_stock,
+                pi.listing_tags,
+                pi.listing_owner
             FROM prev p
             FULL OUTER JOIN curr c ON p.asin = c.asin AND p.shop = c.shop
+            LEFT JOIN product_info pi ON COALESCE(p.asin, c.asin) = pi.asin AND COALESCE(p.shop, c.shop) = pi.shop
             WHERE COALESCE(p.sales, 0) > 0 OR COALESCE(c.sales, 0) > 0
             ORDER BY decline_pct ASC
         """
@@ -517,7 +539,14 @@ class ProductSalesService:
                 prev_sales=int(r[3] or 0),
                 curr_sales=int(r[4] or 0),
                 decline=int(r[5] or 0),
-                decline_pct=float(r[6] or 0)
+                decline_pct=float(r[6] or 0),
+                product_name=r[7] or None,
+                sku_code=r[8] or None,
+                msku_code=r[9] or None,
+                fba_stock=int(r[10]) if r[10] else None,
+                listing_tags=r[11] or None,
+                listing_owner=r[12] or None,
+                image_url=None  # 产品图片需从MySQL查询
             ))
 
         return DeclineAnalysisResponse(products=products)
