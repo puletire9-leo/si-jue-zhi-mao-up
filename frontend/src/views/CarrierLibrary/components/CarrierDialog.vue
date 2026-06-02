@@ -203,36 +203,10 @@ const beforeUpload: UploadProps['beforeUpload'] = (file) => {
   return validateImageType(file) && validateImageSize(file)
 }
 
-// 自定义上传逻辑
+// 自定义上传逻辑（不在此处实际上传，仅记录文件，由 handleSubmit 统一上传）
 const handleUpload: UploadProps['httpRequest'] = async (options) => {
-  try {
-    // 调用图片上传API，不再使用SKU参数
-    const response = await imageApi.upload(options.file, 'carrier')
-    
-    if (response.code === 200 && response.data?.url) {
-      options.onSuccess(response)
-    } else {
-      // 调用onError处理失败
-      options.onError({
-        status: 400,
-        method: 'POST',
-        url: '',
-        message: '上传失败',
-        name: 'UploadError',
-        stack: ''
-      })
-    }
-  } catch (error) {
-    // 调用onError处理异常
-    options.onError({
-      status: 500,
-      method: 'POST',
-      url: '',
-      message: error instanceof Error ? error.message : '上传失败',
-      name: 'UploadError',
-      stack: error instanceof Error ? error.stack || '' : ''
-    })
-  }
+  // 不执行上传，避免与 handleSubmit 中的 uploadImages 重复上传
+  options.onSuccess({ code: 200 })
 }
 
 

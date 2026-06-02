@@ -14,6 +14,7 @@ from ...models.file_link import FileLink, FileLinkCreate, FileLinkUpdate, FileLi
 from ...services.file_link_service import FileLinkService
 from ...services.file_upload_service import FileUploadService, get_file_upload_service
 from ...repositories.mysql_repo import get_mysql_repo
+from ...middleware.auth_middleware import require_auth
 
 router = APIRouter(prefix="/file-links", tags=["文件链接管理"])
 
@@ -27,6 +28,7 @@ async def get_file_link_service() -> FileLinkService:
 @router.post("", summary="创建文件链接")
 async def create_file_link(
     file_link: FileLinkCreate,
+    current_user: dict = Depends(require_auth),
     service: FileLinkService = Depends(get_file_link_service)
 ):
     """
@@ -62,6 +64,7 @@ async def get_file_links(
     category: Optional[str] = Query(None, description="分类筛选"),
     link_type: Optional[FileLinkType] = Query(None, description="链接类型筛选"),
     status: Optional[FileLinkStatus] = Query(None, description="状态筛选"),
+    current_user: dict = Depends(require_auth),
     service: FileLinkService = Depends(get_file_link_service)
 ):
     """
@@ -97,6 +100,7 @@ async def get_file_links(
 @router.get("/{link_id}", summary="获取单个文件链接")
 async def get_file_link(
     link_id: int = Path(..., ge=1, description="链接ID"),
+    current_user: dict = Depends(require_auth),
     service: FileLinkService = Depends(get_file_link_service)
 ):
     """
@@ -121,6 +125,7 @@ async def get_file_link(
 async def update_file_link(
     link_id: int = Path(..., ge=1, description="链接ID"),
     update_data: FileLinkUpdate = Body(...),
+    current_user: dict = Depends(require_auth),
     service: FileLinkService = Depends(get_file_link_service)
 ):
     """
@@ -145,6 +150,7 @@ async def update_file_link(
 @router.delete("/{link_id}", summary="删除文件链接")
 async def delete_file_link(
     link_id: int = Path(..., ge=1, description="链接ID"),
+    current_user: dict = Depends(require_auth),
     service: FileLinkService = Depends(get_file_link_service)
 ):
     """
@@ -171,6 +177,7 @@ async def delete_file_link(
 @router.post("/batch-delete", summary="批量删除文件链接")
 async def batch_delete_file_links(
     link_ids: List[int] = Body(..., description="链接ID列表"),
+    current_user: dict = Depends(require_auth),
     service: FileLinkService = Depends(get_file_link_service)
 ):
     """
@@ -195,6 +202,7 @@ async def batch_delete_file_links(
 @router.post("/{link_id}/check", summary="检查链接状态")
 async def check_link_status(
     link_id: int = Path(..., ge=1, description="链接ID"),
+    current_user: dict = Depends(require_auth),
     service: FileLinkService = Depends(get_file_link_service)
 ):
     """
@@ -218,6 +226,7 @@ async def check_link_status(
 @router.get("/{library_type}/categories", summary="获取分类列表")
 async def get_categories(
     library_type: str = Path(..., description="所属库类型"),
+    current_user: dict = Depends(require_auth),
     service: FileLinkService = Depends(get_file_link_service)
 ):
     """
@@ -244,6 +253,7 @@ async def upload_file(
     description: Optional[str] = Body(None, description="文件描述"),
     tags: Optional[List[str]] = Body(None, description="标签列表"),
     category: Optional[str] = Body(None, description="分类"),
+    current_user: dict = Depends(require_auth),
     upload_service: FileUploadService = Depends(get_file_upload_service)
 ):
     """
@@ -281,6 +291,7 @@ async def batch_upload_files(
     files: List[UploadFile] = File(...),
     library_type: str = Body(..., description="所属库类型"),
     category: Optional[str] = Body(None, description="分类"),
+    current_user: dict = Depends(require_auth),
     upload_service: FileUploadService = Depends(get_file_upload_service)
 ):
     """
@@ -312,6 +323,7 @@ async def batch_upload_files(
 
 @router.get("/upload/stats", summary="获取上传统计")
 async def get_upload_stats(
+    current_user: dict = Depends(require_auth),
     upload_service: FileUploadService = Depends(get_file_upload_service)
 ):
     """

@@ -5,10 +5,11 @@
  * @author AI Assistant
  * @version 1.3.0
  */
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { Search, Refresh, Picture, List, Filter } from '@element-plus/icons-vue'
 import type { SelectionQueryParams, SelectionQueryFormProps, CategoryItem, SearchTypeOption } from './types'
 import { defaultQueryParams, pageTypeConfig, defaultSearchTypeOptions } from './types'
+import { competitorApi } from '@/api/competitor'
 
 // Props 定义
 const props = withDefaults(defineProps<SelectionQueryFormProps>(), {
@@ -52,6 +53,22 @@ const dateRange = ref<string[]>([])
 // 上架时间范围（用于筛选对话框中的上架时间选择器）
 const listingDateRange = ref<string[]>([])
 
+// 卖家列表（从后端加载）
+const sellerOptions = ref<{ id: number; marketplace: string; sellerName: string; storeUrl: string }[]>([])
+const sellerLoading = ref(false)
+
+const loadSellers = async (marketplace?: string) => {
+  sellerLoading.value = true
+  try {
+    const res = await competitorApi.getDengZongShopSellers(marketplace ? { marketplace } : undefined)
+    sellerOptions.value = res.data || []
+  } catch {
+    sellerOptions.value = []
+  } finally {
+    sellerLoading.value = false
+  }
+}
+
 // 多项精确搜索对话框
 const advancedSearchDialogVisible = ref(false)
 const advancedSearchContent = ref('')
@@ -61,14 +78,15 @@ const filterDialogVisible = ref(false)
 
 // 国家选项（值必须与数据库中存储的值一致）
 const countryOptions = [
-  { label: '英国', value: '英国' },
-  { label: '德国', value: '德国' }
+  { label: '英国', value: 'UK' },
+  { label: '德国', value: 'DE' }
 ]
 
 // 数据筛选模式选项（值必须与数据库中存储的值一致）
 const dataFilterModeOptions = [
-  { label: '模式一', value: '模式一' },
-  { label: '模式二', value: '模式二' }
+  { label: '模式一', value: 'MODE1' },
+  { label: '模式二', value: 'MODE2' },
+  { label: '未通过', value: 'FAIL' }
 ]
 
 // 等级选项
@@ -151,6 +169,18 @@ watch(formData, (newVal) => {
   emit('change', { ...newVal })
 }, { deep: true })
 
+// 监听国家变化，重新加载卖家列表
+watch(() => formData.country, (newVal) => {
+  loadSellers(newVal || undefined)
+  // 切换国家时清空卖家选择
+  formData.sellerSelect = ''
+})
+
+// 组件挂载时加载卖家列表
+onMounted(() => {
+  loadSellers(formData.country || undefined)
+})
+
 /**
  * 处理紧凑模式搜索
  */
@@ -188,6 +218,15 @@ const handleCompactSearch = () => {
  * 处理搜索
  */
 const handleSearch = () => {
+  emit('search', { ...formData })
+}
+
+/**
+ * 处理卖家选择变化
+ */
+const handleSellerChange = (val: string) => {
+  // 选中卖家时，同步设置 storeName 用于搜索
+  formData.storeName = val || ''
   emit('search', { ...formData })
 }
 
@@ -389,7 +428,29 @@ defineExpose({
             :value="option.value"
           />
         </el-select>
-        
+
+        <!-- 卖家选择器 -->
+        <el-select
+          v-model="formData.sellerSelect"
+          placeholder="选择卖家"
+          clearable
+          filterable
+          class="seller-select"
+          size="default"
+          :loading="sellerLoading"
+          @change="handleSellerChange"
+        >
+          <el-option
+            v-for="seller in sellerOptions"
+            :key="seller.id"
+            :label="seller.sellerName"
+            :value="seller.sellerName"
+          >
+            <span>{{ seller.sellerName }}</span>
+            <span style="float: right; color: #8492a6; font-size: 12px">{{ seller.marketplace }}</span>
+          </el-option>
+        </el-select>
+
         <!-- 上架时间范围选择器 -->
         <el-date-picker
           v-model="listingDateRange"
@@ -420,7 +481,7 @@ defineExpose({
           />
         </el-select>
       </div>
-      
+
       <div class="search-wrapper">
         <el-select
           v-model="compactSearchType"
@@ -874,6 +935,7 @@ defineExpose({
     align-items: center;
     gap: 16px;
     flex-wrap: wrap;
+    flex-wrap: wrap;
     padding: 16px 0;
     margin-bottom: 16px;
     
@@ -884,6 +946,10 @@ defineExpose({
       
       .country-select {
         width: 120px;
+      }
+
+      .seller-select {
+        width: 200px;
       }
       
       .listing-date-picker {

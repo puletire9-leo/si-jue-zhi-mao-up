@@ -44,7 +44,9 @@ from ...models.download_task import DownloadTaskSource
 from ...config import settings
 
 from ...services.download_task_service import download_task_service, DownloadTaskStatus, DOWNLOAD_CACHE_DIR
-from ...middleware.auth_middleware import auth_middleware
+from ...middleware.auth_middleware import require_auth
+from ...tasks.download_tasks import execute_download
+from ...utils.download_utils import clean_url
 
 logger = logging.getLogger(__name__)
 
@@ -517,6 +519,7 @@ async def get_final_drafts_no_slash(
     sort_order: Optional[str] = Query("desc", description="排序方向"),
     page: Optional[str] = Query("1", description="当前页码"),
     size: Optional[str] = Query("20", description="每页数量"),
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -529,16 +532,16 @@ async def get_final_drafts_no_slash(
         page_int = int(page) if page and page.strip() else 1
     except (ValueError, TypeError):
         page_int = 1
-    
+
     try:
         size_int = int(size) if size and size.strip() else 20
     except (ValueError, TypeError):
         size_int = 20
-    
+
     # 确保参数在有效范围内
     page_int = max(1, page_int)
     size_int = max(1, min(100, size_int))
-    
+
     # 调用带斜杠路由的处理函数
     return await get_final_drafts(
         search_type=search_type,
@@ -551,6 +554,7 @@ async def get_final_drafts_no_slash(
         sort_order=sort_order,
         page=page_int,
         size=size_int,
+        current_user=current_user,
         mysql_repo=mysql_repo
     )
 
@@ -567,6 +571,7 @@ async def get_final_drafts(
     sort_order: Optional[str] = Query("desc", description="排序方向"),
     page: int = Query(1, ge=1, description="当前页码"),
     size: int = Query(20, ge=1, le=100, description="每页数量"),
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -825,17 +830,19 @@ async def get_final_drafts(
 @router.post("")
 async def create_final_draft_no_slash(
     draft: FinalDraftCreate,
+    user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
     创建新定稿（无末尾斜杠路由）
     """
-    return await create_final_draft(draft, mysql_repo)
+    return await create_final_draft(draft, user_info, mysql_repo)
 
 
 @router.post("/")
 async def create_final_draft(
     draft: FinalDraftCreate,
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1005,17 +1012,19 @@ async def create_final_draft(
 @router.post("/batch-create")
 async def batch_create_final_drafts(
     drafts: List[FinalDraftCreate],
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
     批量创建定稿
     """
-    return await _batch_create_final_drafts(drafts, mysql_repo)
+    return await _batch_create_final_drafts(drafts, current_user, mysql_repo)
 
 
 @router.post("/batch-create/")
 async def _batch_create_final_drafts(
     drafts: List[FinalDraftCreate],
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1136,6 +1145,7 @@ async def _batch_create_final_drafts(
 @router.post("/batch-delete")
 async def batch_delete_final_drafts(
     request: BatchOperationRequest,
+    user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1147,6 +1157,7 @@ async def batch_delete_final_drafts(
 @router.post("/batch-delete/")
 async def _batch_delete_final_drafts(
     request: BatchOperationRequest,
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1248,18 +1259,20 @@ async def _batch_delete_final_drafts(
 async def get_recycle_bin_slash(
     page: int = Query(default=1, ge=1, description="当前页码"),
     size: int = Query(default=20, ge=1, le=100, description="每页数量"),
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
     获取回收站定稿（有末尾斜杠路由）
     """
-    return await get_recycle_bin(page, size, mysql_repo)
+    return await get_recycle_bin(page, size, current_user, mysql_repo)
 
 
 @router.get("/recycle-bin")
 async def get_recycle_bin(
     page: int = Query(default=1, ge=1, description="当前页码"),
     size: int = Query(default=20, ge=1, le=100, description="每页数量"),
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1313,6 +1326,7 @@ async def get_recycle_bin(
 @router.post("/recycle-bin/batch-restore")
 async def batch_restore_final_drafts(
     request: BatchOperationRequest,
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1461,6 +1475,7 @@ async def batch_restore_final_drafts(
 
 @router.delete("/recycle-bin/clear")
 async def clear_final_draft_recycle_bin(
+    user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1498,6 +1513,7 @@ async def clear_final_draft_recycle_bin(
 @router.delete("/recycle-bin/batch")
 async def batch_permanently_delete_final_drafts(
     request: BatchOperationRequest,
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1591,6 +1607,7 @@ async def batch_permanently_delete_final_drafts(
 @router.post("/recycle-bin/{sku}/restore")
 async def restore_final_draft(
     sku: str,
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1661,6 +1678,7 @@ async def restore_final_draft(
 @router.delete("/recycle-bin/{sku}")
 async def permanently_delete_final_draft(
     sku: str,
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1704,6 +1722,7 @@ async def permanently_delete_final_draft(
 @router.delete("/recycle-bin/delete-by-id/{id}")
 async def permanently_delete_final_draft_by_id(
     id: int,
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1754,7 +1773,8 @@ async def permanently_delete_final_draft_by_id(
 @router.get("/download-zip-file")
 async def download_zip_file(
     request: Request,
-    token: str = Query(..., description="临时ZIP文件token")
+    token: str = Query(..., description="临时ZIP文件token"),
+    current_user: dict = Depends(require_auth)
 ):
     """
     下载临时ZIP文件
@@ -1839,6 +1859,7 @@ async def download_zip_file(
 @router.get("/{sku}")
 async def get_final_draft(
     sku: str,
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1890,6 +1911,7 @@ async def get_final_draft(
 async def update_final_draft(
     sku: str,
     draft_update: FinalDraftUpdate,
+    user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1981,9 +2003,20 @@ async def update_final_draft(
         else:
             new_reference_images = old_reference_images
         
-        # 找出被删除的图片
-        deleted_images = [img for img in old_images if img not in new_images]
-        deleted_reference_images = [img for img in old_reference_images if img not in new_reference_images]
+        # 找出被删除的图片（通过COS对象键比较，避免URL格式不同导致误删）
+        def _url_to_key(url: str) -> str:
+            """提取URL中的对象键用于比较"""
+            key = _extract_cos_object_key(url)
+            return key if key else url
+
+        old_image_keys = {_url_to_key(img): img for img in old_images}
+        new_image_keys = {_url_to_key(img) for img in new_images}
+        deleted_images = [url for key, url in old_image_keys.items() if key not in new_image_keys]
+
+        old_ref_keys = {_url_to_key(img): img for img in old_reference_images}
+        new_ref_keys = {_url_to_key(img) for img in new_reference_images}
+        deleted_reference_images = [url for key, url in old_ref_keys.items() if key not in new_ref_keys]
+
         deleted_all_images = deleted_images + deleted_reference_images
         
         # 删除腾讯云COS上的旧图片
@@ -2097,7 +2130,7 @@ async def update_final_draft(
                 # 如果获取失败，使用更新前的数据构建响应
                 logger.error(f"获取更新后的定稿SKU {sku} 失败，使用默认值返回")
                 updated_draft = {
-                    "id": existing_draft["id"],
+                    "id": old_draft["id"],
                     "sku": draft_update.sku or sku,
                     "batch": draft_update.batch or "",
                     "developer": draft_update.developer or "",
@@ -2112,7 +2145,7 @@ async def update_final_draft(
         except Exception as e:
             logger.error(f"处理更新的定稿数据失败: {str(e)}")
             updated_draft = {
-                "id": existing_draft["id"],
+                "id": old_draft["id"],
                 "sku": draft_update.sku or sku,
                 "batch": draft_update.batch or "",
                 "developer": draft_update.developer or "",
@@ -2146,6 +2179,7 @@ async def update_final_draft(
 async def update_final_draft_by_identifier(
     identifier: str,
     draft_update: FinalDraftUpdate,
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -2175,7 +2209,7 @@ async def update_final_draft_by_identifier(
                 raise HTTPException(status_code=404, detail="定稿不存在")
         
         # 调用现有的update_final_draft函数处理更新
-        return await update_final_draft(sku, draft_update, mysql_repo)
+        return await update_final_draft(sku, draft_update, current_user, mysql_repo)
     except HTTPException:
         raise
     except Exception as e:
@@ -2186,6 +2220,7 @@ async def update_final_draft_by_identifier(
 @router.post("/batch-update")
 async def batch_update_final_drafts(
     batch_update_data: dict,
+    user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -2226,19 +2261,27 @@ async def batch_update_final_drafts(
             raise HTTPException(status_code=400, detail="必须提供至少一个要更新的字段")
         
         # 构建动态更新SQL语句
+        # 允许更新的字段白名单（防止 SQL 注入）
+        allowed_fields = {
+            "batch", "developer", "carrier", "element", "status",
+            "modification_requirement", "modificationRequirement",
+            "infringement_label", "infringementLabel",
+            "images", "reference_images", "sku"
+        }
         set_clauses = []
         params = []
-        
+
         for field_name, field_value in update_fields.items():
+            if field_name not in allowed_fields:
+                logger.warning(f"忽略不允许更新的字段: {field_name}")
+                continue
             # 将Python字段名转换为数据库字段名
             db_field_name = field_name
-            if field_name == "modification_requirement":
-                # 已经是数据库字段名，不需要转换
-                pass
-            elif field_name == "modificationRequirement":
-                # 转换为数据库字段名
+            if field_name == "modificationRequirement":
                 db_field_name = "modification_requirement"
-            
+            elif field_name == "infringementLabel":
+                db_field_name = "infringement_label"
+
             set_clauses.append(f"{db_field_name} = %s")
             params.append(field_value)
         
@@ -2287,6 +2330,7 @@ async def batch_update_final_drafts(
 @router.delete("/{identifier}")
 async def delete_final_draft_by_identifier(
     identifier: str,
+    user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -2393,6 +2437,7 @@ async def delete_final_draft_by_identifier(
 @router.get("/batch/{batch}/count")
 async def get_batch_count(
     batch: str,
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -3487,7 +3532,7 @@ async def _download_files_batch(
 async def download_zip(
     request: Request,
     response: Response,
-    user_info: dict = Depends(auth_middleware.require_auth)
+    user_info: dict = Depends(require_auth)
 ):
     """
     下载文件并打包成ZIP（优化版）
@@ -3568,318 +3613,40 @@ async def download_zip(
             name=task_name,
             source=DownloadTaskSource.FINAL_DRAFT,
             skus=[file['filename'] for file in valid_files],
-            user_id=current_user_id
+            user_id=current_user_id,
+            request_data=valid_files,
         )
         
         logger.info(f"创建下载任务成功: {task_id}")
-        
-        # 下载所有文件（复用数据库连接）
-        download_results = await _download_files_batch(
-            valid_files,
-            mysql_repo=mysql_repo,
-            max_concurrent=5  # 控制并发数
-        )
-        
-        # 准备返回的下载结果（不包含content字段）
-        result_list = []
-        image_files = []  # 用于生成ZIP的图片文件
-        failed_files = []  # 记录失败的文件
-        temp_zip_path = None  # 临时ZIP文件路径
-        
-        for result in download_results:
-            result_dict = {
-                "filename": result.filename,
-                "url": result.url,
-                "status": result.status.value,
-                "size": result.size,
-                "message": result.message
-            }
-            result_list.append(result_dict)
-            
-            # 收集成功的图片文件用于生成ZIP
-            if result.status == DownloadStatus.SUCCESS and result.content:
-                ext = os.path.splitext(result.filename)[1].lower()
-                if ext in ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'):
-                    image_files.append((result.filename, result.content))
-            elif result.status == DownloadStatus.FAILED:
-                # 记录失败的文件
-                failed_files.append({
-                    "filename": result.filename,
-                    "error": result.message
-                })
-        
-        # 统计信息
-        success_count = sum(1 for r in download_results if r.status == DownloadStatus.SUCCESS)
-        failed_count = sum(1 for r in download_results if r.status == DownloadStatus.FAILED)
-        total_size = sum(r.size for r in download_results if r.status == DownloadStatus.SUCCESS)
-        
-        logger.info(f"下载完成 - 总计: {len(download_results)}, 成功: {success_count}, 失败: {failed_count}")
-        logger.info(f"有效图片文件: {len(image_files)} 个")
-        
-        # 生成详细的错误信息
-        error_details = []
-        for failed_file in failed_files:
-            error_details.append(f"SKU {failed_file['filename']}: {failed_file['error']}")
-        
-        # 创建ZIP文件
-        zip_data = b''
-        # 使用自定义文件名（如果提供）
-        if custom_filename:
-            # 确保文件名以.zip结尾
-            if not custom_filename.endswith('.zip'):
-                custom_filename += '.zip'
-            zip_filename = custom_filename
-        else:
-            zip_filename = f"drafts_{datetime.now().strftime('%Y%m%d%H%M%S')}.zip"
-        zip_url = None
-        zip_token = None
-        
-        # 只有当有成功下载的文件时才生成ZIP
-        if success_count > 0 and image_files:
-            # 保存ZIP文件到持久化目录
-            
-            # 创建任务专属目录
-            task_dir = os.path.join(DOWNLOAD_CACHE_DIR, task_id)
-            os.makedirs(task_dir, exist_ok=True)
-            
-            # 保存ZIP文件
-            temp_zip_path = os.path.join(task_dir, zip_filename)
-            
-            # 直接写入文件，避免将整个ZIP数据存储在内存中
-            # 使用ZIP_DEFLATED压缩格式减小文件大小
-            with zipfile.ZipFile(temp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                for filename, content in image_files:
-                    # 将图片转换为PNG格式
-                    try:
-                        if HAS_PIL and Image is not None:
-                            with Image.open(BytesIO(content)) as img:
-                                # 处理不同模式，保留透明度
-                                if img.mode == 'P':
-                                    # 转换调色板模式为RGBA
-                                    img = img.convert('RGBA')
-                                elif img.mode == 'LA':
-                                    # 转换灰度带透明度模式为RGBA
-                                    img = img.convert('RGBA')
-                                
-                                # 保存为PNG格式
-                                png_buffer = BytesIO()
-                                img.save(png_buffer, format='PNG', optimize=True)
-                                png_content = png_buffer.getvalue()
-                                
-                                # 修改文件名为.png后缀
-                                png_filename = f"{os.path.splitext(filename)[0]}.png"
-                                zip_file.writestr(png_filename, png_content)
-                                logger.debug(f"转换图片为PNG格式: {filename} -> {png_filename}")
-                        else:
-                            # PIL不可用，直接写入原始内容
-                            zip_file.writestr(filename, content)
-                    except Exception as e:
-                        logger.warning(f"转换图片为PNG格式失败: {filename}, 错误: {e}")
-                        # 转换失败，写入原始内容
-                        zip_file.writestr(filename, content)
-            
-            # 获取ZIP文件大小
-            zip_size = os.path.getsize(temp_zip_path)
-            
-            logger.info(f"ZIP文件生成成功，大小: {zip_size / 1024 / 1024:.2f} MB, 路径: {temp_zip_path}")
-            
-            # 清理临时内容，释放内存
-            del image_files
-        
-        # 更新任务状态
-        task_status = DownloadTaskStatus.COMPLETED if success_count > 0 else DownloadTaskStatus.FAILED
-        error_message = "; ".join(error_details) if error_details else None
-        
-        # 导入下载任务服务的内部方法
-        await download_task_service._update_task_status(
-            task_id,
-            task_status,
-            progress=100,
-            completed_files=success_count,
-            failed_files=failed_count,
-            total_size=total_size,
-            local_path=temp_zip_path if success_count > 0 and temp_zip_path else None,
-            error_message=error_message
-        )
-        
-        logger.info(f"更新下载任务状态成功: {task_id}, 状态: {task_status.value}")
-        
-        # 生成返回消息
-        if success_count > 0:
-            message = f"下载完成，成功 {success_count} 个，失败 {failed_count} 个"
-            if error_details:
-                message += "；失败详情：" + "; ".join(error_details[:3])  # 只显示前3个失败详情，避免消息过长
-                if len(error_details) > 3:
-                    message += f" 等{len(error_details)}个文件"
-        else:
-            message = "所有文件下载失败"
-            if error_details:
-                message += "：" + "; ".join(error_details)
-        
+
+        # 分发到 Celery worker 后台执行
+        execute_download.delay(task_id, valid_files)
+
+        logger.info(f"下载任务已分发到Celery: {task_id}")
+
         return JSONResponse(
             status_code=200,
             content={
-                "success": success_count > 0,
-                "message": message,
+                "success": True,
+                "message": "任务已创建，预计 1-3 分钟完成，请前往下载中心查看",
                 "data": {
-                    "download_results": result_list,
-                    "total": len(download_results),
-                    "success_count": success_count,
-                    "failed_count": failed_count,
-                    "failed_files": failed_files,
-                    "error_details": error_details,
-                    "task_id": task_id
+                    "task_id": task_id,
+                    "total_files": len(valid_files),
                 }
             }
         )
-        
+
     except HTTPException:
-        # 如果发生HTTP异常，也更新任务状态为失败
-        if task_id:
-            try:
-                await download_task_service._update_task_status(
-                    task_id,
-                    DownloadTaskStatus.FAILED,
-                    error_message="请求参数错误"
-                )
-            except Exception as e:
-                logger.error(f"更新任务状态失败: {e}")
         raise
     except json.JSONDecodeError:
-        # 如果发生JSON解析错误，也更新任务状态为失败
-        if task_id:
-            try:
-                await download_task_service._update_task_status(
-                    task_id,
-                    DownloadTaskStatus.FAILED,
-                    error_message="无效的JSON格式"
-                )
-            except Exception as e:
-                logger.error(f"更新任务状态失败: {e}")
         raise HTTPException(status_code=400, detail="无效的JSON格式")
     except Exception as e:
-        # 如果发生其他异常，也更新任务状态为失败
-        if task_id:
-            try:
-                await download_task_service._update_task_status(
-                    task_id,
-                    DownloadTaskStatus.FAILED,
-                    error_message=str(e)
-                )
-            except Exception as update_error:
-                logger.error(f"更新任务状态失败: {update_error}")
-        logger.error(f"生成ZIP文件失败: {e}")
-        raise HTTPException(status_code=500, detail=f"生成ZIP文件失败: {str(e)}")
-
-
-@router.post("/download-zip-async")
-async def download_zip_async(
-    request: Request,
-    background_tasks: BackgroundTasks
-):
-    """
-    异步创建下载任务
-    
-    功能：
-    - 接收文件列表，创建异步下载任务
-    - 立即返回任务ID，不等待下载完成
-    - 后台执行文件下载和ZIP打包
-    
-    请求格式：
-    {
-        "files": [
-            {"url": "http://example.com/image1.jpg", "filename": "image1.jpg"},
-            {"url": "http://example.com/image2.jpg", "filename": "image2.jpg"}
-        ]
-    }
-    
-    响应格式：
-    {
-        "code": 200,
-        "message": "下载任务已创建",
-        "data": {
-            "task_id": "uuid-string",
-            "status": "pending"
-        }
-    }
-    
-    Args:
-        request: FastAPI请求对象
-        background_tasks: 后台任务
-        
-    Returns:
-        dict: 包含任务ID的响应
-    """
-    try:
-        logger.info("开始创建异步下载任务")
-        
-        # 解析请求体
-        request_body = await request.json()
-        
-        # 处理不同的请求格式
-        files = []
-        
-        if isinstance(request_body, list):
-            files = request_body
-            logger.info(f"直接接收文件列表，数量: {len(files)}")
-        elif isinstance(request_body, dict):
-            if "files" in request_body:
-                files = request_body["files"]
-                logger.info(f"从请求体中提取文件列表，数量: {len(files)}")
-        else:
-            logger.error(f"无效的请求格式: {type(request_body)}")
-            raise HTTPException(status_code=400, detail="无效的请求格式")
-        
-        # 验证输入
-        if not files:
-            raise HTTPException(status_code=400, detail="文件列表不能为空")
-        
-        # 过滤无效文件
-        valid_files = []
-        for file in files:
-            if not isinstance(file, dict) or "url" not in file or "filename" not in file:
-                logger.warning(f"无效的文件条目: {file}")
-                continue
-            if not file["url"] or not file["filename"]:
-                logger.warning(f"文件URL或文件名不能为空: {file}")
-                continue
-            valid_files.append(file)
-        
-        if not valid_files:
-            raise HTTPException(status_code=400, detail="没有有效的文件可以下载")
-        
-        logger.info(f"有效文件数量: {len(valid_files)}")
-        
-        # 创建下载任务
-        task_id = await download_task_service.create_task(valid_files)
-        
-        # 启动后台任务执行下载
-        background_tasks.add_task(download_task_service.execute_task, task_id)
-        
-        logger.info(f"异步下载任务已创建: {task_id}")
-        
-        return {
-            "code": 200,
-            "message": "下载任务已创建",
-            "data": {
-                "task_id": task_id,
-                "status": "pending",
-                "total_files": len(valid_files)
-            }
-        }
-        
-    except HTTPException:
-        raise
-    except json.JSONDecodeError as e:
-        logger.error(f"解析请求体失败: {str(e)}")
-        raise HTTPException(status_code=400, detail="无效的JSON格式")
-    except Exception as e:
-        logger.error(f"创建下载任务失败: {str(e)}")
+        logger.error(f"创建下载任务失败: {e}")
         raise HTTPException(status_code=500, detail=f"创建下载任务失败: {str(e)}")
 
 
 @router.get("/download-tasks/{task_id}")
-async def get_download_task_status(task_id: str):
+async def get_download_task_status(task_id: str, current_user: dict = Depends(require_auth)):
     """
     获取下载任务状态
     
@@ -3929,7 +3696,7 @@ async def get_download_task_status(task_id: str):
 
 
 @router.post("/download-tasks/{task_id}/cancel")
-async def cancel_download_task(task_id: str):
+async def cancel_download_task(task_id: str, current_user: dict = Depends(require_auth)):
     """
     取消下载任务
     

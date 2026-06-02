@@ -16,6 +16,7 @@ from ...schemas.system_log import (
     UpdateRecord, UpdateRecordCreate, UpdateRecordUpdate, UpdateRecordListResponse,
     Requirement, RequirementCreate, RequirementUpdate, RequirementListResponse
 )
+from ...middleware.auth_middleware import require_auth
 import logging
 
 router = APIRouter()
@@ -26,7 +27,8 @@ logger = logging.getLogger(__name__)
 async def get_system_docs(
     skip: int = Query(0, ge=0, description="跳过的记录数"),
     limit: int = Query(100, ge=1, le=1000, description="返回的记录数"),
-    db: MySQLRepository = Depends(get_mysql_repo)
+    db: MySQLRepository = Depends(get_mysql_repo),
+    current_user: dict = Depends(require_auth)
 ):
     """获取系统文档列表"""
     try:
@@ -40,7 +42,8 @@ async def get_system_docs(
 @router.get("/system-docs/{doc_id}", response_model=SystemDoc)
 async def get_system_doc(
     doc_id: str,
-    db: MySQLRepository = Depends(get_mysql_repo)
+    db: MySQLRepository = Depends(get_mysql_repo),
+    current_user: dict = Depends(require_auth)
 ):
     """获取系统文档详情"""
     try:
@@ -57,7 +60,8 @@ async def get_system_doc(
 @router.post("/system-docs", response_model=SystemDoc)
 async def create_system_doc(
     doc: SystemDocCreate,
-    db: MySQLRepository = Depends(get_mysql_repo)
+    db: MySQLRepository = Depends(get_mysql_repo),
+    current_user: dict = Depends(require_auth)
 ):
     """创建系统文档"""
     try:
@@ -70,7 +74,8 @@ async def create_system_doc(
 async def update_system_doc(
     doc_id: str,
     doc: SystemDocUpdate,
-    db: MySQLRepository = Depends(get_mysql_repo)
+    db: MySQLRepository = Depends(get_mysql_repo),
+    current_user: dict = Depends(require_auth)
 ):
     """更新系统文档"""
     try:
@@ -87,7 +92,8 @@ async def update_system_doc(
 @router.delete("/system-docs/{doc_id}")
 async def delete_system_doc(
     doc_id: str,
-    db: MySQLRepository = Depends(get_mysql_repo)
+    db: MySQLRepository = Depends(get_mysql_repo),
+    current_user: dict = Depends(require_auth)
 ):
     """删除系统文档"""
     try:
@@ -106,7 +112,8 @@ async def delete_system_doc(
 async def get_update_records(
     skip: int = Query(0, ge=0, description="跳过的记录数"),
     limit: int = Query(100, ge=1, le=1000, description="返回的记录数"),
-    db: MySQLRepository = Depends(get_mysql_repo)
+    db: MySQLRepository = Depends(get_mysql_repo),
+    current_user: dict = Depends(require_auth)
 ):
     """获取更新记录列表"""
     try:
@@ -120,7 +127,8 @@ async def get_update_records(
 @router.get("/update-records/{record_id}", response_model=UpdateRecord)
 async def get_update_record(
     record_id: str,
-    db: MySQLRepository = Depends(get_mysql_repo)
+    db: MySQLRepository = Depends(get_mysql_repo),
+    current_user: dict = Depends(require_auth)
 ):
     """获取更新记录详情"""
     try:
@@ -137,7 +145,8 @@ async def get_update_record(
 @router.post("/update-records", response_model=UpdateRecord)
 async def create_update_record(
     record: UpdateRecordCreate,
-    db: MySQLRepository = Depends(get_mysql_repo)
+    db: MySQLRepository = Depends(get_mysql_repo),
+    current_user: dict = Depends(require_auth)
 ):
     """创建更新记录"""
     try:
@@ -150,7 +159,8 @@ async def create_update_record(
 async def update_update_record(
     record_id: str,
     record: UpdateRecordUpdate,
-    db: MySQLRepository = Depends(get_mysql_repo)
+    db: MySQLRepository = Depends(get_mysql_repo),
+    current_user: dict = Depends(require_auth)
 ):
     """更新更新记录"""
     try:
@@ -167,7 +177,8 @@ async def update_update_record(
 @router.delete("/update-records/{record_id}")
 async def delete_update_record(
     record_id: str,
-    db: MySQLRepository = Depends(get_mysql_repo)
+    db: MySQLRepository = Depends(get_mysql_repo),
+    current_user: dict = Depends(require_auth)
 ):
     """删除更新记录"""
     try:
@@ -186,7 +197,8 @@ async def delete_update_record(
 async def get_requirements(
     skip: int = Query(0, ge=0, description="跳过的记录数"),
     limit: int = Query(100, ge=1, le=1000, description="返回的记录数"),
-    db: MySQLRepository = Depends(get_mysql_repo)
+    db: MySQLRepository = Depends(get_mysql_repo),
+    current_user: dict = Depends(require_auth)
 ):
     """获取需求清单列表"""
     try:
@@ -200,7 +212,8 @@ async def get_requirements(
 @router.get("/requirements/{req_id}", response_model=Requirement)
 async def get_requirement(
     req_id: str,
-    db: MySQLRepository = Depends(get_mysql_repo)
+    db: MySQLRepository = Depends(get_mysql_repo),
+    current_user: dict = Depends(require_auth)
 ):
     """获取需求详情"""
     try:
@@ -217,7 +230,8 @@ async def get_requirement(
 @router.post("/requirements", response_model=Requirement)
 async def create_requirement(
     requirement: RequirementCreate,
-    db: MySQLRepository = Depends(get_mysql_repo)
+    db: MySQLRepository = Depends(get_mysql_repo),
+    current_user: dict = Depends(require_auth)
 ):
     """创建需求"""
     try:
@@ -230,7 +244,8 @@ async def create_requirement(
 async def update_requirement(
     req_id: str,
     requirement: RequirementUpdate,
-    db: MySQLRepository = Depends(get_mysql_repo)
+    db: MySQLRepository = Depends(get_mysql_repo),
+    current_user: dict = Depends(require_auth)
 ):
     """更新需求"""
     try:
@@ -247,7 +262,8 @@ async def update_requirement(
 @router.delete("/requirements/{req_id}")
 async def delete_requirement(
     req_id: str,
-    db: MySQLRepository = Depends(get_mysql_repo)
+    db: MySQLRepository = Depends(get_mysql_repo),
+    current_user: dict = Depends(require_auth)
 ):
     """删除需求"""
     try:

@@ -388,7 +388,9 @@ export const useProductDataStore = defineStore('productData', () => {
         if (availableMonths.value.length > 0 && !dateRange.value[0]) {
           const latestMonth = availableMonths.value[0]
           // 默认设置为该月的第一天和最后一天
-          dateRange.value = [`${latestMonth}-01`, `${latestMonth}-31`]
+          const [year, month] = latestMonth.split('-').map(Number)
+          const lastDay = new Date(year, month, 0).getDate()
+          dateRange.value = [`${latestMonth}-01`, `${latestMonth}-${String(lastDay).padStart(2, '0')}`]
         }
       }
     } catch (error) {

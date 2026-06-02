@@ -446,7 +446,7 @@ const handleDelete = async () => {
 }
 
 onMounted(() => {
-  loadDetail()
+  loadProductDetail()
 })
 </script>
 

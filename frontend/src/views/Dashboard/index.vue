@@ -322,8 +322,8 @@ const recentProducts = ref([])
 
 const loadStatistics = async () => {
   try {
-    const data = await statisticsApi.getDashboardStatistics()
-    Object.assign(statistics, data)
+    const res = await statisticsApi.getDashboardStatistics()
+    Object.assign(statistics, res?.data || res)
   } catch (error) {
     console.error('加载统计数据失败:', error)
     ElMessage.error('加载统计数据失败')
@@ -333,8 +333,8 @@ const loadStatistics = async () => {
 const loadRecentProducts = async () => {
   loading.value = true
   try {
-    const data = await productApi.getList({ page: 1, size: 5 })
-    recentProducts.value = data.list || []
+    const res = await productApi.getList({ page: 1, size: 5 })
+    recentProducts.value = res?.data?.list || res?.list || []
   } catch (error) {
     ElMessage.error('加载最近产品失败')
   } finally {

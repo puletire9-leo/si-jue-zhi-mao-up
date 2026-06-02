@@ -20,162 +20,175 @@ const routes: RouteRecordRaw[] = [
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('@/views/Home/index.vue'),
-        meta: { title: '首页', icon: 'Odometer', permission: 'dashboard:view' }
+        meta: { title: '首页', icon: 'Odometer' }
       },
-      {
-        path: 'products',
-        name: 'Products',
-        component: () => import('@/views/ProductManagement/index.vue'),
-        meta: { title: '产品管理', icon: 'Box', permission: 'product:view' }
-      },
+      // 产品管理暂时屏蔽（Python 后端未迁移）
+      // {
+      //   path: 'products',
+      //   name: 'Products',
+      //   component: () => import('@/views/ProductManagement/index.vue'),
+      //   meta: { title: '产品管理', icon: 'Box', permission: 'product:view' }
+      // },
       {
         path: 'product/:sku',
         name: 'ProductDetail',
         component: () => import('@/views/ProductDetail/index.vue'),
-        meta: { title: '产品详情', permission: 'product:view' }
+        meta: { title: '产品详情' }
       },
       {
         path: 'selection/:id',
         name: 'SelectionDetail',
         component: () => import('@/views/SelectionDetail/index.vue'),
-        meta: { title: '选品详情', permission: 'selection:view' }
+        meta: { title: '选品详情' }
       },
       {
         path: 'all-selection',
         name: 'AllSelection',
         component: () => import('@/views/AllSelection/index.vue'),
-        meta: { title: '总选品管理', icon: 'List', permission: 'selection:view' }
+        meta: { title: '总选品管理', icon: 'List' }
       },
       {
         path: 'new-products',
         name: 'NewProducts',
         component: () => import('@/views/AllSelection/index.vue'),
-        meta: { title: '新品榜', icon: 'Star', permission: 'selection:view' }
+        meta: { title: '新品榜', icon: 'Star' }
       },
       {
         path: 'reference-products',
         name: 'ReferenceProducts',
         component: () => import('@/views/AllSelection/index.vue'),
-        meta: { title: '竞品店铺', icon: 'Shop', permission: 'selection:view' }
+        meta: { title: '竞品店铺', icon: 'Shop' }
       },
       {
         path: 'zheng-products',
         name: 'ZhengProducts',
         component: () => import('@/views/AllSelection/index.vue'),
-        meta: { title: '郑总店铺上新', icon: 'Star', permission: 'selection:view' }
+        meta: { title: '郑总店铺上新', icon: 'Star' }
+      },
+      {
+        path: 'zheng-shop-overview',
+        name: 'ZhengShopOverview',
+        component: () => import('@/views/ZhengShopOverview/index.vue'),
+        meta: { title: '店铺总览', icon: 'Shop' }
+      },
+      {
+        path: 'asin-import',
+        name: 'AsinImport',
+        component: () => import('@/views/AsinImport/index.vue'),
+        meta: { title: '卖家精灵数据获取', icon: 'Upload' }
       },
       {
         path: 'prompt-library',
         name: 'PromptLibrary',
         component: () => import('@/views/FileLinkManagement/index.vue'),
-        meta: { title: '提示词库', icon: 'Document', permission: 'resource:view' }
+        meta: { title: '提示词库', icon: 'Document' }
       },
       {
         path: 'resource-library',
         name: 'ResourceLibrary',
         component: () => import('@/views/FileLinkManagement/index.vue'),
-        meta: { title: '资料库', icon: 'Folder', permission: 'resource:view' }
+        meta: { title: '资料库', icon: 'Folder' }
       },
       {
         path: 'resource-collection',
         name: 'ResourceCollection',
         component: () => import('@/views/ResourceCollection/index.vue'),
-        meta: { title: '资料集', icon: 'Picture', permission: 'resource:view' }
+        meta: { title: '资料集', icon: 'Picture' }
       },
       {
         path: 'final-draft',
         name: 'FinalDraft',
         component: () => import('@/views/FinalDraft/index.vue'),
-        meta: { title: '定稿', icon: 'Check', permission: 'final-draft:view' }
+        meta: { title: '定稿', icon: 'Check' }
       },
 
       {
         path: 'material-library',
         name: 'MaterialLibrary',
         component: () => import('@/views/MaterialLibrary/index.vue'),
-        meta: { title: '素材库', icon: 'Picture', permission: 'final-draft:view' }
+        meta: { title: '素材库', icon: 'Picture' }
       },
 
       {
         path: 'carrier-library',
         name: 'CarrierLibrary',
         component: () => import('@/views/CarrierLibrary/index.vue'),
-        meta: { title: '载体库', icon: 'Box', permission: 'final-draft:view' }
+        meta: { title: '载体库', icon: 'Box' }
       },
 
       {
         path: 'statistics',
         name: 'Statistics',
         component: () => import('@/views/Statistics/index.vue'),
-        meta: { title: '统计分析', icon: 'DataAnalysis', permission: 'statistics:view' }
+        meta: { title: '统计分析', icon: 'DataAnalysis' }
       },
       {
         path: 'product-data',
         name: 'ProductData',
         component: () => import('@/views/ProductDataDashboard/index.vue'),
-        meta: { title: '产品数据看板', icon: 'TrendCharts', permission: 'dashboard:view' }
+        meta: { title: '产品数据看板', icon: 'TrendCharts' }
       },
       {
         path: 'report-viewer',
         name: 'ReportViewer',
         component: () => import('@/views/ReportViewer/index.vue'),
-        meta: { title: '数据分析报告', icon: 'Document', permission: 'dashboard:view' }
+        meta: { title: '数据分析报告', icon: 'Document' }
       },
 
       {
         path: 'users',
         name: 'Users',
         component: () => import('@/views/UserManagement/index.vue'),
-        meta: { title: '用户管理', icon: 'User', permission: 'user:manage' }
+        meta: { title: '用户管理', icon: 'User' }
       },
       {
         path: 'account-settings',
         name: 'AccountSettings',
         component: () => import('@/views/AccountSettings/index.vue'),
-        meta: { title: '账号设置', icon: 'User', permission: 'user:manage' }
+        meta: { title: '账号设置', icon: 'User' }
       },
 
       {
         path: 'selection-recycle-bin',
         name: 'SelectionRecycleBin',
         component: () => import('@/components/RecycleBinPage/index.vue'),
-        meta: { title: '选品回收站', icon: 'Delete', permission: 'selection:manage' }
+        meta: { title: '选品回收站', icon: 'Delete' }
       },
       {
         path: 'product-recycle-bin',
         name: 'ProductRecycleBin',
         component: () => import('@/components/RecycleBinPage/index.vue'),
-        meta: { title: '产品回收站', icon: 'Delete', permission: 'product:manage' }
+        meta: { title: '产品回收站', icon: 'Delete' }
       },
       {
         path: 'final-draft-recycle-bin',
         name: 'FinalDraftRecycleBin',
         component: () => import('@/components/RecycleBinPage/index.vue'),
-        meta: { title: '定稿回收站', icon: 'Delete', permission: 'final-draft:manage' }
+        meta: { title: '定稿回收站', icon: 'Delete' }
       },
       {
         path: 'download-manager',
         name: 'DownloadManager',
         component: () => import('@/views/DownloadManager/index.vue'),
-        meta: { title: '下载管理', icon: 'Download', permission: 'download:view' }
+        meta: { title: '下载管理', icon: 'Download' }
       },
       {
         path: 'carrier-library-recycle-bin',
         name: 'CarrierLibraryRecycleBin',
         component: () => import('@/components/RecycleBinPage/index.vue'),
-        meta: { title: '载体回收站', icon: 'Delete', permission: 'final-draft:manage' }
+        meta: { title: '载体回收站', icon: 'Delete' }
       },
       {
         path: 'settings',
         name: 'Settings',
         component: () => import('@/views/Settings/index.vue'),
-        meta: { title: '系统设置', icon: 'Setting', permission: 'config:manage' }
+        meta: { title: '系统设置', icon: 'Setting' }
       },
       {
         path: 'lingxing/import',
         name: 'LingxingImport',
         component: () => import('@/views/Lingxing/Import/index.vue'),
-        meta: { title: '导入领星', icon: 'Upload', permission: 'lingxing:import' }
+        meta: { title: '导入领星', icon: 'Upload' }
       }
     ]
   },
@@ -193,65 +206,63 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to, from, next) => {
-  console.log('[Router] beforeEach 被调用:', to.path, from.path)
-  console.log('[Router] 当前路由需要的权限:', to.meta.permission)
-  
   document.title = `${to.meta.title || '思觉智贸'} - 思觉智贸`
 
+  const token = localStorage.getItem('token')
   const userStore = useUserStore()
-  const token = userStore.token
-  console.log('[Router] 当前token:', token ? '存在' : '不存在')
 
-  // 简化认证逻辑
   if (to.meta.requiresAuth !== false && !token) {
-    console.log('[Router] 无token，跳转到登录页')
-    ElMessage.warning('请先登录')
+    // 从登录页跳转过来但 token 丢失，不显示提示（避免与"登录成功"同时出现）
+    if (from.path !== '/login') {
+      ElMessage.warning('请先登录')
+    }
     next('/login')
     return
   }
 
   if (to.path === '/login' && token) {
-    console.log('[Router] 已有token，跳转到dashboard')
     next('/dashboard')
     return
   }
 
-  // 如果有token但没有用户信息，先获取用户信息
-  if (token && (!userStore.userInfo || userStore.permissions.length === 0)) {
-    console.log('[Router] 有token但没有用户信息，尝试从localStorage加载')
+  if (token && !userStore.userInfo) {
     try {
       const savedUserInfo = localStorage.getItem('userInfo')
       if (savedUserInfo) {
         userStore.setUserInfo(JSON.parse(savedUserInfo))
-        console.log('[Router] 从localStorage加载用户信息成功')
-      } else {
-        throw new Error('No saved user info')
       }
-    } catch (error) {
-      console.error('加载用户信息失败:', error)
-      ElMessage.error('获取用户信息失败，请重新登录')
+    } catch {
+      // userInfo 解析失败，尝试从 API 获取
+      console.warn('[Router] userInfo 解析失败，尝试从 API 获取')
+    }
+
+    // 如果 localStorage 中没有有效 userInfo，从 API 获取
+    if (!userStore.userInfo) {
+      try {
+        await userStore.getUserInfo()
+      } catch {
+        // API 失败说明 token 无效，清除状态跳转登录
+        console.warn('[Router] getUserInfo 失败，token 可能已失效')
+        userStore.logout()
+        next('/login')
+        return
+      }
+    }
+  }
+
+  // 如果 userInfo 存在但没有 role，尝试从 API 获取完整信息
+  if (token && userStore.userInfo && !userStore.userInfo.role) {
+    try {
+      await userStore.getUserInfo()
+    } catch {
+      // API 获取失败说明 token 已失效，清除状态跳转登录
+      console.warn('[Router] getUserInfo 失败（role 缺失），清除登录状态')
       userStore.logout()
       next('/login')
       return
     }
   }
 
-  // 权限验证逻辑
-  if (to.meta.permission) {
-    console.log('[Router] 开始权限验证，需要权限:', to.meta.permission)
-    // 检查用户是否有权限访问该路由
-    const hasPermission = userStore.hasPermission(to.meta.permission as string)
-    console.log('[Router] 权限验证结果:', hasPermission)
-    if (!hasPermission) {
-      console.log('[Router] 无权限，显示提示')
-      ElMessage.error('您无此权限')
-      // 无权限时不跳转，保持在当前页面
-      next(false)
-      return
-    }
-  }
-
-  console.log('[Router] 权限验证通过，继续跳转')
   next()
 })
 

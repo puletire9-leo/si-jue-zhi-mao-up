@@ -47,6 +47,14 @@ export interface BackupStartResponse {
   createdAt: string
 }
 
+export interface SellerspriteConfigResponse {
+  apiUrl: string
+  secretKeyMasked: string
+  maxPerMinute: number
+  maxPerMonth: number
+  maxAsinsPerRequest: number
+}
+
 
 export const systemConfigApi = {
   /**
@@ -276,6 +284,42 @@ export const systemConfigApi = {
       throw error
     }
   },
-  
+  /**
+   * 获取卖家精灵配置
+   */
+  async getSellerspriteConfig(): Promise<ApiResponse<SellerspriteConfigResponse>> {
+    try {
+      const response = await request({
+        url: '/api/v1/sellersprite-config',
+        method: 'get'
+      })
+      return response as unknown as ApiResponse<SellerspriteConfigResponse>
+    } catch (error) {
+      console.error('获取卖家精灵配置失败:', error)
+      throw error
+    }
+  },
+
+  /**
+   * 更新卖家精灵 API 密钥及配额
+   */
+  async updateSellerspriteConfig(data: {
+    secretKey?: string
+    maxPerMinute?: number
+    maxPerMonth?: number
+    maxAsinsPerRequest?: number
+  }): Promise<ApiResponse<SellerspriteConfigResponse>> {
+    try {
+      const response = await request({
+        url: '/api/v1/sellersprite-config',
+        method: 'put',
+        data
+      })
+      return response as unknown as ApiResponse<SellerspriteConfigResponse>
+    } catch (error) {
+      console.error('更新卖家精灵配置失败:', error)
+      throw error
+    }
+  },
 
 }

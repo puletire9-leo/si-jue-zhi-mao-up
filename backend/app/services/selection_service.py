@@ -213,9 +213,14 @@ class SelectionService:
             # 获取前端传递的排序字段，默认为score
             frontend_sort_by = params.sort_by if params and params.sort_by else "score"
 
-            # 映射到数据库字段名，如果映射不存在则使用原字段名
-            sort_by = field_mapping.get(frontend_sort_by, frontend_sort_by)
+            # 映射到数据库字段名，如果映射不存在则回退到默认排序
+            sort_by = field_mapping.get(frontend_sort_by)
+            if sort_by is None:
+                sort_by = "score"
             sort_order = params.sort_order if params and params.sort_order else "desc"
+            # 校验排序方向
+            if sort_order.upper() not in ("ASC", "DESC"):
+                sort_order = "DESC"
 
             # 默认排序：本周数据优先 + 按评分降序
             if sort_by == "score":
@@ -395,9 +400,14 @@ class SelectionService:
             # 获取前端传递的排序字段，默认为score
             frontend_sort_by = params.sort_by if params and params.sort_by else "score"
 
-            # 映射到数据库字段名，如果映射不存在则使用原字段名
-            sort_by = field_mapping.get(frontend_sort_by, frontend_sort_by)
+            # 映射到数据库字段名，如果映射不存在则回退到默认排序
+            sort_by = field_mapping.get(frontend_sort_by)
+            if sort_by is None:
+                sort_by = "score"
             sort_order = params.sort_order if params and params.sort_order else "desc"
+            # 校验排序方向
+            if sort_order.upper() not in ("ASC", "DESC"):
+                sort_order = "DESC"
 
             # 默认排序：本周数据优先 + 按评分降序
             if sort_by == "score":

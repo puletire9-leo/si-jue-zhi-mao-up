@@ -76,7 +76,8 @@ class FileUploadService:
                 library_type=library_type
             )
             
-            link_id = await self.file_link_service.create_file_link(file_link)
+            link = await self.file_link_service.create_file_link(file_link)
+            link_id = link.id
             
             return FileUploadResponse(
                 id=link_id,

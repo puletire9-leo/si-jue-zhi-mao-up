@@ -14,7 +14,7 @@
 
 | 层 | 技术 | 版本 |
 |----|------|------|
-| Java 后端 | Spring Boot + MyBatis-Plus + Undertow | 3.2.5 / Java 17 |
+| Java 后端 | Spring Boot + MyBatis-Plus + Spring Cloud Gateway | 4.0.4 / Java 17 |
 | Python 后端 | FastAPI + Celery + Qdrant | Python 3.11 |
 | 前端 | Vue 3 + TypeScript + Element Plus + Vite | Node 20 |
 | 数据库 | MySQL 8.0 + Redis 7 | - |
@@ -35,7 +35,7 @@
 
 | 模块 | AGENTS.md | 说明 |
 |------|-----------|------|
-| Java 后端 | [java-backend/AGENTS.md](java-backend/AGENTS.md) | 核心业务（产品/选品/定稿/素材/运营商/认证） |
+| Java 后端 | [java-backend/AGENTS.md](java-backend/AGENTS.md) | 认证/用户 + 竞品分析/评分/ASIN导入/筛选预设 |
 | Python 后端 | [backend/AGENTS.md](backend/AGENTS.md) | AI 功能（向量检索/图像识别/评分/LLM） |
 | 前端 | [frontend/AGENTS.md](frontend/AGENTS.md) | Vue 3 管理后台（27 个页面） |
 

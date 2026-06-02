@@ -18,6 +18,7 @@ from ..models.product_sales import (
     DeclineAnalysisResponse
 )
 from ..services.product_sales_service import get_product_sales_service, ProductSalesService
+from ..middleware.auth_middleware import require_auth
 
 router = APIRouter(prefix="/api/products", tags=["product-sales"])
 
@@ -30,7 +31,8 @@ async def search_products(
     end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
     limit: int = Query(50, ge=1, le=100, description="返回数量限制"),
     offset: int = Query(0, ge=0, description="分页偏移"),
-    service: ProductSalesService = Depends(get_product_sales_service)
+    service: ProductSalesService = Depends(get_product_sales_service),
+    current_user: dict = Depends(require_auth)
 ):
     """
     搜索产品
@@ -67,7 +69,8 @@ async def get_weekly_sales(
     start_date: Optional[str] = Query(None, description="开始日期 YYYY-MM-DD"),
     end_date: Optional[str] = Query(None, description="结束日期 YYYY-MM-DD"),
     shops: Optional[str] = Query(None, description="店铺筛选，逗号分隔"),
-    service: ProductSalesService = Depends(get_product_sales_service)
+    service: ProductSalesService = Depends(get_product_sales_service),
+    current_user: dict = Depends(require_auth)
 ):
     """
     获取产品的周销量数据
@@ -109,7 +112,8 @@ async def get_weekly_sales(
 
 @router.get("/shops", response_model=List[ShopInfo])
 async def get_shops(
-    service: ProductSalesService = Depends(get_product_sales_service)
+    service: ProductSalesService = Depends(get_product_sales_service),
+    current_user: dict = Depends(require_auth)
 ):
     """
     获取所有店铺列表
@@ -123,7 +127,8 @@ async def get_shops(
 
 @router.get("/date-range", response_model=DateRangeResponse)
 async def get_date_range(
-    service: ProductSalesService = Depends(get_product_sales_service)
+    service: ProductSalesService = Depends(get_product_sales_service),
+    current_user: dict = Depends(require_auth)
 ):
     """
     获取数据的日期范围
@@ -154,7 +159,8 @@ async def get_date_range(
 @router.post("/period-comparison", response_model=PeriodComparisonResponse)
 async def get_period_comparison(
     request: PeriodComparisonRequest,
-    service: ProductSalesService = Depends(get_product_sales_service)
+    service: ProductSalesService = Depends(get_product_sales_service),
+    current_user: dict = Depends(require_auth)
 ):
     """
     双周期数据对比
@@ -243,7 +249,8 @@ async def get_period_comparison(
 @router.post("/period-trend", response_model=PeriodTrendComparisonResponse)
 async def get_period_trend(
     request: PeriodComparisonRequest,
-    service: ProductSalesService = Depends(get_product_sales_service)
+    service: ProductSalesService = Depends(get_product_sales_service),
+    current_user: dict = Depends(require_auth)
 ):
     """
     获取双周期的每日销量趋势数据（用于折线图）
@@ -295,7 +302,8 @@ async def get_decline_analysis(
     prev_period: str = Query(..., description="前期标识，week格式: YYYY-WNN, month格式: YYYY-MM"),
     curr_period: str = Query(..., description="当期标识，同上"),
     shops: Optional[str] = Query(None, description="店铺筛选，逗号分隔"),
-    service: ProductSalesService = Depends(get_product_sales_service)
+    service: ProductSalesService = Depends(get_product_sales_service),
+    current_user: dict = Depends(require_auth)
 ):
     """
     产品销量下滑分析
@@ -324,7 +332,8 @@ async def get_decline_analysis(
 
 @router.get("/health")
 async def health_check(
-    service: ProductSalesService = Depends(get_product_sales_service)
+    service: ProductSalesService = Depends(get_product_sales_service),
+    current_user: dict = Depends(require_auth)
 ):
     """
     健康检查

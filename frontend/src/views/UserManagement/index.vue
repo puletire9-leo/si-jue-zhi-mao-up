@@ -5,7 +5,7 @@
         <div class="card-header">
           <span>用户管理</span>
           <el-button
-            v-if="isAdmin"
+            v-if="userStore.isAdmin"
             type="primary"
             :icon="Plus"
             @click="handleAdd"
@@ -74,7 +74,7 @@
         >
           <template #default="{ row }">
             <el-button
-              v-if="isAdmin"
+              v-if="userStore.isAdmin"
               type="primary"
               link
               :icon="Edit"
@@ -83,7 +83,7 @@
               编辑
             </el-button>
             <el-button
-              v-if="isAdmin"
+              v-if="userStore.isAdmin"
               type="danger"
               link
               :icon="Delete"
@@ -201,7 +201,7 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'Users' })
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { userApi } from '@/api/user'
@@ -210,11 +210,6 @@ import { useUserStore } from '@/stores/user'
 
 // 用户状态管理
 const userStore = useUserStore()
-
-// 计算属性：检查用户是否为管理员
-const isAdmin = computed(() => {
-  return userStore.userInfo && (userStore.userInfo.role === '管理员' || userStore.userInfo.role === 'admin')
-})
 
 const userList = ref([])
 const dialogVisible = ref(false)
@@ -260,7 +255,7 @@ const loadUsers = async () => {
 }
 
 const handleAdd = () => {
-  if (!isAdmin.value) {
+  if (!userStore.isAdmin) {
     ElMessage.warning('只有管理员可以添加用户')
     return
   }
@@ -278,7 +273,7 @@ const handleAdd = () => {
 }
 
 const handleEdit = (row) => {
-  if (!isAdmin.value) {
+  if (!userStore.isAdmin) {
     ElMessage.warning('只有管理员可以编辑用户')
     return
   }
@@ -296,7 +291,7 @@ const handleEdit = (row) => {
 }
 
 const handleSave = async () => {
-  if (!isAdmin.value) {
+  if (!userStore.isAdmin) {
     ElMessage.warning('只有管理员可以保存用户信息')
     return
   }
@@ -318,7 +313,7 @@ const handleSave = async () => {
 }
 
 const handleDelete = async (row) => {
-  if (!isAdmin.value) {
+  if (!userStore.isAdmin) {
     ElMessage.warning('只有管理员可以删除用户')
     return
   }

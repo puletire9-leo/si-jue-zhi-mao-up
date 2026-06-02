@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.mapper.Product30DayNewMapper">
+
+    <insert id="insertBatchIgnoreDup" parameterType="list">
+        INSERT IGNORE INTO product_30day_new (
+            asin, title, image_url, product_url, price, bsr, monthly_sales,
+            listing_days, shop_name, filter_status, filter_reasons, marketplace, data_month
+        ) VALUES
+        <foreach collection="list" item="p" separator=",">
+            (#{p.asin}, #{p.title}, #{p.imageUrl}, #{p.productUrl}, #{p.price}, #{p.bsr},
+             #{p.monthlySales}, #{p.listingDays}, #{p.shopName}, #{p.filterStatus},
+             #{p.filterReasons}, #{p.marketplace}, #{p.dataMonth})
+        </foreach>
+    </insert>
+
+</mapper>

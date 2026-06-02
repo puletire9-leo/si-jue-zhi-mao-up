@@ -45,12 +45,10 @@ export const productDataApi = {
       developer: params?.developer
     }
     const res = (await request.get(`${API_BASE}/category-stats`, { params: apiParams })) as any
-    console.log('[API] category-stats 原始响应:', res)
-    console.log('[API] category-stats stats数据:', res.stats)
     return {
       code: 200,
       message: 'success',
-      data: res.stats
+      data: res.data
     }
   },
 
@@ -135,7 +133,7 @@ export const productDataApi = {
     return {
       code: 200,
       message: 'success',
-      data: res.items
+      data: res.data
     }
   },
 

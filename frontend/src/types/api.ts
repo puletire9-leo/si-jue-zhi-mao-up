@@ -34,7 +34,7 @@ export interface User {
   updatedAt?: string
 }
 
-export type UserRole = '管理员' | '开发' | '美术' | '仓库' | 'admin' | 'developer' | 'artist' | 'warehouse'
+export type UserRole = '管理员' | '开发' | '美术' | '仓库' | '运营' | 'admin' | 'developer' | 'artist' | 'warehouse' | 'operator'
 
 export interface UserListParams {
   page: number
@@ -57,11 +57,12 @@ export interface LoginData {
 }
 
 export interface LoginResponse {
-  token: string
-  access_token?: string
-  refresh_token?: string
-  expires_in?: number
-  user: User
+  token?: string
+  accessToken?: string
+  refreshToken?: string
+  expiresIn?: number
+  user?: User
+  userInfo?: User
 }
 
 export interface CreateUserData {

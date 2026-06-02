@@ -69,6 +69,13 @@
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
+            <el-switch
+              v-model="groupByParent"
+              active-text="合并变体"
+              size="small"
+              @change="handleGroupByParentChange"
+              class="group-by-parent-switch"
+            />
             <el-button
               type="danger"
               plain
@@ -76,6 +83,14 @@
               v-if="false"
             >
               清空数据
+            </el-button>
+            <el-button
+              v-if="activeTab === 'zheng'"
+              type="primary"
+              :icon="Shop"
+              @click="openSellerDialog"
+            >
+              查看店铺
             </el-button>
           </div>
         </div>
@@ -99,18 +114,55 @@
         @image-search="handleSearchByImage"
       />
 
+      <!-- 筛选预设（新品榜，紧贴搜索栏下方） -->
+      <FilterPresetSelector
+        v-show="activeTab === 'new'"
+        class="preset-bar"
+        :current-config="getCurrentFilterConfig"
+        @apply="handlePresetApply"
+      />
+
       <!-- 评分配置面板 -->
-      <ScoringConfigPanel />
+      <ScoringConfigPanel v-if="activeTab === 'all'" />
+
+      <!-- 变体数筛选 & 置顶开关 -->
+      <div class="variant-filter-bar">
+        <template v-if="groupByParent">
+          <span class="filter-label">变体数 ≤</span>
+          <el-input-number
+            :model-value="maxVariantCount"
+            :min="0"
+            :max="999"
+            size="small"
+            controls-position="right"
+            style="width: 90px"
+            placeholder="不限"
+            @change="handleMaxVariantCountChange"
+          />
+          <el-button v-if="maxVariantCount != null" size="small" text @click="maxVariantCount = undefined; handleGroupByParentChange()">清除</el-button>
+          <el-divider direction="vertical" />
+        </template>
+        <span class="filter-label">选中置顶</span>
+        <el-switch
+          v-model="pinSelected"
+          size="small"
+          :active-action-icon="Top"
+          :inactive-action-icon="Bottom"
+        />
+      </div>
 
       <div v-loading="loading" class="products-grid">
         <UniversalCard
-          v-for="product in productList"
+          v-for="product in sortedProductList"
           :key="product.id"
           :product="product"
           :selected="selectedIds.includes(product.asin)"
+          :is-selected-by-me="mySelections.has(product.asin)"
+          :selected-by-users="selectionUsersMap[product.asin] || []"
           mode="selection"
           @click="handleCardClick"
           @select="handleSelect"
+          @toggle-select="handleToggleSelect"
           @view="handleView"
           @delete="handleDelete"
         />
@@ -230,6 +282,7 @@
       :show-edit-button="false"
       :show-delete-button="true"
       @delete="handleDeleteProduct"
+      @select-product="handleSelectProduct"
     />
 
     <!-- 添加选品对话框 -->
@@ -375,6 +428,70 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 卖家管理对话框 -->
+    <el-dialog
+      v-model="sellerDialogVisible"
+      title="邓总店铺卖家管理"
+      width="800px"
+      destroy-on-close
+    >
+      <div class="seller-dialog-content">
+        <div class="seller-toolbar">
+          <el-select
+            v-model="sellerFilterMarketplace"
+            placeholder="按站点筛选"
+            clearable
+            style="width: 150px"
+            @change="loadSellerList"
+          >
+            <el-option label="UK" value="UK" />
+            <el-option label="DE" value="DE" />
+          </el-select>
+          <el-button type="primary" :icon="Plus" @click="handleAddSeller">新增卖家</el-button>
+        </div>
+        <el-table :data="sellerList" border stripe style="width: 100%" max-height="500">
+          <el-table-column prop="marketplace" label="站点" width="80" />
+          <el-table-column prop="sellerName" label="卖家名称" min-width="200" show-overflow-tooltip>
+            <template #default="{ row }">
+              <el-input
+                v-if="row._editing"
+                v-model="row.sellerName"
+                size="small"
+                @keyup.enter="handleSaveSeller(row)"
+              />
+              <span v-else>{{ row.sellerName }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="店铺链接" min-width="100">
+            <template #default="{ row }">
+              <el-link
+                v-if="row.storeUrl"
+                :href="row.storeUrl"
+                target="_blank"
+                type="primary"
+              >
+                打开
+              </el-link>
+              <span v-else style="color: #909399">无</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="260" fixed="right">
+            <template #default="{ row }">
+              <template v-if="row._editing">
+                <el-button type="success" size="small" @click="handleSaveSeller(row)">保存</el-button>
+                <el-button size="small" @click="row._editing = false">取消</el-button>
+              </template>
+              <template v-else>
+                <el-button type="primary" size="small" @click="row._editing = true">编辑</el-button>
+                <el-button type="warning" size="small" :loading="row._syncing" @click="handleSyncSeller(row)">同步数据</el-button>
+                <el-button type="danger" size="small" @click="handleDeleteSeller(row)">删除</el-button>
+              </template>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-dialog>
       </div>
     </div>
   </div>
@@ -382,7 +499,7 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'AllSelection' })
-import { ref, reactive, onMounted, computed, watch } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import {
@@ -401,15 +518,21 @@ import {
   TrendCharts,
   Shop,
   Star,
-  Trophy
+  Trophy,
+  Top,
+  Bottom
 } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules, UploadFile } from 'element-plus'
 import UniversalCard from '@/components/UniversalCard/index.vue'
 import ProductDetailDialog from '@/components/ProductDetailDialog/index.vue'
 import SelectionQueryForm from '@/components/SelectionQueryForm/index.vue'
 import ScoringConfigPanel from './ScoringConfigPanel.vue'
+import FilterPresetSelector from '@/components/FilterPresetSelector/index.vue'
 import type { SelectionQueryParams } from '@/components/SelectionQueryForm/types'
 import { selectionApi } from '@/api/selection'
+import { competitorApi, normalizeProduct } from '@/api/competitor'
+import { fetchMySelections, fetchSelectionUsers, trackClick } from '@/api/clickLog'
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
 const route = useRoute()
@@ -450,10 +573,13 @@ const handleTabChange = (tab: string): void => {
     'zheng': 'zheng'
   }
   
+  // 新品榜默认：英国 + 模式一
+  const defaults = tab === 'new' ? { country: 'UK', dataFilterMode: 'MODE1' } : {}
   queryFormRef.value?.setQueryParams({
-    productType: productTypeMap[tab] || ''
+    productType: productTypeMap[tab] || '',
+    ...defaults
   })
-  
+
   // 重置页码并重新加载数据
   pagination.page = 1
   loadProducts()
@@ -472,6 +598,28 @@ const getSectionTitle = (): string => {
 
 const productList = ref([])
 const selectedIds = ref([])
+const pinSelected = ref(false)
+const mySelections = ref<Set<string>>(new Set())
+const selectionUsersMap = ref<Record<string, { userId: number; userName: string }[]>>({})
+/** 防止重复点击：正在处理中的 ASIN */
+const togglingAsins = ref<Set<string>>(new Set())
+/** 记录每个 ASIN 最近一次操作时间，轮询时跳过近期操作的 ASIN */
+const lastToggleTime = ref<Record<string, number>>({})
+
+/** 选中产品置顶（需开启开关） */
+const sortedProductList = computed(() => {
+  const list = productList.value
+  if (!pinSelected.value || mySelections.value.size === 0) return list
+  const selected: any[] = []
+  const unselected: any[] = []
+  for (const p of list) {
+    (mySelections.value.has(p.asin) ? selected : unselected).push(p)
+  }
+  return [...selected, ...unselected]
+})
+
+/** 选中用户实时轮询定时器（5 秒间隔，同步其他用户的选中状态） */
+let selectionPollTimer: ReturnType<typeof setInterval> | null = null
 const selectedProduct = ref(null)
 const detailDialogVisible = ref(false)
 const addDialogVisible = ref(false)
@@ -481,6 +629,11 @@ const searchByImageDialogVisible = ref(false)
 const importing = ref(false)
 const searching = ref(false)
 const exporting = ref(false)
+
+// 卖家管理弹窗
+const sellerDialogVisible = ref(false)
+const sellerList = ref<any[]>([])
+const sellerFilterMarketplace = ref('')
 const adding = ref(false)
 const scoringCurrentWeek = ref(false)
 const uploadRef = ref(null)
@@ -489,6 +642,8 @@ const importFile = ref(null)
 const importMode = ref('skip') // 导入模式：skip(跳过)/update(更新)/overwrite(覆盖)
 const searchImageFile = ref(null)
 const searchImagePreview = ref('')
+const groupByParent = ref(true)
+const maxVariantCount = ref<number | undefined>(undefined)
 const categories = ref([])
 
 const addForm = reactive({
@@ -581,6 +736,7 @@ const loadProducts = async (params?: SelectionQueryParams) => {
       asin: queryParams?.asin || '',
       productTitle: queryParams?.productTitle || '',
       storeName: queryParams?.storeName || '',
+      sellerSelect: queryParams?.sellerSelect || '',
       category: queryParams?.category || '',
       sortBy: queryParams?.sortField || 'score',
       sortOrder: queryParams?.sortOrder || 'desc',
@@ -598,37 +754,60 @@ const loadProducts = async (params?: SelectionQueryParams) => {
       apiParams.isCurrent = parseInt(queryParams.isCurrent, 10)
     }
     
-    // 根据 activeTab 直接设置产品类型（不依赖表单 ref，避免挂载时序问题）
-    const productTypeMap: Record<string, '' | 'new' | 'reference' | 'zheng'> = {
+    // source 映射：根据 activeTab 设置数据来源筛选
+    const sourceMap: Record<string, string> = {
+      'new': '新品榜',
+      'reference': '竞品店铺',
+      'zheng': '郑总店铺',
       'all': '',
-      'new': 'new',
-      'reference': 'reference',
-      'zheng': 'zheng',
     }
-    apiParams.product_type = productTypeMap[activeTab.value] ?? ''
+    const source = sourceMap[activeTab.value] || ''
 
-    // 根据当前标签页调用不同的API
-    let apiCall
-    switch (activeTab.value) {
-      case 'new':
-        apiCall = selectionApi.getNewProductsList(apiParams)
-        break
-      case 'reference':
-        apiCall = selectionApi.getReferenceProductsList(apiParams)
-        break
-      case 'zheng':
-      case 'all':
-      default:
-        apiCall = selectionApi.getAllSelectionList(apiParams)
-        break
+    // 郑总店铺走独立接口（deng_zong_shop 表）
+    if (activeTab.value === 'zheng') {
+      const dengParams: any = {
+        page: apiParams.page,
+        size: apiParams.size,
+        marketplace: apiParams.country || undefined,
+        title: apiParams.productTitle || undefined,
+        sellerName: apiParams.sellerSelect || apiParams.storeName || undefined,
+        sortBy: apiParams.sortBy || 'units',
+        sortOrder: apiParams.sortOrder || 'desc',
+      }
+      console.log('加载邓总店铺，参数:', dengParams)
+      const res = await competitorApi.getDengZongShopList(dengParams)
+      console.log('加载邓总店铺，响应:', res)
+      productList.value = (res.data?.list || []).map(normalizeProduct)
+      pagination.total = res.data?.total || 0
+    } else {
+      // 调用 Java 后端 competitor API
+      const competitorParams: any = {
+        page: apiParams.page,
+        size: apiParams.size,
+        marketplace: apiParams.country || undefined,
+        source: source || undefined,
+        filterMode: apiParams.dataFilterMode || undefined,
+        title: apiParams.productTitle || undefined,
+        sellerName: apiParams.storeName || undefined,
+        sortBy: apiParams.sortBy || 'units',
+        sortOrder: apiParams.sortOrder || 'desc',
+        asin: apiParams.asin || undefined,
+        groupByParent: groupByParent.value || undefined,
+        maxVariantCount: maxVariantCount.value ?? undefined,
+        grade: apiParams.grade || undefined,
+        weekTag: apiParams.weekTag || undefined,
+        isCurrent: apiParams.isCurrent,
+      }
+
+      console.log('加载产品列表，参数:', competitorParams, 'tab:', activeTab.value)
+      const response = await competitorApi.getList(competitorParams)
+      console.log('加载产品列表，响应:', response)
+      productList.value = response.data?.list || []
+      pagination.total = response.data?.total || 0
     }
-
-    console.log('加载产品列表，参数:', apiParams, 'API:', activeTab.value)
-    const response = await apiCall
-    console.log('加载产品列表，响应:', response)
-    productList.value = response.data?.list || []
-    pagination.total = response.data?.total || 0
     console.log('加载产品列表，产品数量:', productList.value.length, '总数:', pagination.total)
+
+    await loadSelections()
   } catch (error) {
     console.error('加载选品列表失败:', error)
     ElMessage.error('加载选品列表失败')
@@ -637,7 +816,150 @@ const loadProducts = async (params?: SelectionQueryParams) => {
   }
 }
 
+const loadSelections = async () => {
+  const marketplace = queryFormRef.value?.getQueryParams()?.country || 'UK'
+  mySelections.value = await fetchMySelections(marketplace)
+
+  const asins = productList.value.map((p: any) => p.asin).filter(Boolean)
+  if (asins.length > 0) {
+    selectionUsersMap.value = await fetchSelectionUsers(asins, marketplace)
+  }
+}
+
+/**
+ * 定期刷新当前页产品的选中用户列表（5 秒轮询）
+ * 仅更新其他用户状态，保护当前用户的乐观本地状态
+ * 跳过最近 3 秒内操作过的 ASIN（防止覆盖乐观更新）
+ */
+const refreshSelectionUsers = async () => {
+  if (!document.hidden && productList.value.length > 0) {
+    const userStore = useUserStore()
+    const currentUserId = Number(userStore.userInfo?.id) || 1
+    const currentUserName = userStore.userInfo?.username || userStore.userInfo?.realName || '我'
+    const marketplace = queryFormRef.value?.getQueryParams()?.country || 'UK'
+
+    try {
+      const queriedAsins = productList.value.map((p: any) => p.asin).filter(Boolean)
+      const users = await fetchSelectionUsers(queriedAsins, marketplace)
+      const now = Date.now()
+
+      // 合并服务端数据与当前用户的乐观本地状态
+      for (const asin of Object.keys(users)) {
+        // 跳过近期操作过的 ASIN，防止覆盖乐观更新
+        if (now - (lastToggleTime.value[asin] || 0) < 3000) continue
+
+        const serverUsers = users[asin] || []
+        // 服务端无数据时保留本地状态，不覆盖
+        if (serverUsers.length === 0 && selectionUsersMap.value[asin]?.length > 0) continue
+
+        if (mySelections.value.has(asin)) {
+          const otherUsers = serverUsers.filter((u: any) => u.userId !== currentUserId)
+          selectionUsersMap.value[asin] = [{ userId: currentUserId, userName: currentUserName }, ...otherUsers]
+        } else {
+          selectionUsersMap.value[asin] = serverUsers
+        }
+      }
+
+      // 清理：只清理本次查询范围内、服务端确认不存在、且自己也没选的 ASIN
+      const queriedSet = new Set(queriedAsins)
+      for (const asin of Object.keys(selectionUsersMap.value)) {
+        if (!queriedSet.has(asin)) continue
+        if (now - (lastToggleTime.value[asin] || 0) < 3000) continue
+        if (!(asin in users) && !mySelections.value.has(asin)) {
+          delete selectionUsersMap.value[asin]
+        }
+      }
+    } catch {}
+  }
+}
+
+/** 每个 ASIN 的校准定时器，新操作时取消前次 */
+const calibrateTimers = ref<Record<string, ReturnType<typeof setTimeout>>>({})
+
+const handleToggleSelect = async (asin: string, selected: boolean) => {
+  // 防抖：同一 ASIN 正在处理中则跳过
+  if (togglingAsins.value.has(asin)) return
+  togglingAsins.value.add(asin)
+
+  try {
+    const userStore = useUserStore()
+    const currentUser = {
+      userId: Number(userStore.userInfo?.id) || 1,
+      userName: userStore.userInfo?.username || userStore.userInfo?.realName || '我'
+    }
+
+    const marketplace = queryFormRef.value?.getQueryParams()?.country || 'UK'
+    const product = productList.value.find((p: any) => p.asin === asin)
+    const action = selected ? 'select' : 'unselect'
+
+    // 记录操作时间，防止轮询覆盖
+    lastToggleTime.value[asin] = Date.now()
+
+    // 1. 乐观更新 — 即时显示
+    if (selected) {
+      mySelections.value.add(asin)
+      const existing = selectionUsersMap.value[asin] || []
+      if (!existing.find((u: any) => u.userId === currentUser.userId)) {
+        selectionUsersMap.value[asin] = [...existing, currentUser]
+      }
+    } else {
+      mySelections.value.delete(asin)
+      const existing = selectionUsersMap.value[asin] || []
+      selectionUsersMap.value[asin] = existing.filter((u: any) => u.userId !== currentUser.userId)
+      if (selectionUsersMap.value[asin].length === 0) {
+        delete selectionUsersMap.value[asin]
+      }
+    }
+
+    // 2. 同步到服务端（fire-and-forget）
+    const token = userStore.token
+    fetch('/api/v1/click-logs', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+      body: JSON.stringify({
+        asin,
+        marketplace,
+        source: product?.source || ({ zheng: '郑总店铺', new: '新品榜', reference: '竞品' } as Record<string, string>)[activeTab.value] || '新品榜',
+        action,
+        userId: currentUser.userId,
+        productTitle: product?.title || product?.productTitle || '',
+        userName: currentUser.userName,
+      }),
+    }).catch(() => {})
+
+    // 3. 取消前次校准，启动新校准（1 秒后，给服务端更多处理时间）
+    if (calibrateTimers.value[asin]) {
+      clearTimeout(calibrateTimers.value[asin])
+    }
+    calibrateTimers.value[asin] = setTimeout(async () => {
+      delete calibrateTimers.value[asin]
+      try {
+        const users = await fetchSelectionUsers([asin], marketplace)
+        const serverUsers = users[asin] || []
+        const otherUsers = serverUsers.filter((u: any) => u.userId !== currentUser.userId)
+
+        if (mySelections.value.has(asin)) {
+          selectionUsersMap.value[asin] = [currentUser, ...otherUsers]
+        } else {
+          if (otherUsers.length > 0) {
+            selectionUsersMap.value[asin] = otherUsers
+          } else {
+            delete selectionUsersMap.value[asin]
+          }
+        }
+      } catch {}
+    }, 1000)
+  } finally {
+    // 短暂防抖后释放
+    setTimeout(() => togglingAsins.value.delete(asin), 300)
+  }
+}
+
 // 根据路由自动设置产品类型
+// 注：不设 immediate，首次加载由 onMounted 处理（此时 queryFormRef 可用）
 watch(() => route.path, (newPath) => {
   const pathMap: Record<string, { tab: string; productType: '' | 'new' | 'reference' | 'zheng' }> = {
     '/zheng-products': { tab: 'zheng', productType: 'zheng' },
@@ -645,19 +967,20 @@ watch(() => route.path, (newPath) => {
     '/reference-products': { tab: 'reference', productType: 'reference' },
     '/all-selection': { tab: 'all', productType: '' }
   }
-  
+
   const config = pathMap[newPath]
   if (config) {
     activeTab.value = config.tab
+    const defaults = config.tab === 'new' ? { country: 'UK', dataFilterMode: 'MODE1' } : {}
     queryFormRef.value?.setQueryParams({
-      productType: config.productType
+      productType: config.productType,
+      ...defaults
     })
   }
-  
-  // 重置页码并重新加载数据
+
   pagination.page = 1
   loadProducts()
-}, { immediate: true })
+})
 
 const handleSearch = (params: SelectionQueryParams) => {
   pagination.page = 1
@@ -666,8 +989,104 @@ const handleSearch = (params: SelectionQueryParams) => {
 
 const handleReset = () => {
   pagination.page = 1
-  // 组件内部已经重置了表单数据，这里只需要重新加载
   loadProducts()
+}
+
+const getCurrentFilterConfig = () => {
+  const params = queryFormRef.value?.getQueryParams() || {}
+  return {
+    // 筛选条件（与筛选弹窗字段一一对应）
+    country: params.country || '',
+    listingDateStart: params.listingDateStart || '',
+    listingDateEnd: params.listingDateEnd || '',
+    dataFilterMode: params.dataFilterMode || '',
+    category: params.category || '',
+    grade: params.grade || '',
+    isCurrent: params.isCurrent || '',
+    sortField: params.sortField || 'score',
+    sortOrder: params.sortOrder || 'desc',
+  }
+}
+
+const handlePresetApply = (config: Record<string, any>) => {
+  queryFormRef.value?.setQueryParams(config)
+  pagination.page = 1
+  loadProducts()
+}
+
+// ========== 卖家管理 ==========
+const openSellerDialog = () => {
+  sellerDialogVisible.value = true
+  loadSellerList()
+}
+
+const loadSellerList = async () => {
+  try {
+    const params = sellerFilterMarketplace.value ? { marketplace: sellerFilterMarketplace.value } : undefined
+    const res = await competitorApi.getDengZongShopSellers(params)
+    sellerList.value = (res.data || []).map((s: any) => ({ ...s, _editing: false }))
+  } catch {
+    sellerList.value = []
+  }
+}
+
+const handleAddSeller = async () => {
+  try {
+    const { value } = await ElMessageBox.prompt('请输入卖家名称', '新增卖家', {
+      inputPlaceholder: '卖家名称',
+      inputValidator: (v) => !!v?.trim() || '卖家名称不能为空',
+    })
+    const marketplace = sellerFilterMarketplace.value || 'UK'
+    await competitorApi.createDengZongShopSeller({ sellerName: value.trim(), marketplace })
+    ElMessage.success('新增成功')
+    loadSellerList()
+  } catch {}
+}
+
+const handleSaveSeller = async (row: any) => {
+  if (!row.sellerName?.trim()) {
+    ElMessage.warning('卖家名称不能为空')
+    return
+  }
+  try {
+    await competitorApi.updateDengZongShopSeller(row.id, {
+      sellerName: row.sellerName,
+      marketplace: row.marketplace,
+      storeUrl: row.storeUrl,
+      notes: row.notes,
+    })
+    row._editing = false
+    ElMessage.success('保存成功')
+  } catch {
+    ElMessage.error('保存失败')
+  }
+}
+
+const handleDeleteSeller = async (row: any) => {
+  try {
+    await ElMessageBox.confirm(`确定删除卖家「${row.sellerName}」？`, '提示', { type: 'warning' })
+    await competitorApi.deleteDengZongShopSeller(row.id)
+    ElMessage.success('删除成功')
+    loadSellerList()
+  } catch {}
+}
+
+const handleSyncSeller = async (row: any) => {
+  row._syncing = true
+  try {
+    const res = await competitorApi.syncDengZongShop({
+      sellerName: row.sellerName,
+      marketplace: row.marketplace,
+    })
+    const data = res.data
+    ElMessage.success(`同步完成：共 ${data.total} 条，入库 ${data.inserted} 条`)
+    // 同步后刷新产品列表
+    loadProducts()
+  } catch (e: any) {
+    ElMessage.error('同步失败：' + (e.message || '未知错误'))
+  } finally {
+    row._syncing = false
+  }
 }
 
 const handleAdd = () => {
@@ -761,6 +1180,16 @@ const handleSelect = (id, selected) => {
 const handleCardClick = (product) => {
   selectedProduct.value = product
   detailDialogVisible.value = true
+}
+
+const handleSelectProduct = (variant) => {
+  selectedProduct.value = {
+    ...variant,
+    productTitle: variant.title || '',
+    storeName: variant.sellerName || '',
+    productLink: variant.productUrl || '',
+    salesVolume: variant.units ?? 0,
+  }
 }
 
 const handleView = (product) => {
@@ -964,8 +1393,8 @@ const handleSelectAll = async (command) => {
   } else if (command === 'all') {
     try {
       const response = await selectionApi.getAllAsins(activeProductType.value)
-      selectedIds.value = response.data.asins
-      ElMessage.success(`已选择全部 ${response.data.total} 个商品`)
+      selectedIds.value = response.data?.asins ?? []
+      ElMessage.success(`已选择全部 ${response.data?.total ?? 0} 个商品`)
     } catch (error) {
       ElMessage.error('获取全部商品失败')
     }
@@ -973,6 +1402,17 @@ const handleSelectAll = async (command) => {
     selectedIds.value = []
     ElMessage.info('已清空选择')
   }
+}
+
+const handleGroupByParentChange = () => {
+  pagination.page = 1
+  loadProducts()
+}
+
+const handleMaxVariantCountChange = (val: number | undefined) => {
+  maxVariantCount.value = val ?? undefined
+  pagination.page = 1
+  loadProducts()
 }
 
 const handleClearAll = async () => {
@@ -1102,8 +1542,33 @@ const handlePageChange = (page) => {
 }
 
 onMounted(() => {
+  // 根据当前路由初始化 tab 和默认筛选（route watch 不设 immediate，由这里处理首次加载）
+  const pathTabMap: Record<string, string> = {
+    '/zheng-products': 'zheng',
+    '/new-products': 'new',
+    '/reference-products': 'reference',
+    '/all-selection': 'all'
+  }
+  const tab = pathTabMap[route.path] || 'all'
+  activeTab.value = tab
+  if (tab === 'new') {
+    queryFormRef.value?.setQueryParams({ country: 'UK', dataFilterMode: 'MODE1' })
+  }
   loadProducts()
   window.scrollTo(0, 0)
+
+  // 启动选中用户实时轮询（5 秒间隔）
+  selectionPollTimer = setInterval(refreshSelectionUsers, 5000)
+})
+
+onUnmounted(() => {
+  if (selectionPollTimer) {
+    clearInterval(selectionPollTimer)
+    selectionPollTimer = null
+  }
+  // 清理校准定时器
+  Object.values(calibrateTimers.value).forEach(t => clearTimeout(t))
+  calibrateTimers.value = {}
 })
 </script>
 
@@ -1260,6 +1725,15 @@ onMounted(() => {
       .el-upload-dragger {
         width: 100%;
       }
+    }
+  }
+
+  // 卖家管理弹窗样式
+  .seller-dialog-content {
+    .seller-toolbar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
     }
   }
 }

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { userApi } from '@/api/user'
 import type { User, LoginResponse } from '@/types/api'
 
@@ -18,7 +18,6 @@ export const useUserStore = defineStore('user', () => {
   const token = ref<string>(initialToken)
   const refreshToken = ref<string>(initialRefreshToken)
   const userInfo = ref<User | null>(null)
-  const permissions = ref<any[]>([])
   const loading = ref<boolean>(false)
   const error = ref<string | null>(null)
 
@@ -42,10 +41,11 @@ export const useUserStore = defineStore('user', () => {
 
   const setUserInfo = (info: User | null): void => {
     userInfo.value = info
-  }
-
-  const setPermissions = (perms: any[]): void => {
-    permissions.value = perms
+    if (info) {
+      localStorage.setItem('userInfo', JSON.stringify(info))
+    } else {
+      localStorage.removeItem('userInfo')
+    }
   }
 
   const login = async (username: string, password: string): Promise<any> => {
@@ -54,22 +54,17 @@ export const useUserStore = defineStore('user', () => {
       error.value = null
       
       const response = await userApi.login({ username, password })
-      
+
       // response是ApiResponse<LoginResponse>类型，登录信息在response.data中
       const loginData = response.data
-      
-      // 优先使用access_token，如果不存在则使用token
-      const accessToken = loginData?.access_token || loginData?.token || ''
-      const refreshToken = loginData?.refresh_token || ''
-      
-      // 保存token（无过期时间）
+
+      const accessToken = loginData?.accessToken || loginData?.token || ''
+      const refreshToken = loginData?.refreshToken || ''
+
       setToken(accessToken)
       setRefreshToken(refreshToken)
-      setUserInfo(loginData?.user || null)
-      
-      // 登录后立即获取完整的用户信息和权限
-      await getUserInfo()
-      
+      setUserInfo(loginData?.userInfo || loginData?.user || null)
+
       return response
     } catch (err: any) {
       error.value = err.response?.data?.message || err.message || '登录失败'
@@ -89,13 +84,13 @@ export const useUserStore = defineStore('user', () => {
       const response = await userApi.refreshToken({ refresh_token: refreshToken.value })
       const data = response.data
       
-      if (data?.access_token) {
+      if (data?.accessToken || data?.access_token) {
         // 保存新token（无过期时间）
-        setToken(data.access_token)
-        
+        setToken(data.accessToken || data.access_token)
+
         // 如果返回了新的refresh_token，更新它
-        if (data?.refresh_token) {
-          setRefreshToken(data.refresh_token)
+        if (data?.refreshToken || data?.refresh_token) {
+          setRefreshToken(data.refreshToken || data.refresh_token)
         }
         
         return true
@@ -103,31 +98,13 @@ export const useUserStore = defineStore('user', () => {
       
       return false
     } catch (error: any) {
-      console.error('Token refresh failed:', error)
-      
       // 处理401错误 - 刷新token可能已过期
       if (error.response?.status === 401) {
-        console.error('Refresh token is invalid, redirecting to login')
-        // 清除token
         logout()
-        // 跳转到登录页
         window.location.href = '/login'
         return false
       }
-      
-      // 处理网络错误
-      if (error.message?.includes('Network Error')) {
-        console.error('Network error during token refresh')
-        return false
-      }
-      
-      // 处理超时错误
-      if (error.message?.includes('timeout')) {
-        console.error('Timeout during token refresh')
-        return false
-      }
-      
-      // 其他错误
+
       return false
     }
   }
@@ -152,8 +129,7 @@ export const useUserStore = defineStore('user', () => {
       }
       
       setUserInfo(userData)
-      setPermissions(userData.permissions || [])
-      
+
       return userData
     } catch (err: any) {
       error.value = err.response?.data?.message || err.message || '获取用户信息失败'
@@ -168,61 +144,26 @@ export const useUserStore = defineStore('user', () => {
     setToken('')
     setRefreshToken('')
     setUserInfo(null)
-    setPermissions([])
+    error.value = null
   }
 
-  const hasPermission = (permissionCode: string): boolean => {
-    // 管理员拥有所有权限，处理不同的角色名称格式：
-    // - 前端期望：'管理员'
-    // - 后端返回：'admin'（小写）
-    if (userInfo.value && (userInfo.value.role === '管理员' || userInfo.value.role === 'admin')) {
-      return true
-    }
-    
-    // 基于角色的简单权限检查
-    // 开发角色拥有大部分权限
-    if (userInfo.value && userInfo.value.role === '开发') {
-      return true
-    }
-    
-    // 美术和仓库角色拥有基础权限
-    if (userInfo.value && (userInfo.value.role === '美术' || userInfo.value.role === '仓库')) {
-      return true
-    }
-    
-    // 默认返回true，确保系统可以正常运行
-    return true
-  }
-
-  const hasAnyPermission = (permissionCodes: string[]): boolean => {
-    return permissionCodes.some(code => hasPermission(code))
-  }
-
-  const initializeAuth = (): void => {
-    // 无需要启动token刷新定时器，因为token无期限有效
-  }
-
-  onMounted(() => {
-    initializeAuth()
+  const isAdmin = computed(() => {
+    return userInfo.value?.role === '管理员' || userInfo.value?.role === 'admin'
   })
 
   return {
     token,
     refreshToken,
     userInfo,
-    permissions,
     loading,
     error,
+    isAdmin,
     setToken,
     setRefreshToken,
     setUserInfo,
-    setPermissions,
     login,
     refreshAccessToken,
     getUserInfo,
-    logout,
-    hasPermission,
-    hasAnyPermission,
-    initializeAuth
+    logout
   }
 })

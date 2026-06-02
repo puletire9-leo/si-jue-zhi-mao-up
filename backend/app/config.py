@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     MYSQL_HOST: str = "mysql"
     MYSQL_PORT: int = 3306
     MYSQL_USER: str = "sijue"
-    MYSQL_PASSWORD: str = "sijue123456"
+    MYSQL_PASSWORD: str = os.getenv("MYSQL_PASSWORD", "")
     MYSQL_DATABASE: str = "sijuelishi"
     MYSQL_POOL_SIZE: int = 30
     MYSQL_MAX_OVERFLOW: int = 20
@@ -101,13 +101,19 @@ class Settings(BaseSettings):
     LOCAL_THUMBNAIL_DIR: str = "/app/images/thumbnails"
     STATIC_DIR: str = "/app/static"
     MODEL_CACHE_DIR: str = "/app/model_cache"
-    BACKUP_DIR: str = "/app/backup"
+    BACKUP_DIR: str = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "database", "backup")
+    BACKUP_REMOVE_AFTER_COS_UPLOAD: bool = False
     LOG_FILE: str = "/app/logs/app.log"
     FRONTEND_STATIC_DIR: Optional[str] = None  # 仅生产环境使用
 
-    MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
+    MAX_UPLOAD_SIZE: int = 200 * 1024 * 1024  # 200MB（对齐系统设置页最大可选值）
     THUMBNAIL_SIZE: Tuple[int, int] = (256, 256)
     THUMBNAIL_QUALITY: int = 85
+
+    # ========================================
+    # 开发者列表
+    # ========================================
+    DEVELOPER_LIST: List[str] = []
 
     # ========================================
     # 腾讯云 COS
@@ -169,15 +175,15 @@ class Settings(BaseSettings):
     # ========================================
     # CORS
     # ========================================
-    CORS_ORIGINS: List[str] = ["*"]
-    CORS_ALLOW_CREDENTIALS: bool = False
-    CORS_ALLOW_METHODS: List[str] = ["*"]
-    CORS_ALLOW_HEADERS: List[str] = ["*"]
+    CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
+    CORS_ALLOW_CREDENTIALS: bool = True
+    CORS_ALLOW_METHODS: List[str] = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"]
+    CORS_ALLOW_HEADERS: List[str] = ["Authorization", "Content-Type", "X-Requested-With"]
 
     # ========================================
     # 安全
     # ========================================
-    SECRET_KEY: str = "change-me-in-production"
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 

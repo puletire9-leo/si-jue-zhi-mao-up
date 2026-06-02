@@ -131,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import * as echarts from 'echarts'
 import { useProductDataStore } from '@/stores/productData'
 import { CATEGORY_CONFIG } from '@/types/productData'
@@ -466,6 +466,14 @@ watch([categoryStats, compareCategoryStats, chartType], updateCharts, { deep: tr
 
 onMounted(() => {
   initCharts()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  currentChart?.dispose()
+  compareChart?.dispose()
+  currentChart = null
+  compareChart = null
 })
 </script>
 

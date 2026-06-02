@@ -26,7 +26,7 @@ from ...models.product import (
 )
 from ...services.product_service import ProductService
 from ...config import settings
-from ...middleware.auth_middleware import auth_middleware
+from ...middleware.auth_middleware import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ def get_product_service():
 @router.post("", summary="创建产品")
 async def create_product(
     product: ProductCreate,
-    user_info: dict = Depends(auth_middleware.require_permission("product:write")),
+    user_info: dict = Depends(require_auth),
     service: ProductService = get_product_service()
 ):
     """
@@ -88,19 +88,19 @@ async def create_product(
 @router.get("/list", summary="获取产品列表")
 async def get_products_list(
     page: int = Query(1, ge=1, description="页码"),
-    size: int = Query(12, ge=1, description="每页数量（最大50）"),
+    size: int = Query(12, ge=1, description="每页数量（最大500）"),
     sku: Optional[str] = Query(None, description="产品SKU"),
     name: Optional[str] = Query(None, description="产品名称"),
     type: Optional[str] = Query(None, description="产品类型"),
     category: Optional[str] = Query(None, description="产品分类"),
-    user_info: dict = Depends(auth_middleware.require_permission("product:view")),
+    user_info: dict = Depends(require_auth),
     service: ProductService = get_product_service()
 ):
     """
     获取产品列表
     
     - **page**: 页码（默认1）
-    - **size**: 每页数量（默认12，最大50）
+    - **size**: 每页数量（默认12，最大500）
     - **sku**: 产品SKU（可选）
     - **name**: 产品名称（可选）
     - **type**: 产品类型（可选）
@@ -110,9 +110,9 @@ async def get_products_list(
     """
     try:
         # 参数验证
-        if size > 50:
-            size = 50
-            logger.warning(f"页码大小超出限制，已调整为50")
+        if size > 500:
+            size = 500
+            logger.warning(f"页码大小超出限制，已调整为500")
         
         params = ProductQueryParams(
             sku=sku,
@@ -145,8 +145,8 @@ async def search_products(
     type: Optional[str] = Query(None, description="产品类型"),
     category: Optional[str] = Query(None, description="产品分类"),
     page: int = Query(1, ge=1, description="页码"),
-    page_size: int = Query(20, ge=1, description="每页数量（最大50）"),
-    user_info: dict = Depends(auth_middleware.require_permission("product:view")),
+    page_size: int = Query(20, ge=1, description="每页数量（最大500）"),
+    user_info: dict = Depends(require_auth),
     service: ProductService = get_product_service()
 ):
     """
@@ -158,15 +158,15 @@ async def search_products(
     - **type**: 产品类型（可选）
     - **category**: 产品分类（可选）
     - **page**: 页码（默认1）
-    - **page_size**: 每页数量（默认20，最大50）
+    - **page_size**: 每页数量（默认20，最大500）
     
     返回搜索结果和分页信息
     """
     try:
         # 参数验证
-        if page_size > 50:
-            page_size = 50
-            logger.warning(f"页码大小超出限制，已调整为50")
+        if page_size > 500:
+            page_size = 500
+            logger.warning(f"页码大小超出限制，已调整为500")
         
         # 如果提供了keyword，优先使用keyword作为名称搜索
         search_name = keyword if keyword else name
@@ -197,7 +197,7 @@ async def search_products(
 @router.get("/skus", summary="获取所有产品SKU列表")
 async def get_all_product_skus(
     product_type: Optional[str] = Query(None, description="产品类型，不传则返回所有类型"),
-    user_info: dict = Depends(auth_middleware.require_permission("product:view")),
+    user_info: dict = Depends(require_auth),
     service: ProductService = get_product_service()
 ):
     """
@@ -227,7 +227,7 @@ async def get_all_product_skus(
 @router.get("/{sku}", summary="获取产品详情")
 async def get_product_by_sku(
     sku: str,
-    user_info: dict = Depends(auth_middleware.require_permission("product:view")),
+    user_info: dict = Depends(require_auth),
     service: ProductService = get_product_service()
 ):
     """
@@ -260,7 +260,7 @@ async def get_product_by_sku(
 async def update_product(
     sku: str,
     product: ProductUpdate,
-    user_info: dict = Depends(auth_middleware.require_permission("product:write")),
+    user_info: dict = Depends(require_auth),
     service: ProductService = get_product_service()
 ):
     """
@@ -299,7 +299,7 @@ async def update_product(
 @router.delete("/{sku}", summary="删除产品")
 async def delete_product(
     sku: str,
-    user_info: dict = Depends(auth_middleware.require_permission("product:delete")),
+    user_info: dict = Depends(require_auth),
     service: ProductService = get_product_service()
 ):
     """
@@ -350,7 +350,7 @@ async def delete_product(
 @router.post("/batch-delete", summary="批量删除产品")
 async def batch_delete_products(
     request_data: dict,
-    user_info: dict = Depends(auth_middleware.require_permission("product:delete")),
+    user_info: dict = Depends(require_auth),
     service: ProductService = get_product_service()
 ):
     """
@@ -414,37 +414,9 @@ async def batch_delete_products(
         raise HTTPException(status_code=500, detail="批量删除产品失败")
 
 
-@router.get("/skus", summary="获取所有产品SKU列表")
-async def get_all_product_skus(
-    product_type: Optional[str] = Query(None, description="产品类型，不传则返回所有类型"),
-    service: ProductService = get_product_service()
-):
-    """
-    获取所有产品的SKU列表
-    
-    - **product_type**: 产品类型（可选），不传则返回所有类型
-    
-    返回SKU列表
-    """
-    try:
-        skus = await service.get_all_skus(product_type)
-        
-        return {
-            "code": 200,
-            "message": "获取成功",
-            "data": {
-                "skus": skus,
-                "total": len(skus)
-            }
-        }
-        
-    except Exception as e:
-        logger.error(f"获取SKU列表失败: {e}")
-        raise HTTPException(status_code=500, detail="获取SKU列表失败")
-
-
 @router.get("/stats/summary", summary="获取产品统计")
 async def get_product_stats(
+    user_info: dict = Depends(require_auth),
     service: ProductService = get_product_service()
 ):
     """
@@ -474,6 +446,7 @@ async def get_product_stats(
 
 @router.get("/categories", summary="获取分类统计")
 async def get_categories(
+    user_info: dict = Depends(require_auth),
     service: ProductService = get_product_service()
 ):
     """
@@ -498,7 +471,7 @@ async def get_categories(
 @router.put("/batch", summary="批量更新产品")
 async def batch_update_products(
     request_data: dict,
-    user_info: dict = Depends(auth_middleware.require_permission("product:write")),
+    user_info: dict = Depends(require_auth),
     service: ProductService = get_product_service()
 ):
     """
@@ -579,6 +552,7 @@ async def batch_update_products(
 @router.get("/export", summary="导出产品")
 async def export_products(
     format: str = Query("excel", description="导出格式（excel/csv）"),
+    user_info: dict = Depends(require_auth),
     service: ProductService = get_product_service()
 ):
     """
@@ -635,6 +609,7 @@ async def export_products(
 @router.post("/import", summary="导入产品")
 async def import_products(
     file: UploadFile = File(..., description="Excel文件"),
+    user_info: dict = Depends(require_auth),
     service: ProductService = get_product_service()
 ):
     """

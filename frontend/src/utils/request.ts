@@ -26,22 +26,15 @@ const endpointConfigs = {
   }
 }
 
-// 检查环境变量是否正确加载
-console.log('环境变量VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL)
-
 // 创建axios实例
 const createAxiosInstance = (): AxiosInstance => {
   // 相对路径：开发时 Vite proxy 转发 /api，生产时同源直连
   let apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ''
-  
+
   // 关键修复：确保 baseURL 不包含重复的 /api/v1
-  // 改进：使用正则匹配 /api/v1 及其可能的尾随斜杠
   if (apiBaseUrl && /\/api\/v1\/?$/.test(apiBaseUrl)) {
     apiBaseUrl = apiBaseUrl.replace(/\/api\/v1\/?$/, '')
-    console.warn('检测到 baseURL 包含 /api/v1，已自动移除以防止重复路径:', apiBaseUrl)
   }
-  
-  console.log('创建axios实例，baseURL:', apiBaseUrl)
   
   return axios.create({
     baseURL: apiBaseUrl,
@@ -83,13 +76,6 @@ const createAxiosInstance = (): AxiosInstance => {
 
 const request: AxiosInstance = createAxiosInstance()
 
-// 验证axios实例配置
-console.log('axios实例配置:', {
-  baseURL: request.defaults.baseURL,
-  timeout: request.defaults.timeout,
-  headers: request.defaults.headers.common
-})
-
 const pendingRequests = new Map<string, AbortController>()
 
 const generateRequestKey = (config: InternalAxiosRequestConfig | undefined): string => {
@@ -125,7 +111,6 @@ request.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     // 验证配置对象
     if (!config) {
-      console.error('请求拦截器: 配置对象为undefined')
       return Promise.reject(new Error('请求配置错误: 配置对象为undefined'))
     }
 
@@ -146,15 +131,6 @@ request.interceptors.request.use(
       }
     }
 
-    console.log('请求配置:', {
-      url: config.url,
-      method: config.method,
-      responseType: config.responseType,
-      timeout: config.timeout,
-      params: config.params,
-      data: config.data
-    })
-
     // 只对GET请求进行重复请求去重，避免误中止POST/PUT等重要请求
     // 对于blob类型的请求（大文件下载），不进行去重，避免下载中断
     if (config.responseType !== 'blob' && config.method?.toLowerCase() === 'get') {
@@ -165,7 +141,6 @@ request.interceptors.request.use(
     return config
   },
   (error: any) => {
-    console.error('请求错误:', error)
     return Promise.reject(error)
   }
 )
@@ -186,60 +161,63 @@ const retryDelay = (retryCount: number): Promise<void> => {
 }
 
 request.interceptors.response.use(
-  (response: AxiosResponse) => {
+  async (response: AxiosResponse) => {
     removePendingRequest(response.config as InternalAxiosRequestConfig)
 
-    console.log('API响应:', {
-      url: response.config.url,
-      method: response.config.method,
-      status: response.status,
-      responseType: response.config.responseType,
-      dataSize: response.config.responseType === 'blob' ? (response.data?.size || 0) + ' bytes' : 'JSON data'
-    })
-
     const res = response.data
-    
+
     if ((response.config.responseType as string) === 'blob') {
-      console.log('Blob响应成功，大小:', (response.data as Blob).size, 'bytes')
       return response.data
     }
-    
-    // 检查响应状态码
-    console.log('响应状态码:', response.status)
-    console.log('响应数据:', res)
-    console.log('响应类型:', response.config.responseType)
-    
+
     // 首先检查HTTP状态码
     if (response.status === 200 || response.status === 206) {
       // 如果是200或206状态码，都认为请求成功
-      // 206是Partial Content，用于分块传输，常见于大文件下载
       if ((response.config.responseType as string) === 'blob') {
-        console.log('Blob响应成功（206 Partial Content），大小:', (response.data as Blob).size, 'bytes')
         return response.data
       }
-      
+
       // 对于非blob响应，继续处理
       if (res && typeof res === 'object') {
         if (res.code === 200) {
-          console.log('响应处理成功: res.code === 200')
           return res
         } else {
-          // 处理后端返回的业务错误
-          console.log('业务错误:', res.message || '未知错误')
           // 对于业务错误，我们仍然返回响应数据，让调用者决定如何处理
           return res
         }
       } else {
-        // 处理非标准响应格式
-        console.log('非标准响应格式，直接返回数据')
         return res
       }
     }
     
-    // 处理401错误
+    // 处理401错误（业务层）：尝试刷新 token
     if (response.status === 401 || (res && res.code === 401)) {
+      const refreshToken = localStorage.getItem('refresh_token')
+      if (refreshToken && !(response.config as any).__isRetryAfterRefresh) {
+        try {
+          const refreshRes = await request({
+            url: '/api/v1/auth/refresh',
+            method: 'post',
+            data: { refresh_token: refreshToken }
+          })
+          const newToken = refreshRes?.data?.accessToken || refreshRes?.data?.access_token
+          if (newToken) {
+            localStorage.setItem('token', newToken)
+            const newRefresh = refreshRes?.data?.refreshToken || refreshRes?.data?.refresh_token
+            if (newRefresh) {
+              localStorage.setItem('refresh_token', newRefresh)
+            }
+            // 用新 token 重试原请求
+            const config = response.config
+            config.headers.Authorization = `Bearer ${newToken}`
+            ;(config as any).__isRetryAfterRefresh = true
+            return request(config)
+          }
+        } catch {}
+      }
       ElMessage.error('登录已过期，请重新登录')
       localStorage.removeItem('token')
+      localStorage.removeItem('refresh_token')
       window.location.href = '/login'
       return Promise.reject(new Error(res?.message || '未授权'))
     }
@@ -253,82 +231,18 @@ request.interceptors.response.use(
     const config = error.config as InternalAxiosRequestConfig | undefined
     
     if (config?.responseType === 'blob') {
-      console.error('Blob请求错误:', error)
-      console.error('Blob请求错误详情:', {
-        url: config?.url,
-        method: config?.method,
-        responseType: config?.responseType,
-        message: error.message,
-        stack: error.stack,
-        response: error.response ? {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          headers: error.response.headers,
-          dataSize: error.response.data ? error.response.data.size + ' bytes' : 'No data'
-        } : undefined
-      })
       return Promise.reject(error)
     }
     
     removePendingRequest(config)
 
     if (axios.isCancel(error) || error.name === 'CanceledError') {
-      console.log('请求被取消:', error.message)
       return Promise.reject(error)
     }
 
-    // 详细错误日志记录 - 增强版
-    // 修复fullUrl构建逻辑，确保不会生成undefined URL
-    let fullUrl = 'unknown'
-    if (config) {
-      if (config.baseURL && config.url) {
-        fullUrl = `${config.baseURL}${config.url}`
-      } else if (config.url) {
-        fullUrl = `${window.location.origin}${config.url}`
-      } else if (config.baseURL) {
-        fullUrl = config.baseURL
-      }
-    }
-    
-    console.group(`API响应错误详情 - ${new Date().toISOString()}`)
-    console.error('错误对象:', error)
-    console.error('完整请求URL:', fullUrl)
-    console.error('请求配置:', {
-      url: config?.url,
-      method: config?.method,
-      baseURL: config?.baseURL,
-      headers: config?.headers,
-      params: config?.params,
-      data: config?.data,
-      responseType: config?.responseType
-    })
-    
-    // 检查是否是配置为undefined的情况
-    if (!config) {
-      console.error('严重错误: 请求配置完全为undefined，可能的原因:')
-      console.error('1. axios实例配置错误')
-      console.error('2. 环境变量未正确加载')
-      console.error('3. 请求拦截器中修改了config对象')
-      console.error('4. API调用方式错误')
-    }
-    
-    if (error.response) {
-      console.error('响应状态:', error.response.status)
-      console.error('响应数据:', error.response.data)
-      console.error('响应头:', error.response.headers)
-      console.error('响应耗时:', `${Date.now() - (config?._startTime || 0)}ms`)
-    } else if (error.request) {
-      console.error('请求对象:', error.request)
-      console.error('网络状态:', '请求已发送但未收到响应')
-      console.error('请求耗时:', `${Date.now() - (config?._startTime || 0)}ms`)
-    } else {
-      console.error('错误信息:', error.message)
-    }
-    console.groupEnd()
-    
     // 将错误信息发送到后端日志接口
     try {
-      // 构建错误日志数据
+      const fullUrl = config ? `${config.baseURL || ''}${config.url || ''}` : 'unknown'
       const errorLog = {
         timestamp: new Date().toISOString(),
         url: fullUrl,
@@ -365,7 +279,7 @@ request.interceptors.response.use(
         body: JSON.stringify(errorLog)
       })
     } catch (logError) {
-      console.error('发送错误日志失败:', logError)
+      // 静默失败
     }
     
     // 检查是否需要重试
@@ -390,9 +304,7 @@ request.interceptors.response.use(
     if (shouldRetry && config) {
       // 更新重试计数
       config.__retryCount = retryCount + 1
-      
-      console.log(`请求重试 ${config.__retryCount}/${maxRetries}: ${config?.url || 'unknown'}`)
-      
+
       // 等待重试延迟
       await retryDelay(config.__retryCount)
       
@@ -412,10 +324,42 @@ request.interceptors.response.use(
           if (config?.url?.includes('/auth/login')) {
             // 登录请求失败，显示后端返回的具体错误信息
             ElMessage.error(data?.message || '用户名或密码错误')
-          } else {
-            // 其他请求401，执行原有逻辑
-            ElMessage.error('未授权，请重新登录')
+          } else if (config?.url?.includes('/auth/refresh')) {
+            // 刷新 token 本身失败 → 清除状态跳转登录
+            ElMessage.error('登录已过期，请重新登录')
             localStorage.removeItem('token')
+            localStorage.removeItem('refresh_token')
+            window.location.href = '/login'
+          } else {
+            // 其他请求401：尝试刷新 token 后重试一次
+            if (!config.__isRetryAfterRefresh) {
+              const refreshToken = localStorage.getItem('refresh_token')
+              if (refreshToken) {
+                try {
+                  const refreshRes = await request({
+                    url: '/api/v1/auth/refresh',
+                    method: 'post',
+                    data: { refresh_token: refreshToken }
+                  })
+                  const newToken = refreshRes?.data?.accessToken || refreshRes?.data?.access_token
+                  if (newToken) {
+                    localStorage.setItem('token', newToken)
+                    const newRefresh = refreshRes?.data?.refreshToken || refreshRes?.data?.refresh_token
+                    if (newRefresh) {
+                      localStorage.setItem('refresh_token', newRefresh)
+                    }
+                    // 用新 token 重试原请求
+                    config.headers.Authorization = `Bearer ${newToken}`
+                    config.__isRetryAfterRefresh = true
+                    return request(config)
+                  }
+                } catch {}
+              }
+            }
+            // 刷新失败或没有 refresh_token → 清除状态跳转登录
+            ElMessage.error('登录已过期，请重新登录')
+            localStorage.removeItem('token')
+            localStorage.removeItem('refresh_token')
             window.location.href = '/login'
           }
           break

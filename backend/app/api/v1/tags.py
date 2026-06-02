@@ -11,6 +11,7 @@ from typing import Optional, List, Dict, Any
 import logging
 
 from ...repositories import MySQLRepository
+from ...middleware.auth_middleware import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ def get_mysql_repo():
 async def get_tags_list(
     page: int = Query(1, ge=1, description="页码"),
     size: int = Query(20, ge=1, le=100, description="每页数量"),
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -50,16 +52,17 @@ async def get_tags_list(
         offset = (page - 1) * size
         
         tags = await repo.execute_query(
-            f"""
-            SELECT 
+            """
+            SELECT
                 t.id, t.name, t.type, t.created_at,
                 COUNT(pt.product_sku) as product_count
             FROM tags t
             LEFT JOIN product_tags pt ON t.id = pt.tag_id
             GROUP BY t.id, t.name, t.type, t.created_at
             ORDER BY t.created_at DESC
-            LIMIT {size} OFFSET {offset}
-            """
+            LIMIT %s OFFSET %s
+            """,
+            (size, offset)
         )
         
         total_result = await repo.execute_query("SELECT COUNT(*) as count FROM tags")
@@ -84,6 +87,7 @@ async def get_tags_list(
 @router.get("/{tag_id}", summary="获取标签详情")
 async def get_tag(
     tag_id: int,
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -95,15 +99,16 @@ async def get_tag(
     """
     try:
         tags = await repo.execute_query(
-            f"""
-            SELECT 
+            """
+            SELECT
                 t.id, t.name, t.type, t.created_at,
                 COUNT(pt.product_sku) as product_count
             FROM tags t
             LEFT JOIN product_tags pt ON t.id = pt.tag_id
-            WHERE t.id = {tag_id}
+            WHERE t.id = %s
             GROUP BY t.id, t.name, t.type, t.created_at
-            """
+            """,
+            (tag_id,)
         )
         
         if not tags:
@@ -125,24 +130,25 @@ async def get_tag(
 @router.post("", summary="创建标签")
 async def create_tag(
     tag: dict,
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
     创建新标签
-    
+
     - **name**: 标签名称（必需）
     - **type**: 标签类型（可选）
-    
+
     返回创建的标签信息
     """
     try:
         name = tag.get('name')
         tag_type = tag.get('type', '')
-        
+
         if not name:
             raise HTTPException(status_code=400, detail="标签名称不能为空")
-        
-        await repo.execute_query(
+
+        await repo.execute_update(
             """
             INSERT INTO tags (name, type)
             VALUES (%s, %s)
@@ -167,6 +173,7 @@ async def create_tag(
 async def update_tag(
     tag_id: int,
     tag: dict,
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -194,17 +201,17 @@ async def update_tag(
         
         params.append(tag_id)
         
-        await repo.execute_query(
+        await repo.execute_update(
             f"UPDATE tags SET {', '.join(update_fields)} WHERE id = %s",
             tuple(params)
         )
-        
+
         return {
             "code": 200,
             "message": "更新成功",
             "data": None
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -215,18 +222,19 @@ async def update_tag(
 @router.delete("/{tag_id}", summary="删除标签")
 async def delete_tag(
     tag_id: int,
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
     删除标签
-    
+
     - **tag_id**: 标签ID
-    
+
     返回删除结果
     """
     try:
-        await repo.execute_query(f"DELETE FROM tags WHERE id = {tag_id}")
-        
+        await repo.execute_delete("DELETE FROM tags WHERE id = %s", (tag_id,))
+
         return {
             "code": 200,
             "message": "删除成功",
@@ -241,6 +249,7 @@ async def delete_tag(
 @router.put("/batch", summary="批量更新标签")
 async def batch_update_tags(
     request_data: Dict[str, Any] = Body(..., description="批量更新请求"),
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -303,7 +312,7 @@ async def batch_update_tags(
                 update_params = params.copy()
                 update_params.append(tag_id)
                 
-                await repo.execute_query(
+                await repo.execute_update(
                     f"UPDATE tags SET {', '.join(update_fields)} WHERE id = %s",
                     tuple(update_params)
                 )
@@ -337,6 +346,7 @@ async def batch_update_tags(
 @router.delete("/batch", summary="批量删除标签")
 async def batch_delete_tags(
     request_data: Dict[str, Any] = Body(..., description="批量删除请求"),
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -377,7 +387,7 @@ async def batch_delete_tags(
         
         for tag_id in tag_ids:
             try:
-                await repo.execute_query(f"DELETE FROM tags WHERE id = {tag_id}")
+                await repo.execute_delete("DELETE FROM tags WHERE id = %s", (tag_id,))
                 
                 results["success"].append(tag_id)
                 results["success_count"] += 1

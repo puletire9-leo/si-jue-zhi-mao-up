@@ -269,7 +269,12 @@ export class ImageOfflineCache {
     let tempBlobUrl: string | null = null;
     
     try {
-      const response = await fetch(url);
+      const token = localStorage.getItem('token')
+      const response = await fetch(url, {
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      });
       if (!response.ok) {
         console.error('下载图片失败:', response.status);
         return null;

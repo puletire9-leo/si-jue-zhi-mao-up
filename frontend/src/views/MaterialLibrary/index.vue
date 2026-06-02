@@ -41,7 +41,7 @@
             </el-button>
             
             <el-button 
-              v-if="isAdmin"
+              v-if="userStore.isAdmin"
               type="danger" 
               :icon="Delete" 
               :disabled="selectedItems.length === 0"
@@ -474,11 +474,6 @@ interface Pagination {
 
 // 用户状态管理
 const userStore = useUserStore()
-
-// 计算属性：检查用户是否为管理员
-const isAdmin = computed(() => {
-  return userStore.userInfo && (userStore.userInfo.role === '管理员' || userStore.userInfo.role === 'admin')
-})
 
 // 响应式数据
 const loading = ref(false)
@@ -1430,6 +1425,7 @@ const loadSystemConfigs = async () => {
 }
 
 onMounted(() => {
+  loadSystemConfigs()
   handleSearch()
 })
 </script>

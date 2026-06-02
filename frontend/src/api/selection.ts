@@ -93,6 +93,27 @@ export const selectionApi = {
     })
   },
 
+  getStoresWithGrades(params?: { page?: number; size?: number }): Promise<ApiResponse<{
+    list: Array<{
+      storeName: string
+      storeUrl?: string
+      productCount: number
+      storeScore: number
+      grade: 'premium' | 'normal' | 'poor'
+      gradeDistribution: { S: number; A: number; B: number; C: number; D: number }
+      avgListingDays?: number
+    }>
+    total: number
+    page: number
+    size: number
+  }>> {
+    return request({
+      url: '/api/v1/selection/stores/grades',
+      method: 'get',
+      params
+    })
+  },
+
   getCategories(source?: string): Promise<ApiResponse<Array<{ category: string; count: number }>>> {
     return request({
       url: '/api/v1/selection/categories',

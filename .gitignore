@@ -10,7 +10,7 @@ backend/venv/
 node_modules/
 frontend/node_modules/
 frontend/dist/
-frontend/../static/vue-dist/
+static/vue-dist/
 
 # Env secrets
 .env
@@ -30,6 +30,7 @@ model_cache/
 # IDE
 .vscode/
 .idea/
+.trae/
 *.swp
 *.swo
 
@@ -42,7 +43,7 @@ Thumbs.db
 
 # Java
 *.class
-java-backend/target/
+java-backend/**/target/
 
 # Generated
 frontend/src/api/generated/
@@ -53,6 +54,7 @@ tmp/
 
 # Tool binaries (too large)
 tool/node.js/
+tool/apache-maven-3.9.16/
 
 # Large data files
 *.parquet

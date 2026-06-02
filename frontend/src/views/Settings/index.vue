@@ -30,7 +30,7 @@
             </el-form-item>
             <el-form-item>
               <el-button
-                v-if="isAdmin"
+                v-if="userStore.isAdmin"
                 type="primary"
                 @click="saveBasicSettings"
               >
@@ -126,7 +126,7 @@
 
             <el-form-item>
               <el-button
-                v-if="isAdmin"
+                v-if="userStore.isAdmin"
                 type="primary"
                 @click="saveImageSettings"
               >
@@ -172,7 +172,7 @@
             </el-form-item>
             <el-form-item>
               <el-button
-                v-if="isAdmin"
+                v-if="userStore.isAdmin"
                 type="primary"
                 @click="saveSecuritySettings"
               >
@@ -266,9 +266,76 @@
             </div>
             <el-form-item>
               <el-button
-                v-if="isAdmin"
+                v-if="userStore.isAdmin"
                 type="primary"
                 @click="saveGeneralSettings"
+              >
+                保存
+              </el-button>
+              <span v-else class="no-permission">无权限</span>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+
+        <el-tab-pane
+          label="卖家精灵配置"
+          name="sellersprite"
+        >
+          <el-form
+            :model="sellerspriteForm"
+            label-width="120px"
+            style="max-width: 600px"
+          >
+            <el-form-item label="API 地址">
+              <el-input v-model="sellerspriteForm.apiUrl" disabled />
+            </el-form-item>
+            <el-form-item label="当前密钥">
+              <el-input v-model="sellerspriteForm.secretKeyMasked" disabled />
+            </el-form-item>
+            <el-form-item label="新密钥">
+              <el-input
+                v-model="sellerspriteForm.newSecretKey"
+                type="password"
+                show-password
+                placeholder="输入新的 API Key"
+              />
+            </el-form-item>
+            <el-form-item label="每分钟限制">
+              <el-input-number
+                v-model="sellerspriteForm.maxPerMinute"
+                :min="1"
+                :max="9999"
+                controls-position="right"
+                style="width: 200px"
+              />
+              <span style="margin-left: 8px; color: #909399">次</span>
+            </el-form-item>
+            <el-form-item label="每月限制">
+              <el-input-number
+                v-model="sellerspriteForm.maxPerMonth"
+                :min="1"
+                :max="999999"
+                controls-position="right"
+                style="width: 200px"
+              />
+              <span style="margin-left: 8px; color: #909399">次</span>
+            </el-form-item>
+            <el-form-item label="单次 ASIN 上限">
+              <el-input-number
+                v-model="sellerspriteForm.maxAsinsPerRequest"
+                :min="1"
+                :max="9999"
+                controls-position="right"
+                style="width: 200px"
+              />
+              <span style="margin-left: 8px; color: #909399">个</span>
+            </el-form-item>
+            <el-form-item>
+              <el-button
+                v-if="userStore.isAdmin"
+                type="primary"
+                @click="saveSellerspriteConfig"
+                :loading="savingSellersprite"
               >
                 保存
               </el-button>
@@ -300,7 +367,7 @@
                 
                 <div class="backup-action">
                   <el-button
-                    v-if="isAdmin"
+                    v-if="userStore.isAdmin"
                     type="primary"
                     size="large"
                     @click="startBackup"
@@ -389,10 +456,10 @@
                   <el-table-column prop="createdAt" label="创建时间" width="180" />
                   <el-table-column label="操作" width="120">
                     <template #default="scope">
-                      <el-button v-if="isAdmin" type="primary" size="small" text @click="handleDownload(scope.row)">
+                      <el-button v-if="userStore.isAdmin" type="primary" size="small" text @click="handleDownload(scope.row)">
                         下载
                       </el-button>
-                      <el-button v-if="isAdmin" type="danger" size="small" text @click="handleDelete(scope.row.id)">
+                      <el-button v-if="userStore.isAdmin" type="danger" size="small" text @click="handleDelete(scope.row.id)">
                         删除
                       </el-button>
                       <span v-else class="no-permission">无权限</span>
@@ -412,7 +479,7 @@
                 <h3>过期备份</h3>
                 <div class="expired-backup-header">
                   <span class="expired-backup-tip">显示超过3天的备份记录，可手动删除以释放存储空间</span>
-                  <el-button v-if="isAdmin" type="primary" size="small" @click="fetchExpiredBackups">
+                  <el-button v-if="userStore.isAdmin" type="primary" size="small" @click="fetchExpiredBackups">
                     <el-icon><Refresh /></el-icon>
                     刷新
                   </el-button>
@@ -439,7 +506,7 @@
                   <el-table-column prop="createdAt" label="创建时间" width="180" />
                   <el-table-column label="操作" width="80">
                     <template #default="scope">
-                      <el-button v-if="isAdmin" type="danger" size="small" text @click="handleDelete(scope.row.id)">
+                      <el-button v-if="userStore.isAdmin" type="danger" size="small" text @click="handleDelete(scope.row.id)">
                         删除
                       </el-button>
                       <span v-else class="no-permission">无权限</span>
@@ -456,7 +523,7 @@
         </el-tab-pane>
 
         <el-tab-pane
-          v-if="isAdmin"
+          v-if="userStore.isAdmin"
           label="角色管理"
           name="permission"
         >
@@ -994,11 +1061,6 @@ const activeTab = ref<string>('basic')
 // 用户状态管理
 const userStore = useUserStore()
 
-// 计算属性：检查用户是否为管理员
-const isAdmin = computed(() => {
-  return userStore.userInfo && (userStore.userInfo.role === '管理员' || userStore.userInfo.role === 'admin')
-})
-
 // 备份方式选择
 const selectedBackupMethod = ref<'local' | 'cos'>('local')
 
@@ -1042,6 +1104,16 @@ const generalSettings = reactive<GeneralSettings>({
   developers: [],
   carriers: []
 })
+
+const sellerspriteForm = reactive({
+  apiUrl: '',
+  secretKeyMasked: '',
+  newSecretKey: '',
+  maxPerMinute: 0,
+  maxPerMonth: 0,
+  maxAsinsPerRequest: 0
+})
+const savingSellersprite = ref(false)
 
 const permissionSettings = reactive<PermissionSettings>({
   roles: [],
@@ -1520,7 +1592,7 @@ const handleRequirementReset = (): void => {
 }
 
 const saveBasicSettings = (): void => {
-  if (!isAdmin.value) {
+  if (!userStore.isAdmin) {
     ElMessage.warning('只有管理员可以修改系统设置')
     return
   }
@@ -1528,7 +1600,7 @@ const saveBasicSettings = (): void => {
 }
 
 const saveImageSettings = async (): Promise<void> => {
-  if (!isAdmin.value) {
+  if (!userStore.isAdmin) {
     ElMessage.warning('只有管理员可以修改系统设置')
     return
   }
@@ -1555,7 +1627,7 @@ const saveImageSettings = async (): Promise<void> => {
 
 
 const saveSecuritySettings = (): void => {
-  if (!isAdmin.value) {
+  if (!userStore.isAdmin) {
     ElMessage.warning('只有管理员可以修改系统设置')
     return
   }
@@ -1564,7 +1636,7 @@ const saveSecuritySettings = (): void => {
 
 // 添加开发人
 const addDeveloper = (): void => {
-  if (!isAdmin.value) {
+  if (!userStore.isAdmin) {
     ElMessage.warning('只有管理员可以修改系统设置')
     return
   }
@@ -1580,7 +1652,7 @@ const addDeveloper = (): void => {
 
 // 删除开发人
 const removeDeveloper = (index: number): void => {
-  if (!isAdmin.value) {
+  if (!userStore.isAdmin) {
     ElMessage.warning('只有管理员可以修改系统设置')
     return
   }
@@ -1589,7 +1661,7 @@ const removeDeveloper = (index: number): void => {
 
 // 添加载体
 const addCarrier = (): void => {
-  if (!isAdmin.value) {
+  if (!userStore.isAdmin) {
     ElMessage.warning('只有管理员可以修改系统设置')
     return
   }
@@ -1605,7 +1677,7 @@ const addCarrier = (): void => {
 
 // 删除载体
 const removeCarrier = (index: number): void => {
-  if (!isAdmin.value) {
+  if (!userStore.isAdmin) {
     ElMessage.warning('只有管理员可以修改系统设置')
     return
   }
@@ -1641,7 +1713,7 @@ const removeRole = (index: number): void => {
 
 // 保存通用设置
 const saveGeneralSettings = async (): Promise<void> => {
-  if (!isAdmin.value) {
+  if (!userStore.isAdmin) {
     ElMessage.warning('只有管理员可以修改系统设置')
     return
   }
@@ -1671,7 +1743,7 @@ const saveGeneralSettings = async (): Promise<void> => {
 
 // 保存角色设置
 const savePermissionSettings = async (): Promise<void> => {
-  if (!isAdmin.value) {
+  if (!userStore.isAdmin) {
     ElMessage.warning('只有管理员可以修改系统设置')
     return
   }
@@ -1694,7 +1766,7 @@ const savePermissionSettings = async (): Promise<void> => {
 
 // 开始备份
 const startBackup = async (): Promise<void> => {
-  if (!isAdmin.value) {
+  if (!userStore.isAdmin) {
     ElMessage.warning('只有管理员可以执行备份操作')
     return
   }
@@ -1797,7 +1869,7 @@ const fetchRecentBackups = async (): Promise<void> => {
 
 // 处理下载备份文件
 const handleDownload = async (backup: BackupRecord): Promise<void> => {
-  if (!isAdmin.value) {
+  if (!userStore.isAdmin) {
     ElMessage.warning('只有管理员可以下载备份文件')
     return
   }
@@ -1838,7 +1910,7 @@ const handleDownload = async (backup: BackupRecord): Promise<void> => {
 
 // 处理删除备份记录
 const handleDelete = async (backupId: number): Promise<void> => {
-  if (!isAdmin.value) {
+  if (!userStore.isAdmin) {
     ElMessage.warning('只有管理员可以删除备份记录')
     return
   }
@@ -1891,7 +1963,7 @@ const handleDelete = async (backupId: number): Promise<void> => {
 
 // 获取过期备份记录
 const fetchExpiredBackups = async (): Promise<void> => {
-  if (!isAdmin.value) {
+  if (!userStore.isAdmin) {
     return
   }
   try {
@@ -2024,6 +2096,52 @@ watch(activeSystemLogTab, async (newTab) => {
   }
 })
 
+const loadSellerspriteConfig = async (): Promise<void> => {
+  try {
+    const response = await systemConfigApi.getSellerspriteConfig()
+    if (response.code === 200 && response.data) {
+      sellerspriteForm.apiUrl = response.data.apiUrl
+      sellerspriteForm.secretKeyMasked = response.data.secretKeyMasked
+      sellerspriteForm.maxPerMinute = response.data.maxPerMinute
+      sellerspriteForm.maxPerMonth = response.data.maxPerMonth
+      sellerspriteForm.maxAsinsPerRequest = response.data.maxAsinsPerRequest
+    }
+  } catch (error) {
+    console.error('加载卖家精灵配置失败:', error)
+  }
+}
+
+const saveSellerspriteConfig = async (): Promise<void> => {
+  savingSellersprite.value = true
+  try {
+    const data: any = {
+      maxPerMinute: sellerspriteForm.maxPerMinute,
+      maxPerMonth: sellerspriteForm.maxPerMonth,
+      maxAsinsPerRequest: sellerspriteForm.maxAsinsPerRequest
+    }
+    const newKey = sellerspriteForm.newSecretKey.trim()
+    if (newKey) {
+      data.secretKey = newKey
+    }
+    const response = await systemConfigApi.updateSellerspriteConfig(data)
+    if (response.code === 200 && response.data) {
+      sellerspriteForm.secretKeyMasked = response.data.secretKeyMasked
+      sellerspriteForm.maxPerMinute = response.data.maxPerMinute
+      sellerspriteForm.maxPerMonth = response.data.maxPerMonth
+      sellerspriteForm.maxAsinsPerRequest = response.data.maxAsinsPerRequest
+      sellerspriteForm.newSecretKey = ''
+      ElMessage.success('卖家精灵配置已更新')
+    } else {
+      ElMessage.error(response.message || '更新失败')
+    }
+  } catch (error) {
+    console.error('更新卖家精灵配置失败:', error)
+    ElMessage.error('更新失败，请检查网络连接')
+  } finally {
+    savingSellersprite.value = false
+  }
+}
+
 onMounted(async () => {
   try {
     console.log('Settings组件挂载，开始初始化数据...')
@@ -2038,6 +2156,7 @@ onMounted(async () => {
       loadCarrierList(),
       loadPermissionSettings(),
       loadImageSettings(),
+      loadSellerspriteConfig(),
       fetchRecentBackups(), // 加载备份记录
       fetchExpiredBackups() // 加载过期备份记录
     ])

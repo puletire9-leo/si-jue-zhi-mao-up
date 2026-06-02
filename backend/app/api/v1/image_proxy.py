@@ -23,6 +23,7 @@ from PIL import Image
 from ...services.cos_service import cos_service
 from ...config import settings
 from ...repositories import MySQLRepository
+from ...middleware.auth_middleware import require_auth
 
 logger = __import__('logging').getLogger(__name__)
 
@@ -53,11 +54,8 @@ def _get_content_type(data: bytes) -> str:
     try:
         img = Image.open(io.BytesIO(data))
         return f"image/{img.format.lower() if img.format else 'jpeg'}"
-    except:
-        # 回退：使用 imghdr（Python 3.13 移除）
-        import imghdr
-        img_type = imghdr.what(None, h=data)
-        return f"image/{img_type}" if img_type else "image/jpeg"
+    except Exception:
+        return "image/jpeg"
 
 
 def _save_to_local(data: bytes, local_path: str) -> bool:
@@ -278,6 +276,7 @@ async def get_local_thumbnail_by_path(
 @router.post("/image-proxy/refresh", summary="刷新图片URL")
 async def refresh_image_url(
     request: dict = Body(..., description="包含 object_key 的请求体"),
+    user_info: dict = Depends(require_auth),
 ):
     """生成新的图片访问 URL（公有读模式下直接返回完整 URL）"""
     object_key = request.get("object_key")
@@ -298,7 +297,9 @@ async def refresh_image_url(
 
 
 @router.get("/image/stats", summary="获取图片统计")
-async def get_image_stats():
+async def get_image_stats(
+    user_info: dict = Depends(require_auth),
+):
     """获取本地缓存统计"""
     thumbnail_dir = settings.LOCAL_THUMBNAIL_DIR
     

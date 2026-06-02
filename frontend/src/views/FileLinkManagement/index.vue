@@ -266,7 +266,7 @@ import {
   Share,
   UploadFilled
 } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox, ElLoading, type FormInstance, type FormRules } from 'element-plus'
 import { fileLinkApi } from '@/api/fileLink'
 import type { FileLink, FileLinkCreate, FileLinkListParams } from '@/types/fileLink'
 
@@ -331,7 +331,9 @@ const dialogTitle = computed(() => {
 
 // 上传配置
 const uploadUrl = ref('/api/v1/file-links/upload')
-const uploadHeaders = ref({})
+const uploadHeaders = computed(() => ({
+  Authorization: `Bearer ${localStorage.getItem('token') || ''}`
+}))
 const uploadData = reactive({
   library_type: computed(() => route.name === 'PromptLibrary' ? 'prompt-library' : 'resource-library')
 })
@@ -405,7 +407,7 @@ const handleAddLink = () => {
     id: 0,
     title: '',
     url: '',
-    linkType: 'standard_url',
+    link_type: 'standard_url',
     description: '',
     category: '',
     tags: []
@@ -419,7 +421,7 @@ const handleEdit = (row: FileLink) => {
     id: row.id,
     title: row.title,
     url: row.url,
-    linkType: row.linkType,
+    link_type: row.linkType || row.link_type,
     description: row.description || '',
     category: row.category || '',
     tags: row.tags || []
@@ -571,7 +573,7 @@ const handleFiles = async (files: FileList) => {
     
     // 添加其他必要信息
     formData.append('title', `拖放上传文件_${new Date().getTime()}`)
-    formData.append('libraryType', route.name === 'PromptLibrary' ? 'prompt-library' : 'resource-library')
+    formData.append('library_type', route.name === 'PromptLibrary' ? 'prompt-library' : 'resource-library')
     formData.append('description', '通过拖放上传')
     
     // 显示上传进度

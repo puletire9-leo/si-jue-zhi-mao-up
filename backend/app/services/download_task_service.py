@@ -30,13 +30,12 @@ from ..models.download_task import (
     DownloadTask, DownloadTaskStatus, DownloadTaskSource,
     DownloadTaskFile, DownloadFileStatus
 )
-
-try:
-    from PIL import Image
-    HAS_PIL = True
-except ImportError:
-    HAS_PIL = False
-    Image = None
+from ..utils.download_utils import (
+    DownloadStatus,
+    DownloadResult,
+    download_files_batch,
+    build_zip_from_images,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -82,37 +81,44 @@ class DownloadTaskService:
         source: DownloadTaskSource,
         skus: Optional[List[str]] = None,
         file_urls: Optional[List[str]] = None,
-        user_id: Optional[int] = None
+        user_id: Optional[int] = None,
+        request_data: Optional[List[dict]] = None,
     ) -> str:
         """
         创建下载任务
-        
+
         Args:
             name: 任务名称
             source: 任务来源
             skus: SKU列表（定稿下载用）
             file_urls: 文件URL列表
             user_id: 创建用户ID
-            
+            request_data: 原始请求文件数据，JSON序列化后存储（用于重试）
+
         Returns:
             str: 任务ID
         """
+        import json as _json
+
         task_id = str(uuid.uuid4())
-        
+
         # 计算总文件数
         total_files = len(skus) if skus else (len(file_urls) if file_urls else 0)
-        
+
+        # 序列化请求数据
+        request_json = _json.dumps(request_data, ensure_ascii=False) if request_data else None
+
         # 插入数据库
         sql = """
-            INSERT INTO download_tasks 
-            (id, name, source, status, total_files, created_by, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, NOW())
+            INSERT INTO download_tasks
+            (id, name, source, status, total_files, created_by, request_data, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
         """
         await self._mysql_repo.execute_insert(
             sql,
-            (task_id, name, source.value, DownloadTaskStatus.PENDING.value, total_files, user_id)
+            (task_id, name, source.value, DownloadTaskStatus.PENDING.value, total_files, user_id, request_json)
         )
-        
+
         logger.info(f"[OK] 创建下载任务: {task_id}, 名称: {name}, 来源: {source.value}, 文件数: {total_files}")
         return task_id
     
@@ -130,7 +136,7 @@ class DownloadTaskService:
         sql = """
             SELECT id, name, source, status, progress, total_files,
                    completed_files, failed_files, total_size, local_path,
-                   created_at, completed_at, error_message, created_by
+                   created_at, completed_at, error_message, request_data, created_by
             FROM download_tasks WHERE id = %s
         """
         result = await self._mysql_repo.execute_query(sql, (task_id,), fetch_one=True)
@@ -172,6 +178,7 @@ class DownloadTaskService:
             created_at=result['created_at'],
             completed_at=result['completed_at'],
             error_message=result['error_message'],
+            request_data=result.get('request_data'),
             created_by=result['created_by'],
             files=files
         )
@@ -230,7 +237,7 @@ class DownloadTaskService:
         sql = f"""
             SELECT id, name, source, status, progress, total_files,
                    completed_files, failed_files, total_size, local_path,
-                   created_at, completed_at, error_message, created_by
+                   created_at, completed_at, error_message, request_data, created_by
             FROM download_tasks
             {where_clause}
             ORDER BY created_at DESC
@@ -261,34 +268,35 @@ class DownloadTaskService:
         
         return tasks, total
     
-    async def execute_task(self, task_id: str):
+    async def execute_task(self, task_id: str, files: Optional[List[dict]] = None):
         """
         执行任务（后台异步执行）
-        
+
         Args:
             task_id: 任务ID
+            files: 文件列表 [{"url": "...", "filename": "..."}, ...]
         """
         task = await self.get_task(task_id)
         if not task:
             logger.error(f"[FAIL] 任务不存在: {task_id}")
             return
-        
+
         if task.status != DownloadTaskStatus.PENDING:
             logger.warning(f"[WARN] 任务状态不是pending，跳过执行: {task_id}, 状态: {task.status}")
             return
-        
+
         # 更新任务状态为处理中
         await self._update_task_status(task_id, DownloadTaskStatus.PROCESSING)
         logger.info(f"[START] 开始执行下载任务: {task_id}, 文件数: {task.total_files}")
-        
+
         try:
             # 根据来源执行不同的下载逻辑
             if task.source == DownloadTaskSource.FINAL_DRAFT:
-                await self._execute_final_draft_task(task)
+                await self._execute_final_draft_task(task, files or [])
             else:
                 # 其他来源的下载逻辑待实现
                 raise Exception(f"暂不支持的下载来源: {task.source}")
-            
+
         except Exception as e:
             logger.error(f"[FAIL] 下载任务失败: {task_id}, 错误: {e}")
             await self._update_task_status(
@@ -297,84 +305,101 @@ class DownloadTaskService:
                 error_message=str(e)
             )
     
-    async def _execute_final_draft_task(self, task: DownloadTask):
+    async def _execute_final_draft_task(self, task: DownloadTask, files: List[dict]):
         """
         执行定稿下载任务
-        
+
         Args:
             task: 下载任务
+            files: 文件列表 [{"url": "...", "filename": "..."}, ...]
         """
         task_id = task.id
-        
-        # 查询定稿数据
-        sql = """
-            SELECT fd.sku, fd.batch, fd.developer, fd.carrier, fd.element,
-                   i.cos_object_key, i.original_zip_filepath, i.original_zip_cos_key
-            FROM final_drafts fd
-            LEFT JOIN images i ON fd.sku = i.sku
-            WHERE fd.sku IN (
-                SELECT file_name FROM download_task_files WHERE task_id = %s
-            )
-            AND fd.is_deleted = 0
-        """
-        
-        # 先插入文件记录（从final_drafts获取SKU列表）
-        # 这里简化处理，实际应该从创建任务时传入的SKUs查询
-        # 暂时使用空列表，后续完善
-        
-        # 创建任务目录
+        total = len(files)
+
+        zip_filename = f"{task.name}.zip"
+        if not zip_filename.endswith('.zip'):
+            zip_filename += '.zip'
+
         task_dir = DOWNLOAD_CACHE_DIR / task_id
         task_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 下载文件并打包
-        downloaded_files = []
+        zip_path = task_dir / zip_filename
+
         completed = 0
         failed = 0
-        
-        # 实现具体的定稿文件下载逻辑
-        # 1. 查询定稿关联的图片
-        result = await self._mysql_repo.execute_query(sql, (task_id,), fetch_one=False)
-        
-        # 2. 从COS下载图片并打包成ZIP
-        zip_path = task_dir / f"{task.name}.zip"
-        
-        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-            if result:
-                for row in result:
-                    sku = row['sku']
-                    cos_object_key = row['cos_object_key']
-                    original_zip_filepath = row['original_zip_filepath']
-                    original_zip_cos_key = row['original_zip_cos_key']
-                    
-                    try:
-                        # 这里应该实现从COS下载图片的逻辑
-                        # 暂时创建一个简单的文本文件作为示例
-                        file_content = f"SKU: {sku}\nBatch: {row['batch']}\nDeveloper: {row['developer']}\nCarrier: {row['carrier']}\nElement: {row['element']}\n".encode('utf-8')
-                        
-                        # 将内容添加到ZIP文件
-                        zf.writestr(f"{sku}.txt", file_content)
-                        downloaded_files.append(sku)
-                        completed += 1
-                    except Exception as e:
-                        logger.error(f"[FAIL] 下载文件失败: {sku}, 错误: {e}")
-                        failed += 1
+        total_size = 0
+
+        try:
+            # 批量下载所有文件
+            download_results = await download_files_batch(
+                files, mysql_repo=self._mysql_repo, max_concurrent=5
+            )
+
+            # 收集成功下载的图片，逐文件更新进度
+            image_files = []
+            for result in download_results:
+                if result.status == DownloadStatus.SUCCESS and result.content:
+                    ext = os.path.splitext(result.filename)[1].lower()
+                    if ext in ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'):
+                        image_files.append((result.filename, result.content))
+                        total_size += result.size
+                    completed += 1
+                else:
+                    failed += 1
+
+                # 每个文件更新一次进度（独立短事务）
+                progress = int((completed + failed) / total * 100) if total > 0 else 0
+                await self._update_task_status(
+                    task_id, DownloadTaskStatus.PROCESSING,
+                    progress=progress,
+                    completed_files=completed,
+                    failed_files=failed,
+                )
+
+            # 构建 ZIP
+            if image_files:
+                packed = build_zip_from_images(image_files, str(zip_path))
+                zip_size = zip_path.stat().st_size if zip_path.exists() else 0
+
+                await self._update_task_status(
+                    task_id, DownloadTaskStatus.COMPLETED,
+                    progress=100,
+                    completed_files=completed,
+                    failed_files=failed,
+                    total_size=zip_size,
+                    local_path=str(zip_path),
+                )
+                logger.info(f"[OK] 定稿下载任务完成: {task_id}, ZIP: {zip_path}, "
+                           f"成功: {completed}, 失败: {failed}, 大小: {zip_size / 1024 / 1024:.2f} MB")
             else:
-                # 如果没有找到相关文件，添加一个说明文件
-                zf.writestr("README.txt", "没有找到相关的定稿文件".encode('utf-8'))
-        
-        # 更新任务状态为完成
-        total_size = zip_path.stat().st_size if zip_path.exists() else 0
-        await self._update_task_status(
-            task_id,
-            DownloadTaskStatus.COMPLETED,
-            progress=100,
-            completed_files=completed,
-            failed_files=failed,
-            total_size=total_size,
-            local_path=str(zip_path)
-        )
-        
-        logger.info(f"[OK] 定稿下载任务完成: {task_id}, ZIP路径: {zip_path}")
+                await self._update_task_status(
+                    task_id, DownloadTaskStatus.FAILED,
+                    progress=100,
+                    completed_files=0,
+                    failed_files=failed,
+                    error_message="没有成功下载的图片文件",
+                )
+                logger.warning(f"[FAIL] 定稿下载任务失败: {task_id}, 没有成功下载的图片文件")
+
+        except Exception as e:
+            logger.error(f"[FAIL] 定稿下载执行异常: {task_id}, 错误: {e}")
+            await self._update_task_status(
+                task_id, DownloadTaskStatus.FAILED,
+                error_message=str(e),
+            )
+            raise
+
+        finally:
+            # 清理临时文件（保留最终 ZIP）
+            try:
+                if task_dir.exists():
+                    for item in task_dir.iterdir():
+                        if item != zip_path and item.is_file():
+                            try:
+                                item.unlink()
+                            except Exception:
+                                pass
+            except Exception:
+                pass
     
     async def _update_task_status(
         self,
@@ -438,10 +463,10 @@ class DownloadTaskService:
     async def delete_task(self, task_id: str) -> bool:
         """
         删除任务
-        
+
         Args:
             task_id: 任务ID
-            
+
         Returns:
             bool: 是否成功删除
         """
@@ -449,7 +474,18 @@ class DownloadTaskService:
         task = await self.get_task(task_id)
         if not task:
             return False
-        
+
+        # 先标记为已取消，防止 Celery worker 继续更新（竞态保护）
+        async with self._lock:
+            try:
+                await self._update_task_status(
+                    task_id,
+                    DownloadTaskStatus.FAILED,
+                    error_message="任务已被用户删除"
+                )
+            except Exception:
+                pass  # 可能已被删除，忽略
+
         # 删除本地文件和任务目录
         try:
             # 删除ZIP文件
@@ -457,24 +493,59 @@ class DownloadTaskService:
                 zip_path = Path(task.local_path)
                 if zip_path.exists():
                     zip_path.unlink()
-                    logger.info(f"[TRASH]️ 删除ZIP文件: {zip_path}")
-            
+                    logger.info(f"[TRASH] 删除ZIP文件: {zip_path}")
+
             # 删除任务目录（无论local_path是否存在）
             task_dir = DOWNLOAD_CACHE_DIR / task_id
             if task_dir.exists():
                 import shutil
                 shutil.rmtree(task_dir)
-                logger.info(f"[TRASH]️ 删除任务目录: {task_dir}")
+                logger.info(f"[TRASH] 删除任务目录: {task_dir}")
         except Exception as e:
             logger.error(f"[FAIL] 删除本地文件失败: {e}")
-        
+
+        # 删除关联的文件记录
+        try:
+            await self._mysql_repo.execute_delete(
+                "DELETE FROM download_task_files WHERE task_id = %s",
+                (task_id,)
+            )
+        except Exception as e:
+            logger.error(f"[FAIL] 删除任务文件记录失败: {e}")
+
         # 删除数据库记录
         sql = "DELETE FROM download_tasks WHERE id = %s"
         await self._mysql_repo.execute_delete(sql, (task_id,))
-        
-        logger.info(f"[TRASH]️ 删除下载任务: {task_id}")
+
+        logger.info(f"[TRASH] 删除下载任务: {task_id}")
         return True
     
+    async def cancel_task(self, task_id: str) -> bool:
+        """
+        取消任务
+
+        Args:
+            task_id: 任务ID
+
+        Returns:
+            bool: 是否成功取消
+        """
+        task = await self.get_task(task_id)
+        if not task:
+            return False
+
+        if task.status not in (DownloadTaskStatus.PENDING, DownloadTaskStatus.PROCESSING):
+            return False
+
+        await self._update_task_status(
+            task_id,
+            DownloadTaskStatus.FAILED,
+            error_message="任务已被取消"
+        )
+
+        logger.info(f"[CANCEL] 取消下载任务: {task_id}")
+        return True
+
     async def retry_task(self, task_id: str) -> bool:
         """
         重试失败的任务

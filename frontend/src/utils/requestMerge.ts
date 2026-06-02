@@ -151,10 +151,12 @@ export class RequestMerger {
     const { url, method, params, data, headers, responseType } = config;
     
     // 使用fetch API发送请求
+    const token = localStorage.getItem('token')
     return fetch(url, {
       method,
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         ...headers
       },
       body: data ? JSON.stringify(data) : undefined
@@ -346,7 +348,12 @@ export const batchGetImages = async (imageIds: Array<string | number>, delay: nu
   // 如果只有一个ID，直接发送单个请求
   if (uniqueIds.length === 1) {
     try {
-      const response = await fetch(`/api/v1/images/${uniqueIds[0]}`);
+      const token = localStorage.getItem('token')
+      const response = await fetch(`/api/v1/images/${uniqueIds[0]}`, {
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -364,10 +371,12 @@ export const batchGetImages = async (imageIds: Array<string | number>, delay: nu
     setTimeout(async () => {
       try {
         // 发送批量请求
+        const token = localStorage.getItem('token')
         const response = await fetch('/api/v1/images/batch-get', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
           },
           body: JSON.stringify({
             ids: uniqueIds

@@ -11,7 +11,7 @@ export function useCategoryStats() {
   
   // 计算属性
   const stats = computed(() => store.categoryStats)
-  const loading = computed(() => store.loading.stats)
+  const loading = computed(() => store.loading.categoryStats)
   const selectedCategory = computed(() => store.selectedCategory)
   
   // 带颜色配置的分类统计

@@ -7,11 +7,12 @@
 最终删除日期：项目稳定运行后
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 import subprocess
 import os
 import json
 from typing import Dict, Any, Optional
+from ...middleware.auth_middleware import require_auth
 
 router = APIRouter()
 
@@ -24,7 +25,7 @@ REPORTS_DIR = r"e:\项目\开发\主系统-mysql\docs\reports"
 from fastapi.responses import JSONResponse
 
 @router.post("/generate", response_model=Dict[str, Any])
-async def generate_reports(background_tasks: BackgroundTasks):
+async def generate_reports(background_tasks: BackgroundTasks, current_user: dict = Depends(require_auth)):
     """
     生成报告
     异步执行报告生成脚本，避免长时间阻塞
@@ -83,7 +84,7 @@ def _execute_report_script():
 
 
 @router.get("/{developer}", response_model=Dict[str, Any])
-async def get_report(developer: str):
+async def get_report(developer: str, current_user: dict = Depends(require_auth)):
     """
     获取报告内容
     
@@ -129,7 +130,7 @@ async def get_report(developer: str):
 
 
 @router.get("/list/files", response_model=Dict[str, Any])
-async def list_report_files():
+async def list_report_files(current_user: dict = Depends(require_auth)):
     """
     获取报告文件列表
     """

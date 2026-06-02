@@ -6,8 +6,12 @@ python-multipart==0.0.21
 bcrypt==5.0.0
 PyJWT==2.8.0
 
+sqlalchemy
+cryptography
 aiomysql==0.3.2
 redis[asyncio]==7.1.0
+duckdb
+requests
 # qdrant-client==1.16.2  # 向量搜索（暂停）
 
 celery==5.6.2

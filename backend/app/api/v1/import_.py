@@ -14,6 +14,7 @@ import aiomysql
 from io import BytesIO
 
 from ...repositories import MySQLRepository
+from ...middleware.auth_middleware import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ def get_mysql_repo():
 @router.post("/products", summary="导入产品")
 async def import_products(
     file: UploadFile = File(..., description="Excel文件"),
+    current_user: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -209,6 +211,7 @@ async def import_products(
 @router.post("/images", summary="导入图片")
 async def import_images(
     file: UploadFile = File(..., description="Excel文件"),
+    current_user: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -294,7 +297,9 @@ async def import_images(
 
 
 @router.get("/template/products", summary="下载产品导入模板")
-async def download_product_template():
+async def download_product_template(
+    current_user: dict = Depends(require_auth)
+):
     """
     下载产品导入模板
     
@@ -358,7 +363,9 @@ async def download_product_template():
 
 
 @router.get("/template/images", summary="下载图片导入模板")
-async def download_image_template():
+async def download_image_template(
+    current_user: dict = Depends(require_auth)
+):
     """
     下载图片导入模板
     

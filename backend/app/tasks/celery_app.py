@@ -10,7 +10,7 @@ celery_app = Celery(
     "image_tasks",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["app.tasks.image_tasks"]
+    include=["app.tasks.image_tasks", "app.tasks.download_tasks"]
 )
 
 # 配置Celery
@@ -40,6 +40,7 @@ celery_app.conf.update(
     # 任务路由
     task_routes={
         "app.tasks.image_tasks.*": {"queue": "image_tasks"},
+        "app.tasks.download_tasks.*": {"queue": "download_tasks"},
     },
     
     # 任务限流

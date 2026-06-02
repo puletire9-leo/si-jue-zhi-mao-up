@@ -41,10 +41,7 @@ export interface QueryParams {
  */
 export const createFinalDraftDownloadTask = async (skus: string[]): Promise<{ task_id: string; message: string }> => {
   const response = await request.post('/api/v1/download-tasks/final-draft', { skus })
-  // request拦截器已经返回了response.data，这里直接返回response
-  // 如果后端返回的是 { code, data, message } 格式，需要取 response.data
-  // 如果后端直接返回 { task_id, message }，则直接返回 response
-  return response.data || response
+  return response?.data || response
 }
 
 /**
@@ -64,7 +61,7 @@ export const getDownloadTasks = async (params: QueryParams = {}): Promise<any> =
  */
 export const getDownloadTaskDetail = async (taskId: string): Promise<DownloadTask> => {
   const response = await request.get(`/api/v1/download-tasks/${taskId}`)
-  return response.data || response
+  return response?.data || response
 }
 
 /**

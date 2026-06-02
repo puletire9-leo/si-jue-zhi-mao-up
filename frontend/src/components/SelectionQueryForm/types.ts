@@ -17,8 +17,10 @@ export interface SelectionQueryParams {
   searchType: 'asin' | 'productTitle'
   /** 产品类型 */
   productType: '' | 'new' | 'reference' | 'zheng'
-  /** 店铺名称 */
+  /** 店铺名称（手动输入） */
   storeName: string
+  /** 卖家名称（下拉选择，优先级高于 storeName） */
+  sellerSelect: string
   /** 大类榜单 */
   category: string
   /** 国家 */
@@ -125,6 +127,7 @@ export const defaultQueryParams: SelectionQueryParams = {
   searchType: 'asin',
   productType: '',
   storeName: '',
+  sellerSelect: '',
   category: '',
   country: '', // 默认不筛选国家，显示所有国家数据
   dataFilterMode: '', // 默认不筛选数据模式，显示所有模式

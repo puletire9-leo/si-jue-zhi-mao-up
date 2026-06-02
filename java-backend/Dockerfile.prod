@@ -1,0 +1,19 @@
+# ============================================
+# Java 微服务生产镜像（跳过 Maven，直接用预编译 jar）
+# 构建: docker build -t prod-java -f java-backend/Dockerfile.prod .
+# ============================================
+
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+
+RUN apk add --no-cache curl tzdata && \
+    cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+    echo "Asia/Shanghai" > /etc/timezone
+
+COPY java-backend/sjzm-gateway/target/app.jar ./gateway.jar
+COPY java-backend/sjzm-user/target/app.jar ./user.jar
+COPY java-backend/sjzm-product/target/app.jar ./product.jar
+
+ENV SERVICE_MODULE=gateway
+
+CMD java -Xms256m -Xmx512m -Dfile.encoding=UTF-8 -jar /app/${SERVICE_MODULE}.jar

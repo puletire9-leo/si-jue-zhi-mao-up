@@ -9,6 +9,6 @@
   },
   "prod": {
     "python_backend": 7090,
-    "frontend": 7179
+    "frontend": 5173
   }
 }

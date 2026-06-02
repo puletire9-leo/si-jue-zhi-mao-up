@@ -1,0 +1,88 @@
+server:
+  port: 8002
+
+spring:
+  application:
+    name: sjzm-product
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  main:
+    allow-bean-definition-overriding: true
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 200MB
+
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3307}/${MYSQL_DATABASE:sijuelishi_dev}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+    username: ${MYSQL_USERNAME:sijue}
+    password: ${MYSQL_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6380}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      lettuce:
+        pool:
+          min-idle: 5
+          max-idle: 10
+          max-active: 20
+
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        enabled: ${NACOS_ENABLED:false}
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        enabled: ${NACOS_CONFIG_ENABLED:false}
+        file-extension: yaml
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.sjzm.product.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+redisson:
+  address: redis://${REDIS_HOST:localhost}:${REDIS_PORT:6380}
+
+sellersprite:
+  api-url: ${SELLERSPRITE_API_URL:https://api.sellersprite.com/v1}
+  secret-key: ${SELLERSPRITE_SECRET_KEY:}
+  connect-timeout: 10s
+  read-timeout: 30s
+  rate-limit:
+    max-per-minute: ${SELLERSPRITE_RATE_LIMIT_PER_MINUTE:40}
+    max-per-month: ${SELLERSPRITE_RATE_LIMIT_PER_MONTH:20000}
+    max-asins-per-request: 40
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+resilience4j.circuitbreaker:
+  configs:
+    default:
+      sliding-window-size: 10
+      failure-rate-threshold: 50
+      wait-duration-in-open-state: 30s
+      permitted-number-of-calls-in-half-open-state: 3
+  instances:
+    sellerspriteApi:
+      base-config: default
+
+logging:
+  level:
+    root: info
+    com.sjzm.product: debug

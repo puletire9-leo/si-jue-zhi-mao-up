@@ -114,7 +114,8 @@ class PolarsDataService:
             '日期', 'ASIN', '店铺', '国家', '开发人',
             '销量', '销售额', '订单量', '大类排名',
             '广告CVR', 'ROAS', '广告花费', '广告销售额', '标题',
-            '展示', '点击', 'CTR'
+            '展示', '点击', 'CTR',
+            'msku', 'sku', 'brand', 'responsible_person', 'product_name', 'sales_volume'
         ]
         
         try:
@@ -479,8 +480,8 @@ class PolarsDataService:
         elif time_dimension == 'week':
             # 使用ISO周格式 YYYY-WNN
             df = df.with_columns([
-                (pl.col(date_field).str.slice(0, 4) + '-W' + 
-                 pl.col(date_field).dt.week().cast(pl.Utf8).str.zfill(2)).alias('time_key')
+                (pl.col(date_field).str.slice(0, 4) + '-W' +
+                 pl.col(date_field).str.strptime(pl.Date, "%Y-%m-%d").dt.week().cast(pl.Utf8).str.zfill(2)).alias('time_key')
             ])
         elif time_dimension == 'month':
             df = df.with_columns([

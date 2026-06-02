@@ -14,7 +14,7 @@ export const getResourceFiles = (params: any) => {
   }
   
   return request({
-    url: '/file-links',
+    url: '/api/v1/file-links',
     method: 'get',
     params: transformedParams
   })
@@ -23,7 +23,7 @@ export const getResourceFiles = (params: any) => {
 // 添加文件链接
 export const addResourceFile = (data: any) => {
   return request({
-    url: '/file-links',
+    url: '/api/v1/file-links',
     method: 'post',
     data
   })
@@ -46,7 +46,7 @@ export const uploadResourceFile = (file: File, options: any = {}) => {
   }
   
   return request({
-    url: '/file-links/upload',
+    url: '/api/v1/file-links/upload',
     method: 'post',
     data: formData,
     headers: {
@@ -58,7 +58,7 @@ export const uploadResourceFile = (file: File, options: any = {}) => {
 // 删除文件
 export const deleteResourceFile = (id: number) => {
   return request({
-    url: `/file-links/${id}`,
+    url: `/api/v1/file-links/${id}`,
     method: 'delete'
   })
 }
@@ -66,16 +66,16 @@ export const deleteResourceFile = (id: number) => {
 // 批量删除文件
 export const batchDeleteResourceFiles = (ids: number[]) => {
   return request({
-    url: '/file-links/batch-delete',
+    url: '/api/v1/file-links/batch-delete',
     method: 'post',
-    data: ids
+    data: { ids }
   })
 }
 
 // 获取文件信息
 export const getResourceFileInfo = (id: number) => {
   return request({
-    url: `/file-links/${id}`,
+    url: `/api/v1/file-links/${id}`,
     method: 'get'
   })
 }
@@ -83,7 +83,7 @@ export const getResourceFileInfo = (id: number) => {
 // 更新文件信息
 export const updateResourceFile = (id: number, data: any) => {
   return request({
-    url: `/file-links/${id}`,
+    url: `/api/v1/file-links/${id}`,
     method: 'put',
     data
   })
@@ -92,7 +92,7 @@ export const updateResourceFile = (id: number, data: any) => {
 // 获取分类列表
 export const getResourceCategories = (libraryType: string) => {
   return request({
-    url: `/file-links/${libraryType}/categories`,
+    url: `/api/v1/file-links/${libraryType}/categories`,
     method: 'get'
   })
 }
@@ -100,7 +100,7 @@ export const getResourceCategories = (libraryType: string) => {
 // 检查链接状态
 export const checkResourceLinkStatus = (id: number) => {
   return request({
-    url: `/file-links/${id}/check`,
+    url: `/api/v1/file-links/${id}/check`,
     method: 'post'
   })
 }

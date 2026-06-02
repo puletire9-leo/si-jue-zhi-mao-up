@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.mapper.ShopMapper">
+
+    <insert id="insertBatchIgnoreDup" parameterType="list">
+        INSERT IGNORE INTO shops (shop_id, shop_name, shop_link, marketplace) VALUES
+        <foreach collection="list" item="s" separator=",">
+            (#{s.shopId}, #{s.shopName}, #{s.shopLink}, #{s.marketplace})
+        </foreach>
+    </insert>
+
+</mapper>

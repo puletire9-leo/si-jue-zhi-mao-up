@@ -27,6 +27,7 @@ from ...models.selection import (
 )
 from ...services.selection_service import SelectionService
 from ...config import settings
+from ...middleware.auth_middleware import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ def get_selection_service():
 @router.post("/products", summary="创建选品产品")
 async def create_selection_product(
     product: SelectionProductCreate,
+    user_info: dict = Depends(require_auth),
     service: SelectionService = get_selection_service()
 ):
     """
@@ -100,6 +102,7 @@ async def get_selection_products_list(
     category: Optional[str] = Query(None, description="产品分类"),
     sort_by: Optional[str] = Query("createdAt", description="排序字段", alias="sortBy"),
     sort_order: Optional[str] = Query("desc", description="排序方向：asc/desc", alias="sortOrder"),
+    user_info: dict = Depends(require_auth),
     service: SelectionService = get_selection_service()
 ):
     """
@@ -144,6 +147,7 @@ async def get_selection_products_list(
 @router.get("/products/asins", summary="获取所有选品ASIN列表")
 async def get_all_selection_asins(
     product_type: Optional[str] = Query(None, description="产品类型：new/reference，不传则返回所有类型"),
+    user_info: dict = Depends(require_auth),
     service: SelectionService = get_selection_service()
 ):
     """
@@ -173,6 +177,7 @@ async def get_all_selection_asins(
 @router.get("/products/{product_id}", summary="获取选品产品详情")
 async def get_selection_product_by_id(
     product_id: int,
+    user_info: dict = Depends(require_auth),
     service: SelectionService = get_selection_service()
 ):
     """
@@ -205,6 +210,7 @@ async def get_selection_product_by_id(
 async def update_selection_product(
     product_id: int,
     product: SelectionProductUpdate,
+    user_info: dict = Depends(require_auth),
     service: SelectionService = get_selection_service()
 ):
     """
@@ -246,6 +252,7 @@ async def update_selection_product(
 
 @router.delete("/products/clear-all", summary="清空所有选品数据")
 async def clear_all_selection_products(
+    user_info: dict = Depends(require_auth),
     service: SelectionService = get_selection_service()
 ):
     """
@@ -274,6 +281,7 @@ async def clear_all_selection_products(
 @router.delete("/products/{product_identifier}", summary="删除选品产品")
 async def delete_selection_product(
     product_identifier: str,
+    user_info: dict = Depends(require_auth),
     service: SelectionService = get_selection_service()
 ):
     """
@@ -311,6 +319,7 @@ async def delete_selection_product(
 @router.post("/products/batch-delete", summary="批量删除选品产品")
 async def batch_delete_selection_products(
     request_data: Dict[str, Any] = Body(..., description="批量删除请求"),
+    user_info: dict = Depends(require_auth),
     service: SelectionService = get_selection_service()
 ):
     """
@@ -321,20 +330,19 @@ async def batch_delete_selection_products(
     批量删除选品产品
     """
     try:
-        from ..dependencies import get_settings
-        settings = get_settings()
-        
+        BATCH_DELETE_MAX = 100  # 批量删除上限
+
         # 获取产品ID列表
         product_ids = request_data.get("product_ids", [])
-        
+
         if not product_ids:
             raise HTTPException(status_code=400, detail="请提供要删除的产品ID列表")
-        
+
         # 添加批量删除数量限制
-        if len(product_ids) > settings.BATCH_DELETE_MAX:
+        if len(product_ids) > BATCH_DELETE_MAX:
             raise HTTPException(
                 status_code=400,
-                detail=f"批量删除最多支持{settings.BATCH_DELETE_MAX}个产品"
+                detail=f"批量删除最多支持{BATCH_DELETE_MAX}个产品"
             )
         
         # 将字符串ID转换为整数
@@ -374,6 +382,7 @@ async def batch_delete_selection_products(
 @router.post("/products/batch-delete-by-asin", summary="通过ASIN批量删除选品产品")
 async def batch_delete_selection_products_by_asin(
     request_data: Dict[str, Any] = Body(..., description="通过ASIN批量删除请求"),
+    user_info: dict = Depends(require_auth),
     service: SelectionService = get_selection_service()
 ):
     """
@@ -384,20 +393,19 @@ async def batch_delete_selection_products_by_asin(
     通过ASIN批量删除选品产品
     """
     try:
-        from ..dependencies import get_settings
-        settings = get_settings()
-        
+        BATCH_DELETE_MAX = 100  # 批量删除上限
+
         # 获取ASIN列表
         asins = request_data.get("asins", [])
-        
+
         if not asins:
             raise HTTPException(status_code=400, detail="请提供要删除的产品ASIN列表")
-        
+
         # 添加批量删除数量限制
-        if len(asins) > settings.BATCH_DELETE_MAX:
+        if len(asins) > BATCH_DELETE_MAX:
             raise HTTPException(
                 status_code=400,
-                detail=f"批量删除最多支持{settings.BATCH_DELETE_MAX}个产品"
+                detail=f"批量删除最多支持{BATCH_DELETE_MAX}个产品"
             )
         
         # 使用批量删除产品方法（按ASIN）
@@ -442,6 +450,7 @@ async def get_new_products_list(
     is_current: Optional[int] = Query(None, description="本周/往期筛选（1=本周, 0=往期）", alias="isCurrent"),
     sort_by: Optional[str] = Query("createdAt", description="排序字段", alias="sortBy"),
     sort_order: Optional[str] = Query("desc", description="排序方向：asc/desc", alias="sortOrder"),
+    user_info: dict = Depends(require_auth),
     service: SelectionService = get_selection_service()
 ):
     """
@@ -524,6 +533,7 @@ async def get_reference_products_list(
     is_current: Optional[int] = Query(None, description="本周/往期筛选（1=本周, 0=往期）", alias="isCurrent"),
     sort_by: Optional[str] = Query("createdAt", description="排序字段", alias="sortBy"),
     sort_order: Optional[str] = Query("desc", description="排序方向：asc/desc", alias="sortOrder"),
+    user_info: dict = Depends(require_auth),
     service: SelectionService = get_selection_service()
 ):
     """
@@ -594,6 +604,7 @@ async def get_all_selection_list(
     is_current: Optional[int] = Query(None, description="本周/往期筛选（1=本周, 0=往期）", alias="isCurrent"),
     sort_by: Optional[str] = Query("createdAt", description="排序字段", alias="sortBy"),
     sort_order: Optional[str] = Query("desc", description="排序方向：asc/desc", alias="sortOrder"),
+    user_info: dict = Depends(require_auth),
     service: SelectionService = get_selection_service()
 ):
     """
@@ -663,6 +674,7 @@ async def get_all_selection_list(
 
 @router.get("/stats/summary", summary="获取选品统计")
 async def get_selection_stats(
+    user_info: dict = Depends(require_auth),
     service: SelectionService = get_selection_service()
 ):
     """
@@ -692,6 +704,7 @@ async def get_selection_stats(
 @router.get("/categories", summary="获取大类榜单名统计")
 async def get_selection_categories(
     source: Optional[str] = Query(None, description="来源筛选关键词，用于模糊匹配source字段"),
+    user_info: dict = Depends(require_auth),
     service: SelectionService = get_selection_service()
 ):
     """
@@ -718,6 +731,7 @@ async def get_selection_categories(
 
 @router.get("/stores", summary="获取店铺统计")
 async def get_selection_stores(
+    user_info: dict = Depends(require_auth),
     service: SelectionService = get_selection_service()
 ):
     """
@@ -745,6 +759,7 @@ async def import_selection_products(
     product_type: str = Query("new", description="产品类型：new/reference/all"),
     mode: str = Query("skip", description="导入模式：skip(跳过已存在)/update(更新已存在)/overwrite(覆盖已存在)"),
     auto_score: bool = Query(True, description="导入后是否自动评分"),
+    user_info: dict = Depends(require_auth),
     service: SelectionService = get_selection_service()
 ):
     """
@@ -1243,7 +1258,9 @@ async def import_selection_products(
 
 
 @router.get("/template", summary="下载选品导入模板")
-async def download_selection_template():
+async def download_selection_template(
+    user_info: dict = Depends(require_auth)
+):
     """
     下载选品导入模板
     
@@ -1297,6 +1314,7 @@ async def download_selection_template():
 @router.post("/products/export-asins", summary="导出选中商品的ASIN")
 async def export_selected_asins(
     request_data: Dict[str, Any] = Body(..., description="导出请求"),
+    user_info: dict = Depends(require_auth),
     service: SelectionService = get_selection_service()
 ):
     """

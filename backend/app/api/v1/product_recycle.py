@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from typing import Optional, List, Dict, Any
 import logging
 
+from ...middleware.auth_middleware import require_auth
 from ...services.product_recycle_service import ProductRecycleService
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,8 @@ def get_product_recycle_service():
 
 @router.get("/stats", summary="获取回收站统计信息")
 async def get_recycle_stats(
-    service: ProductRecycleService = get_product_recycle_service()
+    service: ProductRecycleService = get_product_recycle_service(),
+    current_user: dict = Depends(require_auth)
 ):
     """
     获取产品回收站统计信息
@@ -66,7 +68,8 @@ async def get_recycled_products(
     name: Optional[str] = Query(None, description="产品名称"),
     type: Optional[str] = Query(None, description="产品类型"),
     category: Optional[str] = Query(None, description="产品分类"),
-    service: ProductRecycleService = get_product_recycle_service()
+    service: ProductRecycleService = get_product_recycle_service(),
+    current_user: dict = Depends(require_auth)
 ):
     """
     获取回收站产品列表
@@ -104,7 +107,8 @@ async def get_recycled_products(
 @router.post("/products/{sku}/restore", summary="恢复产品")
 async def restore_product(
     sku: str,
-    service: ProductRecycleService = get_product_recycle_service()
+    service: ProductRecycleService = get_product_recycle_service(),
+    current_user: dict = Depends(require_auth)
 ):
     """
     从回收站恢复产品
@@ -135,7 +139,8 @@ async def restore_product(
 @router.post("/products/batch-restore", summary="批量恢复产品")
 async def batch_restore_products(
     request_data: Dict[str, Any] = Body(..., description="批量恢复请求"),
-    service: ProductRecycleService = get_product_recycle_service()
+    service: ProductRecycleService = get_product_recycle_service(),
+    current_user: dict = Depends(require_auth)
 ):
     """
     批量恢复产品
@@ -170,7 +175,8 @@ async def batch_restore_products(
 @router.delete("/products/{sku}", summary="永久删除产品")
 async def permanently_delete_product(
     sku: str,
-    service: ProductRecycleService = get_product_recycle_service()
+    service: ProductRecycleService = get_product_recycle_service(),
+    current_user: dict = Depends(require_auth)
 ):
     """
     永久删除回收站中的产品
@@ -201,7 +207,8 @@ async def permanently_delete_product(
 @router.delete("/products/batch", summary="批量永久删除产品")
 async def batch_permanently_delete_products(
     request_data: Dict[str, Any] = Body(..., description="批量永久删除请求"),
-    service: ProductRecycleService = get_product_recycle_service()
+    service: ProductRecycleService = get_product_recycle_service(),
+    current_user: dict = Depends(require_auth)
 ):
     """
     批量永久删除产品
@@ -236,7 +243,8 @@ async def batch_permanently_delete_products(
 @router.delete("/products/clear-expired", summary="清理过期产品")
 async def clear_expired_products(
     days: int = Query(30, ge=1, le=365, description="保留天数"),
-    service: ProductRecycleService = get_product_recycle_service()
+    service: ProductRecycleService = get_product_recycle_service(),
+    current_user: dict = Depends(require_auth)
 ):
     """
     清理回收站中过期的产品

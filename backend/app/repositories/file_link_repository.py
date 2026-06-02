@@ -1,7 +1,8 @@
+import json
 import logging
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from ..models.file_link import FileLinkBase, FileLinkCreate, FileLinkUpdate, FileLinkInDB
+from ..models.file_link import FileLinkBase, FileLinkCreate, FileLinkUpdate, FileLink
 from .mysql_repo import get_mysql_repo
 
 logger = logging.getLogger(__name__)
@@ -10,8 +11,8 @@ logger = logging.getLogger(__name__)
 class FileLinkRepository:
     """文件链接数据访问层"""
     
-    def __init__(self):
-        self.mysql_repo = get_mysql_repo()
+    def __init__(self, mysql_repo=None):
+        self.mysql_repo = mysql_repo
     
     async def create_file_link(self, file_link: FileLinkCreate) -> int:
         """
@@ -35,7 +36,7 @@ class FileLinkRepository:
             file_link.url,
             file_link.link_type.value,
             file_link.description,
-            str(file_link.tags) if file_link.tags else None,
+            json.dumps(file_link.tags, ensure_ascii=False) if file_link.tags else None,
             file_link.category,
             file_link.library_type,
             'active',
@@ -46,7 +47,7 @@ class FileLinkRepository:
         result = await self.mysql_repo.execute_insert(query, params)
         return result['last_id']
     
-    async def get_file_link_by_id(self, link_id: int) -> Optional[FileLinkInDB]:
+    async def get_file_link_by_id(self, link_id: int) -> Optional[FileLink]:
         """
         根据ID获取文件链接
         
@@ -69,14 +70,14 @@ class FileLinkRepository:
         if not result:
             return None
         
-        return FileLinkInDB(**result)
+        return FileLink(**result)
     
     async def get_file_links_by_library(
         self, 
         library_type: str, 
         limit: int = 100, 
         offset: int = 0
-    ) -> List[FileLinkInDB]:
+    ) -> List[FileLink]:
         """
         根据库类型获取文件链接列表
         
@@ -100,7 +101,7 @@ class FileLinkRepository:
         """
         
         results = await self.mysql_repo.execute_query(query, (library_type, limit, offset))
-        return [FileLinkInDB(**result) for result in results]
+        return [FileLink(**result) for result in results]
     
     async def search_file_links(
         self, 
@@ -108,7 +109,7 @@ class FileLinkRepository:
         library_type: Optional[str] = None,
         limit: int = 100, 
         offset: int = 0
-    ) -> List[FileLinkInDB]:
+    ) -> List[FileLink]:
         """
         搜索文件链接
         
@@ -149,7 +150,7 @@ class FileLinkRepository:
             params = (pattern, pattern, limit, offset)
         
         results = await self.mysql_repo.execute_query(query, params)
-        return [FileLinkInDB(**result) for result in results]
+        return [FileLink(**result) for result in results]
     
     async def update_file_link(self, link_id: int, file_link: FileLinkUpdate) -> int:
         """
@@ -171,7 +172,7 @@ class FileLinkRepository:
         if file_link.description is not None:
             update_fields['description'] = file_link.description
         if file_link.tags is not None:
-            update_fields['tags'] = str(file_link.tags)
+            update_fields['tags'] = json.dumps(file_link.tags, ensure_ascii=False)
         if file_link.category is not None:
             update_fields['category'] = file_link.category
         if file_link.status is not None:
@@ -267,7 +268,7 @@ class FileLinkRepository:
         params = (
             status,
             datetime.now(),
-            str(check_result) if check_result else None,
+            json.dumps(check_result, ensure_ascii=False) if check_result else None,
             datetime.now(),
             link_id
         )
@@ -280,7 +281,7 @@ class FileLinkRepository:
         library_type: Optional[str] = None,
         limit: int = 100, 
         offset: int = 0
-    ) -> List[FileLinkInDB]:
+    ) -> List[FileLink]:
         """
         根据分类获取文件链接
         
@@ -319,7 +320,7 @@ class FileLinkRepository:
             params = (category, limit, offset)
         
         results = await self.mysql_repo.execute_query(query, params)
-        return [FileLinkInDB(**result) for result in results]
+        return [FileLink(**result) for result in results]
 
 
 # 全局FileLinkRepository实例
@@ -336,6 +337,7 @@ async def get_file_link_repo() -> FileLinkRepository:
     global _file_link_repo_instance
     
     if _file_link_repo_instance is None:
-        _file_link_repo_instance = FileLinkRepository()
-    
+        mysql_repo = await get_mysql_repo()
+        _file_link_repo_instance = FileLinkRepository(mysql_repo)
+
     return _file_link_repo_instance

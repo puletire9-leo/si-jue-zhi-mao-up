@@ -18,14 +18,17 @@ from fastapi.responses import FileResponse, StreamingResponse
 from typing import Optional, List
 from datetime import datetime
 import os
+import logging
 import urllib.parse
 
 from ...services.download_task_service import download_task_service
+
+logger = logging.getLogger(__name__)
 from ...models.download_task import (
     DownloadTaskSource, DownloadTaskCreate, 
     DownloadTaskResponse, DownloadTaskListResponse, DownloadTaskQuery
 )
-from ...middleware.auth_middleware import auth_middleware
+from ...middleware.auth_middleware import require_auth
 
 router = APIRouter(prefix="/download-tasks", tags=["下载任务"])
 
@@ -76,7 +79,7 @@ async def create_final_draft_download_task(
     request: Request,
     request_data: dict,
     background_tasks: BackgroundTasks,
-    user_info: dict = Depends(auth_middleware.require_auth)
+    user_info: dict = Depends(require_auth)
 ):
     """
     创建定稿下载任务
@@ -127,7 +130,7 @@ async def get_download_tasks(
     keyword: Optional[str] = Query(None, description="关键词搜索"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
-    user_info: dict = Depends(auth_middleware.require_auth)
+    user_info: dict = Depends(require_auth)
 ):
     """
     获取下载任务列表
@@ -178,7 +181,8 @@ async def get_download_tasks(
 @router.get("/{task_id}", response_model=DownloadTaskResponse)
 async def get_download_task(
     request: Request,
-    task_id: str
+    task_id: str,
+    user_info: dict = Depends(require_auth)
 ):
     """
     获取下载任务详情
@@ -217,7 +221,7 @@ async def get_download_task(
 async def download_task_file(
     request: Request,
     task_id: str,
-    user_info: dict = Depends(auth_middleware.require_auth)
+    user_info: dict = Depends(require_auth)
 ):
     """
     下载任务文件
@@ -274,28 +278,35 @@ async def download_task_file(
 @router.delete("/{task_id}")
 async def delete_download_task(
     request: Request,
-    task_id: str
+    task_id: str,
+    user_info: dict = Depends(require_auth)
 ):
     """
     删除下载任务
-    
+
     Args:
+        request: FastAPI请求对象
         task_id: 任务ID
-        
+        user_info: 当前登录用户信息
+
     Returns:
         dict: 操作结果
     """
-    # 获取MySQL仓库实例
     mysql_repo = get_mysql_from_request(request)
     download_task_service.set_mysql_repo(mysql_repo)
-    
+
     task = await download_task_service.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
-    
+
+    # 检查权限：只能删除自己的任务
+    current_user_id = get_current_user_id(user_info)
+    if task.created_by and task.created_by != current_user_id and not is_admin(user_info):
+        raise HTTPException(status_code=403, detail="无权删除此任务")
+
     success = await download_task_service.delete_task(task_id)
     if success:
-        return {"message": "任务已删除"}
+        return {"code": 200, "message": "任务已删除"}
     else:
         raise HTTPException(status_code=500, detail="删除任务失败")
 
@@ -304,42 +315,61 @@ async def delete_download_task(
 async def retry_download_task(
     request: Request,
     task_id: str,
-    background_tasks: BackgroundTasks
+    user_info: dict = Depends(require_auth)
 ):
     """
     重试下载任务
-    
+
     Args:
+        request: FastAPI请求对象
         task_id: 任务ID
-        
+        user_info: 当前登录用户信息
+
     Returns:
         dict: 操作结果
     """
-    # 获取MySQL仓库实例
+    import json as _json
+
     mysql_repo = get_mysql_from_request(request)
     download_task_service.set_mysql_repo(mysql_repo)
-    
+
     task = await download_task_service.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
-    
+
+    # 检查权限
+    current_user_id = get_current_user_id(user_info)
+    if task.created_by and task.created_by != current_user_id and not is_admin(user_info):
+        raise HTTPException(status_code=403, detail="无权重试此任务")
+
     # 重置任务状态
     success = await download_task_service.retry_task(task_id)
     if not success:
         raise HTTPException(status_code=400, detail="任务状态不允许重试")
-    
-    # 注意：暂时不执行后台下载，只重置任务状态
-    # 后台任务需要更复杂的连接池管理，后续完善
-    # background_tasks.add_task(download_task_service.execute_task, task_id)
-    
-    return {"message": "任务已重置，开始重新下载"}
+
+    # 从 request_data 解析文件列表并分发到 Celery
+    files = []
+    if task.request_data:
+        try:
+            files = _json.loads(task.request_data)
+        except Exception:
+            logger.warning(f"解析 request_data 失败: {task_id}")
+
+    if files:
+        from ...tasks.download_tasks import execute_download
+        execute_download.delay(task_id, files)
+        logger.info(f"重试任务已分发到Celery: {task_id}, 文件数: {len(files)}")
+    else:
+        logger.warning(f"重试任务无文件数据，仅重置状态: {task_id}")
+
+    return {"code": 200, "message": "任务已重置，开始重新下载"}
 
 
 @router.post("/cleanup")
 async def cleanup_expired_tasks(
     request: Request,
     days: int = Query(7, ge=1, le=30, description="过期天数"),
-    user_info: dict = Depends(auth_middleware.require_admin)
+    user_info: dict = Depends(require_auth)
 ):
     """
     清理过期下载任务（管理员接口）
