@@ -852,10 +852,12 @@ export class ImageUrlUtil {
       })
       
       // 调用后端API获取新的预签名URL
+      const token = localStorage.getItem('token')
       const response = await fetch(`/api/v1/image-proxy/refresh`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({ object_key: objectKey })
       })

@@ -36,23 +36,8 @@ export const reportApi = {
    * @returns Promise<ApiResponse<GenerateReportResponseData>> 生成结果
    */
   async generateReports(): Promise<ApiResponse<GenerateReportResponseData>> {
-    try {
-      // request拦截器已经返回了response.data
-      const response = await request.post('/api/v1/reports/generate') as ApiResponse<GenerateReportResponseData>
-      console.log('生成报告API调用成功:', response)
-      return response
-    } catch (error) {
-      console.error('生成报告API调用失败:', error)
-      // 即使API调用失败，也返回一个默认的成功响应，确保跳转逻辑执行
-      return {
-        code: 200,
-        message: '报告生成任务已启动（API调用失败，使用默认响应）',
-        data: {
-          status: 'started',
-          message: '报告生成中，请耐心等待...'
-        }
-      }
-    }
+    const response = await request.post('/api/v1/reports/generate') as ApiResponse<GenerateReportResponseData>
+    return response
   },
 
   /**

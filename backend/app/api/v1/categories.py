@@ -11,6 +11,7 @@ from typing import Optional, List
 import logging
 
 from ...repositories import MySQLRepository
+from ...middleware.auth_middleware import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ def get_mysql_repo():
 async def get_categories_list(
     page: int = Query(1, ge=1, description="页码"),
     size: int = Query(20, ge=1, le=100, description="每页数量"),
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -50,16 +52,17 @@ async def get_categories_list(
         offset = (page - 1) * size
         
         categories = await repo.execute_query(
-            f"""
-            SELECT 
+            """
+            SELECT
                 c.id, c.name, c.description, c.created_at,
                 COUNT(p.sku) as product_count
             FROM categories c
             LEFT JOIN products p ON c.name COLLATE utf8mb4_unicode_ci = p.category COLLATE utf8mb4_unicode_ci
             GROUP BY c.id, c.name, c.description, c.created_at
             ORDER BY c.created_at DESC
-            LIMIT {size} OFFSET {offset}
-            """
+            LIMIT %s OFFSET %s
+            """,
+            (size, offset)
         )
         
         total_result = await repo.execute_query("SELECT COUNT(*) as count FROM categories")
@@ -84,6 +87,7 @@ async def get_categories_list(
 @router.get("/{category_id}", summary="获取分类详情")
 async def get_category(
     category_id: int,
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -95,15 +99,16 @@ async def get_category(
     """
     try:
         categories = await repo.execute_query(
-            f"""
-            SELECT 
+            """
+            SELECT
                 c.id, c.name, c.description, c.created_at,
                 COUNT(p.sku) as product_count
             FROM categories c
             LEFT JOIN products p ON c.name COLLATE utf8mb4_unicode_ci = p.category COLLATE utf8mb4_unicode_ci
-            WHERE c.id = {category_id}
+            WHERE c.id = %s
             GROUP BY c.id, c.name, c.description, c.created_at
-            """
+            """,
+            (category_id,)
         )
         
         if not categories:
@@ -125,24 +130,25 @@ async def get_category(
 @router.post("", summary="创建分类")
 async def create_category(
     category: dict,
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
     创建新分类
-    
+
     - **name**: 分类名称（必需）
     - **description**: 分类描述（可选）
-    
+
     返回创建的分类信息
     """
     try:
         name = category.get('name')
         description = category.get('description', '')
-        
+
         if not name:
             raise HTTPException(status_code=400, detail="分类名称不能为空")
-        
-        await repo.execute_query(
+
+        await repo.execute_update(
             """
             INSERT INTO categories (name, description)
             VALUES (%s, %s)
@@ -167,6 +173,7 @@ async def create_category(
 async def update_category(
     category_id: int,
     category: dict,
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -194,7 +201,7 @@ async def update_category(
         
         params.append(category_id)
         
-        await repo.execute_query(
+        await repo.execute_update(
             f"UPDATE categories SET {', '.join(update_fields)} WHERE id = %s",
             tuple(params)
         )
@@ -215,17 +222,18 @@ async def update_category(
 @router.delete("/{category_id}", summary="删除分类")
 async def delete_category(
     category_id: int,
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
     删除分类
-    
+
     - **category_id**: 分类ID
-    
+
     返回删除结果
     """
     try:
-        await repo.execute_query(f"DELETE FROM categories WHERE id = {category_id}")
+        await repo.execute_delete("DELETE FROM categories WHERE id = %s", (category_id,))
         
         return {
             "code": 200,

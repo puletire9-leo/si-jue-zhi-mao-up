@@ -854,7 +854,10 @@ const previewFiles = async (task: DownloadTask) => {
     const loadingInstance = ElMessage.info('正在加载预览文件...')
 
     // 下载ZIP文件
-    const response = await fetch(`/api/v1/download-tasks/${task.id}/download`)
+    const token = localStorage.getItem('token')
+    const response = await fetch(`/api/v1/download-tasks/${task.id}/download`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    })
     if (!response.ok) {
       throw new Error(`下载失败: ${response.status}`)
     }

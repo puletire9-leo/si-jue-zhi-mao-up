@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.mapper.CompetitorSubcategoryMapper">
+
+    <!-- 批量插入子类别 -->
+    <insert id="insertBatch" parameterType="list">
+        INSERT INTO competitor_subcategories (product_id, code, rank_value, label) VALUES
+        <foreach collection="list" item="s" separator=",">
+            (#{s.productId}, #{s.code}, #{s.rankValue}, #{s.label})
+        </foreach>
+    </insert>
+
+    <!-- 按产品ID批量查询子类别 -->
+    <select id="selectByProductIds" resultType="com.sjzm.product.entity.CompetitorSubcategory">
+        SELECT * FROM competitor_subcategories
+        WHERE product_id IN
+        <foreach collection="productIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+
+</mapper>

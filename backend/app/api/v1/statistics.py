@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional
 import logging
 
+from ...middleware.auth_middleware import require_auth
 from ...repositories import MySQLRepository
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ def get_mysql_repo():
 
 
 @router.get("/dashboard", summary="获取仪表板统计数据")
-async def get_dashboard_statistics(repo: MySQLRepository = get_mysql_repo()):
+async def get_dashboard_statistics(repo: MySQLRepository = get_mysql_repo(), current_user: dict = Depends(require_auth)):
     """
     获取仪表板统计数据
     
@@ -122,7 +123,8 @@ async def get_dashboard_statistics(repo: MySQLRepository = get_mysql_repo()):
 @router.get("/image-trend", summary="获取图片趋势")
 async def get_image_trend(
     days: int = 30,
-    repo: MySQLRepository = get_mysql_repo()
+    repo: MySQLRepository = get_mysql_repo(),
+    current_user: dict = Depends(require_auth)
 ):
     """
     获取图片趋势数据
@@ -157,7 +159,7 @@ async def get_image_trend(
 
 
 @router.get("/storage", summary="获取存储统计")
-async def get_storage_statistics(repo: MySQLRepository = get_mysql_repo()):
+async def get_storage_statistics(repo: MySQLRepository = get_mysql_repo(), current_user: dict = Depends(require_auth)):
     """
     获取存储统计信息
     
@@ -202,7 +204,8 @@ async def get_storage_statistics(repo: MySQLRepository = get_mysql_repo()):
 @router.get("/user-activity", summary="获取用户活动")
 async def get_user_activity(
     days: int = 30,
-    repo: MySQLRepository = get_mysql_repo()
+    repo: MySQLRepository = get_mysql_repo(),
+    current_user: dict = Depends(require_auth)
 ):
     """
     获取用户活动数据
@@ -239,7 +242,7 @@ async def get_user_activity(
 
 
 @router.get("/image-quality", summary="获取图片质量统计")
-async def get_image_quality_statistics(repo: MySQLRepository = get_mysql_repo()):
+async def get_image_quality_statistics(repo: MySQLRepository = get_mysql_repo(), current_user: dict = Depends(require_auth)):
     """
     获取图片质量统计信息
     

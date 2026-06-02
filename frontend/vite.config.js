@@ -9,7 +9,19 @@ import { resolve } from 'path'
 export default defineConfig(({ mode }) => {
   // 加载环境变量
   const env = loadEnv(mode, process.cwd())
-  
+  // Java 后端代理目标：默认直连 product，设 VITE_USE_GATEWAY=true 走网关
+  const useGateway = env.VITE_USE_GATEWAY === 'true'
+  const javaTarget = useGateway
+    ? `http://${env.VITE_GATEWAY_HOST || 'localhost'}:${env.VITE_GATEWAY_PORT || '9000'}`
+    : mode === 'development'
+      ? `http://${env.VITE_JAVA_HOST || 'localhost'}:${env.VITE_JAVA_PORT || '8002'}`
+      : `http://${env.VITE_JAVA_HOST || 'localhost'}:${env.VITE_JAVA_PORT || '8022'}`
+  const javaUserTarget = useGateway
+    ? `http://${env.VITE_GATEWAY_HOST || 'localhost'}:${env.VITE_GATEWAY_PORT || '9000'}`
+    : mode === 'development'
+      ? `http://${env.VITE_JAVA_USER_HOST || 'java-user'}:${env.VITE_JAVA_USER_PORT || '8001'}`
+      : `http://${env.VITE_JAVA_USER_HOST || 'java-user'}:${env.VITE_JAVA_USER_PORT || '8001'}`
+
   return {
     plugins: [
       vue(),
@@ -34,9 +46,81 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       open: false,
       proxy: {
+        // Java 微服务（优先匹配）
+        '/api/v1/asin-import': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 300000,
+          logLevel: 'warn'
+        },
+        '/api/v1/competitor': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 300000,
+          logLevel: 'warn'
+        },
+        '/api/v1/scoring': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 300000,
+          logLevel: 'warn'
+        },
+        '/api/v1/filter-config': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 30000,
+          logLevel: 'warn'
+        },
+        '/api/v1/filter-presets': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 30000,
+          logLevel: 'warn'
+        },
+        '/api/v1/sellersprite-config': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 30000,
+          logLevel: 'warn'
+        },
+        '/api/v1/click-logs': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 10000,
+          logLevel: 'warn'
+        },
+        '/api/v1/deng-zong-shop': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 30000,
+          logLevel: 'warn'
+        },
+        '/api/v1/auth': {
+          target: javaUserTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 30000,
+          logLevel: 'warn'
+        },
+        '/api/v1/users': {
+          target: javaUserTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 30000,
+          logLevel: 'warn'
+        },
+        // Python 后端（兜底）
         '^/api': {
           target: mode === 'development'
-            ? `http://localhost:${env.VITE_BACKEND_PORT || '8090'}`
+            ? `http://${env.VITE_BACKEND_HOST || 'localhost'}:${env.VITE_BACKEND_PORT || '8090'}`
             : (env.VITE_API_BASE_URL || 'http://localhost:8090'),
           changeOrigin: true,
           secure: false,
@@ -98,8 +182,7 @@ export default defineConfig(({ mode }) => {
             'vue-vendor': ['vue', 'vue-router', 'pinia'],
             'axios': ['axios'],
             'echarts': ['echarts'],
-            'jszip': ['jszip'],
-            'file-saver': ['file-saver']
+            'jszip': ['jszip']
           },
           chunkFileNames: 'js/[name]-[hash].js',
           entryFileNames: 'js/[name]-[hash].js',

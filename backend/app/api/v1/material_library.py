@@ -1,4 +1,4 @@
-"""
+﻿"""
 [参考] 素材库API - 待废弃
 =========================
 
@@ -29,28 +29,33 @@ from ...models import (
 )
 
 from ...config import settings
-import sys
-import os
-# 添加项目根目录到Python路径
-# 直接计算项目根目录：从当前文件向上4级
-current_dir = os.path.dirname(os.path.abspath(__file__))
-# 向上4级: v1 -> api -> app -> backend -> 项目根目录
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_dir))))
-# 验证项目根目录
-print(f"项目根目录: {project_root}")
-sys.path.insert(0, project_root)
 from ...services.library_image_service import get_library_image_service
-from ...services.image_analysis_service import analyze_image, analyze_image_with_scores
-from ...services.baidu_image_recognition_service import analyze_image_with_baidu
-from ...services.tencent_image_recognition_service import analyze_image_with_tencent
-from ...services.tencent_llm_vision_service import analyze_image_with_llm
 from ...services.cos_service import cos_service
+from ...middleware.auth_middleware import require_auth
+
+# AI analysis config — read from settings (config.py bridge module not available in Docker)
+AI_ANALYSIS_ENGINE = getattr(settings, "AI_ANALYSIS_ENGINE", None) or "tencent"
+TENCENT_CLOUD_CONFIG = getattr(settings, "TENCENT_CLOUD_CONFIG", None) or {}
+BAIDU_AI_CONFIG = getattr(settings, "BAIDU_AI_CONFIG", None) or {}
+
+# AI analysis imports are lazy-loaded because torch/transformers may not be installed
+def _get_image_analyzer():
+    from ...services.image_analysis_service import analyze_image, analyze_image_with_scores
+    return analyze_image, analyze_image_with_scores
+
+def _get_baidu_analyzer():
+    from ...services.baidu_image_recognition_service import analyze_image_with_baidu
+    return analyze_image_with_baidu
+
+def _get_tencent_analyzer():
+    from ...services.tencent_image_recognition_service import analyze_image_with_tencent
+    return analyze_image_with_tencent
+
+def _get_llm_analyzer():
+    from ...services.tencent_llm_vision_service import analyze_image_with_llm
+    return analyze_image_with_llm
 from ...repositories import MySQLRepository
 import re
-
-# 导入配置
-sys.path.insert(0, project_root)
-from config import AI_ANALYSIS_ENGINE, BAIDU_AI_CONFIG, TENCENT_CLOUD_CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -363,6 +368,7 @@ async def get_material_library_no_slash(
     sort_order: Optional[str] = Query("desc", description="排序方向"),
     page: int = Query(1, ge=1, description="当前页码"),
     size: int = Query(20, ge=1, le=100, description="每页数量"),
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -398,6 +404,7 @@ async def get_material_library(
     sort_order: Optional[str] = Query("desc", description="排序方向"),
     page: int = Query(1, ge=1, description="当前页码"),
     size: int = Query(20, ge=1, le=100, description="每页数量"),
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -606,6 +613,7 @@ async def get_material_library(
 @router.post("")
 async def create_material_library_no_slash(
     material: MaterialLibraryCreate,
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -617,6 +625,7 @@ async def create_material_library_no_slash(
 @router.post("/")
 async def create_material_library(
     material: MaterialLibraryCreate,
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -779,7 +788,8 @@ async def create_material_library(
 
 @router.post("/analyze-image")
 async def analyze_material_image(
-    request: dict
+    request: dict,
+    current_user: dict = Depends(require_auth)
 ):
     """
     分析图片内容，自动识别元素标签
@@ -865,7 +875,7 @@ async def analyze_material_image(
                 
                 logger.info(f"使用腾讯云AI分析图片 - URL: {analysis_url is not None}, Base64: {analysis_base64 is not None}")
                 
-                tags_with_scores = await analyze_image_with_tencent(analysis_url, analysis_base64)
+                tags_with_scores = await _get_tencent_analyzer()(analysis_url, analysis_base64)
                 if tags_with_scores:
                     # 构建逗号分隔的元素字符串
                     element = ",".join([tag for tag, _ in tags_with_scores])
@@ -873,12 +883,12 @@ async def analyze_material_image(
             except Exception as e:
                 logger.error(f"腾讯云AI分析失败，回退到本地模型: {str(e)}")
                 # 回退到本地模型
-                element = await analyze_image(image_url, image_base64)
-                tags_with_scores = await analyze_image_with_scores(image_url, image_base64)
+                element = await _get_image_analyzer()[0](image_url, image_base64)
+                tags_with_scores = await _get_image_analyzer()[1](image_url, image_base64)
         elif AI_ANALYSIS_ENGINE == 'baidu' and BAIDU_AI_CONFIG.get('enabled'):
             # 使用百度AI
             try:
-                tags_with_scores = await analyze_image_with_baidu(image_url, image_base64)
+                tags_with_scores = await _get_baidu_analyzer()(image_url, image_base64)
                 if tags_with_scores:
                     # 构建逗号分隔的元素字符串
                     element = ",".join([tag for tag, _ in tags_with_scores])
@@ -886,12 +896,12 @@ async def analyze_material_image(
             except Exception as e:
                 logger.error(f"百度AI分析失败，回退到本地模型: {str(e)}")
                 # 回退到本地模型
-                element = await analyze_image(image_url, image_base64)
-                tags_with_scores = await analyze_image_with_scores(image_url, image_base64)
+                element = await _get_image_analyzer()[0](image_url, image_base64)
+                tags_with_scores = await _get_image_analyzer()[1](image_url, image_base64)
         else:
             # 使用本地Chinese CLIP模型
-            element = await analyze_image(image_url, image_base64)
-            tags_with_scores = await analyze_image_with_scores(image_url, image_base64)
+            element = await _get_image_analyzer()[0](image_url, image_base64)
+            tags_with_scores = await _get_image_analyzer()[1](image_url, image_base64)
             logger.info(f"本地CLIP模型分析完成, 识别标签: {element}")
 
         if not tags_with_scores:
@@ -928,7 +938,8 @@ async def analyze_material_image(
 
 @router.post("/analyze-image-detailed")
 async def analyze_material_image_detailed(
-    request: dict
+    request: dict,
+    current_user: dict = Depends(require_auth)
 ):
     """
     详细分析图片内容，使用腾讯云混元大模型
@@ -1000,7 +1011,7 @@ async def analyze_material_image_detailed(
                 logger.error(f"下载图片时出错: {str(download_error)}")
         
         # 使用混元大模型进行分析
-        llm_result = await analyze_image_with_llm(analysis_url, analysis_base64)
+        llm_result = await _get_llm_analyzer()(analysis_url, analysis_base64)
         
         if not llm_result:
             return {
@@ -1055,6 +1066,7 @@ async def analyze_material_image_detailed(
 @router.post("/batch-create")
 async def batch_create_material_library(
     materials: List[MaterialLibraryCreate],
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1066,6 +1078,7 @@ async def batch_create_material_library(
 @router.post("/batch-create/")
 async def _batch_create_material_library(
     materials: List[MaterialLibraryCreate],
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1194,6 +1207,7 @@ async def _batch_create_material_library(
 @router.post("/batch-delete")
 async def batch_delete_material_library(
     request: BatchOperationRequest,
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1205,6 +1219,7 @@ async def batch_delete_material_library(
 @router.post("/batch-delete/")
 async def _batch_delete_material_library(
     request: BatchOperationRequest,
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1305,6 +1320,7 @@ async def _batch_delete_material_library(
 @router.delete("/{sku}")
 async def delete_material_library(
     sku: str,
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1382,6 +1398,7 @@ async def delete_material_library(
 async def get_recycle_bin_slash(
     page: int = Query(default=1, ge=1, description="当前页码"),
     size: int = Query(default=20, ge=1, le=100, description="每页数量"),
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1394,6 +1411,7 @@ async def get_recycle_bin_slash(
 async def get_recycle_bin(
     page: int = Query(default=1, ge=1, description="当前页码"),
     size: int = Query(default=20, ge=1, le=100, description="每页数量"),
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1444,8 +1462,9 @@ async def get_recycle_bin(
         raise HTTPException(status_code=500, detail=f"获取回收站素材失败: {str(e)}")
 
 
-# 元素词库文件路径
-ELEMENT_TAGS_FILE = os.path.join(project_root, 'scripts', '元素词库', '元素词库.txt')
+# 元素词库文件路径（项目根目录 = backend/）
+_project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+ELEMENT_TAGS_FILE = os.path.join(_project_root, 'scripts', '元素词库', '元素词库.txt')
 
 
 def load_element_tags_from_file() -> list[str]:
@@ -1494,7 +1513,9 @@ def save_element_tags_to_file(elements: list[str]) -> bool:
 
 
 @router.get("/elements")
-async def get_elements():
+async def get_elements(
+    current_user: dict = Depends(require_auth)
+):
     """
     获取当前元素词库列表
 
@@ -1530,7 +1551,8 @@ async def get_elements():
 
 @router.put("/elements")
 async def update_elements(
-    elements: list[str]
+    elements: list[str],
+    current_user: dict = Depends(require_auth)
 ):
     """
     更新元素词库
@@ -1589,6 +1611,7 @@ async def update_elements(
 @router.post("/recycle-bin/batch-restore")
 async def batch_restore_material_library(
     request: BatchOperationRequest,
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1737,6 +1760,7 @@ async def batch_restore_material_library(
 
 @router.post("/process-local-files")
 async def process_material_library_local_files(
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1770,6 +1794,7 @@ async def process_material_library_local_files(
 
 @router.post("/process-all-libraries")
 async def process_all_libraries_local_files(
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1803,6 +1828,7 @@ async def process_all_libraries_local_files(
 
 @router.delete("/recycle-bin/clear")
 async def clear_material_library_recycle_bin(
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1840,6 +1866,7 @@ async def clear_material_library_recycle_bin(
 @router.delete("/recycle-bin/batch")
 async def batch_permanently_delete_material_library(
     request: BatchOperationRequest,
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -2054,6 +2081,7 @@ def extract_and_add_elements(element_str: str):
 async def update_material_library(
     sku: str,
     material: MaterialLibraryUpdate,
+    current_user: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """

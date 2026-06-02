@@ -60,14 +60,10 @@ export function collectFilesFromDraft(
 }
 
 /**
- * Make the ZIP download request and handle progress/results
+ * Make the ZIP download request — now async with Celery backend.
+ * API returns immediately with task_id; user checks progress in Download Manager.
  */
 export async function requestZipDownload(files: Array<{ url: string; filename: string }>, zipFilename: string): Promise<void> {
-  showProgress.value = true
-  downloadProgress.value = 0
-  downloadStatus.value = undefined
-  progressText.value = '准备下载...'
-
   const token = localStorage.getItem('token')
 
   const response = await fetch('/api/v1/final-drafts/download-zip', {
@@ -84,24 +80,9 @@ export async function requestZipDownload(files: Array<{ url: string; filename: s
   const result = await response.json()
   if (!result.success) throw new Error(result.message || '下载失败')
 
-  const failedCount = result.data?.failed_count || 0
-  const failedFiles = result.data?.failed_files || []
-
-  downloadProgress.value = 100
-  downloadStatus.value = failedCount > 0 ? 'warning' : 'success'
-  progressText.value = failedCount > 0 ? '任务已创建，部分文件失败' : '任务创建成功'
-
-  setTimeout(() => { showProgress.value = false }, 2000)
-
-  if (failedCount > 0) {
-    const failedSkuList = [...new Set(
-      failedFiles.map((f: { filename: string }) => {
-        const m = f.filename.match(/(?:设计稿|效果图)-(.*?)[.-]/)
-        return m?.[1] ?? '?'
-      })
-    )].join(', ')
-    ElMessage.warning(`部分SKU下载失败: ${failedSkuList}。请前往下载中心查看详情。`)
-  } else {
-    ElMessage.success('下载任务已创建，请前往下载中心查看')
-  }
+  ElMessage.success({
+    message: result.message || '任务已创建，预计 1-3 分钟完成',
+    duration: 5000,
+    showClose: true,
+  })
 }

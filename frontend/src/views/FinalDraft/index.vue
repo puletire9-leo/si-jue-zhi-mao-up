@@ -144,7 +144,7 @@
             <!-- 全选/取消全选图片按钮 -->
             <el-button 
               :type="isAllSelected ? 'default' : 'info'" 
-              :icon="isAllSelected ? 'Close' : 'Collection'" 
+              :icon="isAllSelected ? CircleClose : Collection" 
               size="small"
               @click="handleSelectAll"
               class="select-all-btn"
@@ -425,7 +425,7 @@ defineOptions({ name: 'FinalDraft' })
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-// import { Plus, Upload, Download, Sort, Search, Refresh, Collection, Check, ArrowDown, Delete, List, Filter, Edit } from '@element-plus/icons-vue'
+import { Plus, Upload, Download, Sort, Search, Refresh, Collection, Check, ArrowDown, Delete, List, Filter, Edit, CircleClose } from '@element-plus/icons-vue'
 
 // 导入组件
 import DraftCard from './components/DraftCard.vue'
@@ -495,20 +495,6 @@ const {
   handleAdvancedSearch,
 } = useDraftList()
 
-// 使用字符串代替图标，减少内存占用
-const Plus = 'Plus'
-const Upload = 'Upload'
-const Download = 'Download'
-const Sort = 'Sort'
-const Search = 'Search'
-const Refresh = 'Refresh'
-const Collection = 'Collection'
-const Check = 'Check'
-const ArrowDown = 'ArrowDown'
-const Delete = 'Delete'
-const List = 'List'
-const Filter = 'Filter'
-const Edit = 'Edit'
 
 // 类型定义
 interface Draft {

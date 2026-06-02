@@ -5,6 +5,7 @@ import {
   Odometer,
   Box,
   Star,
+  Shop,
   Picture,
   Brush,
   Upload,
@@ -31,7 +32,7 @@ const router = useRouter()
 
 const menuItems: MenuItem[] = [
   { index: '/dashboard', title: '首页', icon: Odometer },
-  { index: '/products', title: '产品管理', icon: Box },
+  // 产品管理暂时屏蔽（Python 后端未迁移）
   {
     index: 'selection',
     title: '选品中心',
@@ -40,7 +41,9 @@ const menuItems: MenuItem[] = [
       { index: '/all-selection', title: '总选品管理', icon: Star },
       { index: '/new-products', title: '新品榜', icon: Star },
       { index: '/reference-products', title: '竞品店铺', icon: Star },
-      { index: '/zheng-products', title: '郑总店铺上新', icon: Star }
+      { index: '/zheng-products', title: '郑总店铺上新', icon: Star },
+      { index: '/zheng-shop-overview', title: '店铺总览', icon: Shop },
+      { index: '/asin-import', title: '卖家精灵数据获取', icon: Star }
     ]
   },
   {

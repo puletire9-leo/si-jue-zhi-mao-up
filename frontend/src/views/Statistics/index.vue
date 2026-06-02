@@ -179,7 +179,7 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'Statistics' })
-import { ref, reactive, onMounted, watch, nextTick } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { Box, Picture, User, FolderOpened } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
@@ -231,7 +231,7 @@ const loadImageTrend = async () => {
 const loadStorageStatistics = async () => {
   try {
     const data = await statisticsApi.getStorageStatistics()
-    renderStorageChart(data.data.by_type || [])
+    renderStorageChart(data.data || [])
   } catch (error) {
     ElMessage.error('加载存储统计失败')
     console.error('加载存储统计失败:', error)
@@ -242,7 +242,7 @@ const loadStorageStatistics = async () => {
 const loadImageQualityStatistics = async () => {
   try {
     const data = await statisticsApi.getImageQualityStatistics()
-    renderQualityChart(data.data.resolution_distribution || [])
+    renderQualityChart(data.data || [])
   } catch (error) {
     ElMessage.error('加载图片质量统计失败')
     console.error('加载图片质量统计失败:', error)
@@ -253,7 +253,7 @@ const loadImageQualityStatistics = async () => {
 const loadUserActivity = async () => {
   try {
     const data = await statisticsApi.getUserActivity(30)
-    renderActivityChart(data.data.daily_activity || [])
+    renderActivityChart(data.data || [])
   } catch (error) {
     ElMessage.error('加载用户活动统计失败')
     console.error('加载用户活动统计失败:', error)
@@ -452,17 +452,27 @@ const initializeData = async () => {
   }
 }
 
+const handleResize = () => {
+  imageTrendChartInstance?.resize()
+  storageChartInstance?.resize()
+  qualityChartInstance?.resize()
+  activityChartInstance?.resize()
+}
+
 onMounted(() => {
   initializeData()
 
   nextTick(() => {
-    window.addEventListener('resize', () => {
-      imageTrendChartInstance?.resize()
-      storageChartInstance?.resize()
-      qualityChartInstance?.resize()
-      activityChartInstance?.resize()
-    })
+    window.addEventListener('resize', handleResize)
   })
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  imageTrendChartInstance?.dispose()
+  storageChartInstance?.dispose()
+  qualityChartInstance?.dispose()
+  activityChartInstance?.dispose()
 })
 </script>
 

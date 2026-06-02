@@ -1,21 +1,41 @@
 # ============================================
-# 思觉智贸 - 开发环境
-# 启动: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# 思觉智贸 - 开发环境（自包含）
+# 启动: docker compose -f docker-compose.dev.yml up -d
 # ============================================
 
 services:
   mysql:
+    image: mysql:8.0
     container_name: dev-mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     ports:
       - "3307:3306"
     environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: sijue
+      MYSQL_PASSWORD: sijue123456
       MYSQL_DATABASE: sijuelishi_dev
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
+    image: redis:7-alpine
     container_name: dev-redis
     command: redis-server --port 6379
     ports:
       - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
     build:
@@ -34,6 +54,9 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - IMAGE_READ_MODE=cloud
+      - BACKUP_DIR=/app/backup
+      - JWT_SECRET=sjzm-dev-jwt-secret-change-in-production
+      - SECRET_KEY=sjzm-dev-secret-key-change-in-production
     ports:
       - "8090:8090"
     volumes:
@@ -41,9 +64,11 @@ services:
       - ./backend/uploads:/app/uploads
       - ./backend/static:/app/static
       - ./backend/logs:/app/logs
+      - ./backend/database/backup:/app/backup
       - dev-thumbnails:/app/images/thumbnails
       - dev-models:/app/model_cache
       - ./产品数据:/app/data:ro
+      - ./领星:/app/领星
     command: uvicorn app.main:app --host 0.0.0.0 --port 8090 --reload --reload-dir app
     depends_on:
       mysql:
@@ -56,7 +81,15 @@ services:
     container_name: dev-frontend
     working_dir: /app
     environment:
+      NODE_OPTIONS: --max-old-space-size=2048
+      VITE_BACKEND_HOST: backend
       VITE_BACKEND_PORT: "8090"
+      VITE_JAVA_HOST: java-product
+      VITE_JAVA_PORT: "8002"
+      # 走网关代理时取消下面注释，并注释上面两行
+      # VITE_USE_GATEWAY: "true"
+      # VITE_GATEWAY_HOST: gateway
+      # VITE_GATEWAY_PORT: "9000"
     ports:
       - "8179:8179"
     volumes:
@@ -67,7 +100,113 @@ services:
     depends_on:
       - backend
 
+  # ── Java 微服务 ──
+
+  java-product:
+    image: maven:3.9-eclipse-temurin-21
+    container_name: java-product
+    working_dir: /app
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./java-backend:/app
+      - java-m2:/root/.m2
+    command: sh -c "mvn install -pl sjzm-product -am -DskipTests -q && java -Xms256m -Xmx512m -jar sjzm-product/target/app.jar"
+    environment:
+      NACOS_ENABLED: "true"
+      NACOS_SERVER_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: sijuelishi_dev
+      MYSQL_USERNAME: sijue
+      MYSQL_PASSWORD: sijue123456
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDISSON_ADDRESS: redis://redis:6379
+      SELLERSPRITE_SECRET_KEY: d03bb00611a44f9ca30bf58205ac0f00
+      JWT_SECRET: sjzm-dev-jwt-secret-change-in-production
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+    restart: unless-stopped
+
+  gateway:
+    image: maven:3.9-eclipse-temurin-21
+    container_name: dev-gateway
+    working_dir: /app
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./java-backend:/app
+      - java-m2:/root/.m2
+    command: sh -c "mvn install -pl sjzm-gateway -am -DskipTests -q && java -Xms128m -Xmx256m -jar sjzm-gateway/target/app.jar"
+    environment:
+      NACOS_ENABLED: "true"
+      NACOS_SERVER_ADDR: nacos:8848
+      SJZM_USER_URI: http://java-user:8001
+      SJZM_PRODUCT_URI: http://java-product:8002
+      GATEWAY_AUTH_ENABLED: "false"  # 开发环境关闭JWT认证
+    depends_on:
+      - java-user
+      - java-product
+      - nacos
+    restart: unless-stopped
+
+  java-user:
+    image: maven:3.9-eclipse-temurin-21
+    container_name: java-user
+    working_dir: /app
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./java-backend:/app
+      - java-m2:/root/.m2
+    command: sh -c "mvn install -pl sjzm-user -am -DskipTests -q && java -Xms128m -Xmx256m -jar sjzm-user/target/app.jar"
+    environment:
+      NACOS_ENABLED: "true"
+      NACOS_SERVER_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: sijuelishi_dev
+      MYSQL_USERNAME: sijue
+      MYSQL_PASSWORD: sijue123456
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDISSON_ADDRESS: redis://redis:6379
+      JWT_SECRET: sjzm-dev-jwt-secret-change-in-production
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+    restart: unless-stopped
+
+  nacos:
+    image: nacos/nacos-server:v2.3.1
+    container_name: dev-nacos
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    environment:
+      - MODE=standalone
+      - PREFER_HOST_MODE=hostname
+    volumes:
+      - nacos-logs:/home/nacos/logs
+      - nacos-data:/home/nacos/data
+    restart: unless-stopped
+
 volumes:
+  mysql-data:
+  redis-data:
+  java-m2:
   dev-thumbnails:
   dev-models:
   dev-node-modules:
+  nacos-logs:
+  nacos-data:

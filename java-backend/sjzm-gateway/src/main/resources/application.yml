@@ -1,0 +1,117 @@
+server:
+  port: 9000
+
+spring:
+  application:
+    name: sjzm-gateway
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  main:
+    web-application-type: reactive
+    allow-bean-definition-overriding: true
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        enabled: ${NACOS_ENABLED:false}
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        enabled: ${NACOS_CONFIG_ENABLED:false}
+        file-extension: yaml
+
+    gateway:
+      server:
+        webflux:
+          discovery:
+            locator:
+              enabled: false
+          routes:
+            - id: sjzm-user
+              uri: http://java-user:8001
+              predicates:
+                - Path=/api/v1/auth/**,/api/v1/users/**
+            - id: sjzm-product
+              uri: http://java-product:8002
+              predicates:
+                - Path=/api/v1/products/**,/api/v1/selections/**,/api/v1/competitor/**,/api/v1/product-sales/**,/api/v1/filter-config/**,/api/v1/asin-import/**,/api/v1/scoring/**,/api/v1/filter-presets/**,/api/v1/sellersprite-config/**,/api/v1/click-logs/**,/api/v1/deng-zong-shop/**
+            - id: sjzm-customization
+              uri: http://java-product:8002
+              predicates:
+                - Path=/api/v1/final-drafts/**,/api/v1/materials/**,/api/v1/carriers/**
+            - id: sjzm-image
+              uri: http://java-product:8002
+              predicates:
+                - Path=/api/v1/images/**,/api/v1/image-proxy/**
+
+jwt:
+  secret: ${JWT_SECRET:sjzm-default-secret-key-must-change-in-production-2024}
+
+rbac:
+  roles:
+    admin:
+      - "*"
+    developer:
+      - "dashboard:view"
+      - "product:view"
+      - "product:create"
+      - "product:edit"
+      - "product:delete"
+      - "image:view"
+      - "image:upload"
+      - "image:delete"
+      - "image:search"
+      - "data:export"
+      - "data:import"
+    editor:
+      - "product:view"
+      - "product:create"
+      - "product:edit"
+      - "image:view"
+      - "image:upload"
+      - "data:export"
+      - "data:import"
+    user:
+      - "product:view"
+      - "image:view"
+    viewer:
+      - "product:view"
+      - "image:view"
+    # 中文角色名
+    管理员:
+      - "*"
+    开发:
+      - "product:view"
+      - "product:create"
+      - "product:edit"
+      - "product:delete"
+      - "image:view"
+      - "image:upload"
+      - "image:search"
+      - "data:export"
+      - "data:import"
+    美术:
+      - "product:view"
+      - "image:view"
+      - "image:upload"
+    仓库:
+      - "product:view"
+      - "image:view"
+    运营:
+      - "product:view"
+
+  # 路由 → 所需权限映射
+  route-permissions:
+    "/api/v1/users/**": "user:manage"
+    "/api/v1/competitor/lookup": "data:import"
+
+gateway:
+  auth:
+    enabled: ${GATEWAY_AUTH_ENABLED:true}
+
+logging:
+  level:
+    root: info
+    com.sjzm.gateway: debug
+    org.springframework.cloud.gateway: info

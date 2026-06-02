@@ -11,9 +11,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Query, Body
 from typing import Optional, List, Dict, Any
 import logging
 import hashlib
+import bcrypt
 
 from ...repositories import MySQLRepository
-from ...middleware.auth_middleware import auth_middleware
+from ...middleware.auth_middleware import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ def get_mysql_repo():
 async def get_users_list(
     page: int = Query(1, ge=1, description="页码"),
     size: int = Query(20, ge=1, le=100, description="每页数量"),
-    user_info: dict = Depends(auth_middleware.require_admin()),
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -88,7 +89,7 @@ async def get_users_list(
 @router.get("/{user_id}", summary="获取用户详情")
 async def get_user(
     user_id: int,
-    user_info: dict = Depends(auth_middleware.require_admin()),
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -125,7 +126,7 @@ async def get_user(
 @router.post("", summary="创建用户")
 async def create_user(
     user: dict,
-    user_info: dict = Depends(auth_middleware.require_admin()),
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -146,8 +147,8 @@ async def create_user(
         if not username or not password:
             raise HTTPException(status_code=400, detail="用户名和密码不能为空")
         
-        # 对密码进行MD5哈希处理
-        password_hash = hashlib.md5(password.encode()).hexdigest()
+        # 对密码进行bcrypt哈希处理
+        password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
         
         await repo.execute_update(
             """
@@ -180,7 +181,7 @@ async def create_user(
 async def update_user(
     user_id: int,
     user: dict,
-    user_info: dict = Depends(auth_middleware.require_admin()),
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -232,7 +233,7 @@ async def update_user(
 @router.delete("/{user_id}", summary="删除用户")
 async def delete_user(
     user_id: int,
-    user_info: dict = Depends(auth_middleware.require_admin()),
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -260,7 +261,7 @@ async def delete_user(
 async def update_user_password(
     user_id: int,
     request_data: Dict[str, Any] = Body(..., description="密码更新请求"),
-    user_info: dict = Depends(auth_middleware.require_admin()),
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -291,14 +292,21 @@ async def update_user_password(
         if not users:
             raise HTTPException(status_code=404, detail="用户不存在")
         
-        # 验证旧密码
-        old_password_hash = hashlib.md5(old_password.encode()).hexdigest()
-        if users[0]['password'] != old_password_hash:
-            raise HTTPException(status_code=400, detail="旧密码错误")
-        
-        # 更新密码
-        new_password_hash = hashlib.md5(new_password.encode()).hexdigest()
-        await repo.execute_query(
+        # 验证旧密码（兼容 bcrypt 和 MD5）
+        stored_password = users[0]['password']
+        if stored_password and stored_password.startswith('$2'):
+            # bcrypt hash
+            if not bcrypt.checkpw(old_password.encode(), stored_password.encode()):
+                raise HTTPException(status_code=400, detail="旧密码错误")
+        else:
+            # MD5 hash (legacy)
+            old_password_hash = hashlib.md5(old_password.encode()).hexdigest()
+            if stored_password != old_password_hash:
+                raise HTTPException(status_code=400, detail="旧密码错误")
+
+        # 更新密码（使用 bcrypt）
+        new_password_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+        await repo.execute_update(
             "UPDATE users SET password = %s WHERE id = %s",
             (new_password_hash, user_id)
         )
@@ -322,7 +330,7 @@ async def update_user_password(
 async def update_user_role(
     user_id: int,
     request_data: Dict[str, Any] = Body(..., description="角色更新请求"),
-    user_info: dict = Depends(auth_middleware.require_admin()),
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -357,7 +365,7 @@ async def update_user_role(
             raise HTTPException(status_code=404, detail="用户不存在")
         
         # 更新角色
-        await repo.execute_query(
+        await repo.execute_update(
             "UPDATE users SET role = %s WHERE id = %s",
             (role, user_id)
         )

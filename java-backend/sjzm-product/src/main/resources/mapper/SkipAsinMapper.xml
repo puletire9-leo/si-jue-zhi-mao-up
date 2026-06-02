@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.mapper.SkipAsinMapper">
+
+    <!-- 批量 INSERT IGNORE: 唯一键冲突时静默跳过 -->
+    <insert id="insertBatchIgnoreDup" parameterType="list">
+        INSERT IGNORE INTO skip_asins (
+            asin, title, image_url, price, bsr, monthly_sales, listing_days,
+            weight_g, fulfillment, seller_nation, filter_reasons, marketplace
+        ) VALUES
+        <foreach collection="list" item="s" separator=",">
+            (#{s.asin}, #{s.title}, #{s.imageUrl}, #{s.price}, #{s.bsr}, #{s.monthlySales},
+             #{s.listingDays}, #{s.weightG}, #{s.fulfillment}, #{s.sellerNation},
+             #{s.filterReasons}, #{s.marketplace})
+        </foreach>
+    </insert>
+
+    <!-- 批量查重：给定 ASIN 列表，返回已存在于 skip_asins 的 ASIN -->
+    <select id="selectExistingAsinsInList" resultType="string">
+        SELECT DISTINCT asin FROM skip_asins
+        WHERE marketplace = #{marketplace} AND asin IN
+        <foreach collection="asins" item="a" open="(" separator="," close=")">#{a}</foreach>
+    </select>
+
+</mapper>

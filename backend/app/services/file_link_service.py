@@ -162,7 +162,7 @@ class FileLinkService:
         query = f"UPDATE file_links SET {', '.join(update_fields)} WHERE id = %s"
         params.append(link_id)
         
-        await self.db_repo.execute_update(query, params)
+        await self.db_repo.execute_update(query, tuple(params))
         
         return await self.get_file_link(link_id)
     
@@ -184,7 +184,7 @@ class FileLinkService:
         placeholders = ','.join(['%s'] * len(link_ids))
         query = f"DELETE FROM file_links WHERE id IN ({placeholders})"
         
-        result = await self.db_repo.execute_delete(query, link_ids)
+        result = await self.db_repo.execute_delete(query, tuple(link_ids))
         
         return result
     
@@ -250,7 +250,7 @@ class FileLinkService:
         """
         
         results = await self.db_repo.execute_query(query, (library_type,))
-        return [row[0] for row in results if row[0]]
+        return [row['category'] for row in results if row['category']]
     
     def _validate_link_type(self, url: str, link_type: FileLinkType):
         """验证链接类型"""

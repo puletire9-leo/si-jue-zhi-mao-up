@@ -36,13 +36,20 @@ export const uploadLingxingImage = async (file: File): Promise<{
 /**
  * 下载领星导入模板
  */
-export const downloadTemplate = () => {
+export const downloadTemplate = async (): Promise<void> => {
+  const response = await request({
+    url: '/api/v1/lingxing/download-template',
+    method: 'get',
+    responseType: 'blob',
+  })
+  const url = window.URL.createObjectURL(response)
   const link = document.createElement('a')
-  link.href = '/templates/产品汇总表-模版.xlsx'
+  link.href = url
   link.download = '产品汇总表-模版.xlsx'
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
+  window.URL.revokeObjectURL(url)
 }
 
 export default {

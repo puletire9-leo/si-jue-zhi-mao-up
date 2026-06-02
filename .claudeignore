@@ -1,0 +1,65 @@
+# Python 缓存与虚拟环境
+__pycache__/
+*.py[cod]
+venv/
+backend/venv/
+backend/__pycache__/
+
+# Node 依赖与构建产物
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Java 构建产物
+java-backend/**/target/
+*.class
+
+# 运行时日志
+logs/
+*.log
+backend/logs/
+
+# 上传文件与数据（运行时生成）
+uploads/
+images/
+backend/uploads/
+backend/images/
+backend/data/
+
+# 备份
+backup/
+backend/backup/
+model_cache/
+
+# 静态文件缓存
+backend/static/
+static/
+
+# 数据库 dump
+*.rdb
+*.sql.gz
+
+# IDE 配置
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 环境敏感文件
+.env
+.env.local
+.env.production
+
+# OS 噪音
+.DS_Store
+Thumbs.db
+*.pid
+
+# 大文件（工具链 + 数据）
+tool/node.js/
+tool/apache-maven-3.9.16/
+*.parquet
+
+# 临时文件
+temp/
+tmp/

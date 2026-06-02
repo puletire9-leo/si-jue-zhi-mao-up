@@ -26,7 +26,7 @@ class SelectionProductBase(BaseModel):
     notes: Optional[str] = Field(None, description="备注信息")
     product_link: Optional[str] = Field(None, description="商品链接", alias="productLink")
     sales_volume: Optional[int] = Field(None, ge=0, description="销量", alias="salesVolume")
-    listing_date: Optional[datetime] = Field(None, description="上架时间", alias="listingDate")
+    listing_date: Optional[int] = Field(None, description="上架天数（INT）", alias="listingDate")
     delivery_method: Optional[str] = Field(None, max_length=50, description="配送方式", alias="deliveryMethod")
     similar_products: Optional[str] = Field(None, description="相似商品", alias="similarProducts")
     source: Optional[str] = Field(None, max_length=50, description="来源")
@@ -44,7 +44,7 @@ class SelectionProductCreate(SelectionProductBase):
     
     用于创建新的选品产品
     """
-    product_type: str = Field("new", description="产品类型：new(新品榜)/reference(竞品店铺)", pattern="^(new|reference)$", alias="productType")
+    product_type: str = Field("new", description="产品类型：new(新品榜)/reference(竞品店铺)/zheng(整店)", pattern="^(new|reference|zheng)$", alias="productType")
 
 
 class SelectionProductUpdate(BaseModel):

@@ -22,6 +22,7 @@ from ...models.scoring import (
     RecalculateResponse,
     GradeStatsItem,
 )
+from ...middleware.auth_middleware import require_auth
 from ...services.scoring_engine import ScoringEngine
 from ...services.selection_service import SelectionService
 
@@ -38,7 +39,7 @@ def get_mysql():
 
 
 @router.get("/config", summary="获取评分配置")
-async def get_scoring_config(mysql=get_mysql()):
+async def get_scoring_config(mysql=get_mysql(), current_user: dict = Depends(require_auth)):
     """获取评分维度配置和等级阈值"""
     try:
         # 获取维度配置
@@ -84,7 +85,7 @@ async def get_scoring_config(mysql=get_mysql()):
 
 
 @router.put("/config", summary="更新评分配置")
-async def update_scoring_config(request: ScoringConfigUpdateRequest, mysql=get_mysql()):
+async def update_scoring_config(request: ScoringConfigUpdateRequest, mysql=get_mysql(), current_user: dict = Depends(require_auth)):
     """更新评分维度配置和/或等级阈值"""
     try:
         async with mysql.get_connection() as conn:
@@ -138,7 +139,7 @@ async def update_scoring_config(request: ScoringConfigUpdateRequest, mysql=get_m
 
 
 @router.post("/recalculate", summary="重新评分")
-async def recalculate_scores(request: RecalculateRequest, mysql=get_mysql()):
+async def recalculate_scores(request: RecalculateRequest, mysql=get_mysql(), current_user: dict = Depends(require_auth)):
     """重新评分所有数据或仅本周数据"""
     try:
         engine = ScoringEngine(mysql)
@@ -192,7 +193,7 @@ async def recalculate_scores(request: RecalculateRequest, mysql=get_mysql()):
 
 
 @router.post("/score-current-week", summary="评分本周数据")
-async def score_current_week(mysql=get_mysql()):
+async def score_current_week(mysql=get_mysql(), current_user: dict = Depends(require_auth)):
     """对本周未评分的数据进行评分"""
     try:
         engine = ScoringEngine(mysql)
@@ -242,7 +243,7 @@ async def score_current_week(mysql=get_mysql()):
 
 
 @router.get("/grade-stats", summary="等级统计")
-async def get_grade_stats(scope: str = "all", mysql=get_mysql()):
+async def get_grade_stats(scope: str = "all", mysql=get_mysql(), current_user: dict = Depends(require_auth)):
     """获取各等级数量统计"""
     try:
         stats = await _get_grade_stats(mysql, scope)

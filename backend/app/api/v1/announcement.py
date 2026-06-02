@@ -3,7 +3,7 @@ from typing import Optional
 import logging
 from pydantic import BaseModel
 
-from ...middleware.auth_middleware import auth_middleware
+from ...middleware.auth_middleware import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ async def get_announcement(mysql_repo=get_mysql_repo()):
 @router.put("", summary="更新公告")
 async def update_announcement(
     body: AnnouncementUpdate,
-    user_info: dict = Depends(auth_middleware.require_admin()),
+    user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """更新公告内容（仅管理员）"""

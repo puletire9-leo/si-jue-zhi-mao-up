@@ -9,7 +9,7 @@
     
     <div class="card-image-wrapper">
       <el-image
-        :src="getImageUrl()"
+        :src="imageUrl"
         :preview="false"
         fit="cover"
         class="card-image"
@@ -42,18 +42,11 @@
         {{ timeTag }}
       </div>
       
-      <!-- 链接按钮组 -->
-      <div class="card-link-buttons">
-        <!-- 产品链接按钮 -->
-        <div v-if="showProductLink && productLink" class="card-link-button product-link" @click.stop="handleProductLink" title="产品链接">
-          <el-icon><Link /></el-icon>
-          <span class="link-text">产品</span>
-        </div>
-        
-        <!-- 相似图片链接按钮 -->
-        <div v-if="showSimilarProductsLink && similarProductsLink" class="card-link-button similar-products-link" @click.stop="handleSimilarProductsLink" title="相似图片链接">
-          <el-icon><Link /></el-icon>
-          <span class="link-text">相似图片</span>
+      <!-- 一键打开按钮 -->
+      <div v-if="productLink || similarProductsLink" class="card-link-buttons">
+        <div class="card-link-button open-all-link" @click.stop="handleOpenAll" title="一键打开：商品链接 + 相似图片 + 德国相似图片">
+          <el-icon><Promotion /></el-icon>
+          <span class="link-text">一键打开</span>
         </div>
       </div>
       
@@ -83,7 +76,10 @@
       <div class="card-title" :title="titleText">
         {{ titleText }}
       </div>
-      
+      <div v-if="product.variantCount > 1" class="card-variant-badge">
+        {{ product.variantCount }} 变体
+      </div>
+
       <div v-if="showMeta" class="card-meta">
         <div v-if="price" class="meta-item">
           <el-icon class="meta-icon"><Money /></el-icon>
@@ -101,7 +97,7 @@
       
       <div v-if="showTags && tags && tags.length > 0" class="card-tags">
         <el-tag
-          v-for="(tag, index) in tags.slice(0, 3)"
+          v-for="(tag, index) in visibleTags"
           :key="index"
           size="small"
           type="info"
@@ -110,51 +106,65 @@
           {{ tag }}
         </el-tag>
         <el-tag
-          v-if="tags.length > 3"
+          v-if="extraTagsCount > 0"
           size="small"
           type="info"
           effect="plain"
         >
-          +{{ tags.length - 3 }}
+          +{{ extraTagsCount }}
         </el-tag>
       </div>
       
       <div v-if="showTypeTag && typeTagText" class="card-type-tag">
-        <el-tag :type="getTypeTagType()" size="small">
+        <el-tag :type="typeTagType" size="small">
           {{ typeTagText }}
         </el-tag>
       </div>
       
-      <div v-if="(showCreateTime && createTime) || (props.mode === 'selection' && props.product.listingDate)" class="card-footer">
+      <div v-if="(showCreateTime && createTime) || (props.mode === 'selection' && (props.product.listingDate || props.product.availableDate))" class="card-footer">
         <span class="create-time">
-          {{ props.mode === 'selection' && props.product.listingDate ? formatListingDate(props.product.listingDate) : formatCreateTime(createTime) }}
+          {{ footerDateText }}
         </span>
       </div>
+    </div>
+
+    <div class="card-select-bar" :class="{ selected: props.isSelectedByMe }" @click.stop="handleSelectProduct">
+      <el-icon :size="18"><Select /></el-icon>
+      <span>{{ props.isSelectedByMe ? '已选中' : '选中此产品' }}</span>
+    </div>
+    <div v-if="props.selectedByUsers && props.selectedByUsers.length > 0" class="card-select-users">
+      <el-icon :size="12"><Select /></el-icon>
+      <span class="select-users-text">{{ selectedByUsersText }}</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { Picture, Money, Shop, Folder, View, Delete, TrendCharts, Link } from '@element-plus/icons-vue'
-import type { CheckboxValueType } from 'element-plus'
+import { Picture, Money, Shop, Folder, View, Delete, TrendCharts, Select, Promotion } from '@element-plus/icons-vue'
+import { trackClick } from '@/api/clickLog'
 
 interface Props {
   product: Record<string, any>
   selected?: boolean
   mode?: 'product' | 'selection'
+  isSelectedByMe?: boolean
+  selectedByUsers?: { userId: number; userName: string }[]
 }
 
 interface Emits {
   (e: 'click', product: Record<string, any>): void
   (e: 'select', id: string | number, selected: boolean): void
+  (e: 'toggle-select', asin: string, selected: boolean): void
   (e: 'delete', product: Record<string, any>): void
   (e: 'view', product: Record<string, any>): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   selected: false,
-  mode: 'product'
+  mode: 'product',
+  isSelectedByMe: false,
+  selectedByUsers: () => []
 })
 
 const emit = defineEmits<Emits>()
@@ -179,9 +189,7 @@ const modeConfig = computed(() => {
       showTypeTag: false,
       showCreateTime: true,
       showViewButton: true,
-      showSalesVolume: true,
-      showProductLink: true,
-      showSimilarProductsLink: true
+      showSalesVolume: true
     }
   }
   return {
@@ -196,44 +204,74 @@ const modeConfig = computed(() => {
     showTypeTag: true,
     showCreateTime: false,
     showViewButton: false,
-    showSalesVolume: false,
-    showProductLink: false,
-    showSimilarProductsLink: false
+    showSalesVolume: false
   }
 })
 
 const showId = computed(() => modeConfig.value.showId)
 const idText = computed(() => props.product[modeConfig.value.idField] || '')
 const showTitle = computed(() => modeConfig.value.showTitle)
-const titleText = computed(() => props.product[modeConfig.value.titleField] || '')
+const titleText = computed(() => {
+  const field = modeConfig.value.titleField
+  return props.product[field] || props.product['title'] || props.product['productTitle'] || ''
+})
 const showMeta = computed(() => modeConfig.value.showMeta)
 const price = computed(() => props.product.price)
-const storeName = computed(() => props.product.storeName)
+const storeName = computed(() => props.product.storeName || props.product.sellerName || '')
 const category = computed(() => props.product.category)
 const showTags = computed(() => modeConfig.value.showTags)
 const tags = computed(() => props.product.tags)
-const showTypeBadge = computed(() => modeConfig.value.showTypeBadge)
-const productType = computed(() => props.product[modeConfig.value.typeField])
+const productType = computed(() => {
+  const raw = props.product[modeConfig.value.typeField]
+  if (raw) return raw
+  // 从 source 字段推断
+  const src = props.product.source || ''
+  if (src.includes('新品')) return 'new'
+  if (src.includes('竞品')) return 'reference'
+  if (src.includes('郑总')) return 'zheng'
+  return ''
+})
 const typeBadgeText = computed(() => {
   if (props.mode === 'selection') {
-    return props.product.productType === 'new' ? '新品' : '竞品'
+    const pt = productType.value || props.product.productType
+    return pt === 'new' ? '新品' : '竞品'
   }
   return ''
 })
-const showTypeTag = computed(() => modeConfig.value.showTypeTag)
+const showTypeBadge = computed(() => modeConfig.value.showTypeBadge)
 const typeTagText = computed(() => props.product.type || '')
+const showTypeTag = computed(() => modeConfig.value.showTypeTag)
 const showCreateTime = computed(() => modeConfig.value.showCreateTime)
 const createTime = computed(() => props.product.createdAt || props.product.created_at)
 const showViewButton = computed(() => modeConfig.value.showViewButton)
 const showSalesVolume = computed(() => modeConfig.value.showSalesVolume)
-const salesVolume = computed(() => props.product.salesVolume)
+const salesVolume = computed(() => props.product.salesVolume || props.product.units || 0)
 const showProductLink = computed(() => modeConfig.value.showProductLink)
-const productLink = computed(() => props.product.productLink)
-const showSimilarProductsLink = computed(() => modeConfig.value.showSimilarProductsLink)
-const similarProductsLink = computed(() => props.product.similarProducts || props.product.similarProductsLink)
+const productLink = computed(() => props.product.productLink || props.product.productUrl || '')
+const similarProductsLink = computed(() => props.product.similarProducts || props.product.similarUrl || '')
 
-const grade = computed(() => props.product.grade)
+const visibleTags = computed(() => (props.product.tags || []).slice(0, 3))
+const extraTagsCount = computed(() => Math.max(0, (props.product.tags || []).length - 3))
+
+const selectedByUsersText = computed(() =>
+  (props.selectedByUsers || []).map((u: any) => u.userName).join('、')
+)
+
+const footerDateText = computed(() => {
+  if (props.mode === 'selection' && (props.product.listingDate || props.product.availableDate)) {
+    return formatListingDate(props.product.listingDate || props.product.availableDate)
+  }
+  return formatCreateTime(createTime.value)
+})
+
+const grade = computed(() => {
+  const filterMode = props.product.dataFilterMode || props.product.filterMode || ''
+  if (filterMode === 'FAIL') return '不通过'
+  return props.product.grade
+})
 const gradeColor = computed(() => {
+  const filterMode = props.product.dataFilterMode || props.product.filterMode || ''
+  if (filterMode === 'FAIL') return '#F56C6C'
   const colors: Record<string, string> = {
     'S': '#67C23A',
     'A': '#409EFF',
@@ -287,7 +325,7 @@ const timeTagClass = computed(() => {
   return 'time-normal'
 })
 
-const getImageUrl = (): string => {
+const imageUrl = computed((): string => {
   // 优先显示参考图
   const referenceImages = props.product.reference_images || props.product.referenceImages || []
   if (Array.isArray(referenceImages) && referenceImages.length > 0) {
@@ -313,36 +351,7 @@ const getImageUrl = (): string => {
     return props.product.image
   }
   return '/images/default.png'
-}
-
-const getPreviewImages = (): string[] => {
-  const images: string[] = []
-  
-  // 优先添加参考图
-  const referenceImages = props.product.reference_images || props.product.referenceImages || []
-  if (Array.isArray(referenceImages)) {
-    images.push(...referenceImages)
-  }
-  
-  // 检查单个参考图字段
-  if (props.product.referenceImage) {
-    images.push(props.product.referenceImage)
-  }
-  
-  // 添加原有图片
-  if (props.product.localPath) {
-    images.push(`/images/${props.product.localPath}`)
-  }
-  if (props.product.imageUrl) {
-    images.push(props.product.imageUrl)
-  }
-  if (props.product.image) {
-    images.push(props.product.image)
-  }
-  
-  // 去重处理
-  return [...new Set(images)]
-}
+})
 
 const formatCreateTime = (dateString: string): string => {
   if (!dateString) return ''
@@ -379,29 +388,45 @@ const formatSalesVolume = (volume: number | null | undefined): string => {
   return volume.toString()
 }
 
-const getTypeTagType = (): 'primary' | 'success' | 'warning' | 'info' | 'danger' => {
+const typeTagType = computed((): 'primary' | 'success' | 'warning' | 'info' | 'danger' => {
   const type = props.product.type
   if (type === '普通产品') return 'info'
   if (type === '组合产品') return 'warning'
   if (type === '定制产品') return 'success'
   return 'info'
-}
+})
+
+const getTrackParams = (action: 'click' | 'select') => ({
+  asin: props.product.asin || '',
+  marketplace: props.product.marketplace || '',
+  source: props.product.source || ({ new: '新品榜', reference: '竞品', zheng: '郑总店铺' } as Record<string, string>)[productType.value] || '未知来源',
+  action,
+  productTitle: titleText.value || props.product.title || '',
+})
 
 const handleClick = (): void => {
   emit('click', props.product)
 }
 
+const handleSelect = (value: any): void => {
+  const id = props.product[modeConfig.value.idField]
+  emit('select', id, !!value)
+}
+
 const handleCardClick = (): void => {
+  trackClick(getTrackParams('click'))
   emit('click', props.product)
 }
 
 const handleImageClick = (): void => {
+  trackClick(getTrackParams('click'))
   emit('click', props.product)
 }
 
-const handleSelect = (value: CheckboxValueType): void => {
-  const id = props.product[modeConfig.value.idField]
-  emit('select', id, !!value)
+const handleSelectProduct = (): void => {
+  const asin = props.product.asin || ''
+  const newState = !props.isSelectedByMe
+  emit('toggle-select', asin, newState)
 }
 
 const handleView = (): void => {
@@ -412,16 +437,26 @@ const handleDelete = (): void => {
   emit('delete', props.product)
 }
 
-const handleProductLink = (): void => {
-  if (props.product.productLink) {
-    window.open(props.product.productLink, '_blank')
+const handleOpenAll = (): void => {
+  // 1. 打开商品链接
+  if (productLink.value) {
+    window.open(productLink.value, '_blank')
   }
-}
 
-const handleSimilarProductsLink = (): void => {
-  const link = props.product.similarProducts || props.product.similarProductsLink
-  if (link) {
-    window.open(link, '_blank')
+  // 2. 打开相似图片链接（similarProducts 可能是逗号分隔的多个链接）
+  const raw = similarProductsLink.value
+  if (raw) {
+    const links = raw.split(',').map(l => l.trim()).filter(Boolean)
+    links.forEach(link => window.open(link, '_blank'))
+
+    // 3. 打开对方国家的相似图片（英国↔德国互转）
+    links.forEach(link => {
+      if (link.includes('amazon.co.uk')) {
+        window.open(link.replace('amazon.co.uk', 'amazon.de'), '_blank')
+      } else if (link.includes('amazon.de')) {
+        window.open(link.replace('amazon.de', 'amazon.co.uk'), '_blank')
+      }
+    })
   }
 }
 </script>
@@ -434,14 +469,15 @@ const handleSimilarProductsLink = (): void => {
   border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
   display: flex;
   flex-direction: column;
 
   &:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 16px -4px rgba(0, 0, 0, 0.1);
     border-color: #3b82f6;
+    will-change: transform;
   }
 
   &.selected {
@@ -597,7 +633,7 @@ const handleSimilarProductsLink = (): void => {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
     gap: 4px;
 
     &:hover {
@@ -616,23 +652,13 @@ const handleSimilarProductsLink = (): void => {
       white-space: nowrap;
     }
 
-    // 产品链接按钮样式
-    &.product-link {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    // 一键打开按钮样式
+    &.open-all-link {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      box-shadow: 0 4px 12px rgba(240, 147, 251, 0.4);
 
       &:hover {
-        box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
-      }
-    }
-
-    // 相似图片链接按钮样式
-    &.similar-products-link {
-      background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-      box-shadow: 0 4px 12px rgba(17, 153, 142, 0.4);
-
-      &:hover {
-        box-shadow: 0 6px 16px rgba(17, 153, 142, 0.5);
+        box-shadow: 0 6px 16px rgba(240, 147, 251, 0.5);
       }
     }
   }
@@ -681,6 +707,16 @@ const handleSimilarProductsLink = (): void => {
   -webkit-box-orient: vertical;
   overflow: hidden;
   min-height: 40px;
+}
+
+.card-variant-badge {
+  display: inline-block;
+  font-size: 11px;
+  color: #409EFF;
+  background: #ecf5ff;
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin-top: 4px;
 }
 
 .card-meta {
@@ -733,5 +769,52 @@ const handleSimilarProductsLink = (): void => {
     font-size: 12px;
     color: #94a3b8;
   }
+}
+
+.card-select-bar {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 10px 0;
+	margin: 0 12px 12px;
+	border-radius: 10px;
+	background: #f1f5f9;
+	color: #64748b;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.2s ease, color 0.2s ease, border 0.2s ease;
+	user-select: none;
+}
+.card-select-bar:hover {
+	background: #dbeafe;
+	color: #2563eb;
+}
+.card-select-bar.selected {
+	background: #dcfce7;
+	color: #16a34a;
+	border: 2px solid #86efac;
+}
+.card-select-bar.selected:hover {
+	background: #bbf7d0;
+}
+
+.card-select-users {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 6px 12px;
+	margin: 0 12px;
+	font-size: 12px;
+	color: #16a34a;
+	background: #f0fdf4;
+	border-radius: 0 0 8px 8px;
+
+	.select-users-text {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
 }
 </style>

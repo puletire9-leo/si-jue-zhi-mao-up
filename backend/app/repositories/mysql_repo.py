@@ -377,15 +377,6 @@ class MySQLRepository:
             raise RuntimeError("数据库连接池未初始化")
         
         async with self.pool.acquire() as conn:
-            # 检查连接是否有效（ping）
-            try:
-                conn.ping()
-            except Exception:
-                # 连接已失效，重新获取
-                logger.warning("检测到失效连接，重新获取")
-                async with self.pool.acquire() as new_conn:
-                    conn = new_conn
-            
             # 设置事务隔离级别为READ COMMITTED，确保能读取到最新提交的数据
             async with conn.cursor() as cursor:
                 await cursor.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED")
@@ -581,24 +572,30 @@ class MySQLRepository:
     async def begin_transaction(self):
         """
         开始事务
-        
+
         Returns:
             数据库连接对象
         """
         conn = await self.pool.acquire()
-        await conn.begin()
+        try:
+            await conn.begin()
+        except Exception:
+            self.pool.release(conn)
+            raise
         return conn
-    
+
     async def commit_transaction(self, conn):
         """
         提交事务
-        
+
         Args:
             conn: 数据库连接对象
         """
-        await conn.commit()
-        self.pool.release(conn)
-    
+        try:
+            await conn.commit()
+        finally:
+            self.pool.release(conn)
+
     async def rollback_transaction(self, conn):
         """
         回滚事务
@@ -606,8 +603,10 @@ class MySQLRepository:
         Args:
             conn: 数据库连接对象
         """
-        await conn.rollback()
-        self.pool.release(conn)
+        try:
+            await conn.rollback()
+        finally:
+            self.pool.release(conn)
     
     # 图片相关操作
     async def create_image(
@@ -1317,19 +1316,7 @@ class MySQLRepository:
         
         # 转换权限为简单的权限代码列表
         permission_codes = [p['code'] for p in permissions]
-        
-        # 确保包含system.settings权限（用于系统配置操作）
-        if 'system.settings' not in permission_codes:
-            permission_codes.append('system.settings')
-        
-        # 确保包含user.management权限（用于用户管理操作）
-        if 'user.management' not in permission_codes:
-            permission_codes.append('user.management')
-        
-        # 确保包含permission.management权限（用于权限管理操作）
-        if 'permission.management' not in permission_codes:
-            permission_codes.append('permission.management')
-        
+
         # 返回包含权限的用户信息
         user_info = {
             'id': user['id'],

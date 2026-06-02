@@ -7,13 +7,15 @@
 最终删除日期：项目稳定运行后
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Body, Query, Path
-from typing import List, Optional
+import os
 import logging
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Body, Query, Path
 from pydantic import BaseModel
 
 from ...config import settings
-from ...middleware.auth_middleware import auth_middleware
+from ...middleware.auth_middleware import require_auth
 
 
 class ImageSettingsUpdate(BaseModel):
@@ -45,6 +47,7 @@ def get_mysql_repo():
 
 @router.get("/developer-list", summary="获取开发人列表")
 async def get_developer_list(
+    user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -94,7 +97,7 @@ async def get_developer_list(
 @router.put("/developer-list", summary="更新开发人列表")
 async def update_developer_list(
     developer_list: List[str] = Body(..., description="开发人列表"),
-    user_info: dict = Depends(auth_middleware.require_admin()),
+    user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -143,6 +146,7 @@ async def update_developer_list(
 
 @router.get("/carrier-list", summary="获取载体列表")
 async def get_carrier_list(
+    user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -192,7 +196,7 @@ async def get_carrier_list(
 @router.put("/carrier-list", summary="更新载体列表")
 async def update_carrier_list(
     carrier_list: List[str] = Body(..., description="载体列表"),
-    user_info: dict = Depends(auth_middleware.require_admin()),
+    user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -239,6 +243,7 @@ async def update_carrier_list(
 
 @router.get("/image-settings", summary="获取图片设置")
 async def get_image_settings(
+    user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -282,7 +287,7 @@ async def get_image_settings(
 @router.put("/image-settings", summary="更新图片设置")
 async def update_image_settings(
     settings: ImageSettingsUpdate = Body(..., description="图片设置"),
-    user_info: dict = Depends(auth_middleware.require_admin()),
+    user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -349,7 +354,7 @@ async def update_image_settings(
 @router.post("/backup/start", summary="开始备份")
 async def start_backup(
     backup_type: str = Body(default="local", description="备份类型: local(本地备份) 或 cos(腾讯云备份)", embed=True),
-    user_info: dict = Depends(auth_middleware.require_admin()),
+    user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -386,7 +391,7 @@ async def get_backup_records(
     page: int = Query(default=1, ge=1, description="页码"),
     limit: int = Query(default=10, ge=1, le=100, description="每页数量"),
     storage_location: Optional[str] = Query(default=None, description="存储位置过滤"),
-    user_info: dict = Depends(auth_middleware.require_admin()),
+    user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -428,7 +433,7 @@ async def get_backup_records(
 @router.get("/backup/download/{backup_id}", summary="下载备份")
 async def download_backup(
     backup_id: int = Path(description="备份记录ID"),
-    user_info: dict = Depends(auth_middleware.require_admin()),
+    user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -460,10 +465,51 @@ async def download_backup(
         raise HTTPException(status_code=500, detail="获取备份URL失败")
 
 
+@router.get("/backup/download-file/{backup_id}", summary="下载本地备份文件")
+async def download_local_backup_file(
+    backup_id: int = Path(description="备份记录ID"),
+    user_info: dict = Depends(require_auth),
+    mysql_repo=get_mysql_repo()
+):
+    """
+    直接下载本地备份文件
+
+    权限要求: config:read
+    """
+    from starlette.responses import FileResponse
+    from ...services.backup_service import backup_service
+
+    try:
+        # 获取备份记录
+        query = "SELECT name, storage_location FROM backup_records WHERE id = %s"
+        result = await mysql_repo.execute_query(query, (backup_id,))
+        if not result:
+            raise HTTPException(status_code=404, detail="备份记录不存在")
+
+        record = result[0]
+        if record["storage_location"] != "local":
+            raise HTTPException(status_code=400, detail="非本地备份，请使用下载URL")
+
+        filepath = os.path.join(backup_service.backup_dir, record["name"])
+        if not os.path.exists(filepath):
+            raise HTTPException(status_code=404, detail="备份文件不存在")
+
+        return FileResponse(
+            path=filepath,
+            filename=record["name"],
+            media_type="application/gzip"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"下载本地备份文件失败: {e}")
+        raise HTTPException(status_code=500, detail="下载备份文件失败")
+
+
 @router.delete("/backup/{backup_id}", summary="删除备份")
 async def delete_backup(
     backup_id: int = Path(description="备份记录ID"),
-    user_info: dict = Depends(auth_middleware.require_admin()),
+    user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -496,7 +542,7 @@ async def delete_backup(
 
 @router.get("/backup/expired", summary="获取过期备份记录")
 async def get_expired_backups(
-    user_info: dict = Depends(auth_middleware.require_admin()),
+    user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """

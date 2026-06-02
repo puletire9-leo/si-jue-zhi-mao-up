@@ -48,7 +48,7 @@
                 <el-dropdown-menu>
                   <el-dropdown-item command="current">选择当前页</el-dropdown-item>
                   <el-dropdown-item command="all">选择全部</el-dropdown-item>
-                  <el-dropdown-item command="clear" :icon="Close">清空选择</el-dropdown-item>
+                  <el-dropdown-item command="clear" :icon="CircleClose">清空选择</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
@@ -396,9 +396,9 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'Products' })
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onBeforeMount } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, Delete, Search, Refresh, Download, Upload, Picture, UploadFilled, PictureFilled, Select, Close } from '@element-plus/icons-vue'
+import { Plus, Delete, Search, Refresh, Download, Upload, Picture, UploadFilled, PictureFilled, Select, CircleClose } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import UniversalCard from '@/components/UniversalCard/index.vue'
 import ProductDetailDialog from '@/components/ProductDetailDialog/index.vue'

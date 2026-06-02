@@ -36,7 +36,7 @@
             </el-button>
             
             <el-button 
-              v-if="isAdmin"
+              v-if="userStore.isAdmin"
               type="danger" 
               :icon="Delete" 
               :disabled="selectedItems.length === 0"
@@ -434,11 +434,6 @@ interface Pagination {
 // 用户状态管理
 const userStore = useUserStore()
 
-// 计算属性：检查用户是否为管理员
-const isAdmin = computed(() => {
-  return userStore.userInfo && (userStore.userInfo.role === '管理员' || userStore.userInfo.role === 'admin')
-})
-
 // 响应式数据
 const loading = ref(false)
 const dialogVisible = ref(false)
@@ -630,7 +625,7 @@ const handleSearch = (): void => {
 
 const handleReset = (): void => {
   Object.assign(queryParams, {
-    searchType: 'carrier_name',
+    searchType: 'sku',
     searchContent: ''
   })
   pagination.page = 1
@@ -720,24 +715,28 @@ const confirmFilter = (): void => {
   // 确认筛选条件，将临时筛选参数复制到正式筛选参数
   Object.assign(filterParams, {
     developer: [...tempFilterParams.developer],
+    status: [...tempFilterParams.status],
+    carrier: [...tempFilterParams.carrier],
     batch: [...tempFilterParams.batch]
   })
-  
+
   // 关闭对话框
   filterDialogVisible.value = false
-  
+
   // 重新加载数据
   pagination.page = 1
   loadCarriers()
-  
+
   // 显示筛选成功消息
   const filterCounts = {
     developer: filterParams.developer.length,
+    status: filterParams.status.length,
+    carrier: filterParams.carrier.length,
     batch: filterParams.batch.length
   }
   let message = '已应用筛选条件'
-  if (filterCounts.developer > 0 || filterCounts.batch > 0) {
-    message += `: 开发人(${filterCounts.developer})，批次(${filterCounts.batch})`
+  if (filterCounts.developer > 0 || filterCounts.status > 0 || filterCounts.carrier > 0 || filterCounts.batch > 0) {
+    message += `: 开发人(${filterCounts.developer})，状态(${filterCounts.status})，载体(${filterCounts.carrier})，批次(${filterCounts.batch})`
   }
   ElMessage.success(message)
 }
@@ -911,7 +910,7 @@ const handleBatchDownload = async (): Promise<void> => {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''
       },
-      body: JSON.stringify(filesToDownload),
+      body: JSON.stringify({ files: filesToDownload, filename: zipFilename }),
     })
 
     if (!createTaskResponse.ok) {
@@ -1160,7 +1159,7 @@ const handleDownload = async (carrier: Carrier): Promise<void> => {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''
       },
-      body: JSON.stringify(filesToDownload),
+      body: JSON.stringify({ files: filesToDownload, filename: zipFilename }),
     })
 
     if (!createTaskResponse.ok) {
@@ -1380,6 +1379,7 @@ const loadSystemConfigs = async () => {
 }
 
 onMounted(() => {
+  loadSystemConfigs()
   handleSearch()
 })
 </script>

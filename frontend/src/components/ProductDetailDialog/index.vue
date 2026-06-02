@@ -36,12 +36,12 @@
 
             <div class="info-grid">
               <!-- 选品特有字段 - 放在第一位 -->
-              <div v-if="mode === 'selection' && product.listingDate !== undefined" class="info-item">
+              <div v-if="mode === 'selection' && (product.listingDate || product.availableDate)" class="info-item">
                 <div class="info-label">
                   上架时间：
                 </div>
                 <div class="info-value">
-                  {{ formatDate(product.listingDate) }}
+                  {{ formatDate(product.listingDate || product.availableDate) }}
                 </div>
               </div>
               
@@ -112,12 +112,12 @@
                 </div>
               </div>
 
-              <div v-if="product.storeName" class="info-item">
+              <div v-if="product.storeName || product.sellerName" class="info-item">
                 <div class="info-label">
                   店铺名称：
                 </div>
                 <div class="info-value">
-                  {{ product.storeName }}
+                  {{ product.storeName || product.sellerName }}
                 </div>
               </div>
 
@@ -136,13 +136,13 @@
                 </div>
               </div>
 
-              <div v-if="product.productLink" class="info-item">
+              <div v-if="product.productLink || product.productUrl" class="info-item">
                 <div class="info-label">
                   产品链接：
                 </div>
                 <div class="info-value">
                   <el-link
-                    :href="product.productLink"
+                    :href="product.productLink || product.productUrl"
                     target="_blank"
                     type="primary"
                   >
@@ -152,13 +152,13 @@
               </div>
 
               <!-- 相似商品链接 -->
-              <div v-if="product.similarProducts || product.similarProductsLink" class="info-item">
+              <div v-if="(product.similarProducts || product.similarProductsLink || product.similarUrl)" class="info-item">
                 <div class="info-label">
                   相似商品链接：
                 </div>
                 <div class="info-value">
                   <el-link
-                    :href="product.similarProducts || product.similarProductsLink"
+                    :href="product.similarProducts || product.similarProductsLink || product.similarUrl"
                     target="_blank"
                     type="primary"
                   >
@@ -185,14 +185,14 @@
                 </div>
               </div>
 
-              <!-- 新增字段：店铺链接 -->
-              <div v-if="product.storeLink" class="info-item">
+              <!-- 店铺链接 -->
+              <div v-if="product.storeLink || product.storeUrl || product.shopLink" class="info-item">
                 <div class="info-label">
                   店铺链接：
                 </div>
                 <div class="info-value">
                   <el-link
-                    :href="product.storeLink"
+                    :href="product.storeLink || product.storeUrl || product.shopLink"
                     target="_blank"
                     type="primary"
                   >
@@ -201,23 +201,76 @@
                 </div>
               </div>
 
-              <!-- 新增字段：店铺ID -->
-              <div v-if="product.storeId" class="info-item">
+              <!-- 店铺ID -->
+              <div v-if="product.storeId || product.sellerId" class="info-item">
                 <div class="info-label">
                   店铺ID：
                 </div>
                 <div class="info-value">
-                  {{ product.storeId }}
+                  {{ product.storeId || product.sellerId }}
                 </div>
               </div>
 
-              <!-- 新增字段：配送方式 -->
-              <div v-if="product.deliveryMethod" class="info-item">
+              <!-- 配送方式 -->
+              <div v-if="product.deliveryMethod || product.fulfillment" class="info-item">
                 <div class="info-label">
                   配送方式：
                 </div>
                 <div class="info-value">
-                  {{ product.deliveryMethod }}
+                  {{ product.deliveryMethod || product.fulfillment }}
+                </div>
+              </div>
+
+              <!-- 品牌 -->
+              <div v-if="product.brand" class="info-item">
+                <div class="info-label">
+                  品牌：
+                </div>
+                <div class="info-value">
+                  {{ product.brand }}
+                </div>
+              </div>
+
+              <!-- BSR -->
+              <div v-if="product.bsr !== undefined && product.bsr !== null" class="info-item">
+                <div class="info-label">
+                  BSR：
+                </div>
+                <div class="info-value">
+                  {{ product.bsr }}
+                </div>
+              </div>
+
+              <!-- 评分 -->
+              <div v-if="product.rating" class="info-item">
+                <div class="info-label">
+                  评分：
+                </div>
+                <div class="info-value">
+                  {{ product.rating }} ({{ product.ratings || 0 }}评)
+                </div>
+              </div>
+
+              <!-- 重量 -->
+              <div v-if="product.weight || product.weightG" class="info-item">
+                <div class="info-label">
+                  重量：
+                </div>
+                <div class="info-value">
+                  {{ product.weight || '' }}{{ product.weightG ? ' (' + product.weightG + 'g)' : '' }}
+                </div>
+              </div>
+
+              <!-- 筛选模式 -->
+              <div v-if="product.filterMode || product.dataFilterMode" class="info-item">
+                <div class="info-label">
+                  筛选结果：
+                </div>
+                <div class="info-value">
+                  <el-tag :type="product.filterMode === 'MODE1' ? 'success' : product.filterMode === 'MODE2' ? 'warning' : 'danger'" size="small">
+                    {{ product.filterMode || product.dataFilterMode }}
+                  </el-tag>
+                  <span v-if="product.filterReasons" style="margin-left: 8px; font-size: 12px; color: #909399;">{{ product.filterReasons }}</span>
                 </div>
               </div>
 
@@ -261,13 +314,13 @@
                 </div>
               </div>
 
-              <!-- 新增字段：数据筛选模式 -->
-              <div v-if="product.dataFilterMode" class="info-item">
+              <!-- 数据筛选模式 -->
+              <div v-if="product.dataFilterMode || product.filterMode" class="info-item">
                 <div class="info-label">
                   数据筛选模式：
                 </div>
                 <div class="info-value">
-                  <el-tag type="warning" size="small">{{ product.dataFilterMode }}</el-tag>
+                  <el-tag type="warning" size="small">{{ product.dataFilterMode || product.filterMode }}</el-tag>
                 </div>
               </div>
 
@@ -316,6 +369,47 @@
               >
                 删除
               </el-button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 变体列表 -->
+        <div
+          v-if="variants && variants.length > 1"
+          class="variants-section"
+        >
+          <div class="section-title">
+            变体列表（{{ variants.length }}个 / 父ASIN: {{ product.parentAsin || product.asin }}）
+          </div>
+          <div class="variants-grid">
+            <div
+              v-for="v in variants"
+              :key="v.asin"
+              class="variant-card"
+              :class="{ 'variant-current': v.asin === product.asin }"
+              @click="selectVariant(v)"
+            >
+              <div class="variant-img-wrapper">
+                <el-image
+                  :src="v.imageUrl"
+                  :preview-src-list="[v.imageUrl]"
+                  fit="cover"
+                  class="variant-img"
+                >
+                  <template #error>
+                    <div class="image-error"><el-icon><Picture /></el-icon></div>
+                  </template>
+                </el-image>
+              </div>
+              <div class="variant-info">
+                <div class="variant-title" :title="v.title">{{ v.title }}</div>
+                <div class="variant-meta">
+                  <span v-if="v.price">€{{ v.price }}</span>
+                  <span v-if="v.units">销量 {{ v.units }}</span>
+                  <span v-if="v.bsr">BSR {{ v.bsr }}</span>
+                  <el-tag v-if="v.filterMode" :type="v.filterMode==='MODE1'?'success':'warning'" size="small">{{ v.filterMode }}</el-tag>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -375,6 +469,7 @@ import { Picture, Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { productApi } from '@/api/product'
 import { selectionApi } from '@/api/selection'
+import { competitorApi } from '@/api/competitor'
 import { getProductTypeTag } from '@/types/utils'
 
 const props = defineProps({
@@ -400,7 +495,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:visible', 'edit', 'delete'])
+const emit = defineEmits(['update:visible', 'edit', 'delete', 'select-product'])
 
 const dialogVisible = computed({
   get: () => props.visible,
@@ -409,6 +504,7 @@ const dialogVisible = computed({
 
 const loading = ref(false)
 const subProducts = ref([])
+const variants = ref([])
 
 const dialogTitle = computed(() => {
   if (!props.product) return '产品详情'
@@ -429,7 +525,7 @@ const productIdText = computed(() => {
 const productNameText = computed(() => {
   if (!props.product) return ''
   if (props.mode === 'selection') {
-    return props.product.productTitle || '未知名称'
+    return props.product.productTitle || props.product.title || '未知名称'
   }
   return props.product.name || '未知名称'
 })
@@ -503,9 +599,24 @@ const loadSubProducts = async () => {
   }
 }
 
+const loadVariants = async () => {
+  if (!props.product || props.mode !== 'selection') return
+  const parentAsin = props.product.parentAsin || props.product.asin
+  const marketplace = props.product.marketplace
+  if (!parentAsin || !marketplace) return
+
+  try {
+    const res = await competitorApi.getVariants(marketplace, parentAsin)
+    variants.value = (res.data || [])
+  } catch (e) {
+    console.error('加载变体失败:', e)
+  }
+}
+
 const handleClose = () => {
   emit('update:visible', false)
   subProducts.value = []
+  variants.value = []
 }
 
 const handleEdit = () => {
@@ -533,6 +644,10 @@ const handleDelete = async () => {
   }
 }
 
+const selectVariant = (v) => {
+  emit('select-product', v)
+}
+
 const viewSubProduct = (subProduct) => {
   emit('update:visible', false)
   emit('edit', subProduct)
@@ -542,6 +657,9 @@ watch(() => props.visible, (newVal) => {
   if (newVal && props.product) {
     if (props.mode === 'product' && props.product.type === '组合产品') {
       loadSubProducts()
+    }
+    if (props.mode === 'selection') {
+      loadVariants()
     }
   }
 })
@@ -759,5 +877,81 @@ watch(() => props.visible, (newVal) => {
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Variants */
+.variants-section {
+  margin-top: 30px;
+  padding-top: 30px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.variants-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.variant-card {
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  transition: all 0.2s;
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+
+  &:hover {
+    border-color: #409EFF;
+    box-shadow: 0 2px 8px rgba(64,158,255,0.15);
+  }
+
+  &.variant-current {
+    border-color: #67C23A;
+    background: #f0f9eb;
+  }
+}
+
+.variant-img-wrapper {
+  flex-shrink: 0;
+  width: 60px;
+  height: 60px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #f5f7fa;
+}
+
+.variant-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.variant-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.variant-title {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #303133;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.variant-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+  color: #909399;
 }
 </style>

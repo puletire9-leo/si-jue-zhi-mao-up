@@ -1,0 +1,130 @@
+package com.sjzm.product.controller;
+
+import com.sjzm.common.PageResult;
+import com.sjzm.common.Result;
+import com.sjzm.product.dto.CompetitorLookupRequest;
+import com.sjzm.product.dto.CompetitorProductResponse;
+import com.sjzm.product.dto.CompetitorQueryRequest;
+import com.sjzm.product.service.CompetitorService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
+
+import com.sjzm.product.service.ApiRateLimitService;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/v1/competitor")
+@RequiredArgsConstructor
+@Tag(name = "竞品数据", description = "卖家精灵 API 竞品查询")
+public class CompetitorController {
+
+    private final CompetitorService competitorService;
+    private final ApiRateLimitService rateLimitService;
+
+    @PostMapping("/lookup")
+    @Operation(summary = "查询竞品数据（调用卖家精灵 API 并入库）")
+    public Result<List<CompetitorProductResponse>> lookup(@Valid @RequestBody CompetitorLookupRequest request) {
+        List<CompetitorProductResponse> results = competitorService.lookupAndSave(request);
+        return Result.success("查询成功，共 " + results.size() + " 条", results);
+    }
+
+    @GetMapping("/products")
+    @Operation(summary = "从本地数据库查询竞品数据（GET）")
+    public Result<PageResult<CompetitorProductResponse>> getProducts(
+            @RequestParam(required = false) String marketplace,
+            @RequestParam(required = false) String month,
+            @RequestParam(required = false) List<String> asin,
+            @RequestParam(required = false) String source,
+            @RequestParam(required = false) String filterMode,
+            @RequestParam(required = false) String brand,
+            @RequestParam(required = false) String sellerName,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String grade,
+            @RequestParam(required = false) String weekTag,
+            @RequestParam(required = false) Integer isCurrent,
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(required = false) String sortOrder,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "60") Integer size,
+            @RequestParam(required = false) Boolean groupByParent,
+            @RequestParam(required = false) Integer maxVariantCount) {
+        CompetitorQueryRequest request = new CompetitorQueryRequest();
+        request.setMarketplace(marketplace);
+        request.setMonth(month);
+        request.setAsin(asin);
+        request.setSource(source);
+        request.setFilterMode(filterMode);
+        request.setBrand(brand);
+        request.setSellerName(sellerName);
+        request.setTitle(title);
+        request.setGrade(grade);
+        request.setWeekTag(weekTag);
+        request.setIsCurrent(isCurrent);
+        request.setSortBy(sortBy);
+        request.setSortOrder(sortOrder);
+        request.setPage(page);
+        request.setSize(size);
+        request.setGroupByParent(groupByParent);
+        request.setMaxVariantCount(maxVariantCount);
+        return Result.success(competitorService.queryFromDb(request));
+    }
+
+    @PostMapping("/products")
+    @Operation(summary = "从本地数据库查询竞品数据（POST）")
+    public Result<PageResult<CompetitorProductResponse>> queryProducts(@RequestBody CompetitorQueryRequest request) {
+        return Result.success(competitorService.queryFromDb(request));
+    }
+
+    @GetMapping("/{asin}/history")
+    @Operation(summary = "查询某ASIN的历史趋势")
+    public Result<List<CompetitorProductResponse>> history(
+            @PathVariable String asin,
+            @RequestParam(defaultValue = "US") String marketplace) {
+        return Result.success(competitorService.getHistory(marketplace, asin));
+    }
+
+    @GetMapping("/quota")
+    @Operation(summary = "查询 API 用量配额")
+    public Result<Map<String, Object>> quota() {
+        return Result.success(rateLimitService.getQuotaInfo());
+    }
+
+    @GetMapping("/variants")
+    @Operation(summary = "查询某父ASIN下的所有变体")
+    public Result<List<CompetitorProductResponse>> variants(
+            @RequestParam String marketplace,
+            @RequestParam String parentAsin) {
+        return Result.success(competitorService.getVariants(marketplace, parentAsin));
+    }
+
+    @GetMapping("/stats")
+    @Operation(summary = "数据库统计概览")
+    public Result<Map<String, Object>> stats() {
+        Map<String, Object> stats = new java.util.LinkedHashMap<>();
+        stats.put("products", competitorService.getProductCount());
+        stats.put("skipAsins", competitorService.getSkipAsinCount());
+        stats.put("shops", competitorService.getShopCount());
+        return Result.success(stats);
+    }
+
+    @PutMapping("/quota")
+    @Operation(summary = "修改 API 配额上限")
+    public Result<Map<String, Object>> updateQuota(@RequestBody Map<String, Object> body) {
+        if (body.containsKey("maxPerMinute")) {
+            rateLimitService.updateMaxPerMinute(((Number) body.get("maxPerMinute")).intValue());
+        }
+        if (body.containsKey("maxPerMonth")) {
+            rateLimitService.updateMaxPerMonth(((Number) body.get("maxPerMonth")).intValue());
+        }
+        if (body.containsKey("maxAsinsPerRequest")) {
+            rateLimitService.updateMaxAsinsPerRequest(((Number) body.get("maxAsinsPerRequest")).intValue());
+        }
+        return Result.success(rateLimitService.getQuotaInfo());
+    }
+}

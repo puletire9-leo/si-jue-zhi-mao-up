@@ -494,10 +494,13 @@ class BackupService:
                         "message": "获取COS备份URL失败"
                     }
             elif backup_record["storage_location"] == "local":
-                # 本地备份返回错误，因为无法直接提供URL
+                # 本地备份返回文件下载URL
                 return {
-                    "success": False,
-                    "message": "本地备份文件不支持直接下载URL"
+                    "success": True,
+                    "data": {
+                        "url": f"/api/v1/system-config/backup/download-file/{backup_id}",
+                        "filename": backup_record["name"]
+                    }
                 }
             else:
                 return {

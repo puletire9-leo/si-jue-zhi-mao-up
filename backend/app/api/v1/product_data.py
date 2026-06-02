@@ -11,10 +11,11 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from typing import Optional, List
 import asyncio
 from ...schemas.product_data import (
-    CategoryStatsResponse, ProductListResponse, TrendResponse, 
+    CategoryStatsResponse, ProductListResponse, TrendResponse,
     TopProductsResponse, FilterOptionsResponse, AdPerformanceResponse
 )
 from ...services.product_data_service import ProductDataService
+from ...middleware.auth_middleware import require_auth
 import urllib.parse
 
 router = APIRouter(prefix="/product-data", tags=["产品数据看板"])
@@ -27,6 +28,7 @@ def get_product_service(request: Request) -> ProductDataService:
 
 @router.get("/available-months", response_model=List[str])
 async def get_available_months(
+    current_user: dict = Depends(require_auth),
     service: ProductDataService = Depends(get_product_service)
 ):
     """获取所有可用的数据月份"""
@@ -40,6 +42,7 @@ async def get_category_stats(
     store: Optional[str] = None,
     country: Optional[str] = None,
     developer: Optional[str] = None,
+    current_user: dict = Depends(require_auth),
     service: ProductDataService = Depends(get_product_service)
 ):
     """获取分类统计卡片数据"""
@@ -59,6 +62,7 @@ async def get_products(
     search_keyword: Optional[str] = None,
     sort_field: Optional[str] = Query('sales_amount', description="排序字段"),
     sort_order: Optional[str] = Query('desc', description="排序顺序 (asc/desc)"),
+    current_user: dict = Depends(require_auth),
     service: ProductDataService = Depends(get_product_service)
 ):
     """获取分页产品明细"""
@@ -78,6 +82,7 @@ async def export_products(
     developer: Optional[str] = None,
     search_keyword: Optional[str] = None,
     fields: Optional[List[str]] = Query(None),
+    current_user: dict = Depends(require_auth),
     service: ProductDataService = Depends(get_product_service)
 ):
     """导出产品数据为 CSV"""
@@ -106,6 +111,7 @@ async def get_sales_trend(
     store: Optional[str] = None,
     country: Optional[str] = None,
     developer: Optional[str] = None,
+    current_user: dict = Depends(require_auth),
     service: ProductDataService = Depends(get_product_service)
 ):
     """获取销售趋势图数据"""
@@ -120,6 +126,7 @@ async def get_top_products(
     store: Optional[str] = None,
     country: Optional[str] = None,
     developer: Optional[str] = None,
+    current_user: dict = Depends(require_auth),
     service: ProductDataService = Depends(get_product_service)
 ):
     """获取TOP产品数据"""
@@ -127,6 +134,7 @@ async def get_top_products(
 
 @router.get("/filter-options", response_model=FilterOptionsResponse)
 async def get_filter_options(
+    current_user: dict = Depends(require_auth),
     service: ProductDataService = Depends(get_product_service)
 ):
     """动态获取筛选列表选项"""
@@ -140,6 +148,7 @@ async def get_ad_performance(
     store: Optional[str] = None,
     country: Optional[str] = None,
     developer: Optional[str] = None,
+    current_user: dict = Depends(require_auth),
     service: ProductDataService = Depends(get_product_service)
 ):
     """获取广告表现数据"""
@@ -148,6 +157,7 @@ async def get_ad_performance(
 
 @router.post("/clear-cache")
 async def clear_cache(
+    current_user: dict = Depends(require_auth),
     service: ProductDataService = Depends(get_product_service)
 ):
     """清除产品数据相关的Redis缓存"""
@@ -179,6 +189,7 @@ async def get_compare_data(
     store: Optional[str] = None,
     country: Optional[str] = None,
     developer: Optional[str] = None,
+    current_user: dict = Depends(require_auth),
     service: ProductDataService = Depends(get_product_service)
 ):
     """获取对比数据 - 同时查询本期和对比期的数据"""

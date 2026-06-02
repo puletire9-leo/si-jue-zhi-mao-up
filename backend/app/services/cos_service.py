@@ -295,7 +295,7 @@ class COSService:
                 Body=image_data,
                 Key=object_key,
                 # 多可用区存储桶不需要指定StorageClass
-                **metadata if metadata else {}
+                **(metadata if metadata else {})
             )
             
             logger.debug(f"上传响应: {response}")

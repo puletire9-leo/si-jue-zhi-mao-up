@@ -18,7 +18,7 @@ from PIL import Image
 
 from ...services import ImageService
 from ...config import settings
-from ...middleware.auth_middleware import auth_middleware
+from ...middleware.auth_middleware import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ async def upload_image(
     tags: Optional[str] = Form(None, description="图片标签（逗号分隔）"),
     description: Optional[str] = Form(None, description="图片描述"),
     sku: Optional[str] = Form(None, description="产品SKU"),
-    user_info: dict = Depends(auth_middleware.require_permission("image:upload")),
+    user_info: dict = Depends(require_auth),
     service: ImageService = get_image_service()
 ):
     """
@@ -117,7 +117,7 @@ async def batch_upload_images(
     tags: Optional[str] = Form(None, description="图片标签（逗号分隔）"),
     description: Optional[str] = Form(None, description="图片描述"),
     sku: Optional[str] = Form(None, description="产品SKU"),
-    user_info: dict = Depends(auth_middleware.require_permission("image:upload")),
+    user_info: dict = Depends(require_auth),
     service: ImageService = get_image_service()
 ):
     """
@@ -202,7 +202,7 @@ async def batch_upload_images(
 @router.get("/{image_id}", summary="获取图片信息")
 async def get_image(
     image_id: int,
-    user_info: dict = Depends(auth_middleware.require_permission("image:view")),
+    user_info: dict = Depends(require_auth),
     service: ImageService = get_image_service()
 ):
     """
@@ -236,7 +236,7 @@ async def get_image_file(
     image_id: int,
     original: bool = Query(False, description="是否获取原图"),
     extract: bool = Query(True, description="是否提取原始图片（当original=true时有效）"),
-    user_info: dict = Depends(auth_middleware.require_permission("image:view")),
+    user_info: dict = Depends(require_auth),
     service: ImageService = get_image_service()
 ):
     """
@@ -249,7 +249,7 @@ async def get_image_file(
     返回图片文件或重定向到COS URL
     """
     try:
-        from backend.app.config import settings
+        from ...config import settings
         
         image = await service.get_image(image_id)
         
@@ -389,7 +389,7 @@ async def get_image_file(
 @router.get("/{image_id}/thumbnail", summary="获取图片缩略图")
 async def get_image_thumbnail(
     image_id: int,
-    user_info: dict = Depends(auth_middleware.require_permission("image:view")),
+    user_info: dict = Depends(require_auth),
     service: ImageService = get_image_service()
 ):
     """
@@ -400,7 +400,7 @@ async def get_image_thumbnail(
     返回256x256的缩略图或重定向到COS缩略图URL
     """
     try:
-        from backend.app.config import settings
+        from ...config import settings
         
         image = await service.get_image(image_id)
 
@@ -463,7 +463,7 @@ async def get_images(
     size: int = Query(12, ge=1, le=100, description="每页数量"),
     keyword: Optional[str] = Query(None, description="搜索关键词"),
     category: Optional[str] = Query(None, description="图片分类"),
-    user_info: dict = Depends(auth_middleware.require_permission("image:view")),
+    user_info: dict = Depends(require_auth),
     service: ImageService = get_image_service()
 ):
     """
@@ -519,7 +519,7 @@ async def get_images(
 async def search_similar_images(
     image_id: int,
     limit: int = Query(settings.SIMILAR_LIMIT_DEFAULT, ge=1, le=settings.SIMILAR_LIMIT_MAX, description="返回数量限制"),
-    user_info: dict = Depends(auth_middleware.require_permission("image:search")),
+    user_info: dict = Depends(require_auth),
     service: ImageService = get_image_service()
 ):
     """
@@ -553,7 +553,7 @@ async def search_by_image(
     file: UploadFile = File(..., description="参考图片文件"),
     category: Optional[str] = Form(None, description="图片分类过滤（可选）"),
     limit: int = Form(settings.SIMILAR_LIMIT_DEFAULT, ge=1, le=settings.SIMILAR_LIMIT_MAX, description="返回数量限制"),
-    user_info: dict = Depends(auth_middleware.require_permission("image:search")),
+    user_info: dict = Depends(require_auth),
     service: ImageService = get_image_service()
 ):
     """
@@ -623,7 +623,7 @@ async def update_image(
     category: Optional[str] = Form(None, description="图片分类"),
     tags: Optional[str] = Form(None, description="图片标签（逗号分隔）"),
     description: Optional[str] = Form(None, description="图片描述"),
-    user_info: dict = Depends(auth_middleware.require_permission("image:edit")),
+    user_info: dict = Depends(require_auth),
     service: ImageService = get_image_service()
 ):
     """
@@ -677,7 +677,7 @@ async def update_image(
 @router.delete("/{image_id}", summary="删除图片")
 async def delete_image(
     image_id: int,
-    user_info: dict = Depends(auth_middleware.require_permission("image:delete")),
+    user_info: dict = Depends(require_auth),
     service: ImageService = get_image_service()
 ):
     """
@@ -709,7 +709,7 @@ async def delete_image(
 @router.delete("/batch", summary="批量删除图片")
 async def batch_delete_images(
     request_data: Dict[str, Any] = Body(..., description="批量删除请求"),
-    user_info: dict = Depends(auth_middleware.require_permission("image:delete")),
+    user_info: dict = Depends(require_auth),
     service: ImageService = get_image_service()
 ):
     """
@@ -759,7 +759,7 @@ async def batch_delete_images(
 @router.get("/stats/count", summary="获取图片统计")
 async def get_image_stats(
     category: Optional[str] = Query(None, description="图片分类"),
-    user_info: dict = Depends(auth_middleware.require_permission("image:view")),
+    user_info: dict = Depends(require_auth),
     service: ImageService = get_image_service()
 ):
     """
@@ -789,7 +789,7 @@ async def get_image_stats(
 @router.post("/batch-get", summary="批量获取图片信息")
 async def batch_get_images(
     image_ids: List[int] = Body(..., embed=True, description="图片ID列表"),
-    user_info: dict = Depends(auth_middleware.require_permission("image:view")),
+    user_info: dict = Depends(require_auth),
     service: ImageService = get_image_service()
 ):
     """
@@ -804,13 +804,14 @@ async def batch_get_images(
         
         # 去重ID列表
         unique_ids = list(set(image_ids))
-        
-        # 批量获取图片信息
-        images = []
-        for image_id in unique_ids:
-            image = await service.get_image(image_id)
-            if image:
-                images.append(image)
+
+        # 批量获取图片信息（单次查询）
+        if not unique_ids:
+            images = []
+        else:
+            placeholders = ",".join(["%s"] * len(unique_ids))
+            query = f"SELECT * FROM images WHERE id IN ({placeholders})"
+            images = await service.mysql.execute_query(query, tuple(unique_ids))
         
         # 构建响应数据，以ID为键
         result = {}
@@ -836,7 +837,7 @@ async def refresh_image_urls(
     category: Optional[str] = Body(None, embed=True, description="图片分类（可选）"),
     limit: int = Body(1000, embed=True, description="限制数量"),
     offset: int = Body(0, embed=True, description="偏移量"),
-    user_info: dict = Depends(auth_middleware.require_permission("image:edit")),
+    user_info: dict = Depends(require_auth),
     service: ImageService = get_image_service()
 ):
     """
@@ -876,7 +877,7 @@ async def refresh_image_urls(
 @router.post("/sync-thumbnails", summary="同步缩略图")
 async def sync_thumbnails(
     check_only: bool = Body(False, embed=True, description="仅检查不同步"),
-    user_info: dict = Depends(auth_middleware.require_permission("image:edit")),
+    user_info: dict = Depends(require_auth),
     service: ImageService = get_image_service()
 ):
     """

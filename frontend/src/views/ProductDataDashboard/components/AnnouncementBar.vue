@@ -29,7 +29,7 @@
 
       <template #footer>
         <el-button @click="viewDialogVisible = false">关闭</el-button>
-        <el-button v-if="isAdmin" type="primary" @click="switchToEdit">
+        <el-button v-if="userStore.isAdmin" type="primary" @click="switchToEdit">
           编辑公告
         </el-button>
       </template>
@@ -58,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { BellFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
@@ -70,10 +70,6 @@ const viewDialogVisible = ref(false)
 const editDialogVisible = ref(false)
 const editContent = ref('')
 const saving = ref(false)
-
-const isAdmin = computed(() => {
-  return userStore.userInfo && userStore.userInfo.role === '管理员'
-})
 
 function formatTime(dateStr: string) {
   if (!dateStr) return ''

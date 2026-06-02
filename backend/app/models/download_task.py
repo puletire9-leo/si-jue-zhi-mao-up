@@ -72,6 +72,7 @@ class DownloadTask(BaseModel):
     created_at: Optional[datetime] = Field(None, description="创建时间")
     completed_at: Optional[datetime] = Field(None, description="完成时间")
     error_message: Optional[str] = Field(None, description="错误信息")
+    request_data: Optional[str] = Field(None, description="原始请求数据JSON（用于重试）")
     created_by: Optional[int] = Field(None, description="创建用户ID")
     files: Optional[List[DownloadTaskFile]] = Field(None, description="文件列表")
     

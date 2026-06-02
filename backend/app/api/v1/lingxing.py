@@ -22,7 +22,7 @@ from fastapi.responses import FileResponse
 from typing import Optional, List
 import logging
 
-from ...middleware.auth_middleware import auth_middleware
+from ...middleware.auth_middleware import require_auth
 from ...services.cos_service import cos_service
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ router = APIRouter(prefix="/lingxing", tags=["领星导入"])
 @router.get("/download-template", summary="下载领星导入模板")
 async def download_template(
     request: Request,
-    user_info: dict = Depends(auth_middleware.require_auth)
+    user_info: dict = Depends(require_auth)
 ):
     """
     下载领星导入模板文件
@@ -42,8 +42,9 @@ async def download_template(
         FileResponse: Excel模板文件
     """
     try:
-        # 模板文件路径
-        template_path = r'e:\项目\生产\主系统-mysql\领星\导入领星\读取文件信息\产品汇总表-模版 .xlsx'
+        # 模板文件路径（动态计算项目根目录）
+        _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        template_path = os.path.join(_project_root, '领星', '导入领星', '读取文件信息', '产品汇总表-模版 .xlsx')
         
         # 检查文件是否存在
         if not os.path.exists(template_path):
@@ -75,7 +76,7 @@ async def download_template(
 async def upload_lingxing_image(
     request: Request,
     file: UploadFile = File(..., description="图片文件"),
-    user_info: dict = Depends(auth_middleware.require_auth)
+    user_info: dict = Depends(require_auth)
 ):
     """
     上传图片到领星专用的腾讯云COS
@@ -146,7 +147,7 @@ async def generate_import_file(
     request: Request,
     developer: str = Body('', description="开发人名称"),
     file_data: List[dict] = Body([], description="前端解析的Excel数据"),
-    user_info: dict = Depends(auth_middleware.require_auth)
+    user_info: dict = Depends(require_auth)
 ):
     """
     执行导入零星.py脚本生成领星导入文件
@@ -164,8 +165,9 @@ async def generate_import_file(
     import pandas as pd
     
     try:
-        # Python脚本路径
-        script_path = r'e:\项目\生产\主系统-mysql\领星\导入领星\导入零星.py'
+        # Python脚本路径（动态计算项目根目录）
+        _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        script_path = os.path.join(_project_root, '领星', '导入领星', '导入零星.py')
         
         # 检查脚本是否存在
         if not os.path.exists(script_path):

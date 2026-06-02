@@ -10,7 +10,7 @@ import logging
 from typing import Optional, Set
 from datetime import datetime, timedelta
 
-from ..utils.jwt_utils import verify_token, get_token_expiry
+from ..utils.jwt_utils import decode_token
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +142,7 @@ class TokenService:
             tokens_to_remove = []
             
             for token in self.token_blacklist:
-                payload = verify_token(token)
+                payload = decode_token(token)
                 if not payload:
                     tokens_to_remove.append(token)
                     expired_count += 1

@@ -15,6 +15,7 @@ import pandas as pd
 from io import BytesIO
 
 from ...repositories import MySQLRepository
+from ...middleware.auth_middleware import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ async def export_products(
     page: int = Query(1, ge=1, description="页码"),
     size: int = Query(100, ge=1, le=1000, description="每页数量"),
     format: str = Query("xlsx", description="导出格式：xlsx/csv"),
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -57,14 +59,15 @@ async def export_products(
         
         # 查询产品数据
         products = await repo.execute_query(
-            f"""
-            SELECT 
-                sku, name, type, description, category, 
+            """
+            SELECT
+                sku, name, type, description, category,
                 tags, price, stock, image, created_at, updated_at
             FROM products
             ORDER BY created_at DESC
-            LIMIT {size} OFFSET {offset}
-            """
+            LIMIT %s OFFSET %s
+            """,
+            (size, offset)
         )
         
         # 转换为DataFrame
@@ -104,6 +107,7 @@ async def export_images(
     page: int = Query(1, ge=1, description="页码"),
     size: int = Query(100, ge=1, le=1000, description="每页数量"),
     format: str = Query("xlsx", description="导出格式：xlsx/csv"),
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """
@@ -120,14 +124,15 @@ async def export_images(
         
         # 查询图片数据
         images = await repo.execute_query(
-            f"""
-            SELECT 
-                id, filename, filepath, category, tags, 
+            """
+            SELECT
+                id, filename, filepath, category, tags,
                 description, width, height, format, file_size, created_at
             FROM images
             ORDER BY created_at DESC
-            LIMIT {size} OFFSET {offset}
-            """
+            LIMIT %s OFFSET %s
+            """,
+            (size, offset)
         )
         
         # 转换为DataFrame
@@ -164,6 +169,7 @@ async def export_images(
 
 @router.get("/statistics", summary="导出统计")
 async def export_statistics(
+    user_info: dict = Depends(require_auth),
     repo: MySQLRepository = get_mysql_repo()
 ):
     """

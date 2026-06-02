@@ -196,45 +196,33 @@ const handleLogin = async (): Promise<void> => {
           role: loginForm.role || undefined
         })
       }).then(r => r.json())
-      if (res.code === 200 && res.data) {
-        const token = res.data.access_token
-        localStorage.setItem('token', token)
-        localStorage.setItem('userInfo', JSON.stringify(res.data.user))
-        userStore.setToken(token)
-        userStore.setUserInfo((res.data.user || { id: '1', username: loginForm.username, role: 'user', permissions: [] }) as UserType)
-        ElMessage.success('注册成功')
-        await nextTick()
-        router.push('/dashboard')
+      if (res.code === 200) {
+        ElMessage.success('注册成功，请登录')
+        isRegister.value = false
       } else {
         ElMessage.error(res.message || '注册失败')
       }
     } else {
-      // 登录
-      const { userApi } = await import('@/api/user')
-      const res = await userApi.login({
-        username: loginForm.username,
-        password: loginForm.password
-      })
-      if (res.code === 200 && res.data) {
-        const token = res.data.access_token || res.data.token
-        localStorage.setItem('token', token)
-        localStorage.setItem('userInfo', JSON.stringify(res.data.user || {
-          id: '1', username: loginForm.username, nickname: loginForm.username, role: 'admin'
-        }))
-        userStore.setToken(token)
-        userStore.setUserInfo((res.data.user || {
-          id: '1', username: loginForm.username, nickname: loginForm.username, role: 'admin', permissions: []
-        }) as UserType)
-        ElMessage.success('登录成功')
-        await nextTick()
-        router.push('/dashboard')
-      } else {
-        ElMessage.error(res.message || '用户名或密码错误')
+      // 登录 - 使用 userStore.login() 确保字段名正确
+      const loginResp = await userStore.login(loginForm.username, loginForm.password)
+      // 确认 token 已写入 localStorage 后再跳转
+      if (!localStorage.getItem('token')) {
+        ElMessage.error('登录异常：token 未保存')
+        return
       }
+      ElMessage.success('登录成功')
+      if (loginForm.remember) {
+        localStorage.setItem('rememberedUsername', loginForm.username)
+      } else {
+        localStorage.removeItem('rememberedUsername')
+      }
+      await nextTick()
+      router.push('/dashboard')
     }
   } catch (error: any) {
     console.error('[Login] 登录失败:', error)
-    ElMessage.error('请输入用户名和密码')
+    const message = error?.response?.data?.message || error?.message || '登录失败，请检查用户名和密码'
+    ElMessage.error(message)
   } finally {
     loading.value = false
     isSubmitting.value = false
