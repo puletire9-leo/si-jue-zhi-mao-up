@@ -103,6 +103,13 @@ export default defineConfig(({ mode }) => {
           timeout: 30000,
           logLevel: 'warn'
         },
+        '/api/v1/modules': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 300000,
+          logLevel: 'warn'
+        },
         '/api/v1/auth': {
           target: javaUserTarget,
           changeOrigin: true,

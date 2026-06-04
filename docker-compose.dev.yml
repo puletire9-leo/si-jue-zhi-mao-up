@@ -87,9 +87,9 @@ services:
       VITE_JAVA_HOST: java-product
       VITE_JAVA_PORT: "8002"
       # 走网关代理时取消下面注释，并注释上面两行
-      # VITE_USE_GATEWAY: "true"
-      # VITE_GATEWAY_HOST: gateway
-      # VITE_GATEWAY_PORT: "9000"
+      VITE_USE_GATEWAY: "true"
+      VITE_GATEWAY_HOST: gateway
+      VITE_GATEWAY_PORT: "9000"
     ports:
       - "8179:8179"
     volumes:
@@ -111,7 +111,13 @@ services:
     volumes:
       - ./java-backend:/app
       - java-m2:/root/.m2
-    command: sh -c "mvn install -pl sjzm-product -am -DskipTests -q && java -Xms256m -Xmx512m -jar sjzm-product/target/app.jar"
+    command: >
+      sh -c "mvn install -N -DskipTests &&
+      mvn install -pl sjzm-common -DskipTests &&
+      cd sjzm-product &&
+      mvn spring-boot:run -DskipTests
+      -Dspring-boot.run.jvmArguments='-Xms256m -Xmx1024m'
+      -Dspring-boot.run.arguments='--server.port=8002'"
     environment:
       NACOS_ENABLED: "true"
       NACOS_SERVER_ADDR: nacos:8848
@@ -143,13 +149,18 @@ services:
     volumes:
       - ./java-backend:/app
       - java-m2:/root/.m2
-    command: sh -c "mvn install -pl sjzm-gateway -am -DskipTests -q && java -Xms128m -Xmx256m -jar sjzm-gateway/target/app.jar"
+    command: >
+      sh -c "mvn install -pl sjzm-gateway -am -DskipTests -q &&
+      cd sjzm-gateway &&
+      mvn spring-boot:run -DskipTests
+      -Dspring-boot.run.jvmArguments='-Xms128m -Xmx256m'"
     environment:
       NACOS_ENABLED: "true"
       NACOS_SERVER_ADDR: nacos:8848
       SJZM_USER_URI: http://java-user:8001
       SJZM_PRODUCT_URI: http://java-product:8002
       GATEWAY_AUTH_ENABLED: "false"  # 开发环境关闭JWT认证
+      JWT_SECRET: sjzm-dev-jwt-secret-change-in-production
     depends_on:
       - java-user
       - java-product

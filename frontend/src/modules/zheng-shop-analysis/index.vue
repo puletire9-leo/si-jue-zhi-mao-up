@@ -37,6 +37,7 @@
               <el-option label="商品数量" value="productCount" />
               <el-option label="店铺评分" value="storeScore" />
               <el-option label="等级" value="grade" />
+              <el-option label="匹配度评级" value="ratingScore" />
             </el-select>
             <el-button-group size="small">
               <el-button :type="sortOrder === 'desc' ? 'primary' : ''" @click="sortOrder = 'desc'">降序</el-button>
@@ -46,7 +47,31 @@
             <el-button type="primary" size="small" :loading="syncing" @click="handleSyncAll">
               {{ syncing ? `同步中 ${syncProgress}/${syncTotal}` : '同步全部' }}
             </el-button>
+            <el-button
+              type="warning"
+              size="small"
+              :loading="ratingRunning"
+              :disabled="ratingRunning"
+              @click="handleStartRating"
+            >
+              {{ ratingRunning ? `评级中 ${ratingStep}/${ratingTotal}` : '匹配度评级' }}
+            </el-button>
           </div>
+        </div>
+        <!-- 批量选择 -->
+        <div class="batch-controls">
+          <span class="batch-label">批量选择：</span>
+          <el-button size="small" @click="selectRange(0, 50)">前50</el-button>
+          <el-button size="small" @click="selectRange(0, 100)">前100</el-button>
+          <el-button size="small" @click="selectRange(0, 200)">前200</el-button>
+          <el-input v-model.number="rangeStart" size="small" style="width: 70px" placeholder="起" />
+          <span style="color: #909399">—</span>
+          <el-input v-model.number="rangeEnd" size="small" style="width: 70px" placeholder="止" />
+          <el-button type="primary" size="small" @click="selectRange(rangeStart - 1, rangeEnd)">选择范围</el-button>
+          <el-button type="success" size="small" :disabled="selectedStores.length === 0" @click="openBatchDrawer">
+            批量导入 ({{ selectedStores.length }})
+          </el-button>
+          <el-button v-if="selectedStores.length > 0" size="small" @click="selectedStores = []">清空</el-button>
         </div>
       </template>
 
@@ -95,6 +120,14 @@
                   </span>
                 </template>
               </div>
+              <div v-if="shop.data.ratingScore != null" class="shop-rating">
+                <span class="rating-label">匹配度</span>
+                <el-tag :type="ratingTagType(shop.data.ratingGrade)" size="small" effect="dark">
+                  {{ shop.data.ratingGrade }}
+                </el-tag>
+                <span class="rating-score">{{ shop.data.ratingScore }} 分</span>
+                <span v-if="shop.data.ratingBestMatch" class="rating-match">最佳: {{ shop.data.ratingBestMatch }}</span>
+              </div>
               <div v-if="shop.data.notes" class="shop-notes">{{ shop.data.notes }}</div>
             </div>
             <div class="shop-actions">
@@ -134,16 +167,65 @@
         <el-empty v-if="!loading && filteredStores.length === 0" description="暂无店铺数据" />
       </div>
     </el-card>
+
+    <!-- 批量导入抽屉 -->
+    <el-drawer v-model="batchDrawerVisible" title="批量导入店铺数据" size="450px" direction="rtl">
+      <div class="batch-summary-card">
+        <div class="batch-stat"><span>已选店铺：</span><b>{{ selectedStores.length }}</b> 个</div>
+        <div class="batch-stat"><span>郑总店铺：</span><b>{{ zhengStoreCount }}</b> 个 → deng_zong_shop</div>
+        <div class="batch-stat"><span>选品店铺：</span><b>{{ selectionStoreCount }}</b> 个 → competitor_products</div>
+      </div>
+
+      <el-alert v-if="zhengStoreCount > 0 && selectionStoreCount > 0" type="warning" :closable="false" style="margin: 12px 0">
+        混合来源将分别处理：郑总店铺 → deng_zong_shop，选品店铺 → competitor_products
+      </el-alert>
+
+      <div class="store-name-list">
+        <div v-for="(store, idx) in selectedStores" :key="idx" class="store-name-item">
+          <el-tag :type="store.source === 'zheng' ? 'danger' : 'success'" size="small">
+            {{ store.source === 'zheng' ? '郑总' : '选品' }}
+          </el-tag>
+          <span class="store-name-text">{{ store.storeName }}</span>
+          <span v-if="store.marketplace" class="store-mp">{{ store.marketplace }}</span>
+        </div>
+      </div>
+
+      <div style="margin-top: 16px; display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 13px;">目标市场：</span>
+        <el-select v-model="batchMarketplace" size="small" style="width: 120px">
+          <el-option label="UK" value="UK" />
+          <el-option label="DE" value="DE" />
+          <el-option label="US" value="US" />
+        </el-select>
+      </div>
+
+      <div v-if="batchProgress.status" class="batch-progress">
+        <el-progress :percentage="batchProgressPercent" :status="batchProgress.status === 'DONE' ? 'success' : undefined" />
+        <div class="progress-detail">
+          {{ batchProgress.batchCurrent }} / {{ batchProgress.batchTotal }} 卖家
+          <span v-if="batchProgress.apiSuccess"> | 入库 {{ batchProgress.apiSuccess }}</span>
+        </div>
+        <div v-if="batchProgress.progressLog" class="progress-log">{{ batchProgress.progressLog }}</div>
+      </div>
+
+      <template #footer>
+        <el-button @click="batchDrawerVisible = false">关闭</el-button>
+        <el-button type="primary" :loading="batchImporting" :disabled="batchProgress.status === 'RUNNING'" @click="handleBatchImport">
+          开始导入
+        </el-button>
+      </template>
+    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import request from '@/utils/request'
 import { competitorApi } from '@/api/competitor'
 import { selectionApi } from '@/api/selection'
+import { asinImportApi } from '@/api/asinImport'
 
 defineOptions({ name: 'ZhengShopOverview' })
 
@@ -174,6 +256,9 @@ interface UnifiedStore {
   sellerId?: number
   notes?: string
   latestMonth?: string
+  ratingScore?: number | null
+  ratingGrade?: string | null
+  ratingBestMatch?: string | null
 }
 
 const STORE_PAGE_SIZE = 20
@@ -193,6 +278,12 @@ const gradeFilter = ref('')
 const sourceFilter = ref('')
 const sortBy = ref('productCount')
 const sortOrder = ref<'asc' | 'desc'>('desc')
+
+// 评级状态
+const ratingRunning = ref(false)
+const ratingStep = ref(0)
+const ratingTotal = ref(0)
+let ratingPollTimer: ReturnType<typeof setInterval> | null = null
 
 // 分页显示
 const displayCount = ref(STORE_PAGE_SIZE)
@@ -250,6 +341,9 @@ const filteredStores = computed(() => {
     } else if (sortBy.value === 'storeScore') {
       va = a.storeScore || (a.grade === 'zheng' ? 100 : 0)
       vb = b.storeScore || (b.grade === 'zheng' ? 100 : 0)
+    } else if (sortBy.value === 'ratingScore') {
+      va = a.ratingScore ?? -1
+      vb = b.ratingScore ?? -1
     } else {
       va = a.productCount
       vb = b.productCount
@@ -295,6 +389,17 @@ const gradeTagType = (grade: StoreGrade): 'danger' | 'success' | 'primary' | 'in
 const gradeLabel = (grade: StoreGrade) => {
   const map: Record<StoreGrade, string> = { zheng: '郑总', premium: '优质', normal: '一般', poor: '差' }
   return map[grade] || grade
+}
+
+const ratingTagType = (grade?: string | null): 'success' | '' | 'warning' | 'danger' => {
+  switch (grade) {
+    case 'A': return 'success'
+    case 'B': return ''
+    case 'C': return 'warning'
+    case 'D': return 'danger'
+    case 'F': return 'danger'
+    default: return 'info' as any
+  }
 }
 
 const formatNumber = (num: number) => {
@@ -472,6 +577,178 @@ const handleSyncAll = async () => {
     syncProgress.value = 0
   }
 }
+
+// ========== 匹配度评级 ==========
+const handleStartRating = async () => {
+  if (ratingRunning.value) return
+  const mp = marketplace.value || 'UK'
+  ratingRunning.value = true
+  ratingStep.value = 0
+  ratingTotal.value = 0
+  try {
+    const res = await request.post('/api/v1/modules/shop-rating/evaluate', null, {
+      params: { marketplace: mp, minCount: 10 }
+    })
+    const taskId = res.data?.taskId
+    if (!taskId) {
+      ElMessage.error('启动评级失败')
+      ratingRunning.value = false
+      return
+    }
+    ElMessage.success('评级任务已启动')
+    // 轮询任务状态
+    ratingPollTimer = setInterval(async () => {
+      try {
+        const taskRes = await request.get(`/api/v1/modules/shop-rating/task/${taskId}`)
+        const data = taskRes.data
+        if (!data) return
+        ratingStep.value = data.currentStep || 0
+        ratingTotal.value = data.totalSteps || 0
+        if (data.status === 'COMPLETED') {
+          clearInterval(ratingPollTimer!)
+          ratingPollTimer = null
+          ratingRunning.value = false
+          // 合并评级结果到 stores
+          if (data.results) {
+            const ratingMap = new Map(data.results.map((r: any) => [r.sellerName, r]))
+            for (const store of stores.value) {
+              const r = ratingMap.get(store.storeName)
+              if (r) {
+                store.ratingScore = r.finalScore
+                store.ratingGrade = r.grade
+                store.ratingBestMatch = r.bestMatchSeller
+              }
+            }
+            ElMessage.success(`评级完成，${data.results.length} 个店铺`)
+          }
+        } else if (data.status === 'FAILED') {
+          clearInterval(ratingPollTimer!)
+          ratingPollTimer = null
+          ratingRunning.value = false
+          ElMessage.error('评级失败: ' + (data.error || '未知错误'))
+        }
+      } catch {
+        // 轮询出错不中断
+      }
+    }, 3000)
+  } catch (e: any) {
+    ratingRunning.value = false
+    ElMessage.error('启动评级失败: ' + (e.message || '未知错误'))
+  }
+}
+
+// ========== 批量导入 ==========
+const rangeStart = ref(1)
+const rangeEnd = ref(50)
+const selectedStores = ref<UnifiedStore[]>([])
+const batchDrawerVisible = ref(false)
+const batchMarketplace = ref('UK')
+const batchImporting = ref(false)
+const batchProgress = reactive({
+  status: '',
+  batchCurrent: 0,
+  batchTotal: 0,
+  apiSuccess: 0,
+  apiFail: 0,
+  progressLog: '',
+})
+
+const zhengStoreCount = computed(() => selectedStores.value.filter(s => s.source === 'zheng').length)
+const selectionStoreCount = computed(() => selectedStores.value.filter(s => s.source === 'selection').length)
+const batchProgressPercent = computed(() => {
+  if (!batchProgress.batchTotal) return 0
+  return Math.round((batchProgress.batchCurrent / batchProgress.batchTotal) * 100)
+})
+
+let batchPollingTimer: ReturnType<typeof setInterval> | null = null
+
+const selectRange = (start: number, end: number) => {
+  const s = Math.max(0, start)
+  const e = Math.min(end, filteredStores.value.length)
+  selectedStores.value = filteredStores.value.slice(s, e)
+  ElMessage.success(`已选择 ${selectedStores.value.length} 个店铺`)
+}
+
+const openBatchDrawer = () => {
+  batchDrawerVisible.value = true
+  batchProgress.status = ''
+  batchProgress.batchCurrent = 0
+  batchProgress.batchTotal = 0
+  batchProgress.apiSuccess = 0
+  batchProgress.apiFail = 0
+  batchProgress.progressLog = ''
+}
+
+const handleBatchImport = async () => {
+  if (!selectedStores.value.length) return
+  if (selectedStores.value.length > 100) {
+    ElMessage.warning('最多 100 个卖家，请缩小范围')
+    return
+  }
+
+  const zhengStores = selectedStores.value.filter(s => s.source === 'zheng')
+  const selectionStores = selectedStores.value.filter(s => s.source === 'selection')
+
+  const tasks: Array<{ names: string[]; target: string }> = []
+  if (zhengStores.length) tasks.push({ names: zhengStores.map(s => s.storeName), target: 'deng_zong_shop' })
+  if (selectionStores.length) tasks.push({ names: selectionStores.map(s => s.storeName), target: 'competitor_products' })
+
+  try {
+    await ElMessageBox.confirm(
+      `将为 ${selectedStores.value.length} 个卖家批量导入数据（${zhengStores.length} 郑总 + ${selectionStores.length} 选品）。确认？`,
+      '确认批量导入',
+      { confirmButtonText: '开始', cancelButtonText: '取消' }
+    )
+  } catch { return }
+
+  batchImporting.value = true
+  try {
+    for (const taskInfo of tasks) {
+      const previewRes = await asinImportApi.sellerPreview(taskInfo.names, batchMarketplace.value, taskInfo.target)
+      const preview = (previewRes as any).data || previewRes
+
+      await asinImportApi.sellerExecute(preview.taskId)
+
+      await new Promise<void>((resolve, reject) => {
+        batchProgress.status = 'RUNNING'
+        batchProgress.batchTotal = preview.sellerCount
+        batchProgress.batchCurrent = 0
+
+        batchPollingTimer = setInterval(async () => {
+          try {
+            const progRes = await asinImportApi.progress(preview.taskId)
+            const p = (progRes as any).data || progRes
+            batchProgress.batchCurrent = p.batchCurrent || 0
+            batchProgress.apiSuccess = p.apiSuccess || 0
+            batchProgress.apiFail = p.apiFail || 0
+            batchProgress.progressLog = p.progressLog || ''
+            const taskStatus = p.status || p.taskStatus
+            if (['DONE', 'ERROR', 'CANCELLED', 'REJECTED'].includes(taskStatus)) {
+              if (batchPollingTimer) { clearInterval(batchPollingTimer); batchPollingTimer = null }
+              batchProgress.status = taskStatus
+              if (taskStatus === 'DONE') resolve()
+              else reject(new Error(p.errorMessage || `任务${taskStatus}`))
+            }
+          } catch { /* ignore polling errors */ }
+        }, 3000)
+      })
+    }
+
+    batchProgress.status = 'DONE'
+    ElMessage.success('批量导入完成')
+    await loadAllStores()
+  } catch (e: any) {
+    ElMessage.error(e.message || '批量导入失败')
+  } finally {
+    batchImporting.value = false
+    if (batchPollingTimer) { clearInterval(batchPollingTimer); batchPollingTimer = null }
+  }
+}
+
+onUnmounted(() => {
+  if (batchPollingTimer) { clearInterval(batchPollingTimer); batchPollingTimer = null }
+  if (ratingPollTimer) { clearInterval(ratingPollTimer); ratingPollTimer = null }
+})
 
 onMounted(() => {
   loadAllStores()
@@ -676,6 +953,25 @@ onMounted(() => {
   margin-top: 2px;
 }
 
+.shop-rating {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12px;
+
+  .rating-label {
+    color: #909399;
+  }
+  .rating-score {
+    color: #303133;
+    font-weight: 600;
+  }
+  .rating-match {
+    color: #909399;
+  }
+}
+
 .shop-actions {
   display: flex;
   gap: 8px;
@@ -687,5 +983,89 @@ onMounted(() => {
 .load-more-stores {
   text-align: center;
   padding: 16px 0;
+}
+
+/* 批量选择 */
+.batch-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 0 4px;
+  border-top: 1px solid #e4e7ed;
+  margin-top: 12px;
+}
+
+.batch-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #606266;
+}
+
+/* 批量导入抽屉 */
+.batch-summary-card {
+  padding: 12px;
+  background: #f0f9eb;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.batch-stat {
+  font-size: 14px;
+  color: #303133;
+  margin-bottom: 4px;
+}
+
+.store-name-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.store-name-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.store-name-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.store-mp {
+  color: #909399;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.batch-progress {
+  margin-top: 16px;
+  padding: 12px;
+  background: #f5f7fa;
+  border-radius: 8px;
+}
+
+.progress-detail {
+  font-size: 13px;
+  color: #606266;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.progress-log {
+  margin-top: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 12px;
+  color: #909399;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 </style>

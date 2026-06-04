@@ -29,6 +29,7 @@
 5. **API 路径** — Java: `/api/v1/{resource}/`，Python: `/api/v1/{resource}/`
 6. **修改前先读对应 AGENTS.md** — 了解模块上下文后再动手
 7. **响应统一用 `Result.success()` / `Result.error()`**
+8. **新功能优先用模块化** — 前端放 `src/modules/`，即插即用，不改 router/sidebar
 
 ## 会话启动检查清单
 
