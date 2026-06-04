@@ -45,6 +45,7 @@ public class CompetitorController {
             @RequestParam(required = false) String brand,
             @RequestParam(required = false) String sellerName,
             @RequestParam(required = false) String title,
+            @RequestParam(required = false) String category,
             @RequestParam(required = false) String grade,
             @RequestParam(required = false) String weekTag,
             @RequestParam(required = false) Integer isCurrent,
@@ -63,6 +64,7 @@ public class CompetitorController {
         request.setBrand(brand);
         request.setSellerName(sellerName);
         request.setTitle(title);
+        request.setCategory(category);
         request.setGrade(grade);
         request.setWeekTag(weekTag);
         request.setIsCurrent(isCurrent);

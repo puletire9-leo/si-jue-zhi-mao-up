@@ -58,6 +58,22 @@ public class DengZongShopController {
         return Result.success(result);
     }
 
+    @GetMapping("/variants")
+    @Operation(summary = "查询某父ASIN下的所有变体")
+    public Result<List<Map<String, Object>>> variants(
+            @RequestParam String marketplace,
+            @RequestParam String parentAsin) {
+        LambdaQueryWrapper<DengZongShop> qw = new LambdaQueryWrapper<>();
+        qw.eq(DengZongShop::getMarketplace, marketplace);
+        qw.and(w -> w.eq(DengZongShop::getParentAsin, parentAsin)
+                .or().eq(DengZongShop::getAsin, parentAsin));
+        qw.isNotNull(DengZongShop::getTitle);
+        qw.orderByAsc(DengZongShop::getBsr);
+        List<DengZongShop> list = mapper.selectList(qw);
+        List<Map<String, Object>> items = list.stream().map(this::toResponse).collect(Collectors.toList());
+        return Result.success(items);
+    }
+
     @GetMapping("/stats")
     @Operation(summary = "邓总店铺统计")
     public Result<Map<String, Object>> stats() {
@@ -200,6 +216,7 @@ public class DengZongShopController {
         m.put("productUrl", d.getProductUrl());
         m.put("similarUrl", d.getSimilarUrl());
         m.put("source", d.getSource());
+        m.put("variantCount", d.getVariantCount());
         m.put("availableDate", d.getAvailableDate());
         m.put("createdAt", d.getCreatedAt());
         m.put("updatedAt", d.getUpdatedAt());

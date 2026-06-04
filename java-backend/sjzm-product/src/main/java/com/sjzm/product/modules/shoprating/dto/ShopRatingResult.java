@@ -42,6 +42,8 @@ public class ShopRatingResult {
         private String marketplace;
         private int newProductCount;
         private boolean dataFetched;
+        private Double score;
+        private String grade;
     }
 
     /** 任务状态 */
@@ -49,8 +51,8 @@ public class ShopRatingResult {
     public static class TaskStatus {
         private String taskId;
         private String status; // PENDING, RUNNING, COMPLETED, FAILED
-        private int currentStep;
-        private int totalSteps;
+        private int progress;
+        private int total;
         private List<ShopRatingResult> results;
         private String error;
     }

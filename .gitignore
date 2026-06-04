@@ -16,6 +16,7 @@ static/vue-dist/
 .env
 .env.local
 .env.production
+.env.prod
 
 # Data / Uploads / Cache
 data/
@@ -97,3 +98,6 @@ backend/logs/*
 
 # Claude
 .claude/
+
+# 对话历史（体积过大）
+docs/对话历史/
