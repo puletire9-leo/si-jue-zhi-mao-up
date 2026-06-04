@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Odometer,
-  Box,
   Star,
-  Shop,
   Picture,
   Brush,
   Upload,
@@ -14,6 +12,7 @@ import {
   User,
   Setting
 } from '@element-plus/icons-vue'
+import { getAllModules } from '@/modules'
 
 interface MenuItem {
   index: string
@@ -21,75 +20,132 @@ interface MenuItem {
   icon: any
   children?: MenuItem[]
   external?: boolean
+  order?: number
 }
 
-const props = defineProps<{
+defineProps<{
   collapsed: boolean
 }>()
 
 const route = useRoute()
 const router = useRouter()
 
-const menuItems: MenuItem[] = [
-  { index: '/dashboard', title: '首页', icon: Odometer },
-  // 产品管理暂时屏蔽（Python 后端未迁移）
-  {
-    index: 'selection',
-    title: '选品中心',
-    icon: Star,
-    children: [
-      { index: '/all-selection', title: '总选品管理', icon: Star },
-      { index: '/new-products', title: '新品榜', icon: Star },
-      { index: '/reference-products', title: '竞品店铺', icon: Star },
-      { index: '/zheng-products', title: '郑总店铺上新', icon: Star },
-      { index: '/zheng-shop-overview', title: '店铺总览', icon: Shop },
-      { index: '/asin-import', title: '卖家精灵数据获取', icon: Star }
-    ]
-  },
-  {
-    index: 'resources',
-    title: '资料集',
-    icon: Picture,
-    children: [
-      { index: '/prompt-library', title: '提示词库', icon: Picture },
-      { index: '/resource-library', title: '资料库', icon: Picture },
-      { index: '/resource-collection', title: '图片管理', icon: Picture }
-    ]
-  },
-  {
-    index: 'customization',
-    title: '微定制',
-    icon: Brush,
-    children: [
-      { index: '/final-draft', title: '定稿管理', icon: Brush },
-      { index: '/material-library', title: '素材库', icon: Brush },
-      { index: '/carrier-library', title: '载体库', icon: Brush }
-    ]
-  },
-  {
-    index: 'lingxing',
-    title: '领星',
-    icon: Upload,
-    children: [
-      { index: '/lingxing/import', title: '导入领星', icon: Upload }
-    ]
-  },
-  {
-    index: 'dashboards',
-    title: '数据看板',
-    icon: TrendCharts,
-    children: [
-      { index: '/product-data', title: '产品数据看板', icon: TrendCharts },
-      { index: '/dashboards/product_sales_dashboard_v2.html', title: '销量追踪', icon: TrendCharts, external: true },
-      { index: '/dashboards/product_comparison_dashboard.html', title: '双周期对比', icon: TrendCharts, external: true },
-      { index: '/dashboards/product_decline_analysis.html', title: '销量下滑分析', icon: TrendCharts, external: true }
-    ]
-  },
-  { index: '/download-manager', title: '下载管理', icon: Download },
-  { index: '/users', title: '用户管理', icon: User },
-    { index: '/account-settings', title: '账号设置', icon: User },
-    { index: '/settings', title: '系统设置', icon: Setting }
-]
+// 图标按需加载缓存
+const iconCache = new Map<string, any>()
+function resolveIcon(name?: string): any {
+  if (!name) return undefined
+  if (!iconCache.has(name)) {
+    iconCache.set(name, defineAsyncComponent(() =>
+      import('@element-plus/icons-vue').then(m => (m as any)[name]).catch(() => undefined)
+    ))
+  }
+  return iconCache.get(name)
+}
+
+// 从模块清单动态生成菜单
+const menuItems = computed<MenuItem[]>(() => {
+  const modules = getAllModules()
+  const groups = new Map<string, { items: MenuItem[]; order: number }>()
+  const topLevel: MenuItem[] = []
+
+  // 首页固定在最前
+  topLevel.push({ index: '/dashboard', title: '首页', icon: Odometer, order: 0 })
+
+  for (const mod of modules) {
+    const item: MenuItem = {
+      index: `/${mod.route.path}`,
+      title: mod.name,
+      icon: resolveIcon(mod.icon),
+      order: mod.menuOrder ?? 99
+    }
+    if (mod.menuGroup) {
+      if (!groups.has(mod.menuGroup)) {
+        groups.set(mod.menuGroup, { items: [], order: mod.menuOrder ?? 99 })
+      }
+      groups.get(mod.menuGroup)!.items.push(item)
+    } else {
+      topLevel.push(item)
+    }
+  }
+
+  topLevel.sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
+
+  const groupMenus: MenuItem[] = [...groups.entries()]
+    .map(([title, { items, order }]) => ({
+      index: title,
+      title,
+      icon: items[0]?.icon,
+      order,
+      children: items.sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
+    }))
+    .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
+
+  // 以下为尚未迁移到模块的菜单项（逐步迁移后会消失）
+  const legacyGroups: MenuItem[] = [
+    {
+      index: 'legacy-selection',
+      title: '选品中心',
+      icon: Star,
+      order: 10,
+      children: [
+        { index: '/all-selection', title: '总选品管理', icon: Star },
+        { index: '/new-products', title: '新品榜', icon: Star },
+        { index: '/reference-products', title: '竞品店铺', icon: Star },
+        { index: '/zheng-products', title: '郑总店铺上新', icon: Star },
+        { index: '/asin-import', title: '卖家精灵数据获取', icon: Star }
+      ]
+    },
+    {
+      index: 'legacy-resources',
+      title: '资料集',
+      icon: Picture,
+      order: 30,
+      children: [
+        { index: '/prompt-library', title: '提示词库', icon: Picture },
+        { index: '/resource-library', title: '资料库', icon: Picture },
+        { index: '/resource-collection', title: '图片管理', icon: Picture }
+      ]
+    },
+    {
+      index: 'legacy-customization',
+      title: '微定制',
+      icon: Brush,
+      order: 40,
+      children: [
+        { index: '/final-draft', title: '定稿管理', icon: Brush },
+        { index: '/material-library', title: '素材库', icon: Brush },
+        { index: '/carrier-library', title: '载体库', icon: Brush }
+      ]
+    },
+    {
+      index: 'legacy-lingxing',
+      title: '领星',
+      icon: Upload,
+      order: 50,
+      children: [
+        { index: '/lingxing/import', title: '导入领星', icon: Upload }
+      ]
+    },
+    {
+      index: 'legacy-dashboards',
+      title: '数据看板',
+      icon: TrendCharts,
+      order: 60,
+      children: [
+        { index: '/product-data', title: '产品数据看板', icon: TrendCharts },
+        { index: '/dashboards/product_sales_dashboard_v2.html', title: '销量追踪', icon: TrendCharts, external: true },
+        { index: '/dashboards/product_comparison_dashboard.html', title: '双周期对比', icon: TrendCharts, external: true },
+        { index: '/dashboards/product_decline_analysis.html', title: '销量下滑分析', icon: TrendCharts, external: true }
+      ]
+    },
+    { index: '/download-manager', title: '下载管理', icon: Download, order: 200 },
+    { index: '/users', title: '用户管理', icon: User, order: 210 },
+    { index: '/account-settings', title: '账号设置', icon: User, order: 220 },
+    { index: '/settings', title: '系统设置', icon: Setting, order: 230 }
+  ]
+
+  return [...topLevel, ...groupMenus, ...legacyGroups]
+})
 
 const activeIndex = computed(() => route.path)
 
@@ -106,7 +162,7 @@ const findItem = (items: MenuItem[], index: string): MenuItem | undefined => {
 
 const handleSelect = (index: string) => {
   if (!index.startsWith('/')) return
-  const item = findItem(menuItems, index)
+  const item = findItem(menuItems.value, index)
   if (item?.external) {
     window.open(index, '_blank')
     return

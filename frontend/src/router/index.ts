@@ -2,6 +2,16 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { ElMessage } from 'element-plus'
+import { getAllModules } from '@/modules'
+
+// 模块化路由：从 modules/*/manifest.ts 自动收集
+const moduleRoutes: RouteRecordRaw[] = getAllModules().map(m => ({
+  path: m.route.path,
+  name: `module-${m.id}-${m.route.name}`,
+  component: m.route.component,
+  children: m.route.children,
+  meta: { title: m.name, icon: m.icon, permissions: m.permissions, ...m.route.meta }
+}))
 
 const routes: RouteRecordRaw[] = [
   {
@@ -41,6 +51,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/SelectionDetail/index.vue'),
         meta: { title: '选品详情' }
       },
+      // 以下为尚未迁移到模块的路由（逐步迁移后会消失）
       {
         path: 'all-selection',
         name: 'AllSelection',
@@ -64,12 +75,6 @@ const routes: RouteRecordRaw[] = [
         name: 'ZhengProducts',
         component: () => import('@/views/AllSelection/index.vue'),
         meta: { title: '郑总店铺上新', icon: 'Star' }
-      },
-      {
-        path: 'zheng-shop-overview',
-        name: 'ZhengShopOverview',
-        component: () => import('@/views/ZhengShopOverview/index.vue'),
-        meta: { title: '店铺总览', icon: 'Shop' }
       },
       {
         path: 'asin-import',
@@ -101,21 +106,18 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/FinalDraft/index.vue'),
         meta: { title: '定稿', icon: 'Check' }
       },
-
       {
         path: 'material-library',
         name: 'MaterialLibrary',
         component: () => import('@/views/MaterialLibrary/index.vue'),
         meta: { title: '素材库', icon: 'Picture' }
       },
-
       {
         path: 'carrier-library',
         name: 'CarrierLibrary',
         component: () => import('@/views/CarrierLibrary/index.vue'),
         meta: { title: '载体库', icon: 'Box' }
       },
-
       {
         path: 'statistics',
         name: 'Statistics',
@@ -134,7 +136,6 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/ReportViewer/index.vue'),
         meta: { title: '数据分析报告', icon: 'Document' }
       },
-
       {
         path: 'users',
         name: 'Users',
@@ -147,7 +148,6 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/AccountSettings/index.vue'),
         meta: { title: '账号设置', icon: 'User' }
       },
-
       {
         path: 'selection-recycle-bin',
         name: 'SelectionRecycleBin',
@@ -189,7 +189,9 @@ const routes: RouteRecordRaw[] = [
         name: 'LingxingImport',
         component: () => import('@/views/Lingxing/Import/index.vue'),
         meta: { title: '导入领星', icon: 'Upload' }
-      }
+      },
+      // 模块化路由（从 modules/*/manifest.ts 自动收集）
+      ...moduleRoutes
     ]
   },
   {

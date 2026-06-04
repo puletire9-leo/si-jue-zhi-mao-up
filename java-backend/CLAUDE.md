@@ -27,17 +27,33 @@
 ## 包结构约定
 
 ```
-com.sjzm/
+com.sjzm.product/
 ├── controller/   # @RestController，只做参数校验和路由
 ├── service/      # 接口 + impl/，业务逻辑全部在此
-├── mapper/       # 继承 BaseMapper<T>
+├── mapper/       # 继承 BaseMapper<T>（含模块的 Mapper）
 ├── entity/       # @TableName + @TableId(ASSIGN_ID) + @TableLogic
 ├── config/       # 配置类
 ├── security/     # JWT 认证
 ├── annotation/   # 自定义注解（限流/缓存/追踪）
 ├── aspect/       # AOP 切面
-└── mq/           # RocketMQ 生产者/消费者
+├── mq/           # RocketMQ 生产者/消费者
+└── modules/      # 功能模块（即插即用）
+    └── xxx/
+        ├── controller/   # 模块 Controller
+        ├── service/      # 模块 Service
+        │   └── impl/
+        └── entity/       # 模块 Entity
 ```
+
+## 模块化规则（新功能必须遵守）
+
+新功能**必须**放 `com.sjzm.product.modules.xxx` 包下，自动被 `scanBasePackages` 扫描。
+
+**关键约束：**
+- 模块 Mapper 放 `com.sjzm.product.mapper` 包下（`@MapperScan` 只扫这个包）
+- 模块 Controller/Service/Entity 放 `modules/xxx/` 下
+- 模块 API 前缀：`/api/v1/modules/{module-id}/`
+- 分层单向：模块 Controller → 模块 Service → 公共/模块 Mapper
 
 ## 铁律
 
