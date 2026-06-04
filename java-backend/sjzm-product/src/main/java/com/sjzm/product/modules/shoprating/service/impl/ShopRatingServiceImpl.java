@@ -1,8 +1,10 @@
 package com.sjzm.product.modules.shoprating.service.impl;
 
 import com.sjzm.product.entity.DengZongShop;
+import com.sjzm.product.entity.StoreRating;
 import com.sjzm.product.mapper.CompetitorProductMapper;
 import com.sjzm.product.mapper.DengZongShopMapper;
+import com.sjzm.product.mapper.StoreRatingMapper;
 import com.sjzm.product.modules.shoprating.dto.ShopRatingResult;
 import com.sjzm.product.modules.shoprating.service.ShopRatingService;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ public class ShopRatingServiceImpl implements ShopRatingService {
 
     private final CompetitorProductMapper competitorProductMapper;
     private final DengZongShopMapper dengZongShopMapper;
+    private final StoreRatingMapper storeRatingMapper;
     private final StringRedisTemplate redisTemplate;
     private final ApplicationContext applicationContext;
 
@@ -190,6 +193,9 @@ public class ShopRatingServiceImpl implements ShopRatingService {
             redisTemplate.opsForValue().set(taskKey, "{\"status\":\"COMPLETED\"}");
             redisTemplate.opsForValue().set(taskKey + ":results", serializeResults(results), 24, TimeUnit.HOURS);
 
+            // 6. 持久化到数据库
+            saveRatingsToDb(results);
+
             // 解锁
             redisTemplate.delete(LOCK_KEY_PREFIX + marketplace);
 
@@ -200,6 +206,40 @@ public class ShopRatingServiceImpl implements ShopRatingService {
                     "{\"status\":\"FAILED\",\"error\":\"" + safeMsg + "\"}");
             redisTemplate.delete(LOCK_KEY_PREFIX + marketplace);
         }
+    }
+
+    // ========== 持久化 ==========
+
+    private void saveRatingsToDb(List<ShopRatingResult> results) {
+        if (results == null || results.isEmpty()) return;
+        try {
+            List<StoreRating> entities = new ArrayList<>();
+            for (ShopRatingResult r : results) {
+                StoreRating sr = new StoreRating();
+                sr.setSellerName(r.getSellerName());
+                sr.setMarketplace(r.getMarketplace() != null ? r.getMarketplace() : "");
+                sr.setRatingScore(r.getFinalScore());
+                sr.setRatingGrade(r.getGrade());
+                sr.setBestMatchSeller(r.getBestMatchSeller());
+                sr.setBestMatchScore(r.getBestMatchScore());
+                sr.setProductCount(r.getProductCount());
+                sr.setOverallScore(r.getOverallScore());
+                sr.setMatchScore(r.getMatchScore());
+                entities.add(sr);
+            }
+            // 分批写入，每批 100 条
+            for (int i = 0; i < entities.size(); i += 100) {
+                List<StoreRating> batch = entities.subList(i, Math.min(i + 100, entities.size()));
+                storeRatingMapper.insertOrUpdateBatch(batch);
+            }
+            log.info("评级结果已持久化: {} 条", entities.size());
+        } catch (Exception e) {
+            log.error("持久化评级结果失败", e);
+        }
+    }
+
+    public List<StoreRating> getSavedRatings(String marketplace) {
+        return storeRatingMapper.selectByMarketplace(marketplace);
     }
 
     // ========== 基准构建 ==========

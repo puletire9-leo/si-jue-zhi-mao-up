@@ -153,12 +153,13 @@ class SelectionStatsResponse(BaseModel):
 class StoreInfo(BaseModel):
     """
     店铺信息模型
-    
+
     用于返回店铺统计信息
     """
     store_name: str = Field(..., description="店铺名称")
     store_url: Optional[str] = Field(None, description="店铺URL")
     count: int = Field(..., description="产品数量")
+    marketplace: Optional[str] = Field(None, description="站点")
 
 
 class BatchImportSelectionRequest(BaseModel):

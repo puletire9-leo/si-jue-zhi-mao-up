@@ -372,13 +372,22 @@ const handleGradeToggle = (grade: string) => {
  * 获取当前查询参数
  */
 const getQueryParams = (): SelectionQueryParams => {
-  return { ...formData }
+  const params = { ...formData }
+  // 多选 category 数组转逗号分隔字符串
+  if (Array.isArray(params.category)) {
+    params.category = params.category.join(',')
+  }
+  return params
 }
 
 /**
  * 设置查询参数
  */
 const setQueryParams = (params: Partial<SelectionQueryParams>) => {
+  // category 字符串转数组（多选模式）
+  if (params.category && typeof params.category === 'string') {
+    params.category = params.category.split(',').filter(Boolean) as any
+  }
   Object.assign(formData, params)
   // 同步更新日期范围
   if (params.startDate && params.endDate) {
@@ -630,18 +639,20 @@ defineExpose({
       
       <!-- 大类榜单 -->
       <el-form-item v-if="!config.showCombinedSearch" label="大类榜单">
-        <el-select 
-          v-model="formData.category" 
-          placeholder="请选择大类榜单" 
+        <el-select
+          v-model="formData.category"
+          placeholder="请选择大类榜单"
           clearable
-          style="width: 200px"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          style="width: 280px"
         >
-          <el-option label="全部" value="" />
-          <el-option 
-            v-for="cat in categories" 
-            :key="cat.category" 
-            :label="`${cat.category} (${cat.count})`" 
-            :value="cat.category" 
+          <el-option
+            v-for="cat in categories"
+            :key="cat.category"
+            :label="`${cat.category} (${cat.count})`"
+            :value="cat.category"
           />
         </el-select>
       </el-form-item>
@@ -822,9 +833,11 @@ defineExpose({
             v-model="formData.category"
             placeholder="请选择大类榜单"
             clearable
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
             style="width: 100%"
           >
-            <el-option label="全部" value="" />
             <el-option
               v-for="cat in categories"
               :key="cat.category"

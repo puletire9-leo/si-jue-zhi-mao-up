@@ -1117,30 +1117,31 @@ class SelectionService:
     
     async def get_stores(self) -> List[StoreInfo]:
         """
-        获取店铺统计信息
-        
+        获取店铺统计信息（从 competitor_products 表）
+
         Returns:
             店铺列表及其产品数量
         """
         try:
             query = """
-                SELECT 
-                    store_name,
-                    MAX(store_url) as store_url,
+                SELECT
+                    seller_name as store_name,
+                    marketplace,
                     COUNT(*) as count
-                FROM selection_products
-                WHERE store_name IS NOT NULL AND store_name != ''
-                GROUP BY store_name
+                FROM competitor_products
+                WHERE seller_name IS NOT NULL AND seller_name != '' AND seller_name != 'null'
+                GROUP BY seller_name, marketplace
                 ORDER BY count DESC
             """
-            
+
             stores = await self.mysql.execute_query(query)
-            
+
             return [
                 StoreInfo(
                     store_name=store['store_name'],
-                    store_url=store['store_url'],
-                    count=store['count']
+                    store_url='',
+                    count=store['count'],
+                    marketplace=store.get('marketplace', '')
                 )
                 for store in stores
             ]
@@ -1165,7 +1166,7 @@ class SelectionService:
             大类榜单名列表及其产品数量
         """
         try:
-            where_conditions = ["main_category_name IS NOT NULL AND main_category_name != ''"]
+            where_conditions = ["node_label_path IS NOT NULL AND node_label_path != ''"]
             query_params = []
 
             # 如果指定了source，添加source筛选条件
@@ -1176,13 +1177,17 @@ class SelectionService:
             where_clause = " AND ".join(where_conditions)
 
             query = f"""
-                SELECT
-                    main_category_name as category,
-                    COUNT(*) as count
-                FROM selection_products
-                WHERE {where_clause}
-                GROUP BY main_category_name
-                ORDER BY count DESC
+                SELECT category, count FROM (
+                    SELECT
+                        SUBSTRING_INDEX(node_label_path, ':', 1) as category,
+                        COUNT(*) as count
+                    FROM competitor_products
+                    WHERE {where_clause}
+                    GROUP BY SUBSTRING_INDEX(node_label_path, ':', 1)
+                ) t
+                ORDER BY
+                    CASE WHEN category LIKE '%Home%' THEN 0 ELSE 1 END,
+                    count DESC
             """
 
             categories = await self.mysql.execute_query(query, tuple(query_params) if query_params else None)

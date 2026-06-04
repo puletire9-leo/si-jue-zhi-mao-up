@@ -1,8 +1,10 @@
 package com.sjzm.product.modules.shoprating.controller;
 
 import com.sjzm.common.Result;
+import com.sjzm.product.entity.StoreRating;
 import com.sjzm.product.modules.shoprating.dto.ShopRatingResult;
 import com.sjzm.product.modules.shoprating.service.ShopRatingService;
+import com.sjzm.product.modules.shoprating.service.impl.ShopRatingServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +20,7 @@ import java.util.Map;
 public class ShopRatingController {
 
     private final ShopRatingService shopRatingService;
+    private final ShopRatingServiceImpl shopRatingServiceImpl;
 
     @GetMapping("/candidates")
     @Operation(summary = "获取候选店铺（新品榜 >10 新品）")
@@ -40,5 +43,12 @@ public class ShopRatingController {
     @Operation(summary = "查询评级任务状态")
     public Result<ShopRatingResult.TaskStatus> taskStatus(@PathVariable String taskId) {
         return Result.success(shopRatingService.getTaskStatus(taskId));
+    }
+
+    @GetMapping("/ratings")
+    @Operation(summary = "获取已保存的店铺评级")
+    public Result<List<StoreRating>> getSavedRatings(
+            @RequestParam(required = false) String marketplace) {
+        return Result.success(shopRatingServiceImpl.getSavedRatings(marketplace));
     }
 }

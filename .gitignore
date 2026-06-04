@@ -55,10 +55,25 @@ tmp/
 # Tool binaries (too large)
 tool/node.js/
 tool/apache-maven-3.9.16/
+tool/Redis-x64-3.0.504/
 
 # Large data files
 *.parquet
 产品数据/压缩数据/
+产品数据/数据库备份/
+产品数据/*.json
+产品数据/*.xlsx
+产品数据/*.md
+产品数据/邓总店铺/
+
+# Scripts large data
+scripts/八爪鱼新品榜asin/跳过asin集合.json
+scripts/八爪鱼新品榜asin/跳过asin和关键词/跳过asin集合.json
+
+# Backup SQL dumps
+backend/backup/*.sql
+backend/database/backup/*.sql
+backend/database/backup/*.sql.gz
 
 # Test / temp files
 backend/test_*.png

@@ -110,7 +110,7 @@ interface GradeStat {
   color: string
 }
 
-const activeCollapse = ref<string[]>(['scoring'])
+const activeCollapse = ref<string[]>([])
 const dimensions = ref<DimensionConfig[]>([])
 const gradeThresholds = ref<GradeThreshold[]>([])
 const gradeStats = ref<GradeStat[]>([])

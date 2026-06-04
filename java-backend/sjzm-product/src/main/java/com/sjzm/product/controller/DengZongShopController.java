@@ -35,6 +35,7 @@ public class DengZongShopController {
             @RequestParam(required = false) String brand,
             @RequestParam(required = false) String sellerName,
             @RequestParam(required = false) String title,
+            @RequestParam(required = false) String category,
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String sortOrder,
             @RequestParam(defaultValue = "1") Integer page,
@@ -43,9 +44,9 @@ public class DengZongShopController {
         int offset = (page - 1) * size;
         // 验证 sortOrder 防止 SQL 注入
         String safeSortOrder = "asc".equalsIgnoreCase(sortOrder) ? "ASC" : "DESC";
-        long total = mapper.countGroupedByParent(marketplace, month, brand, sellerName, title);
+        long total = mapper.countGroupedByParent(marketplace, month, brand, sellerName, title, category);
         List<DengZongShop> list = mapper.selectGroupedByParent(
-                marketplace, month, brand, sellerName, title, sortBy, safeSortOrder, offset, size);
+                marketplace, month, brand, sellerName, title, category, sortBy, safeSortOrder, offset, size);
 
         List<Map<String, Object>> items = list.stream().map(this::toResponse).collect(Collectors.toList());
 
