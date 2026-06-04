@@ -97,6 +97,7 @@ services:
       - prod-models:/app/model_cache
       - ./领星:/app/领星
       - prod-download-cache:/app/下载缓存
+      - ./backend/app:/app/app:ro
     depends_on:
       mysql:
         condition: service_healthy
