@@ -1186,7 +1186,7 @@ class SelectionService:
                     GROUP BY SUBSTRING_INDEX(node_label_path, ':', 1)
                 ) t
                 ORDER BY
-                    CASE WHEN category LIKE '%Home%' THEN 0 ELSE 1 END,
+                    CASE WHEN category LIKE '%%Home%%' THEN 0 ELSE 1 END,
                     count DESC
             """
 
