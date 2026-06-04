@@ -85,9 +85,17 @@ public class CompetitorService {
     }
 
     /**
-     * 单批查询 + 入库，返回统计摘要供前端进度显示
+     * 单批查询 + 入库（默认 source="新品榜"）
      */
     public Map<String, Object> doLookupAndSave(CompetitorLookupRequest request, String month, java.time.LocalDateTime batchTime) {
+        return doLookupAndSave(request, month, batchTime, "新品榜");
+    }
+
+    /**
+     * 单批查询 + 入库，返回统计摘要供前端进度显示
+     * @param source 数据来源标记："新品榜" 或 "竞品店铺"
+     */
+    public Map<String, Object> doLookupAndSave(CompetitorLookupRequest request, String month, java.time.LocalDateTime batchTime, String source) {
         log.info("API请求参数: marketplace={}, variation={}, size={}, page={}, asins={}个, month={}",
                 request.getMarketplace(), request.getVariation(), request.getSize(), request.getPage(),
                 request.getAsins() != null ? request.getAsins().size() : 0, month);
@@ -128,11 +136,12 @@ public class CompetitorService {
                 }
             }
 
-            // 每批最多2页（200条），避免超级变体父ASIN吃光配额
+            // 每批最多2页（200条），避免超级变体父ASIN吃光配额；卖家模式上限50页
             int fetched = results.size();
             if (fetched >= total || itemCount < request.getSize()) break;
-            if (page >= 2) {
-                log.info("已达翻页上限2页，停止 (已获取{}条/total={})", fetched, total);
+            int maxPages = "竞品店铺".equals(source) ? 50 : 2;
+            if (page >= maxPages) {
+                log.info("已达翻页上限{}页，停止 (已获取{}条/total={})", maxPages, fetched, total);
                 break;
             }
             page++;
@@ -148,17 +157,17 @@ public class CompetitorService {
         }
 
         // 批量追踪所有请求过的父 ASIN（INSERT IGNORE，唯一键冲突静默跳过）
-        List<CompetitorProduct> trackingRecords = new ArrayList<>(request.getAsins().size());
-        for (String requestedAsin : request.getAsins()) {
-            CompetitorProduct track = new CompetitorProduct();
-            track.setMarketplace(marketplace);
-            track.setAsin(requestedAsin);
-            track.setMonth(month);
-            track.setCreatedAt(batchTime);
-            track.setUpdatedAt(batchTime);
-            trackingRecords.add(track);
-        }
-        if (!trackingRecords.isEmpty()) {
+        if (request.getAsins() != null && !request.getAsins().isEmpty()) {
+            List<CompetitorProduct> trackingRecords = new ArrayList<>(request.getAsins().size());
+            for (String requestedAsin : request.getAsins()) {
+                CompetitorProduct track = new CompetitorProduct();
+                track.setMarketplace(marketplace);
+                track.setAsin(requestedAsin);
+                track.setMonth(month);
+                track.setCreatedAt(batchTime);
+                track.setUpdatedAt(batchTime);
+                trackingRecords.add(track);
+            }
             productMapper.insertBatchIgnoreDup(trackingRecords);
         }
 
@@ -166,7 +175,7 @@ public class CompetitorService {
         int mode1 = 0, mode2 = 0, fail = 0, newProductPassed = 0;
         if (!savedProducts.isEmpty()) {
             CompetitorFilterService.FilterResult fr = filterService.filter(
-                    savedProducts, marketplace, "新品榜", month);
+                    savedProducts, marketplace, source, month);
             mode1 = fr.getMode1Count();
             mode2 = fr.getMode2Count();
             fail = fr.getFailCount();
@@ -328,14 +337,16 @@ public class CompetitorService {
                 request.getMarketplace(), request.getMonth(), request.getSource(),
                 request.getFilterMode(), request.getBrand(), request.getSellerName(),
                 request.getTitle(), request.getGrade(), request.getWeekTag(),
-                request.getIsCurrent(), request.getMaxVariantCount(), request.getCategory(),
+                request.getIsCurrent(), request.getMaxVariantCount(),
+                request.getCategory(),
                 request.getSortBy(), sortOrder, offset, request.getSize());
 
         long total = productMapper.countGroupedByParent(
                 request.getMarketplace(), request.getMonth(), request.getSource(), request.getFilterMode(),
                 request.getBrand(), request.getSellerName(), request.getTitle(),
                 request.getGrade(), request.getWeekTag(), request.getIsCurrent(),
-                request.getMaxVariantCount(), request.getCategory());
+                request.getMaxVariantCount(),
+                request.getCategory());
 
         // 批量查子类目，避免 N+1
         List<Long> productIds = records.stream().map(CompetitorProduct::getId).collect(Collectors.toList());
@@ -392,6 +403,9 @@ public class CompetitorService {
         }
         if (StringUtils.hasText(request.getTitle())) {
             wrapper.like(CompetitorProduct::getTitle, request.getTitle());
+        }
+        if (StringUtils.hasText(request.getCategory())) {
+            wrapper.apply("SUBSTRING_INDEX(node_label_path, ':', 1) = {0}", request.getCategory());
         }
         if (StringUtils.hasText(request.getGrade())) {
             List<String> grades = java.util.Arrays.asList(request.getGrade().split(","));
@@ -551,3 +565,68 @@ public class CompetitorService {
         }
     }
 }
+568
+
+<system-reminder>
+Contents of /mnt/f/项目/si-jue-zhi-mao-up/java-backend/CLAUDE.md:
+
+# Java 后端 - Claude 自动加载上下文
+
+> Spring Boot 4.0.4 + MyBatis-Plus 3.5.15 + Spring Cloud Gateway。详情见 [AGENTS.md](AGENTS.md)。
+
+## 微服务模块
+
+| 模块 | 端口 | 职责 |
+|------|------|------|
+| sjzm-gateway | 9000 | 网关（路由 + JWT 鉴权 + RBAC） |
+| sjzm-user | 8001 | 用户认证 + 用户管理 |
+| sjzm-product | 8002 | 竞品分析 + 评分引擎 + ASIN 导入 + 筛选预设 |
+| sjzm-common | - | 公共组件（Result/JWT/注解/AOP/MQ/限流/缓存） |
+
+## 当前状态
+
+服务层全部实现，无 TODO 骨架。实际功能范围：
+
+- ✅ 认证（登录/注册/刷新/登出 + JWT 黑名单）
+- ✅ 竞品分析（卖家精灵 API + 多维过滤 + 分页）
+- ✅ 评分引擎（多维加权 + S/A/B/C/D 等级 + 周标记）
+- ✅ ASIN 导入（Excel 解析 + 批量导入 + 任务管理）
+- ✅ 筛选预设（用户 5 槽位 CRUD）
+- ✅ 网关（JWT + RBAC + 公开路径白名单）
+
+**仍在 Python 后端：** 产品/选品/定稿/素材/运营商的 CRUD。
+
+## 包结构约定
+
+```
+com.sjzm/
+├── controller/   # @RestController，只做参数校验和路由
+├── service/      # 接口 + impl/，业务逻辑全部在此
+├── mapper/       # 继承 BaseMapper<T>
+├── entity/       # @TableName + @TableId(ASSIGN_ID) + @TableLogic
+├── config/       # 配置类
+├── security/     # JWT 认证
+├── annotation/   # 自定义注解（限流/缓存/追踪）
+├── aspect/       # AOP 切面
+└── mq/           # RocketMQ 生产者/消费者
+```
+
+## 铁律
+
+1. **新增 Entity**: 必须 `@TableName` + `@TableId(type=IdType.ASSIGN_ID)` + `@TableLogic`
+2. **新增 Controller**: `@RestController` + `@RequestMapping` + `@Tag`（Swagger）
+3. **新增 Service**: 先写接口再写 Impl，Impl 加 `@Service`
+4. **新增 Mapper**: 继承 `BaseMapper<T>`
+5. **响应统一**: `Result.success(data)` / `Result.error(message)`
+6. **配置**: `${ENV_VAR:default}` 占位，禁止硬编码
+7. **禁止**: Controller 写业务 / Mapper 写判断 / Controller 直接注入 Mapper / 反向调用
+
+## 版本兼容
+
+已验证的 Spring Boot 4.0.4 生态：
+- MyBatis-Plus: 3.5.15（`spring-boot4-starter`，非 `boot-starter`）
+- Spring Cloud: 2025.1.1（Oakwood）
+- Spring Cloud Alibaba: 2025.1.0.0
+- Redisson: 4.0.0
+
+</system-reminder>

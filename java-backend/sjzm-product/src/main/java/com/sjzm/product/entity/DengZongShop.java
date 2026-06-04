@@ -78,6 +78,9 @@ public class DengZongShop {
     private String similarUrl;
     private String source;
 
+    @TableField(exist = false)
+    private Integer variantCount;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
     @TableField(fill = FieldFill.INSERT_UPDATE)
