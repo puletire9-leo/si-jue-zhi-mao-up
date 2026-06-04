@@ -976,6 +976,7 @@ watch(() => route.path, (newPath) => {
       productType: config.productType,
       ...defaults
     })
+    loadCategories()
   }
 
   pagination.page = 1
@@ -1551,10 +1552,27 @@ onMounted(() => {
   }
   const tab = pathTabMap[route.path] || 'all'
   activeTab.value = tab
+  // 读取路由 query 参数，预填搜索条件
+  const initParams: Record<string, any> = {}
   if (tab === 'new') {
-    queryFormRef.value?.setQueryParams({ country: 'UK', dataFilterMode: 'MODE1' })
+    initParams.country = 'UK'
+    initParams.dataFilterMode = 'MODE1'
   }
-  loadProducts()
+  if (route.query.storeName) {
+    initParams.storeName = route.query.storeName as string
+  }
+  if (route.query.marketplace) {
+    initParams.country = route.query.marketplace as string
+  }
+  queryFormRef.value?.setQueryParams(initParams)
+  // 加载大类榜单列表
+  loadCategories()
+  // 如果有路由 query 参数，触发搜索
+  if (initParams.storeName) {
+    queryFormRef.value?.handleSearch()
+  } else {
+    loadProducts()
+  }
   window.scrollTo(0, 0)
 
   // 启动选中用户实时轮询（5 秒间隔）

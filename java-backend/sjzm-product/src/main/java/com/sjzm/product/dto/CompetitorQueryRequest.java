@@ -37,4 +37,7 @@ public class CompetitorQueryRequest {
 
     // 变体数上限筛选（0=只要独立品，5=5个变体以下）
     private Integer maxVariantCount;
+
+    // 按一级类目筛选
+    private String category;
 }

@@ -190,15 +190,6 @@
         </div>
       </div>
 
-      <div style="margin-top: 16px; display: flex; align-items: center; gap: 8px;">
-        <span style="font-size: 13px;">目标市场：</span>
-        <el-select v-model="batchMarketplace" size="small" style="width: 120px">
-          <el-option label="UK" value="UK" />
-          <el-option label="DE" value="DE" />
-          <el-option label="US" value="US" />
-        </el-select>
-      </div>
-
       <div v-if="batchProgress.status" class="batch-progress">
         <el-progress :percentage="batchProgressPercent" :status="batchProgress.status === 'DONE' ? 'success' : undefined" />
         <div class="progress-detail">
@@ -229,7 +220,7 @@ import { asinImportApi } from '@/api/asinImport'
 
 defineOptions({ name: 'ZhengShopOverview' })
 
-type StoreGrade = 'zheng' | 'premium' | 'normal' | 'poor'
+type StoreGrade = 'zheng' | 'premium' | 'normal' | 'poor' | 'unrated'
 type StoreSource = 'zheng' | 'selection'
 
 interface GradeDistribution {
@@ -292,7 +283,7 @@ const shopKey = (shop: UnifiedStore) => `${shop.source}:${shop.storeName}`
 
 // 等级统计（单次遍历）
 const gradeStats = computed(() => {
-  const counts = { zheng: 0, premium: 0, normal: 0, poor: 0 }
+  const counts = { zheng: 0, premium: 0, normal: 0, poor: 0, unrated: 0 }
   for (const s of stores.value) {
     counts[s.grade]++
   }
@@ -302,6 +293,7 @@ const gradeStats = computed(() => {
     { key: 'premium', label: '优质', count: counts.premium },
     { key: 'normal', label: '一般', count: counts.normal },
     { key: 'poor', label: '差', count: counts.poor },
+    { key: 'unrated', label: '未评级', count: counts.unrated },
   ]
 })
 
@@ -331,7 +323,7 @@ const filteredStores = computed(() => {
   }
 
   // 排序（避免 mutating 原数组）
-  const gradeOrder: Record<StoreGrade, number> = { zheng: 4, premium: 3, normal: 2, poor: 1 }
+  const gradeOrder: Record<StoreGrade, number> = { zheng: 5, premium: 4, normal: 3, poor: 2, unrated: 1 }
   const sorted = [...list]
   sorted.sort((a, b) => {
     let va: number, vb: number
@@ -376,18 +368,19 @@ const marketplaceTagType = (mp: string): 'primary' | 'success' | 'warning' => {
   return 'warning'
 }
 
-const gradeTagType = (grade: StoreGrade): 'danger' | 'success' | 'primary' | 'info' => {
-  const map: Record<StoreGrade, 'danger' | 'success' | 'primary' | 'info'> = {
+const gradeTagType = (grade: StoreGrade): 'danger' | 'success' | 'primary' | 'info' | 'warning' => {
+  const map: Record<StoreGrade, 'danger' | 'success' | 'primary' | 'info' | 'warning'> = {
     zheng: 'danger',
     premium: 'success',
     normal: 'primary',
     poor: 'info',
+    unrated: 'warning',
   }
   return map[grade] || 'info'
 }
 
 const gradeLabel = (grade: StoreGrade) => {
-  const map: Record<StoreGrade, string> = { zheng: '郑总', premium: '优质', normal: '一般', poor: '差' }
+  const map: Record<StoreGrade, string> = { zheng: '郑总', premium: '优质', normal: '一般', poor: '差', unrated: '未评级' }
   return map[grade] || grade
 }
 
@@ -441,36 +434,19 @@ const loadZhengShops = async (): Promise<UnifiedStore[]> => {
   }
 }
 
-// 加载选品店铺（含等级）- 分页加载全部
+// 加载选品店铺
 const loadSelectionStores = async (): Promise<UnifiedStore[]> => {
   try {
-    let allStores: UnifiedStore[] = []
-    let page = 1
-    const size = 500
-    let total = Infinity
-
-    while (allStores.length < total) {
-      const res = await selectionApi.getStoresWithGrades({ page, size })
-      const data = res.data
-      if (!data || !data.list) break
-
-      total = data.total
-      const mapped = data.list.map((s: any) => ({
-        storeName: s.storeName,
-        marketplace: '',
-        storeUrl: s.storeUrl,
-        source: 'selection' as StoreSource,
-        grade: s.grade as StoreGrade,
-        productCount: s.productCount || 0,
-        storeScore: s.storeScore || 0,
-        gradeDistribution: s.gradeDistribution,
-        avgListingDays: s.avgListingDays,
-      }))
-      allStores.push(...mapped)
-      page++
-    }
-
-    return allStores
+    const res = await selectionApi.getStores()
+    const list = res.data || []
+    return list.map((s: any) => ({
+      storeName: s.store_name,
+      marketplace: s.marketplace || '',
+      storeUrl: s.store_url,
+      source: 'selection' as StoreSource,
+      productCount: s.count || 0,
+      grade: 'unrated' as StoreGrade, // 未评级，评级后会更新
+    }))
   } catch {
     ElMessage.error('加载选品店铺失败')
     return []
@@ -478,6 +454,29 @@ const loadSelectionStores = async (): Promise<UnifiedStore[]> => {
 }
 
 // 合并两个数据源
+const loadSavedRatings = async () => {
+  try {
+    const res = await request.get('/api/v1/modules/shop-rating/ratings')
+    const ratings = res.data || []
+    if (!ratings.length) return
+    const ratingMap = new Map(ratings.map((r: any) => [r.sellerName, r]))
+    for (const store of stores.value) {
+      const r = ratingMap.get(store.storeName)
+      if (r) {
+        store.ratingScore = r.ratingScore
+        store.ratingGrade = r.ratingGrade
+        store.ratingBestMatch = r.bestMatchSeller
+        if (store.source !== 'zheng') {
+          const g = r.ratingGrade
+          if (g === 'A') store.grade = 'premium'
+          else if (g === 'B' || g === 'C' || g === 'D') store.grade = 'normal'
+          else if (g === 'F') store.grade = 'poor'
+        }
+      }
+    }
+  } catch { /* 静默失败 */ }
+}
+
 const loadAllStores = async () => {
   loading.value = true
   try {
@@ -494,6 +493,9 @@ const loadAllStores = async () => {
 
     stores.value = [...zhengStores, ...filteredSelection]
     displayCount.value = STORE_PAGE_SIZE
+
+    // 加载已保存的评级
+    await loadSavedRatings()
   } catch {
     ElMessage.error('加载店铺列表失败')
   } finally {
@@ -587,7 +589,7 @@ const handleStartRating = async () => {
   ratingTotal.value = 0
   try {
     const res = await request.post('/api/v1/modules/shop-rating/evaluate', null, {
-      params: { marketplace: mp, minCount: 10 }
+      params: { marketplace: mp, minCount: 5 }
     })
     const taskId = res.data?.taskId
     if (!taskId) {
@@ -611,13 +613,41 @@ const handleStartRating = async () => {
           // 合并评级结果到 stores
           if (data.results) {
             const ratingMap = new Map(data.results.map((r: any) => [r.sellerName, r]))
+            // 更新已有店铺的评级
             for (const store of stores.value) {
               const r = ratingMap.get(store.storeName)
               if (r) {
                 store.ratingScore = r.finalScore
                 store.ratingGrade = r.grade
                 store.ratingBestMatch = r.bestMatchSeller
+                // 选品店铺评级后同步更新 grade（用于 tab 分类）
+                // 郑总店铺保持 grade='zheng'，不改变 tab 归属
+                if (store.source !== 'zheng') {
+                  const g = r.grade
+                  if (g === 'A') store.grade = 'premium'
+                  else if (g === 'B' || g === 'C' || g === 'D') store.grade = 'normal'
+                  else store.grade = 'poor'
+                }
+                ratingMap.delete(store.storeName)
               }
+            }
+            // 评级结果中未匹配的店铺，加入列表
+            for (const [name, r] of ratingMap) {
+              const g = r.grade
+              let grade: StoreGrade = 'poor'
+              if (g === 'A') grade = 'premium'
+              else if (g === 'B' || g === 'C' || g === 'D') grade = 'normal'
+              stores.value.push({
+                storeName: name,
+                marketplace: r.marketplace || '',
+                storeUrl: '',
+                source: 'selection',
+                productCount: r.productCount || 0,
+                grade,
+                ratingScore: r.finalScore,
+                ratingGrade: r.grade,
+                ratingBestMatch: r.bestMatchSeller,
+              })
             }
             ElMessage.success(`评级完成，${data.results.length} 个店铺`)
           }
@@ -689,9 +719,24 @@ const handleBatchImport = async () => {
   const zhengStores = selectedStores.value.filter(s => s.source === 'zheng')
   const selectionStores = selectedStores.value.filter(s => s.source === 'selection')
 
-  const tasks: Array<{ names: string[]; target: string }> = []
-  if (zhengStores.length) tasks.push({ names: zhengStores.map(s => s.storeName), target: 'deng_zong_shop' })
-  if (selectionStores.length) tasks.push({ names: selectionStores.map(s => s.storeName), target: 'competitor_products' })
+  // 按 marketplace 分组，不同国家分别请求
+  const groupByMp = (stores: UnifiedStore[]) => {
+    const map = new Map<string, string[]>()
+    for (const s of stores) {
+      const mp = s.marketplace || batchMarketplace.value || 'UK'
+      if (!map.has(mp)) map.set(mp, [])
+      map.get(mp)!.push(s.storeName)
+    }
+    return map
+  }
+
+  const tasks: Array<{ names: string[]; target: string; marketplace: string }> = []
+  for (const [mp, names] of groupByMp(zhengStores)) {
+    tasks.push({ names, target: 'deng_zong_shop', marketplace: mp })
+  }
+  for (const [mp, names] of groupByMp(selectionStores)) {
+    tasks.push({ names, target: 'competitor_products', marketplace: mp })
+  }
 
   try {
     await ElMessageBox.confirm(
@@ -704,7 +749,7 @@ const handleBatchImport = async () => {
   batchImporting.value = true
   try {
     for (const taskInfo of tasks) {
-      const previewRes = await asinImportApi.sellerPreview(taskInfo.names, batchMarketplace.value, taskInfo.target)
+      const previewRes = await asinImportApi.sellerPreview(taskInfo.names, taskInfo.marketplace, taskInfo.target)
       const preview = (previewRes as any).data || previewRes
 
       await asinImportApi.sellerExecute(preview.taskId)

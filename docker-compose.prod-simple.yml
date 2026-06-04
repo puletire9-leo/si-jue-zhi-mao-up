@@ -23,7 +23,6 @@ services:
       MYSQL_PASSWORD: sijue123456
     volumes:
       - prod-mysql-data:/var/lib/mysql
-      - ./backend/backup/prod-init.sql:/docker-entrypoint-initdb.d/01-import.sql:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -91,7 +90,7 @@ services:
       - COS_ENABLED=true
       - COS_SECRET_ID=${COS_SECRET_ID}
       - COS_SECRET_KEY=${COS_SECRET_KEY}
-      - COS_BUCKET=${COS_BUCKET}
+      - COS_BUCKET=sijuelishi-1328246743
       - COS_REGION=${COS_REGION}
     volumes:
       - prod-logs:/app/logs

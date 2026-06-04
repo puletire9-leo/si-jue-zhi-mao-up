@@ -328,14 +328,14 @@ public class CompetitorService {
                 request.getMarketplace(), request.getMonth(), request.getSource(),
                 request.getFilterMode(), request.getBrand(), request.getSellerName(),
                 request.getTitle(), request.getGrade(), request.getWeekTag(),
-                request.getIsCurrent(), request.getMaxVariantCount(),
+                request.getIsCurrent(), request.getMaxVariantCount(), request.getCategory(),
                 request.getSortBy(), sortOrder, offset, request.getSize());
 
         long total = productMapper.countGroupedByParent(
                 request.getMarketplace(), request.getMonth(), request.getSource(), request.getFilterMode(),
                 request.getBrand(), request.getSellerName(), request.getTitle(),
                 request.getGrade(), request.getWeekTag(), request.getIsCurrent(),
-                request.getMaxVariantCount());
+                request.getMaxVariantCount(), request.getCategory());
 
         // 批量查子类目，避免 N+1
         List<Long> productIds = records.stream().map(CompetitorProduct::getId).collect(Collectors.toList());

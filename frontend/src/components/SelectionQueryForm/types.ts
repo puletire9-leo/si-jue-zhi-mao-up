@@ -21,7 +21,7 @@ export interface SelectionQueryParams {
   storeName: string
   /** 卖家名称（下拉选择，优先级高于 storeName） */
   sellerSelect: string
-  /** 大类榜单 */
+  /** 大类榜单（多选，逗号分隔） */
   category: string
   /** 国家 */
   country: string
