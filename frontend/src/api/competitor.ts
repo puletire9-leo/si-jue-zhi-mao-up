@@ -96,6 +96,7 @@ export interface CompetitorListParams {
   brand?: string
   sellerName?: string
   title?: string
+  category?: string
   grade?: string
   weekTag?: string
   isCurrent?: number
@@ -238,4 +239,8 @@ export const competitorApi = {
   syncDengZongShop(data: { sellerName: string; marketplace: string }): Promise<any> {
     return request({ url: '/api/v1/deng-zong-shop/sync', method: 'post', data, timeout: 120000 })
   },
+  getDengZongVariants(marketplace: string, parentAsin: string): Promise<any> {
+    return request({ url: '/api/v1/deng-zong-shop/variants', method: 'get', params: { marketplace, parentAsin } })
+  },
 }
+

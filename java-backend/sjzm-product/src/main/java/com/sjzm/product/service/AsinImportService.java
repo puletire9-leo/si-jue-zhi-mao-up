@@ -3,7 +3,9 @@ package com.sjzm.product.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.toolkit.Db;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sjzm.product.config.SellerspriteConfig;
 import com.sjzm.product.dto.CompetitorLookupRequest;
 import com.sjzm.product.entity.AsinImportResult;
 import com.sjzm.product.entity.AsinImportTask;
@@ -24,6 +26,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -46,7 +54,12 @@ public class AsinImportService {
     private final SkipAsinMapper skipAsinMapper;
     private final ApiRateLimitService rateLimitService;
     private final InitialFilterConfigService initialFilterConfig;
+    private final SellerspriteConfig sellerspriteConfig;
+    private final SellerspriteConfigService sellerspriteConfigService;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .build();
 
     /**
      * 应用启动时恢复僵尸任务（容器重启导致 RUNNING 但线程已死）
@@ -488,6 +501,265 @@ public class AsinImportService {
         progress.put("errorMessage", task.getErrorMessage() != null ? task.getErrorMessage() : "");
         progress.put("progressLog", task.getProgressLog() != null ? task.getProgressLog() : "");
         return progress;
+    }
+
+    /**
+     * 卖家名批量导入 - 预览
+     */
+    public Map<String, Object> sellerPreview(List<String> sellerNames, String marketplace) {
+        int maxPerMin = rateLimitService.getMaxPerMinute();
+        int estimatedApiCalls = sellerNames.size() * 3;
+        int estimatedDurationSec = Math.max(1, (int) Math.ceil((double) estimatedApiCalls / maxPerMin * 60));
+
+        AsinImportTask task = new AsinImportTask();
+        task.setMarketplace(marketplace);
+        task.setTaskStatus("READY");
+        task.setTotalCount(sellerNames.size());
+        task.setPassCount(sellerNames.size());
+        task.setBatchTotal(sellerNames.size());
+        task.setBatchCurrent(0);
+        task.setCreatedAt(LocalDateTime.now());
+        task.setUpdatedAt(LocalDateTime.now());
+        taskMapper.insert(task);
+
+        for (String sellerName : sellerNames) {
+            AsinImportResult r = new AsinImportResult();
+            r.setTaskId(task.getId());
+            r.setAsin(sellerName);
+            r.setStatus("PASS");
+            resultMapper.insert(r);
+        }
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("taskId", task.getId());
+        data.put("sellerCount", sellerNames.size());
+        data.put("estimatedApiCalls", estimatedApiCalls);
+        data.put("marketplace", marketplace);
+        data.put("maxPerMinute", maxPerMin);
+        data.put("delayMs", 500);
+        data.put("estimatedDuration", estimatedDurationSec);
+        return data;
+    }
+
+    /**
+     * 卖家名批量导入 - 执行（异步）
+     */
+    @Async
+    public void sellerExecute(Long taskId, String month) {
+        AsinImportTask task = taskMapper.selectById(taskId);
+        if (task == null) {
+            log.error("卖家导入任务不存在: {}", taskId);
+            return;
+        }
+
+        Long activeCount = taskMapper.selectCount(
+                new LambdaQueryWrapper<AsinImportTask>()
+                        .in(AsinImportTask::getTaskStatus, List.of("RUNNING", "PAUSED")));
+        if (activeCount != null && activeCount > 0) {
+            task.setTaskStatus("REJECTED");
+            taskMapper.updateById(task);
+            log.warn("卖家导入任务 {} 被拒绝：已有活动中任务", taskId);
+            return;
+        }
+
+        try {
+            task.setTaskStatus("RUNNING");
+            task.setDataMonth(month);
+            taskMapper.updateById(task);
+
+            List<AsinImportResult> results = resultMapper.selectList(
+                    new LambdaQueryWrapper<AsinImportResult>()
+                            .eq(AsinImportResult::getTaskId, taskId)
+                            .eq(AsinImportResult::getStatus, "PASS"));
+
+            int totalSellers = results.size();
+            int currentSeller = 0;
+            int totalProducts = 0;
+            StringBuilder logBuf = new StringBuilder();
+
+            for (AsinImportResult r : results) {
+                task = taskMapper.selectById(taskId);
+                if ("PAUSED".equals(task.getTaskStatus()) || "CANCELLED".equals(task.getTaskStatus())) {
+                    log.info("卖家导入任务 {} 已取消", taskId);
+                    return;
+                }
+
+                currentSeller++;
+                String sellerName = r.getAsin();
+
+                appendLog(logBuf, String.format("[%d/%d] 正在获取店铺: %s",
+                        currentSeller, totalSellers, sellerName));
+                task.setProgressLog(logBuf.toString());
+                task.setBatchCurrent(currentSeller);
+                taskMapper.updateById(task);
+
+                try {
+                    int count = syncProductsBySeller(sellerName, task.getMarketplace(), month);
+                    totalProducts += count;
+                    appendLog(logBuf, String.format("[%d/%d] %s: 获取 %d 个产品",
+                            currentSeller, totalSellers, sellerName, count));
+
+                    r.setStatus("SUCCESS");
+                    r.setDetail("获取 " + count + " 个产品");
+                    resultMapper.updateById(r);
+                } catch (Exception e) {
+                    log.error("卖家 {} 同步失败: {}", sellerName, e.getMessage());
+                    appendLog(logBuf, String.format("[%d/%d] %s: 失败 - %s",
+                            currentSeller, totalSellers, sellerName, e.getMessage()));
+                    r.setStatus("API_FAIL");
+                    r.setDetail(e.getMessage());
+                    resultMapper.updateById(r);
+                }
+
+                task.setApiSuccess(totalProducts);
+                task.setProgressLog(logBuf.toString());
+                taskMapper.updateById(task);
+
+                try { Thread.sleep(500); } catch (InterruptedException ignored) {}
+            }
+
+            task.setTaskStatus("DONE");
+            task.setUpdatedAt(LocalDateTime.now());
+            taskMapper.updateById(task);
+            log.info("卖家导入完成: taskId={}, sellers={}, products={}", taskId, totalSellers, totalProducts);
+        } catch (Exception e) {
+            log.error("卖家导入异常: {}", e.getMessage(), e);
+            task.setTaskStatus("ERROR");
+            task.setErrorMessage(e.getMessage());
+            taskMapper.updateById(task);
+        }
+    }
+
+    /** 调用卖家精灵 API 按店铺名获取产品并写入 competitor_products */
+    private int syncProductsBySeller(String sellerName, String marketplace, String month) {
+        List<CompetitorProduct> batch = new ArrayList<>();
+        int page = 1;
+
+        while (true) {
+            JsonNode data = callSellerspriteApi(sellerName, marketplace, page, 100);
+            if (data == null) break;
+
+            int apiTotal = data.path("total").asInt(0);
+            JsonNode items = data.path("items");
+            if (items == null || !items.isArray() || items.isEmpty()) break;
+
+            for (JsonNode item : items) {
+                try {
+                    CompetitorProduct product = mapSellerItemToProduct(item, marketplace, month);
+                    if (product.getAsin() != null) {
+                        batch.add(product);
+                    }
+                } catch (Exception e) {
+                    log.warn("映射产品失败: asin={}, error={}",
+                            item.path("asin").asText(), e.getMessage());
+                }
+            }
+
+            if (batch.size() >= apiTotal) break;
+            page++;
+            try { Thread.sleep(300); } catch (InterruptedException ignored) {}
+        }
+
+        if (!batch.isEmpty()) {
+            competitorService.upsertAndFilter(batch, marketplace, "竞品店铺", month);
+        }
+
+        return batch.size();
+    }
+
+    private JsonNode callSellerspriteApi(String sellerName, String marketplace, int page, int size) {
+        try {
+            String body = objectMapper.writeValueAsString(Map.of(
+                    "marketplace", marketplace,
+                    "sellerName", sellerName,
+                    "asins", new String[]{},
+                    "variation", "N",
+                    "page", page,
+                    "size", size,
+                    "orderDesc", true
+            ));
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(sellerspriteConfig.getApiUrl() + "/product/competitor-lookup"))
+                    .header("secret-key", sellerspriteConfigService.getSecretKey())
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofSeconds(120))
+                    .POST(HttpRequest.BodyPublishers.ofString(body))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            JsonNode result = objectMapper.readTree(response.body());
+
+            if (!"OK".equals(result.path("code").asText())) {
+                log.error("卖家精灵API错误: {}", result.path("message").asText());
+                return null;
+            }
+            return result.path("data");
+        } catch (Exception e) {
+            log.error("调用卖家精灵API失败: {}", e.getMessage());
+            throw new RuntimeException("API调用失败: " + e.getMessage(), e);
+        }
+    }
+
+    private CompetitorProduct mapSellerItemToProduct(JsonNode item, String marketplace, String month) {
+        CompetitorProduct cp = new CompetitorProduct();
+        cp.setMarketplace(marketplace);
+        cp.setAsin(item.path("asin").asText(null));
+        cp.setMonth(month);
+        cp.setTitle(item.path("title").asText(null));
+        cp.setBrand(item.path("brand").asText(null));
+        cp.setBrandUrl(item.path("brandUrl").asText(null));
+        cp.setImageUrl(item.path("imageUrl").asText(null));
+        cp.setParentAsin(item.path("parent").asText(item.path("parentAsin").asText(null)));
+        cp.setSku(item.path("sku").asText(null));
+        if (item.path("nodeId").isNumber()) cp.setNodeId(item.path("nodeId").longValue());
+        cp.setNodeIdPath(item.path("nodeIdPath").asText(null));
+        cp.setNodeLabelPath(item.path("nodeLabelPath").asText(null));
+        cp.setSymbol(item.path("symbol").asText(null));
+        if (item.path("units").isNumber()) cp.setUnits(item.path("units").intValue());
+        cp.setUnitsGr(parseBigDecimal(item, "unitsGr"));
+        if (item.path("amzUnit").isNumber()) cp.setAmzUnit(item.path("amzUnit").intValue());
+        cp.setAmzSales(parseBigDecimal(item, "amzSales"));
+        cp.setRevenue(parseBigDecimal(item, "revenue"));
+        cp.setBsrId(item.path("bsrId").asText(null));
+        if (item.path("bsr").isNumber()) cp.setBsr(item.path("bsr").intValue());
+        cp.setBsrCr(parseBigDecimal(item, "bsrCr"));
+        if (item.path("bsrCv").isNumber()) cp.setBsrCv(item.path("bsrCv").intValue());
+        if (item.path("ratings").isNumber()) cp.setRatings(item.path("ratings").intValue());
+        cp.setRating(parseBigDecimal(item, "rating"));
+        cp.setRatingsRate(parseBigDecimal(item, "ratingsRate"));
+        if (item.path("ratingsCv").isNumber()) cp.setRatingsCv(item.path("ratingsCv").intValue());
+        if (item.path("ratingDelta").isNumber()) cp.setRatingDelta(item.path("ratingDelta").intValue());
+        cp.setPrice(parseBigDecimal(item, "price"));
+        cp.setPrimePrice(parseBigDecimal(item, "primePrice"));
+        cp.setProfit(parseBigDecimal(item, "profit"));
+        cp.setFba(parseBigDecimal(item, "fba"));
+        cp.setDeliveryPrice(parseBigDecimal(item, "deliveryPrice"));
+        cp.setSellerName(item.path("sellerName").asText(null));
+        cp.setSellerId(item.path("sellerId").asText(null));
+        cp.setSellerNation(item.path("sellerNation").asText(null));
+        if (item.path("sellers").isNumber()) cp.setSellers(item.path("sellers").intValue());
+        cp.setFulfillment(item.path("fulfillment").asText(null));
+        if (item.path("variations").isNumber()) cp.setVariations(item.path("variations").intValue());
+        cp.setWeight(item.path("weight").asText(null));
+        cp.setDimension(item.path("dimension").asText(null));
+        cp.setProductUrl(item.path("productUrl").asText(null));
+        cp.setSimilarUrl(item.path("similarUrl").asText(null));
+        cp.setSource(item.path("source").asText(null));
+        if (item.path("availableDate").isNumber()) cp.setAvailableDate(item.path("availableDate").longValue());
+        cp.setIsCurrent(1);
+        cp.setCreatedAt(LocalDateTime.now());
+        cp.setUpdatedAt(LocalDateTime.now());
+        return cp;
+    }
+
+    private BigDecimal parseBigDecimal(JsonNode node, String field) {
+        JsonNode v = node.path(field);
+        if (v.isNumber()) return v.decimalValue();
+        if (v.isTextual()) {
+            try { return new BigDecimal(v.asText().replace("%", "")); } catch (Exception ignored) {}
+        }
+        return null;
     }
 
     private static final int MAX_LOG_LINES = 50;

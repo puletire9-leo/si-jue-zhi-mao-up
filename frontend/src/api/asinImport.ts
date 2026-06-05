@@ -90,5 +90,24 @@ export const asinImportApi = {
 
   retryFailed(taskId: number): Promise<{ newTaskId: number; total: number; duplicatesRemoved: number; batches: number }> {
     return request({ url: `/api/v1/asin-import/retry/${taskId}`, method: 'post' })
+  },
+
+  sellerPreview(sellerNames: string[], marketplace: string): Promise<{
+    taskId: number; sellerCount: number; estimatedApiCalls: number;
+    marketplace: string; maxPerMinute: number; delayMs: number; estimatedDuration: number
+  }> {
+    return request({
+      url: '/api/v1/asin-import/seller/preview',
+      method: 'post',
+      data: { sellerNames, marketplace }
+    })
+  },
+
+  sellerExecute(taskId: number, month?: string) {
+    return request({
+      url: '/api/v1/asin-import/seller/execute',
+      method: 'post',
+      params: { taskId, month: month || '' }
+    })
   }
 }
