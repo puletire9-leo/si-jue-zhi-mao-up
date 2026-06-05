@@ -6,9 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 @Mapper
 public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
@@ -88,34 +86,24 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
     List<java.util.Map<String, Object>> selectSellerSummary(
             @Param("marketplace") String marketplace);
 
-    /** 按 marketplace + sellerName 拉取单店商品（评分用） */
+    /** 查询已抓取数据的卖家名称（去重） */
     @Select("<script>" +
-        "SELECT ds.seller_name, ds.node_id, ds.bsr_id, ds.price" +
-        " FROM deng_zong_shop ds" +
-        " WHERE ds.title IS NOT NULL AND ds.marketplace = #{marketplace}" +
-        " AND ds.seller_name = #{sellerName}" +
-        "</script>")
-    List<Map<String, Object>> selectRatingDataBySeller(
-            @Param("marketplace") String marketplace,
-            @Param("sellerName") String sellerName);
-
-    /** 按 marketplace 拉取郑总店铺商品（评分基准构建用） */
-    @Select("<script>" +
-        "SELECT ds.seller_name, ds.node_id, ds.bsr_id, ds.price" +
-        " FROM deng_zong_shop ds" +
-        " WHERE ds.title IS NOT NULL AND ds.marketplace = #{marketplace}" +
-        "</script>")
-    List<Map<String, Object>> selectRatingData(@Param("marketplace") String marketplace);
-
-    /** 批量检查哪些卖家在 deng_zong_shop 有数据 */
-    @Select("<script>" +
-        "SELECT DISTINCT seller_name FROM deng_zong_shop" +
-        " WHERE marketplace = #{marketplace} AND seller_name IN" +
-        " <foreach item='name' collection='sellerNames' open='(' separator=',' close=')'>" +
-        "   #{name}" +
-        " </foreach>" +
+        "SELECT DISTINCT seller_name FROM deng_zong_shop WHERE title IS NOT NULL" +
+        " <if test='marketplace != null'> AND marketplace = #{marketplace}</if>" +
+        " <if test='sellerNames != null and sellerNames.size > 0'>" +
+        "   AND seller_name IN " +
+        "   <foreach collection='sellerNames' item='name' open='(' separator=',' close=')'>#{name}</foreach>" +
+        " </if>" +
         "</script>")
     List<String> selectFetchedSellerNames(
             @Param("marketplace") String marketplace,
-            @Param("sellerNames") Collection<String> sellerNames);
+            @Param("sellerNames") List<String> sellerNames);
+
+    /** 查询评分所需数据（卖家名称、类目、BSR、价格） */
+    @Select("<script>" +
+        "SELECT seller_name, node_id, bsr_id, price FROM deng_zong_shop WHERE title IS NOT NULL" +
+        " <if test='marketplace != null'> AND marketplace = #{marketplace}</if>" +
+        "</script>")
+    List<java.util.Map<String, Object>> selectRatingData(
+            @Param("marketplace") String marketplace);
 }

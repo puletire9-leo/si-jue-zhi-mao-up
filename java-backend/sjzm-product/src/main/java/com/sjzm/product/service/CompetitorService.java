@@ -296,6 +296,17 @@ public class CompetitorService {
         productMapper.insertOnDuplicateKeyUpdate(product);
     }
 
+    /** 批量 upsert 并执行筛选（供卖家名导入等外部调用） */
+    public int upsertAndFilter(List<CompetitorProduct> products, String marketplace, String source, String month) {
+        for (CompetitorProduct p : products) {
+            upsertProduct(p);
+        }
+        if (!products.isEmpty()) {
+            filterService.filter(products, marketplace, source, month);
+        }
+        return products.size();
+    }
+
     private List<CompetitorProductResponse.SubcategoryDto> collectSubcategories(
             JsonNode item, Long productId, List<CompetitorSubcategory> collector) {
         JsonNode subcategories = item.path("subcategories");
