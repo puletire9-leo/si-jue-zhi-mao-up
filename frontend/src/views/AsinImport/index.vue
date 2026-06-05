@@ -23,11 +23,11 @@
           <p>上传八爪鱼导出的 Excel/JSON 文件，批量获取竞品详细数据</p>
           <el-tag type="success" size="small">可用</el-tag>
         </div>
-        <div class="mode-card disabled">
-          <el-icon :size="40" color="#C0C4CC"><User /></el-icon>
+        <div class="mode-card" :class="{ active: importMode === 'seller' }" @click="importMode = 'seller'">
+          <el-icon :size="40" color="#409EFF"><User /></el-icon>
           <h3>通过卖家名获取</h3>
-          <p>输入卖家名称，拉取该卖家所有商品的竞品数据</p>
-          <el-tag type="info" size="small">即将上线</el-tag>
+          <p>输入卖家名称，批量拉取卖家所有商品的竞品数据</p>
+          <el-tag type="success" size="small">可用</el-tag>
         </div>
       </div>
       <!-- API 配额设置 -->
@@ -70,14 +70,14 @@
       <FilterConfigPanel />
 
       <div style="text-align: center; margin-top: 24px">
-        <el-button type="primary" :disabled="importMode !== 'asin'" @click="currentStep = 1">
-          下一步：上传文件
+        <el-button type="primary" :disabled="importMode !== 'asin' && importMode !== 'seller'" @click="handleNextFromMode">
+          {{ importMode === 'seller' ? '下一步：输入卖家名' : '下一步：上传文件' }}
         </el-button>
       </div>
     </el-card>
 
-    <!-- 1. 上传文件 -->
-    <el-card v-show="currentStep === 1" class="step-card">
+    <!-- 1. 上传文件（ASIN 模式） -->
+    <el-card v-show="currentStep === 1 && importMode === 'asin'" class="step-card">
       <el-upload
         ref="uploadRef"
         class="upload-area"
@@ -119,8 +119,49 @@
       </div>
     </el-card>
 
-    <!-- 2. 筛选预览 + API 参数确认 -->
-    <el-card v-show="currentStep === 2" class="step-card">
+    <!-- 1b. 卖家名输入（卖家模式） -->
+    <el-card v-show="currentStep === 1 && importMode === 'seller'" class="step-card">
+      <h3 style="margin: 0 0 16px">输入卖家名称</h3>
+      <el-form label-width="100px">
+        <el-form-item label="目标市场">
+          <el-select v-model="marketplace" style="width: 140px">
+            <el-option label="英国 (UK)" value="UK" />
+            <el-option label="德国 (DE)" value="DE" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="卖家名称">
+          <el-input
+            v-model="sellerNamesText"
+            type="textarea"
+            :rows="6"
+            placeholder="一行一个卖家名称，例如：SellerA&#10;SellerB&#10;SellerC"
+            clearable
+          />
+          <div style="margin-top: 8px">
+            <el-upload
+              :auto-upload="false"
+              accept=".txt,.md"
+              :show-file-list="false"
+              :on-change="handleSellerFileChange"
+            >
+              <el-button size="small" text type="primary">上传 .txt/.md 文件</el-button>
+            </el-upload>
+          </div>
+          <div v-if="parsedSellerNames.length > 0" style="margin-top: 8px; font-size: 13px; color: #606266">
+            已解析 <b>{{ parsedSellerNames.length }}</b> 个卖家名
+          </div>
+        </el-form-item>
+      </el-form>
+      <div style="text-align: center; margin-top: 20px">
+        <el-button @click="currentStep = 0">返回</el-button>
+        <el-button type="primary" :disabled="parsedSellerNames.length === 0" @click="handleSellerPreview" :loading="sellerPreviewing">
+          查询卖家商品
+        </el-button>
+      </div>
+    </el-card>
+
+    <!-- 2. 筛选预览 + API 参数确认（ASIN 模式） -->
+    <el-card v-show="currentStep === 2 && importMode === 'asin'" class="step-card">
       <!-- 数据库概况 -->
       <div class="db-stats" v-if="dbStats">
         <span>数据库现有：</span>
@@ -200,6 +241,42 @@
         <el-button @click="handleBackToUpload">返回</el-button>
         <el-button type="success" :disabled="!previewData || previewData.passCount === 0" @click="handleConfirmAndExecute">
           确认并开始调用 API
+        </el-button>
+      </div>
+    </el-card>
+
+    <!-- 2b. 卖家模式预览 + 执行 -->
+    <el-card v-show="currentStep === 2 && importMode === 'seller'" class="step-card">
+      <h3 style="margin: 0 0 16px">卖家名批量导入 — 预览</h3>
+      <div v-if="sellerPreviewData" class="batch-summary">
+        <div class="batch-line">
+          <el-icon color="#409EFF"><InfoFilled /></el-icon>
+          <span>
+            共 <b>{{ sellerPreviewData.sellerCount }}</b> 个卖家，
+            预计 <b>{{ sellerPreviewData.estimatedApiCalls }}</b> 次 API 请求
+            （每个卖家至少 1 次，大卖家可能翻页）
+          </span>
+        </div>
+        <div class="batch-line" style="margin-top: 8px">
+          <span>市场：<el-tag size="small" type="success">{{ sellerPreviewData.marketplace }}</el-tag></span>
+          <span style="margin-left: 16px">月份：<el-tag size="small" type="primary">{{ month }}</el-tag></span>
+        </div>
+        <div class="rate-limit-info">
+          <el-divider style="margin: 12px 0 8px" />
+          <div class="rate-title">固定速率限制</div>
+          <div class="rate-row">
+            <span>每分钟最多 <b>{{ sellerPreviewData.maxPerMinute || 20 }}</b> 次请求</span>
+            <span>每个卖家间隔 <b>{{ ((sellerPreviewData.delayMs || 2500) / 1000).toFixed(1) }}</b> 秒</span>
+          </div>
+          <div class="rate-row" style="margin-top: 4px">
+            <span>预估总耗时：<b>{{ formatDuration(sellerPreviewData.estimatedDuration) }}</b></span>
+          </div>
+        </div>
+      </div>
+      <div style="text-align: center; margin-top: 20px">
+        <el-button @click="currentStep = 1; sellerPreviewData = null">返回</el-button>
+        <el-button type="success" :disabled="!sellerPreviewData" @click="handleSellerExecute">
+          确认并开始导入
         </el-button>
       </div>
     </el-card>
@@ -357,6 +434,19 @@ const currentMonth = computed(() => {
 const importMode = ref('asin') // 'asin' | 'seller'
 const currentStep = ref(0)
 const marketplace = ref('UK')
+
+// 卖家模式状态
+const sellerNamesText = ref('')
+const sellerPreviewData = ref<{ taskId: number; sellerCount: number; estimatedApiCalls: number; marketplace: string } | null>(null)
+const sellerPreviewing = ref(false)
+
+const parsedSellerNames = computed(() => {
+  return sellerNamesText.value
+    .split('\n')
+    .map(s => s.trim())
+    .filter(s => s.length > 0)
+    .filter((v, i, a) => a.indexOf(v) === i) // 去重
+})
 const month = ref(currentMonth.value)
 const importFiles = ref<File[]>([])
 const uploading = ref(false)
@@ -399,8 +489,96 @@ function pct(count: number, total: number) {
   return Math.round((count / total) * 100) + '%'
 }
 
+function formatDuration(seconds: number) {
+  if (!seconds || seconds <= 0) return '-'
+  if (seconds < 60) return `${seconds} 秒`
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return s > 0 ? `${m} 分 ${s} 秒` : `${m} 分钟`
+}
+
 function handleFileChange(file: any, fileList: any) {
   importFiles.value = fileList.map((f: any) => f.raw).filter(Boolean)
+}
+
+function handleNextFromMode() {
+  if (importMode.value === 'asin') {
+    currentStep.value = 1
+  } else if (importMode.value === 'seller') {
+    currentStep.value = 1
+    sellerPreviewData.value = null
+  }
+}
+
+function handleSellerFileChange(file: any) {
+  const raw = file.raw as File
+  if (!raw) return
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const text = e.target?.result as string
+    if (text) {
+      const existing = sellerNamesText.value.trim()
+      const newLines = text.trim()
+      sellerNamesText.value = existing ? existing + '\n' + newLines : newLines
+    }
+  }
+  reader.readAsText(raw)
+}
+
+async function handleSellerPreview() {
+  if (parsedSellerNames.value.length === 0) return
+  sellerPreviewing.value = true
+  try {
+    const data: any = await asinImportApi.sellerPreview(parsedSellerNames.value, marketplace.value)
+    sellerPreviewData.value = data.data || data
+    month.value = currentMonth.value
+    currentStep.value = 2
+    ElMessage.success(`已解析 ${parsedSellerNames.value.length} 个卖家名`)
+  } catch (e: any) {
+    ElMessage.error(e?.message || '查询失败，请检查卖家名称')
+  } finally {
+    sellerPreviewing.value = false
+  }
+}
+
+async function handleSellerExecute() {
+  if (!sellerPreviewData.value) return
+
+  // 配额预检
+  let remainingQuota = 999
+  try {
+    const qRes = await competitorApi.getQuota()
+    if (qRes?.data) remainingQuota = qRes.data.monthRemaining ?? 999
+  } catch {}
+
+  const estCalls = sellerPreviewData.value.estimatedApiCalls
+  if (remainingQuota < estCalls) {
+    ElMessage.warning(`本月剩余 ${remainingQuota} 次配额，不足预估 ${estCalls} 次`)
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `将为 ${sellerPreviewData.value.sellerCount} 个卖家调用约 ${estCalls} 次 API，确认开始？`,
+      '确认导入',
+      { confirmButtonText: '开始', cancelButtonText: '返回' }
+    )
+  } catch { return }
+
+  currentStep.value = 3
+  try {
+    const data: any = await asinImportApi.sellerExecute(sellerPreviewData.value.taskId, month.value)
+    const task = data.data || data
+    previewData.value = { taskId: task.taskId } as any
+    Object.assign(progress, {
+      taskId: task.taskId, batchTotal: sellerPreviewData.value.estimatedApiCalls,
+      batchCurrent: 0, apiSuccess: 0, apiFail: 0, statusText: '调用中', taskStatus: 'RUNNING'
+    })
+    startPolling(task.taskId)
+    startQuotaPolling()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '启动失败')
+  }
 }
 
 function startUploadProgress() {
@@ -694,6 +872,10 @@ watch(currentStep, (step) => {
 
 .batch-summary { margin-top: 16px; padding: 12px 16px; background: #f0f9eb; border-radius: 8px; }
 .batch-line { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #303133; }
+.rate-limit-info { padding: 0; }
+.rate-title { font-weight: 600; font-size: 13px; color: #303133; margin-bottom: 6px; }
+.rate-row { display: flex; gap: 24px; font-size: 13px; color: #606266; }
+.rate-row b { color: #409EFF; }
 
 .progress-info { display: flex; gap: 32px; margin-bottom: 20px; flex-wrap: wrap; }
 .progress-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
@@ -725,3 +907,4 @@ watch(currentStep, (step) => {
   margin-top: 24px; padding: 20px 40px; background: #f5f7fa; border-radius: 8px;
 }
 </style>
+910

@@ -151,9 +151,9 @@ export default defineConfig(({ mode }) => {
           '**/*.log',
           '**/logs/**'
         ],
-        usePolling: false,
-        interval: 500,
-        binaryInterval: 1000,
+        usePolling: true,  // WSL2 文件系统事件不穿透，必须用轮询
+        interval: 1000,
+        binaryInterval: 2000,
         awaitWriteFinish: {
           stabilityThreshold: 300,
           pollInterval: 100

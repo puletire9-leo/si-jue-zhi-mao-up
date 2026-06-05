@@ -44,9 +44,6 @@
               <el-button :type="sortOrder === 'asc' ? 'primary' : ''" @click="sortOrder = 'asc'">升序</el-button>
             </el-button-group>
             <el-input v-model="searchText" placeholder="搜索店铺" clearable size="small" style="width: 180px" />
-            <el-button type="primary" size="small" :loading="syncing" @click="handleSyncAll">
-              {{ syncing ? `同步中 ${syncProgress}/${syncTotal}` : '同步全部' }}
-            </el-button>
             <el-button
               type="warning"
               size="small"
@@ -68,6 +65,9 @@
           <span style="color: #909399">—</span>
           <el-input v-model.number="rangeEnd" size="small" style="width: 70px" placeholder="止" />
           <el-button type="primary" size="small" @click="selectRange(rangeStart - 1, rangeEnd)">选择范围</el-button>
+          <el-button size="small" :type="selectionMode ? 'warning' : ''" @click="selectionMode = !selectionMode">
+            {{ selectionMode ? '退出选择' : '选择模式' }}
+          </el-button>
           <el-button type="success" size="small" :disabled="selectedStores.length === 0" @click="openBatchDrawer">
             批量导入 ({{ selectedStores.length }})
           </el-button>
@@ -80,9 +80,10 @@
           v-for="shop in displayedStores"
           :key="shop.key"
           class="shop-card"
+          :class="{ 'shop-card-selected': selectedStores.some(s => shopKey(s) === shop.key) }"
         >
           <!-- 店铺卡片 -->
-          <div class="shop-header" @click="goToStorePage(shop.data)">
+          <div class="shop-header" @click="selectionMode ? toggleStoreSelection(shop.data) : goToStorePage(shop.data)">
             <div class="shop-info">
               <div class="shop-name-row">
                 <el-tag :type="gradeTagType(shop.data.grade)" size="small" effect="dark" class="grade-tag">
@@ -260,15 +261,24 @@ const marketplace = ref('')
 const searchText = ref('')
 const stores = ref<UnifiedStore[]>([])
 const syncingShop = ref('')
-const syncing = ref(false)
-const syncProgress = ref(0)
-const syncTotal = ref(0)
 
 // 筛选/排序状态
+const selectionMode = ref(false)
 const gradeFilter = ref('')
 const sourceFilter = ref('')
 const sortBy = ref('productCount')
 const sortOrder = ref<'asc' | 'desc'>('desc')
+
+// 单个店铺选择切换
+const toggleStoreSelection = (store: UnifiedStore) => {
+  const key = shopKey(store)
+  const idx = selectedStores.value.findIndex(s => shopKey(s) === key)
+  if (idx >= 0) {
+    selectedStores.value.splice(idx, 1)
+  } else {
+    selectedStores.value.push(store)
+  }
+}
 
 // 评级状态
 const ratingRunning = ref(false)
@@ -285,7 +295,11 @@ const shopKey = (shop: UnifiedStore) => `${shop.source}:${shop.storeName}`
 const gradeStats = computed(() => {
   const counts = { zheng: 0, premium: 0, normal: 0, poor: 0, unrated: 0 }
   for (const s of stores.value) {
-    counts[s.grade]++
+    if (s.source === 'zheng') {
+      counts.zheng++
+    } else {
+      counts[s.grade]++
+    }
   }
   return [
     { key: '', label: '全部', count: stores.value.length },
@@ -306,9 +320,13 @@ const filteredStores = computed(() => {
     list = list.filter(s => s.source !== 'zheng' || s.marketplace === marketplace.value)
   }
 
-  // 等级筛选
+  // 等级筛选：郑总店铺仅在"郑总"tab显示，不串台到其他等级
   if (gradeFilter.value) {
-    list = list.filter(s => s.grade === gradeFilter.value)
+    if (gradeFilter.value === 'zheng') {
+      list = list.filter(s => s.source === 'zheng')
+    } else {
+      list = list.filter(s => s.source !== 'zheng' && s.grade === gradeFilter.value)
+    }
   }
 
   // 来源筛选
@@ -537,48 +555,7 @@ const handleSyncShop = async (shop: UnifiedStore) => {
   }
 }
 
-const handleSyncAll = async () => {
-  if (syncing.value) return
-  const zhengShops = stores.value.filter(s => s.source === 'zheng')
-  if (zhengShops.length === 0) {
-    ElMessage.warning('没有可同步的郑总店铺')
-    return
-  }
-  try {
-    await ElMessageBox.confirm(
-      `将同步 ${zhengShops.length} 个郑总店铺的数据，可能需要较长时间。继续？`,
-      '同步确认',
-      { confirmButtonText: '开始同步', cancelButtonText: '取消' }
-    )
-  } catch {
-    return
-  }
-  syncing.value = true
-  syncTotal.value = zhengShops.length
-  syncProgress.value = 0
-  let failed = 0
-  try {
-    for (const shop of zhengShops) {
-      syncProgress.value++
-      try {
-        await competitorApi.syncDengZongShop({ sellerName: shop.storeName, marketplace: shop.marketplace })
-      } catch {
-        failed++
-      }
-    }
-    if (failed === 0) {
-      ElMessage.success('全部同步完成')
-    } else {
-      ElMessage.warning(`同步完成，${failed} 个店铺失败`)
-    }
-    await loadAllStores()
-  } catch {
-    ElMessage.error('同步过程中出错')
-  } finally {
-    syncing.value = false
-    syncProgress.value = 0
-  }
-}
+
 
 // ========== 匹配度评级 ==========
 const handleStartRating = async () => {
@@ -887,6 +864,7 @@ onMounted(() => {
 }
 
 .shop-card {
+  position: relative;
   border: 1px solid #e4e7ed;
   border-radius: 8px;
   overflow: hidden;
@@ -895,6 +873,31 @@ onMounted(() => {
 
 .shop-card:hover {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.shop-card-selected {
+  border-color: #409eff;
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+}
+
+.shop-select-overlay {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.shop-select-overlay:hover {
+  background: #ecf5ff;
 }
 
 .shop-header {
