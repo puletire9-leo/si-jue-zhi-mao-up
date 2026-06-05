@@ -76,7 +76,7 @@ backend/backup/*.sql
 backend/database/backup/*.sql
 backend/database/backup/*.sql.gz
 
-# Test / temp files
+# Test / temp files (禁止提交临时测试脚本)
 backend/test_*.png
 backend/test_*.jpg
 backend/scripts/_check_schema.py
@@ -84,6 +84,13 @@ backend/scripts/_e2e_test.py
 backend/scripts/migrate_thumbnail.py
 backend/dump.rdb
 dump.rdb
+temp_*.py
+test_*.py
+test_*.sh
+test_de_*.py
+test_shop_*.py
+TestPassword.java
+TEST_*.md
 
 # Redis dump
 *.rdb
