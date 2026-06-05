@@ -240,21 +240,5 @@ export const selectionApi = {
       method: 'get',
       params: { scope }
     })
-  },
-
-  getAllProducts(params: any): Promise<ApiResponse<any>> {
-    return request({
-      url: '/api/v1/selection/all-products',
-      method: 'get',
-      params
-    })
-  },
-
-  getAllSellers(params?: { marketplace?: string }): Promise<ApiResponse<any>> {
-    return request({
-      url: '/api/v1/selection/all-sellers',
-      method: 'get',
-      params
-    })
   }
 }

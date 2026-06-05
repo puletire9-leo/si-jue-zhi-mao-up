@@ -1,12 +1,15 @@
 package com.sjzm.product.modules.shoprating.service.impl;
 
 import com.sjzm.product.entity.DengZongShop;
+import com.sjzm.product.entity.StoreRating;
 import com.sjzm.product.mapper.CompetitorProductMapper;
 import com.sjzm.product.mapper.DengZongShopMapper;
+import com.sjzm.product.mapper.StoreRatingMapper;
 import com.sjzm.product.modules.shoprating.dto.ShopRatingResult;
 import com.sjzm.product.modules.shoprating.service.ShopRatingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -24,7 +27,12 @@ public class ShopRatingServiceImpl implements ShopRatingService {
 
     private final CompetitorProductMapper competitorProductMapper;
     private final DengZongShopMapper dengZongShopMapper;
+    private final StoreRatingMapper storeRatingMapper;
     private final StringRedisTemplate redisTemplate;
+    private final ApplicationContext applicationContext;
+
+    // 候选店铺的数据来源表
+    private static final String SOURCE_TABLE = "competitor_products";
 
     private static final String TASK_KEY_PREFIX = "shop-rating:task:";
     private static final String LOCK_KEY_PREFIX = "shop-rating:lock:";
@@ -114,8 +122,8 @@ public class ShopRatingServiceImpl implements ShopRatingService {
         redisTemplate.opsForValue().set(taskKey, "{\"status\":\"PENDING\",\"currentStep\":0,\"totalSteps\":0}");
         redisTemplate.opsForValue().set(lockKey, taskId, 30, TimeUnit.MINUTES);
 
-        // 异步执行
-        doEvaluate(taskId, marketplace, minCount);
+        // 异步执行（必须通过代理调用，否则 @Async 不生效）
+        applicationContext.getBean(ShopRatingService.class).evaluateAsync(taskId, marketplace, minCount);
 
         return taskId;
     }
@@ -147,19 +155,17 @@ public class ShopRatingServiceImpl implements ShopRatingService {
 
     // ========== 异步执行 ==========
 
+    @Override
     @Async
-    public void doEvaluate(String taskId, String marketplace, int minCount) {
+    public void evaluateAsync(String taskId, String marketplace, int minCount) {
         String taskKey = TASK_KEY_PREFIX + taskId;
         try {
             // 1. 构建/获取基准
             Benchmark benchmark = benchmarkCache.computeIfAbsent(marketplace, this::buildBenchmark);
 
-            // 2. 获取候选店铺（只有已获取数据的才评分）
+            // 2. 获取候选店铺（全部参与评分，数据来自 competitor_products）
             List<Map<String, Object>> candidates = competitorProductMapper.selectNewProductCandidates(marketplace, minCount);
-            List<String> sellerNames = candidates.stream().map(r -> (String) r.get("sellerName")).collect(Collectors.toList());
-            Set<String> fetchedSet = new HashSet<>(dengZongShopMapper.selectFetchedSellerNames(marketplace, sellerNames));
-
-            List<String> toRate = sellerNames.stream().filter(fetchedSet::contains).collect(Collectors.toList());
+            List<String> toRate = candidates.stream().map(r -> (String) r.get("sellerName")).collect(Collectors.toList());
 
             redisTemplate.opsForValue().set(taskKey,
                     "{\"status\":\"RUNNING\",\"currentStep\":0,\"totalSteps\":" + toRate.size() + "}");
@@ -187,15 +193,53 @@ public class ShopRatingServiceImpl implements ShopRatingService {
             redisTemplate.opsForValue().set(taskKey, "{\"status\":\"COMPLETED\"}");
             redisTemplate.opsForValue().set(taskKey + ":results", serializeResults(results), 24, TimeUnit.HOURS);
 
+            // 6. 持久化到数据库
+            saveRatingsToDb(results);
+
             // 解锁
             redisTemplate.delete(LOCK_KEY_PREFIX + marketplace);
 
         } catch (Exception e) {
             log.error("评级任务失败: taskId={}", taskId, e);
+            String safeMsg = e.getMessage() != null ? e.getMessage().replace("\"", "'") : "unknown";
             redisTemplate.opsForValue().set(taskKey,
-                    "{\"status\":\"FAILED\",\"error\":\"" + e.getMessage() + "\"}");
+                    "{\"status\":\"FAILED\",\"error\":\"" + safeMsg + "\"}");
             redisTemplate.delete(LOCK_KEY_PREFIX + marketplace);
         }
+    }
+
+    // ========== 持久化 ==========
+
+    private void saveRatingsToDb(List<ShopRatingResult> results) {
+        if (results == null || results.isEmpty()) return;
+        try {
+            List<StoreRating> entities = new ArrayList<>();
+            for (ShopRatingResult r : results) {
+                StoreRating sr = new StoreRating();
+                sr.setSellerName(r.getSellerName());
+                sr.setMarketplace(r.getMarketplace() != null ? r.getMarketplace() : "");
+                sr.setRatingScore(r.getFinalScore());
+                sr.setRatingGrade(r.getGrade());
+                sr.setBestMatchSeller(r.getBestMatchSeller());
+                sr.setBestMatchScore(r.getBestMatchScore());
+                sr.setProductCount(r.getProductCount());
+                sr.setOverallScore(r.getOverallScore());
+                sr.setMatchScore(r.getMatchScore());
+                entities.add(sr);
+            }
+            // 分批写入，每批 100 条
+            for (int i = 0; i < entities.size(); i += 100) {
+                List<StoreRating> batch = entities.subList(i, Math.min(i + 100, entities.size()));
+                storeRatingMapper.insertOrUpdateBatch(batch);
+            }
+            log.info("评级结果已持久化: {} 条", entities.size());
+        } catch (Exception e) {
+            log.error("持久化评级结果失败", e);
+        }
+    }
+
+    public List<StoreRating> getSavedRatings(String marketplace) {
+        return storeRatingMapper.selectByMarketplace(marketplace);
     }
 
     // ========== 基准构建 ==========
@@ -248,12 +292,8 @@ public class ShopRatingServiceImpl implements ShopRatingService {
     // ========== 单店评分 ==========
 
     private ShopRatingResult scoreOneShop(String sellerName, String marketplace, Benchmark benchmark) {
-        // 拉取该店铺的商品数据
-        List<Map<String, Object>> rows = dengZongShopMapper.selectRatingData(marketplace);
-        List<Map<String, Object>> shopRows = rows.stream()
-                .filter(r -> sellerName.equals(r.get("seller_name")))
-                .collect(Collectors.toList());
-
+        // 从 competitor_products 查候选店铺数据
+        List<Map<String, Object>> shopRows = competitorProductMapper.selectRatingDataBySeller(marketplace, sellerName);
         ShopData shop = buildShopData(sellerName, shopRows);
 
         // 第一层：总体得分
@@ -262,10 +302,10 @@ public class ShopRatingServiceImpl implements ShopRatingService {
         // 第二层：匹配得分（vs 每家郑总店铺，取最高）
         double bestMatchScore = 0;
         String bestMatchSeller = null;
-        ScoreDetail bestDetail = null;
+        ShopRatingResult.ScoreDetail bestDetail = null;
 
         for (ShopData zhengShop : benchmark.sellerShops.values()) {
-            ScoreDetail detail = new ScoreDetail();
+            ShopRatingResult.ScoreDetail detail = new ShopRatingResult.ScoreDetail();
             double score = calcMatchScore(shop, zhengShop, detail);
             if (score > bestMatchScore) {
                 bestMatchScore = score;
@@ -312,7 +352,7 @@ public class ShopRatingServiceImpl implements ShopRatingService {
 
     // ========== 第二层：匹配得分 ==========
 
-    private double calcMatchScore(ShopData shop, ShopData zhengShop, ScoreDetail detail) {
+    private double calcMatchScore(ShopData shop, ShopData zhengShop, ShopRatingResult.ScoreDetail detail) {
         int n1 = shop.totalProducts;
         int n2 = zhengShop.totalProducts;
         boolean useCosine = (n1 >= 50 && n2 >= 50) ||
@@ -323,14 +363,14 @@ public class ShopRatingServiceImpl implements ShopRatingService {
         double priceOverlap = priceOverlap(shop.priceBuckets, shop.totalProducts,
                 zhengShop.priceBuckets, zhengShop.totalProducts);
 
-        detail.bsrCoverage = Math.round(bsrCoverage * 10000.0) / 10000.0;
-        detail.nodeCoverage = Math.round(nodeCoverage * 10000.0) / 10000.0;
-        detail.priceOverlap = Math.round(priceOverlap * 10000.0) / 10000.0;
+        detail.setBsrCoverage(Math.round(bsrCoverage * 10000.0) / 10000.0);
+        detail.setNodeCoverage(Math.round(nodeCoverage * 10000.0) / 10000.0);
+        detail.setPriceOverlap(Math.round(priceOverlap * 10000.0) / 10000.0);
 
         if (useCosine) {
             double cosine = cosineSimilarity(shop.nodeIdCount, shop.totalProducts,
                     zhengShop.nodeIdCount, zhengShop.totalProducts);
-            detail.cosineSimilarity = Math.round(cosine * 10000.0) / 10000.0;
+            detail.setCosineSimilarity(Math.round(cosine * 10000.0) / 10000.0);
             return bsrCoverage * 0.15 + nodeCoverage * 0.20 + cosine * 0.20 + priceOverlap * 0.45;
         } else {
             return bsrCoverage * 0.25 + nodeCoverage * 0.30 + priceOverlap * 0.45;
@@ -444,7 +484,7 @@ public class ShopRatingServiceImpl implements ShopRatingService {
     }
 
     private List<ShopRatingResult> parseResults(String json) {
-        if (json == null || json.isEmpty()) return Collections.emptyList();
+        if (json == null || json.isEmpty() || json.trim().equals("[]")) return Collections.emptyList();
         // 简单解析：按 }{ 分割
         List<ShopRatingResult> results = new ArrayList<>();
         json = json.trim();
@@ -462,6 +502,16 @@ public class ShopRatingServiceImpl implements ShopRatingService {
             r.setGrade(extractField(item, "grade"));
             r.setBestMatchSeller(extractField(item, "bestMatchSeller"));
             r.setBestMatchScore(parseDouble(extractField(item, "bestMatchScore")));
+            // 解析 detail 子对象
+            String detailJson = extractJsonObject(item, "detail");
+            if (detailJson != null) {
+                ShopRatingResult.ScoreDetail detail = new ShopRatingResult.ScoreDetail();
+                detail.setBsrCoverage(parseDouble(extractField(detailJson, "bsrCoverage")));
+                detail.setNodeCoverage(parseDouble(extractField(detailJson, "nodeCoverage")));
+                detail.setPriceOverlap(parseDouble(extractField(detailJson, "priceOverlap")));
+                detail.setCosineSimilarity(parseDouble(extractField(detailJson, "cosineSimilarity")));
+                r.setDetail(detail);
+            }
             results.add(r);
         }
         return results;
@@ -494,9 +544,29 @@ public class ShopRatingServiceImpl implements ShopRatingService {
             int end = json.indexOf("\"", start + 1);
             return end > start ? json.substring(start + 1, end) : null;
         }
+        // 跳过嵌套对象
+        if (json.charAt(start) == '{') return null;
         int end = start;
         while (end < json.length() && json.charAt(end) != ',' && json.charAt(end) != '}') end++;
         return json.substring(start, end).trim();
+    }
+
+    /** 提取嵌套 JSON 对象 */
+    private String extractJsonObject(String json, String field) {
+        String key = "\"" + field + "\":{";
+        int idx = json.indexOf(key);
+        if (idx < 0) return null;
+        int start = idx + key.length() - 1; // 从 { 开始
+        int depth = 0;
+        int end = start;
+        while (end < json.length()) {
+            char c = json.charAt(end);
+            if (c == '{') depth++;
+            else if (c == '}') depth--;
+            if (depth == 0) break;
+            end++;
+        }
+        return end > start ? json.substring(start + 1, end) : null;
     }
 
     private int parseInt(String s) {
@@ -505,13 +575,5 @@ public class ShopRatingServiceImpl implements ShopRatingService {
 
     private double parseDouble(String s) {
         try { return s != null ? Double.parseDouble(s) : 0; } catch (Exception e) { return 0; }
-    }
-
-    @Data
-    static class ScoreDetail {
-        Double bsrCoverage;
-        Double nodeCoverage;
-        Double priceOverlap;
-        Double cosineSimilarity;
     }
 }

@@ -19,25 +19,6 @@ public class AsinImportController {
 
     private final AsinImportService asinImportService;
 
-    @PostMapping("/seller/preview")
-    @Operation(summary = "卖家名批量预览：创建任务并返回预估信息")
-    public Result<Map<String, Object>> sellerPreview(@RequestBody Map<String, Object> body) {
-        @SuppressWarnings("unchecked")
-        List<String> sellerNames = (List<String>) body.get("sellerNames");
-        String marketplace = (String) body.getOrDefault("marketplace", "UK");
-        Map<String, Object> preview = asinImportService.sellerPreview(sellerNames, marketplace);
-        return Result.success(preview);
-    }
-
-    @PostMapping("/seller/execute")
-    @Operation(summary = "开始卖家名批量导入（异步执行）")
-    public Result<Map<String, Object>> sellerExecute(
-            @RequestParam Long taskId,
-            @RequestParam(defaultValue = "") String month) {
-        asinImportService.executeSellerImport(taskId, month);
-        return Result.success(Map.of("taskId", taskId, "status", "RUNNING"));
-    }
-
     @PostMapping("/upload")
     @Operation(summary = "上传文件并筛选预览（支持多文件）")
     public Result<Map<String, Object>> upload(

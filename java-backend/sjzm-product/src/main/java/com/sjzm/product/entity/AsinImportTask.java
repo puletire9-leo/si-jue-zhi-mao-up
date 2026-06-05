@@ -12,9 +12,6 @@ public class AsinImportTask {
     private Long id;
 
     private String marketplace;
-    private String mode;
-    private String sellerNames;
-    private Integer sellerCount;
     private String taskStatus;
     private Integer totalCount;
     private Integer passCount;
@@ -23,7 +20,6 @@ public class AsinImportTask {
     private Integer duplicateCount;
     private Integer skipCount;
     private Integer batchTotal;
-    private Integer totalPages;
     private Integer batchCurrent;
     private Integer apiSuccess;
     private Integer apiFail;

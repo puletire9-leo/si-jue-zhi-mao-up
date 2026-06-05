@@ -1,115 +1,154 @@
-# Docker 生产环境完全独立于本地代码
+# Docker 生产环境独立部署方案
 
 ## 目标
 
 所有代码构建后 bake 进 Docker 镜像，删除本地项目目录后 Docker 照常运行。
 
-## 当前问题：宿主机挂载依赖
+## 架构
 
-| 服务 | 宿主机挂载 | 风险 |
-|------|-----------|------|
-| java-user | `./java-backend/sjzm-user/target/app.jar:/app/user.jar:ro` | 删除项目 → 容器失败 |
-| java-product | `./java-backend/sjzm-product/target/app.jar:/app/product.jar:ro` | 同上 |
-| gateway | `./java-backend/sjzm-gateway/target/app.jar:/app/gateway.jar:ro` | 同上 |
-| backend (Python) | `./backend/app:/app/app:ro` | 同上 |
-| backend (Python) | `./领星:/app/领星` | 数据文件，可保留 |
-| frontend | `./frontend/nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro` | 同上 |
-| frontend | `./static/vue-dist:/usr/share/nginx/html:ro` | 同上 |
-
-## 方案：删除 host mount，代码 bake 进镜像
-
-### 1. Java 服务 — 删除 host mount
-
-`Dockerfile.prod` 已有 `COPY` JAR：
-```dockerfile
-COPY java-backend/sjzm-gateway/target/app.jar ./gateway.jar
-COPY java-backend/sjzm-user/target/app.jar ./user.jar
-COPY java-backend/sjzm-product/target/app.jar ./product.jar
+```
+宿主机构建 → Docker 镜像（代码 bake 进去） → 容器运行（不依赖宿主机文件）
 ```
 
-`docker-compose.prod-simple.yml` 删除 3 行 host mount 即可。build 镜像时 JAR 自动 bake 进去。
+| 服务 | Dockerfile | 代码如何进入镜像 | host mount |
+|------|-----------|-----------------|------------|
+| Java (user/product/gateway) | `java-backend/Dockerfile.prod` | `COPY *.jar` | 无 |
+| Python (backend + celery) | `backend/Dockerfile` → `FROM sjzm-python-base` | `COPY . .` | 无 |
+| 前端 (nginx) | `frontend/Dockerfile` | `COPY static/vue-dist` + `COPY nginx.prod.conf` | 无 |
+| MySQL / Redis / Nacos | 官方镜像 | - | named volume（`prod-*-data`） |
+| 领星数据 | - | - | `./领星:/app/领星`（业务数据，唯一 host mount） |
 
-### 2. Python 后端 — 删除 host mount
+## 首次部署（完整流程）
 
-`backend/Dockerfile` 已有 `COPY . .`，代码 bake 进镜像。
-
-删除：
-```yaml
-- ./backend/app:/app/app:ro
-```
-
-`./领星:/app/领星` 保留（数据文件，非代码）。
-
-### 3. 前端 — 修改 Dockerfile + build context
-
-修改 `frontend/Dockerfile`，新增 COPY 静态文件：
-```dockerfile
-FROM nginx:alpine
-COPY frontend/nginx.prod.conf /etc/nginx/conf.d/default.conf
-COPY static/vue-dist /usr/share/nginx/html
-EXPOSE 80
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost:80/ || exit 1
-CMD ["nginx", "-g", "daemon off;"]
-```
-
-修改 `docker-compose.prod-simple.yml`，build context 改为项目根目录：
-```yaml
-frontend:
-  build:
-    context: .
-    dockerfile: frontend/Dockerfile
-```
-
-删除 2 行 host mount：
-```yaml
-# 删除
-- ./frontend/nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
-- ./static/vue-dist:/usr/share/nginx/html:ro
-```
-
-## 部署流程（改后）
+### 步骤 1：构建 Python 基础镜像
 
 ```powershell
-# 1. Java 构建（宿主机 Maven）
+docker build -t sjzm-python-base -f backend/Dockerfile.base backend
+```
+
+> 包含所有 pip 依赖，只在首次或 `requirements.txt` 变更时需要重建。
+
+### 步骤 2：构建 Java JAR
+
+```powershell
 cd java-backend
-docker run --rm -v "${PWD}:/app" -v "$env:TEMP\m2:/root/.m2" -w /app maven:3.9-eclipse-temurin-21 mvn package -DskipTests -T 4
-Copy-Item sjzm-user/target/sjzm-user-1.0.0-SNAPSHOT.jar sjzm-user/target/app.jar -Force
+docker run --rm -v "$($pwd):/app" -v "$env:TEMP\m2:/root/.m2" -w /app `
+    maven:3.9-eclipse-temurin-21 mvn package -DskipTests -T 4
+
 Copy-Item sjzm-product/target/sjzm-product-1.0.0-SNAPSHOT.jar sjzm-product/target/app.jar -Force
 Copy-Item sjzm-gateway/target/sjzm-gateway-1.0.0-SNAPSHOT.jar sjzm-gateway/target/app.jar -Force
+Copy-Item sjzm-user/target/sjzm-user-1.0.0-SNAPSHOT.jar sjzm-user/target/app.jar -Force
+```
 
-# 2. 前端构建（宿主机 npm）
-cd frontend
+> 禁止 `mvn clean`，会删除已有 app.jar 导致容器启动失败。
+
+### 步骤 3：构建前端 dist
+
+```powershell
+cd ..\frontend
 npm run build
+```
 
-# 3. Docker 构建（所有镜像，代码 bake 进去）
+> 必须在宿主机构建，Docker Desktop 内存不足会 OOM。输出到 `../static/vue-dist/`。
+
+### 步骤 4：构建所有 Docker 镜像
+
+```powershell
 cd ..
 docker compose -f docker-compose.prod-simple.yml build
+```
 
-# 4. 启动
+### 步骤 5：启动所有容器
+
+```powershell
 docker compose -f docker-compose.prod-simple.yml up -d
 ```
 
-构建完成后，删除本地项目目录，Docker 照常运行。
+### 步骤 6：验证
 
-## 修改文件清单
+```powershell
+docker ps --format "table {{.Names}}\t{{.Status}}" | Select-String "prod-"
+```
 
-| 文件 | 改动 |
+所有容器应显示 `(healthy)` 或 `Up`。访问 `http://localhost:5173` 确认前端加载正常。
+
+---
+
+## 日常更新（仅重建变更的服务）
+
+### 只改了 Java 代码
+
+```powershell
+cd java-backend
+docker run --rm -v "$($pwd):/app" -v "$env:TEMP\m2:/root/.m2" -w /app `
+    maven:3.9-eclipse-temurin-21 mvn package -DskipTests -T 4
+Copy-Item sjzm-product/target/sjzm-product-1.0.0-SNAPSHOT.jar sjzm-product/target/app.jar -Force
+# （改到哪个模块就拷哪个）
+
+cd ..
+docker compose -f docker-compose.prod-simple.yml build --no-cache java-product
+docker compose -f docker-compose.prod-simple.yml up -d java-product
+```
+
+### 只改了前端代码
+
+```powershell
+cd frontend
+npm run build
+
+cd ..
+docker compose -f docker-compose.prod-simple.yml build --no-cache frontend
+docker compose -f docker-compose.prod-simple.yml up -d frontend
+```
+
+### 只改了 Python 代码
+
+```powershell
+docker compose -f docker-compose.prod-simple.yml build --no-cache backend celery-download
+docker compose -f docker-compose.prod-simple.yml up -d backend celery-download
+```
+
+> Python 基础镜像 (`sjzm-python-base`) 不需要重建，除非 `requirements.txt` 有变更。
+
+### 多个服务同时改
+
+叠加上述步骤，最后一次性 rebuild + up：
+
+```powershell
+docker compose -f docker-compose.prod-simple.yml build --no-cache java-product gateway frontend
+docker compose -f docker-compose.prod-simple.yml up -d java-product gateway frontend
+```
+
+---
+
+## 端口
+
+| 服务 | 端口 |
 |------|------|
-| `docker-compose.prod-simple.yml` | 删除 7 行 host mount，frontend build context 改为 `.` |
-| `frontend/Dockerfile` | 新增 `COPY static/vue-dist /usr/share/nginx/html` |
+| 前端 (nginx) | 5173 |
+| Gateway | 9003 |
+| Java User | 8014 |
+| Java Product | 8025 |
+| Python Backend | 7093 |
+| MySQL | 3310 |
+| Redis | 6383 |
+| Nacos | 8852 (HTTP) / 9852 (gRPC) |
 
-## 不需要改的
+---
 
-| 文件 | 原因 |
-|------|------|
-| `java-backend/Dockerfile.prod` | 已有 COPY JAR |
-| `backend/Dockerfile` | 已有 `COPY . .` |
-| mysql/redis/nacos | 已是 named volume，不依赖宿主机 |
+## 故障排查
 
-## 验证
+### prod-celery-download 一直 unhealthy
 
-1. `docker compose -f docker-compose.prod-simple.yml build` — 所有镜像构建成功
-2. `docker compose -f docker-compose.prod-simple.yml up -d` — 所有容器启动
-3. 浏览器访问前端、调用 API 确认正常
-4. 删除 `static/vue-dist/`、`java-backend/*/target/` — 容器不受影响
+健康检查的 `$HOSTNAME` 在 `CMD` 数组形式中不会被 shell 展开。已在 `docker-compose.prod-simple.yml` 中改为 `CMD-SHELL`：
+
+```yaml
+test: ["CMD-SHELL", "celery -A app.tasks.celery_app inspect ping -d celery@$$HOSTNAME"]
+```
+
+### 构建时找不到 sjzm-python-base
+
+运行步骤 1：
+```powershell
+docker build -t sjzm-python-base -f backend/Dockerfile.base backend
+```

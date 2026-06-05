@@ -56,7 +56,7 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
         "  <if test='weekTag != null'> AND cp.week_tag = #{weekTag}</if>" +
         "  <if test='isCurrent != null'> AND cp.is_current = #{isCurrent}</if>" +
         "  <if test='maxVariantCount != null'> AND cp.variations &lt;= #{maxVariantCount}</if>" +
-        "  <if test='category != null'> AND SUBSTRING_INDEX(cp.node_label_path, ':', 1) = #{category}</if>" +
+        "  <if test='category != null'> AND FIND_IN_SET(SUBSTRING_INDEX(cp.node_label_path, ':', 1), #{category})</if>" +
         ") t WHERE ((t.filter_mode IN ('MODE1','MODE2') AND t.rn &lt;= 3) " +
         "   OR (t.filter_mode NOT IN ('MODE1','MODE2') AND t.rn = 1)) " +
         "<if test='sortBy != null and sortOrder != null'>" +
@@ -94,6 +94,32 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
             @Param("offset") int offset,
             @Param("size") int size);
 
+    /** 按 marketplace + sellerName 拉取候选店铺商品（评分用） */
+    @Select("<script>" +
+        "SELECT cp.seller_name, cp.node_id, cp.bsr_id, cp.price" +
+        " FROM competitor_products cp" +
+        " WHERE cp.title IS NOT NULL AND cp.marketplace = #{marketplace}" +
+        " AND cp.seller_name = #{sellerName}" +
+        "</script>")
+    List<java.util.Map<String, Object>> selectRatingDataBySeller(
+            @Param("marketplace") String marketplace,
+            @Param("sellerName") String sellerName);
+
+    /** 模式一按卖家聚合候选店铺 */
+    @Select("<script>" +
+        "SELECT cp.seller_name as sellerName, cp.marketplace," +
+        "  COUNT(DISTINCT COALESCE(NULLIF(cp.parent_asin,''), cp.asin)) as newProductCount" +
+        " FROM competitor_products cp" +
+        " WHERE cp.title IS NOT NULL AND cp.filter_mode = 'MODE1'" +
+        " <if test='marketplace != null'> AND cp.marketplace = #{marketplace}</if>" +
+        " GROUP BY cp.seller_name, cp.marketplace" +
+        " HAVING COUNT(DISTINCT COALESCE(NULLIF(cp.parent_asin,''), cp.asin)) >= #{minCount}" +
+        " ORDER BY newProductCount DESC" +
+        "</script>")
+    List<java.util.Map<String, Object>> selectNewProductCandidates(
+            @Param("marketplace") String marketplace,
+            @Param("minCount") int minCount);
+
     /** 去重后的总数（MODE1/MODE2 每父最多3个，其他每父1个） */
     @Select("<script>" +
         "SELECT COUNT(*) FROM (" +
@@ -111,7 +137,7 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
         "    <if test='grade != null'> AND FIND_IN_SET(cp.grade, #{grade})</if>" +
         "    <if test='weekTag != null'> AND cp.week_tag = #{weekTag}</if>" +
         "    <if test='isCurrent != null'> AND cp.is_current = #{isCurrent}</if>" +
-        "    <if test='category != null'> AND SUBSTRING_INDEX(cp.node_label_path, ':', 1) = #{category}</if>" +
+        "    <if test='category != null'> AND FIND_IN_SET(SUBSTRING_INDEX(cp.node_label_path, ':', 1), #{category})</if>" +
         "  ) t" +
         "  <if test='maxVariantCount != null'> WHERE t.variations &lt;= #{maxVariantCount}</if>" +
         ") ranked WHERE ((ranked.filter_mode IN ('MODE1','MODE2') AND ranked.rn &lt;= 3) " +
