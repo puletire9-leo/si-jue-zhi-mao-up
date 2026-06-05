@@ -366,6 +366,10 @@ const formData = reactive({
 const fileList = ref<UploadUserFile[]>([])
 const referenceFileList = ref<UploadUserFile[]>([])
 
+// 保存编辑前的原始图片URL，用于判断用户是否修改了图片
+const originalImages = ref<string[]>([])
+const originalReferenceImages = ref<string[]>([])
+
 // 开发人选择相关数据
 const developerDialogVisible = ref(false)
 const selectedDeveloper = ref<string>('')
@@ -448,6 +452,8 @@ const resetForm = (): void => {
   formData.status = 'finalized'
   fileList.value = []
   referenceFileList.value = []
+  originalImages.value = []
+  originalReferenceImages.value = []
 
   // 自动填写开发人（如果用户是开发角色并且关联了开发人）
   autoFillDeveloper()
@@ -556,6 +562,10 @@ watch(() => props.draft, (newDraft) => {
       name: `reference_image_${index}.jpg`,
       url: ImageUrlUtil.getThumbnailUrlSync(image)
     }))
+
+    // 保存原始图片快照，用于判断用户是否修改了图片
+    originalImages.value = [...newDraft.images]
+    originalReferenceImages.value = [...referenceImages]
   } else {
     resetForm()
     // 新增模式，自动填写开发人
@@ -674,6 +684,10 @@ watch(dialogVisible, async (newVal) => {
           name: `reference_image_${index}.jpg`,
           url: ImageUrlUtil.getThumbnailUrlSync(image)
         }))
+
+        // 保存原始图片快照
+        originalImages.value = [...props.draft.images]
+        originalReferenceImages.value = [...referenceImages]
     } else {
       // 新增模式，手动获取用户信息并自动填写开发人
       console.log('[DraftDialog] 对话框打开，手动获取用户信息并执行自动填写')
@@ -690,7 +704,7 @@ const handleSubmit = async (): Promise<void> => {
     const requiredFields = [
       { name: 'sku', value: formData.sku, label: 'SKU' }
     ]
-    
+
     // 检查必填字段
     const missingFields = requiredFields.filter(field => !field.value)
     if (missingFields.length > 0) {
@@ -704,13 +718,22 @@ const handleSubmit = async (): Promise<void> => {
     }
 
     submitting.value = true
-    
-    // 处理图片上传
-    await handleImageUpload()
-    await handleReferenceImageUpload()
-    
+
+    // 判断图片是否被用户修改（增/删/新上传）
+    const imagesCountChanged = fileList.value.length !== originalImages.value.length
+    const refImagesCountChanged = referenceFileList.value.length !== originalReferenceImages.value.length
+    const hasNewUploads = fileList.value.some(f => f.url && f.url.startsWith('blob:'))
+      || referenceFileList.value.some(f => f.url && f.url.startsWith('blob:'))
+    const imagesModified = imagesCountChanged || refImagesCountChanged || hasNewUploads
+
+    // 只在图片有变更时才处理上传
+    if (imagesModified || !props.draft) {
+      await handleImageUpload()
+      await handleReferenceImageUpload()
+    }
+
     // 准备API请求数据
-    const apiData = {
+    const apiData: Record<string, any> = {
       sku: formData.sku,
       batch: formData.batch,
       developer: formData.developer,
@@ -718,11 +741,15 @@ const handleSubmit = async (): Promise<void> => {
       element: formData.element,
       modification_requirement: formData.modificationRequirement,
       infringement_label: formData.infringementLabel,
-      images: formData.images,
-      reference_images: formData.reference_images,
       status: formData.status
     }
-    
+
+    // 只在图片变更时才发送 images/reference_images 字段
+    if (imagesModified || !props.draft) {
+      apiData.images = formData.images
+      apiData.reference_images = formData.reference_images
+    }
+
     // 调用真实API
     let response
     if (props.draft) {
@@ -732,7 +759,7 @@ const handleSubmit = async (): Promise<void> => {
       // 新增模式
       response = await finalDraftApi.create(apiData)
     }
-    
+
     if (response.code === 200) {
       ElMessage.success({
         message: props.draft ? '编辑成功' : '新增成功',
