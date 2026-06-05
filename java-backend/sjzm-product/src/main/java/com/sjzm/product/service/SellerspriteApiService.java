@@ -36,9 +36,8 @@ public class SellerspriteApiService {
     @CircuitBreaker(name = "sellerspriteApi", fallbackMethod = "lookupFallback")
     public JsonNode competitorLookup(CompetitorLookupRequest request) {
 
-        // 速率限制检查（卖家模式 asins 为空时按 1 次计算）
-        int asinCount = (request.getAsins() != null && !request.getAsins().isEmpty()) ? request.getAsins().size() : 1;
-        rateLimitService.checkRateLimit(asinCount);
+        // 速率限制检查
+        rateLimitService.checkRateLimit(request.getAsins().size());
 
         long startTime = System.currentTimeMillis();
         String apiStatus = "OK";
@@ -67,7 +66,7 @@ public class SellerspriteApiService {
             }
 
             log.info("卖家精灵 API 调用成功: marketplace={}, asins={}, took={}ms",
-                    request.getMarketplace(), asinCount,
+                    request.getMarketplace(), request.getAsins().size(),
                     System.currentTimeMillis() - startTime);
 
             return result.path("data");
@@ -82,7 +81,7 @@ public class SellerspriteApiService {
             throw new RuntimeException("卖家精灵 API 调用失败: " + e.getMessage(), e);
         } finally {
             long took = System.currentTimeMillis() - startTime;
-            logApiCall(request.getMarketplace(), request.getMonth(), asinCount, took, apiStatus, errorMsg);
+            logApiCall(request.getMarketplace(), request.getMonth(), request.getAsins().size(), took, apiStatus, errorMsg);
         }
     }
 

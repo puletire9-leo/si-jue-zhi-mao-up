@@ -39,14 +39,9 @@ public class AsinImportService {
 
     private static final int DB_BATCH_SIZE = 2000; // 每批写入 DB 的行数
 
-    // 卖家模式固定速率限制
-    private static final int SELLER_MAX_PER_MINUTE = 20;
-    private static final long SELLER_DELAY_MS = 2500; // 每个卖家间隔 2.5 秒
-
     private final AsinImportTaskMapper taskMapper;
     private final AsinImportResultMapper resultMapper;
     private final CompetitorService competitorService;
-    private final SellerspriteApiService sellerspriteApiService;
     private final CompetitorProductMapper competitorProductMapper;
     private final SkipAsinMapper skipAsinMapper;
     private final ApiRateLimitService rateLimitService;
@@ -314,8 +309,6 @@ public class AsinImportService {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", t.getId());
             item.put("marketplace", t.getMarketplace());
-            item.put("mode", t.getMode() != null ? t.getMode() : "ASIN");
-            item.put("sellerCount", t.getSellerCount() != null ? t.getSellerCount() : 0);
             item.put("status", t.getTaskStatus());
             item.put("totalCount", t.getTotalCount());
             item.put("passCount", t.getPassCount());
@@ -461,188 +454,6 @@ public class AsinImportService {
     }
 
     /**
-     * 卖家名批量预览：创建任务并返回预估信息
-     */
-    public Map<String, Object> sellerPreview(List<String> sellerNames, String marketplace) {
-        if (sellerNames == null || sellerNames.isEmpty()) {
-            throw new RuntimeException("卖家名列表不能为空");
-        }
-        // 去重、去空
-        List<String> cleaned = sellerNames.stream()
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .distinct()
-                .collect(java.util.stream.Collectors.toList());
-        if (cleaned.isEmpty()) {
-            throw new RuntimeException("卖家名列表不能为空");
-        }
-        if (cleaned.size() > 100) {
-            throw new RuntimeException("最多支持 100 个卖家名");
-        }
-
-        // 每个卖家预估 1 次 API 请求（实际可能更多，这里给保守估计）
-        int estimatedApiCalls = cleaned.size();
-
-        AsinImportTask task = new AsinImportTask();
-        task.setMarketplace(marketplace);
-        task.setMode("SELLER");
-        task.setSellerNames(objectMapper.valueToTree(cleaned).toString());
-        task.setSellerCount(cleaned.size());
-        task.setTaskStatus("READY");
-        task.setTotalCount(cleaned.size());
-        task.setPassCount(cleaned.size());
-        task.setBatchTotal(estimatedApiCalls);
-        task.setBatchCurrent(0);
-        task.setCreatedAt(java.time.LocalDateTime.now());
-        task.setUpdatedAt(java.time.LocalDateTime.now());
-        taskMapper.insert(task);
-
-        Map<String, Object> preview = new LinkedHashMap<>();
-        preview.put("taskId", task.getId());
-        preview.put("sellerCount", cleaned.size());
-        preview.put("estimatedApiCalls", estimatedApiCalls);
-        preview.put("marketplace", marketplace);
-        preview.put("maxPerMinute", SELLER_MAX_PER_MINUTE);
-        preview.put("delayMs", SELLER_DELAY_MS);
-        // 预估耗时（秒）：每个卖家 2.5s 间隔 + 每个卖家预估 3s API 调用
-        int estimatedSeconds = cleaned.size() * 5 + 5;
-        preview.put("estimatedDuration", estimatedSeconds);
-        return preview;
-    }
-
-    /**
-     * 执行卖家名批量导入（异步）
-     * 遍历每个卖家，调用卖家精灵 API 拉取全部商品 → 精筛 → 入库 competitor_products
-     */
-    @Async
-    public void executeSellerImport(Long taskId, String month) {
-        AsinImportTask task = taskMapper.selectById(taskId);
-        if (task == null) {
-            log.error("卖家导入任务不存在: {}", taskId);
-            return;
-        }
-
-        // 互斥检查
-        Long activeCount = taskMapper.selectCount(
-                new LambdaQueryWrapper<AsinImportTask>()
-                        .in(AsinImportTask::getTaskStatus, List.of("RUNNING", "PAUSED")));
-        if (activeCount != null && activeCount > 0) {
-            task.setTaskStatus("REJECTED");
-            taskMapper.updateById(task);
-            log.warn("卖家导入任务 {} 被拒绝：已有活动中任务", taskId);
-            return;
-        }
-
-        try {
-            task.setTaskStatus("RUNNING");
-            task.setDataMonth(month);
-            taskMapper.updateById(task);
-
-            // 解析卖家名列表
-            List<String> sellerNames = objectMapper.readValue(task.getSellerNames(),
-                    new TypeReference<List<String>>() {});
-            String marketplace = task.getMarketplace();
-            int totalSellers = sellerNames.size();
-
-            int successSellers = 0;
-            int failSellers = 0;
-            int totalProducts = 0;
-            int totalApiCalls = 0;
-            int totalMode1 = 0;
-            int totalMode2 = 0;
-            int totalFail = 0;
-            var batchTime = java.time.LocalDateTime.now();
-            var logBuf = new StringBuilder();
-
-            for (int i = 0; i < totalSellers; i++) {
-                // 检查暂停/取消
-                task = taskMapper.selectById(taskId);
-                if ("PAUSED".equals(task.getTaskStatus()) || "CANCELLED".equals(task.getTaskStatus())) {
-                    log.info("卖家导入任务 {} 已被取消", taskId);
-                    return;
-                }
-
-                String sellerName = sellerNames.get(i);
-                int sellerNo = i + 1;
-
-                appendLog(logBuf, String.format("[%d/%d] 正在获取卖家 '%s' 的商品 (marketplace=%s)...",
-                        sellerNo, totalSellers, sellerName, marketplace));
-                task.setBatchCurrent(sellerNo);
-                task.setProgressLog(logBuf.toString());
-                taskMapper.updateById(task);
-
-                try {
-                    // 构造卖家查询请求
-                    CompetitorLookupRequest req = new CompetitorLookupRequest();
-                    req.setMarketplace(marketplace);
-                    req.setSellerName(sellerName);
-                    req.setAsins(new ArrayList<>());
-                    req.setVariation("N");
-                    req.setPage(1);
-                    req.setSize(100);
-
-                    // 调用 doLookupAndSave，source="竞品店铺"
-                    var summary = competitorService.doLookupAndSave(req, month, batchTime, "竞品店铺");
-                    int total = ((Number) summary.get("total")).intValue();
-                    int mode1 = ((Number) summary.get("mode1")).intValue();
-                    int mode2 = ((Number) summary.get("mode2")).intValue();
-                    int fail = ((Number) summary.get("fail")).intValue();
-                    int apiCalls = ((Number) summary.get("apiCalls")).intValue();
-
-                    successSellers++;
-                    totalProducts += total;
-                    totalApiCalls += apiCalls;
-                    totalMode1 += mode1;
-                    totalMode2 += mode2;
-                    totalFail += fail;
-
-                    appendLog(logBuf, String.format(
-                            "[%d/%d] 卖家 '%s': 入库%d条(%d页) | 模式一:%d 模式二:%d 淘汰:%d",
-                            sellerNo, totalSellers, sellerName, total, apiCalls, mode1, mode2, fail));
-
-                } catch (Exception e) {
-                    failSellers++;
-                    Throwable cause = e;
-                    while (cause.getCause() != null) cause = cause.getCause();
-                    String msg = cause.getMessage();
-                    if (msg == null || msg.isEmpty()) msg = e.getMessage();
-                    if (msg != null && msg.length() > 500) msg = msg.substring(0, 500);
-                    log.error("卖家 '{}' 导入失败: {}", sellerName, msg, e);
-                    appendLog(logBuf, String.format("[%d/%d] 卖家 '%s' 失败: %s",
-                            sellerNo, totalSellers, sellerName, msg != null ? msg : "未知错误"));
-                }
-
-                task.setApiSuccess(totalProducts);
-                task.setApiFail(failSellers);
-                task.setApiRequestsUsed(totalApiCalls);
-                task.setProgressLog(logBuf.toString());
-                taskMapper.updateById(task);
-
-                // 卖家间隔 2.5 秒（固定速率限制：每分钟最多 20 次）
-                if (i < totalSellers - 1) {
-                    try { Thread.sleep(SELLER_DELAY_MS); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); return; }
-                }
-            }
-
-            task.setTaskStatus("DONE");
-            task.setTotalCount(totalProducts);
-            task.setPassCount(totalMode1 + totalMode2);
-            task.setApiRequestsUsed(totalApiCalls);
-            task.setBatchCurrent(totalSellers);
-            task.setUpdatedAt(java.time.LocalDateTime.now());
-            taskMapper.updateById(task);
-            log.info("卖家导入任务 {} 完成。卖家:{}/{}, 商品:{}, API请求:{}, 模式一:{}, 模式二:{}, 淘汰:{}",
-                    taskId, successSellers, totalSellers, totalProducts, totalApiCalls, totalMode1, totalMode2, totalFail);
-
-        } catch (Exception e) {
-            log.error("卖家导入任务 {} 异常: {}", taskId, e.getMessage(), e);
-            task.setTaskStatus("ERROR");
-            task.setErrorMessage(e.getMessage());
-            taskMapper.updateById(task);
-        }
-    }
-
-    /**
      * 取消任务（暂停或停止）
      */
     public void cancelTask(Long taskId, String action) {
@@ -668,8 +479,6 @@ public class AsinImportService {
         Map<String, Object> progress = new HashMap<>();
         progress.put("taskId", task.getId());
         progress.put("status", task.getTaskStatus());
-        progress.put("mode", task.getMode() != null ? task.getMode() : "ASIN");
-        progress.put("sellerCount", task.getSellerCount() != null ? task.getSellerCount() : 0);
         progress.put("totalCount", task.getTotalCount());
         progress.put("passCount", task.getPassCount());
         progress.put("batchTotal", task.getBatchTotal());
@@ -1007,68 +816,3 @@ public class AsinImportService {
         return null;
     }
 }
-1010
-
-<system-reminder>
-Contents of /mnt/f/项目/si-jue-zhi-mao-up/java-backend/CLAUDE.md:
-
-# Java 后端 - Claude 自动加载上下文
-
-> Spring Boot 4.0.4 + MyBatis-Plus 3.5.15 + Spring Cloud Gateway。详情见 [AGENTS.md](AGENTS.md)。
-
-## 微服务模块
-
-| 模块 | 端口 | 职责 |
-|------|------|------|
-| sjzm-gateway | 9000 | 网关（路由 + JWT 鉴权 + RBAC） |
-| sjzm-user | 8001 | 用户认证 + 用户管理 |
-| sjzm-product | 8002 | 竞品分析 + 评分引擎 + ASIN 导入 + 筛选预设 |
-| sjzm-common | - | 公共组件（Result/JWT/注解/AOP/MQ/限流/缓存） |
-
-## 当前状态
-
-服务层全部实现，无 TODO 骨架。实际功能范围：
-
-- ✅ 认证（登录/注册/刷新/登出 + JWT 黑名单）
-- ✅ 竞品分析（卖家精灵 API + 多维过滤 + 分页）
-- ✅ 评分引擎（多维加权 + S/A/B/C/D 等级 + 周标记）
-- ✅ ASIN 导入（Excel 解析 + 批量导入 + 任务管理）
-- ✅ 筛选预设（用户 5 槽位 CRUD）
-- ✅ 网关（JWT + RBAC + 公开路径白名单）
-
-**仍在 Python 后端：** 产品/选品/定稿/素材/运营商的 CRUD。
-
-## 包结构约定
-
-```
-com.sjzm/
-├── controller/   # @RestController，只做参数校验和路由
-├── service/      # 接口 + impl/，业务逻辑全部在此
-├── mapper/       # 继承 BaseMapper<T>
-├── entity/       # @TableName + @TableId(ASSIGN_ID) + @TableLogic
-├── config/       # 配置类
-├── security/     # JWT 认证
-├── annotation/   # 自定义注解（限流/缓存/追踪）
-├── aspect/       # AOP 切面
-└── mq/           # RocketMQ 生产者/消费者
-```
-
-## 铁律
-
-1. **新增 Entity**: 必须 `@TableName` + `@TableId(type=IdType.ASSIGN_ID)` + `@TableLogic`
-2. **新增 Controller**: `@RestController` + `@RequestMapping` + `@Tag`（Swagger）
-3. **新增 Service**: 先写接口再写 Impl，Impl 加 `@Service`
-4. **新增 Mapper**: 继承 `BaseMapper<T>`
-5. **响应统一**: `Result.success(data)` / `Result.error(message)`
-6. **配置**: `${ENV_VAR:default}` 占位，禁止硬编码
-7. **禁止**: Controller 写业务 / Mapper 写判断 / Controller 直接注入 Mapper / 反向调用
-
-## 版本兼容
-
-已验证的 Spring Boot 4.0.4 生态：
-- MyBatis-Plus: 3.5.15（`spring-boot4-starter`，非 `boot-starter`）
-- Spring Cloud: 2025.1.1（Oakwood）
-- Spring Cloud Alibaba: 2025.1.0.0
-- Redisson: 4.0.0
-
-</system-reminder>
