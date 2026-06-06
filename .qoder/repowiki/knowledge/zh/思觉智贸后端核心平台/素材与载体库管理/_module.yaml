@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: backend/library_domain
+title: 素材与载体库管理
+scope:
+    - backend/app/api/v1/material_library.py
+    - backend/app/api/v1/carrier_library.py
+    - backend/app/models/material_library.py
+    - backend/app/models/carrier_library.py
+    - backend/app/services/library_image_service.py
+    - backend/app/repositories/create_file_link_tables.py
+source_files: []
+depends_on: []
+related_to: []

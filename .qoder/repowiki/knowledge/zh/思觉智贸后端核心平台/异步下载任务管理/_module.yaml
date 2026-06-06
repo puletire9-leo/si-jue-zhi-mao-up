@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: backend/download_domain
+title: 异步下载任务管理
+scope:
+    - backend/app/api/v1/download_tasks.py
+    - backend/app/models/download_task.py
+    - backend/app/services/download_task_service.py
+    - backend/app/tasks/download_tasks.py
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/file_and_image_services
