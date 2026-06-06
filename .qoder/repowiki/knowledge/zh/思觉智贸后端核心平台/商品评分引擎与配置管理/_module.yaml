@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: backend/scoring_domain
+title: 商品评分引擎与配置管理
+scope:
+    - backend/app/api/v1/scoring.py
+    - backend/app/models/scoring.py
+    - backend/app/services/scoring_engine.py
+    - backend/app/schemas/product_data.py
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/selection_domain
