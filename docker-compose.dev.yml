@@ -51,6 +51,8 @@ services:
       - MYSQL_HOST=mysql
       - MYSQL_PORT=3306
       - MYSQL_DATABASE=sijuelishi_dev
+      - MYSQL_USER=sijue
+      - MYSQL_PASSWORD=sijue123456
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - IMAGE_READ_MODE=cloud
@@ -112,9 +114,7 @@ services:
       - ./java-backend:/app
       - java-m2:/root/.m2
     command: >
-      sh -c "mvn install -N -DskipTests &&
-      mvn install -pl sjzm-common -DskipTests &&
-      cd sjzm-product &&
+      sh -c "cd sjzm-product &&
       mvn spring-boot:run -DskipTests
       -Dspring-boot.run.jvmArguments='-Xms256m -Xmx1024m'
       -Dspring-boot.run.arguments='--server.port=8002'"
@@ -138,7 +138,6 @@ services:
         condition: service_healthy
       nacos:
         condition: service_started
-    restart: unless-stopped
 
   gateway:
     image: maven:3.9-eclipse-temurin-21
@@ -150,8 +149,7 @@ services:
       - ./java-backend:/app
       - java-m2:/root/.m2
     command: >
-      sh -c "mvn install -pl sjzm-gateway -am -DskipTests -q &&
-      cd sjzm-gateway &&
+      sh -c "cd sjzm-gateway &&
       mvn spring-boot:run -DskipTests
       -Dspring-boot.run.jvmArguments='-Xms128m -Xmx256m'"
     environment:
@@ -165,7 +163,6 @@ services:
       - java-user
       - java-product
       - nacos
-    restart: unless-stopped
 
   java-user:
     image: maven:3.9-eclipse-temurin-21
@@ -176,7 +173,11 @@ services:
     volumes:
       - ./java-backend:/app
       - java-m2:/root/.m2
-    command: sh -c "mvn install -pl sjzm-user -am -DskipTests -q && java -Xms128m -Xmx256m -jar sjzm-user/target/app.jar"
+    command: >
+      sh -c "cd sjzm-user &&
+      mvn spring-boot:run -DskipTests
+      -Dspring-boot.run.jvmArguments='-Xms128m -Xmx256m'
+      -Dspring-boot.run.arguments='--server.port=8001'"
     environment:
       NACOS_ENABLED: "true"
       NACOS_SERVER_ADDR: nacos:8848
@@ -196,7 +197,6 @@ services:
         condition: service_healthy
       nacos:
         condition: service_started
-    restart: unless-stopped
 
   nacos:
     image: nacos/nacos-server:v2.3.1

@@ -74,4 +74,25 @@ public class AsinImportController {
         Map<String, Object> newTask = asinImportService.retryFailedAsins(taskId);
         return Result.success(newTask);
     }
+
+    @PostMapping("/seller/preview")
+    @Operation(summary = "卖家名批量导入 - 预览")
+    public Result<Map<String, Object>> sellerPreview(@RequestBody Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
+        List<String> sellerNames = (List<String>) body.get("sellerNames");
+        String marketplace = (String) body.getOrDefault("marketplace", "UK");
+        if (sellerNames == null || sellerNames.isEmpty()) {
+            throw new RuntimeException("sellerNames 不能为空");
+        }
+        return Result.success(asinImportService.sellerPreview(sellerNames, marketplace));
+    }
+
+    @PostMapping("/seller/execute")
+    @Operation(summary = "卖家名批量导入 - 执行（异步）")
+    public Result<Map<String, Object>> sellerExecute(
+            @RequestParam Long taskId,
+            @RequestParam(defaultValue = "") String month) {
+        asinImportService.sellerExecute(taskId, month);
+        return Result.success(Map.of("taskId", taskId, "status", "RUNNING"));
+    }
 }
