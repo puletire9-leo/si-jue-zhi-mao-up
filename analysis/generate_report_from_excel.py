@@ -307,9 +307,53 @@ def generate_report_from_excel(
         
         print(f"  {month}: SKU数 {total_count}, 销量 {total_sales_qty:,}, 存活率 {survival_rate:.2f}%")
     
+    """
+    在汇总数据末尾追加一行「求和/平均」行
+    
+    规则：
+    - 数值型列（销量、销售额、利润、库存、数量等）→ 求和
+    - 比率型列（xx率、xx占比）→ 平均值
+    - 时间列 → 填写「求和/平均」
+    """
+    
+    # 定义列分类：需要求和的数值列 vs 需要求平均的比率列
+    sum_columns = {
+        'SKU总数', '总销售量', '总销售额', '总结算利润', '总可用库存',
+        '存活sku销售量', '存活sku销售额', '存活SKU数', '留存SKU总利润',
+        '淘汰SKU销售量', '淘汰SKU销售额', '淘汰SKU总数', '淘汰SKU总利润'
+    }
+    avg_columns = {
+        '总利润率', '存活率', '留存SKU利润率', '淘汰率', '淘汰SKU利润率'
+    }
+    
+    # 构建求和/平均行
+    summary_row = {'时间': '求和/平均'}
+    
+    for col in summary_results[0].keys():
+        if col == '时间':
+            continue
+        
+        # 收集该列所有值并计算
+        values = [item[col] for item in summary_results]
+        
+        if col in sum_columns:
+            # 数值列 → 直接求和
+            summary_row[col] = sum(values)
+        elif col in avg_columns:
+            # 比率列（字符串格式如 "5.48%"）→ 去掉%号转数字后求平均，再转回百分比
+            rate_values = [float(str(v).replace('%', '')) for v in values]
+            avg_rate = sum(rate_values) / len(rate_values) if rate_values else 0
+            summary_row[col] = round(avg_rate, 6)  # 保持高精度，与参考文件一致
+        else:
+            # 未分类的列默认求和
+            summary_row[col] = sum(values)
+    
+    # 追加到结果列表末尾
+    summary_results.append(summary_row)
+
     # 保存时间维度报告
     time_output_path = os.path.join(time_output_dir, "sku_summary_from_excel.xlsx")
-    
+
     with pd.ExcelWriter(time_output_path, engine='openpyxl') as writer:
         # 写入汇总sheet
         summary_df = pl.DataFrame(summary_results)
