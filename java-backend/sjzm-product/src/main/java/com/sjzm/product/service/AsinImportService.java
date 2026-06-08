@@ -46,6 +46,9 @@ public class AsinImportService {
     private static final int BATCH_SIZE = 40;
 
     private static final int DB_BATCH_SIZE = 2000; // 每批写入 DB 的行数
+    
+    private static final long SELLER_API_DELAY_MS = 500;
+    private static final int STATUS_CHECK_INTERVAL = 5;
 
     private final AsinImportTaskMapper taskMapper;
     private final AsinImportResultMapper resultMapper;
@@ -504,39 +507,62 @@ public class AsinImportService {
     }
 
     /**
+     * 获取任务实体（供 Controller 使用）
+     */
+    public AsinImportTask getTaskById(Long taskId) {
+        return taskMapper.selectById(taskId);
+    }
+
+    /**
      * 卖家名批量导入 - 预览
      */
     public Map<String, Object> sellerPreview(List<String> sellerNames, String marketplace) {
+        List<String> cleaned = sellerNames.stream()
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .distinct()
+                .collect(java.util.stream.Collectors.toList());
+        
+        if (cleaned.isEmpty()) {
+            throw new RuntimeException("没有有效的卖家名");
+        }
+
         int maxPerMin = rateLimitService.getMaxPerMinute();
-        int estimatedApiCalls = sellerNames.size() * 3;
+        int estimatedPagesPerSeller = 3;
+        int estimatedApiCalls = cleaned.size() * estimatedPagesPerSeller;
         int estimatedDurationSec = Math.max(1, (int) Math.ceil((double) estimatedApiCalls / maxPerMin * 60));
 
         AsinImportTask task = new AsinImportTask();
         task.setMarketplace(marketplace);
+        task.setImportType("SELLER");
         task.setTaskStatus("READY");
-        task.setTotalCount(sellerNames.size());
-        task.setPassCount(sellerNames.size());
-        task.setBatchTotal(sellerNames.size());
+        task.setTotalCount(cleaned.size());
+        task.setPassCount(cleaned.size());
+        task.setBatchTotal(cleaned.size());
         task.setBatchCurrent(0);
         task.setCreatedAt(LocalDateTime.now());
         task.setUpdatedAt(LocalDateTime.now());
         taskMapper.insert(task);
 
-        for (String sellerName : sellerNames) {
+        List<AsinImportResult> results = new ArrayList<>();
+        for (String sellerName : cleaned) {
             AsinImportResult r = new AsinImportResult();
             r.setTaskId(task.getId());
-            r.setAsin(sellerName);
+            r.setAsin(null);
+            r.setSellerName(sellerName);
             r.setStatus("PASS");
-            resultMapper.insert(r);
+            results.add(r);
         }
+        
+        resultMapper.insertBatch(results);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("taskId", task.getId());
-        data.put("sellerCount", sellerNames.size());
+        data.put("sellerCount", cleaned.size());
         data.put("estimatedApiCalls", estimatedApiCalls);
         data.put("marketplace", marketplace);
         data.put("maxPerMinute", maxPerMin);
-        data.put("delayMs", 500);
+        data.put("delayMs", (int) SELLER_API_DELAY_MS);
         data.put("estimatedDuration", estimatedDurationSec);
         return data;
     }
@@ -544,7 +570,7 @@ public class AsinImportService {
     /**
      * 卖家名批量导入 - 执行（异步）
      */
-    @Async
+    @Async("sellerImportExecutor")
     public void sellerExecute(Long taskId, String month) {
         AsinImportTask task = taskMapper.selectById(taskId);
         if (task == null) {
@@ -554,11 +580,13 @@ public class AsinImportService {
 
         Long activeCount = taskMapper.selectCount(
                 new LambdaQueryWrapper<AsinImportTask>()
+                        .eq(AsinImportTask::getImportType, "SELLER")
+                        .eq(AsinImportTask::getMarketplace, task.getMarketplace())
                         .in(AsinImportTask::getTaskStatus, List.of("RUNNING", "PAUSED")));
         if (activeCount != null && activeCount > 0) {
             task.setTaskStatus("REJECTED");
             taskMapper.updateById(task);
-            log.warn("卖家导入任务 {} 被拒绝：已有活动中任务", taskId);
+            log.warn("卖家导入任务 {} 被拒绝：同市场已有活动中任务", taskId);
             return;
         }
 
@@ -573,25 +601,25 @@ public class AsinImportService {
                             .eq(AsinImportResult::getStatus, "PASS"));
 
             int totalSellers = results.size();
-            int currentSeller = 0;
             int totalProducts = 0;
             StringBuilder logBuf = new StringBuilder();
 
-            for (AsinImportResult r : results) {
-                task = taskMapper.selectById(taskId);
-                if ("PAUSED".equals(task.getTaskStatus()) || "CANCELLED".equals(task.getTaskStatus())) {
-                    log.info("卖家导入任务 {} 已取消", taskId);
-                    return;
+            for (int i = 0; i < results.size(); i++) {
+                AsinImportResult r = results.get(i);
+                
+                if (i % STATUS_CHECK_INTERVAL == 0) {
+                    task = taskMapper.selectById(taskId);
+                    if ("PAUSED".equals(task.getTaskStatus()) || "CANCELLED".equals(task.getTaskStatus())) {
+                        log.info("卖家导入任务 {} 已被暂停或取消", taskId);
+                        return;
+                    }
                 }
 
-                currentSeller++;
-                String sellerName = r.getAsin();
+                int currentSeller = i + 1;
+                String sellerName = r.getSellerName();
 
                 appendLog(logBuf, String.format("[%d/%d] 正在获取店铺: %s",
                         currentSeller, totalSellers, sellerName));
-                task.setProgressLog(logBuf.toString());
-                task.setBatchCurrent(currentSeller);
-                taskMapper.updateById(task);
 
                 try {
                     int count = syncProductsBySeller(sellerName, task.getMarketplace(), month);
@@ -611,11 +639,12 @@ public class AsinImportService {
                     resultMapper.updateById(r);
                 }
 
-                task.setApiSuccess(totalProducts);
                 task.setProgressLog(logBuf.toString());
+                task.setBatchCurrent(currentSeller);
+                task.setApiSuccess(totalProducts);
                 taskMapper.updateById(task);
 
-                try { Thread.sleep(500); } catch (InterruptedException ignored) {}
+                try { Thread.sleep(SELLER_API_DELAY_MS); } catch (InterruptedException ignored) {}
             }
 
             task.setTaskStatus("DONE");
@@ -630,7 +659,11 @@ public class AsinImportService {
         }
     }
 
-    /** 调用卖家精灵 API 按店铺名获取产品并写入 competitor_products */
+    /** 
+     * 调用卖家精灵 API 按店铺名获取产品并写入 competitor_products
+     * 事务：单店铺内的产品写入应原子化
+     */
+    @Transactional(rollbackFor = Exception.class)
     private int syncProductsBySeller(String sellerName, String marketplace, String month) {
         List<CompetitorProduct> batch = new ArrayList<>();
         int page = 1;

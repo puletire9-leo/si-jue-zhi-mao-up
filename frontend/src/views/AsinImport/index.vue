@@ -571,7 +571,7 @@ async function handleSellerExecute() {
     const task = data.data || data
     previewData.value = { taskId: task.taskId } as any
     Object.assign(progress, {
-      taskId: task.taskId, batchTotal: sellerPreviewData.value.estimatedApiCalls,
+      taskId: task.taskId, batchTotal: task.batchTotal ?? sellerPreviewData.value.sellerCount,
       batchCurrent: 0, apiSuccess: 0, apiFail: 0, statusText: '调用中', taskStatus: 'RUNNING'
     })
     startPolling(task.taskId)

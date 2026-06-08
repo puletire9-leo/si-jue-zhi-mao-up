@@ -12,6 +12,7 @@ public class AsinImportTask {
     private Long id;
 
     private String marketplace;
+    private String importType;
     private String taskStatus;
     private Integer totalCount;
     private Integer passCount;
