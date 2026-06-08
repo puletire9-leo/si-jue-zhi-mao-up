@@ -108,3 +108,4 @@ backend/logs/*
 
 # 对话历史（体积过大）
 docs/对话历史/
+基于hermes选品agent设计/hermes-agent-v0.16.0/
