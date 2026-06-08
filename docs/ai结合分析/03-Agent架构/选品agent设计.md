@@ -1,35 +1,46 @@
-# 选品Agent — 完整功能设计 v2
+# 选品Agent — 完整功能设计 v2.1
 
-> **定位**：独立于 Java 后端的外部选品分析 Agent。
-> **架构归属**：[选品算法图.md](../选品算法/图.md) §0 定义的 "外部选品Agent" 角色。
-> **职责**：接收 Java 聚合数据 → LLM 深度推理 → 输出结构化分析报告 → 回写 Java 后端。
+> **定位**：独立项目 `sijue-selection-agent`（与 SuperMew RAG 完全分离）。
+> **架构归属**：[选品算法图.md](../选品算法/图.md) §0 定义的「项目B: 选品Agent」角色。
+> **触发方式**：前端直连（Vue:5173 → Agent:8001 SSE），Java完全不参与调度。
+> **职责**：从Java拉取聚合数据 → LLM 深度推理 → 输出结构化分析报告 → 回写Java。
 >
-> **与15篇算法文档的关系**：
-> - 本文档是 Agent 的"功能规格书"，定义 Agent **必须具备哪些能力**
-> - 算法文档是 Agent 的"知识库"，定义 Agent **应该用什么方法论**
-> - [图.md](../选品算法/图.md) 是 Agent 的"接口契约"，定义 Agent **如何与Java交互**
+> **与算法文档的关系**：
+> - 本文档是 Agent 的“功能规格书”，定义 Agent **必须具备哪些能力**
+> - 算法文档是 Agent 的“知识库”，定义 Agent **应该用什么方法论**
+> - [图.md](../选品算法/图.md) 是 Agent 的“接口契约”，定义 Agent **如何与Java/前端交互**
 
 ---
 
-## 一、Agent 在系统中的位置
+## 一、Agent 在系统中的位置（v2.1 三项目解耦）
 
 ```
-┌──────────────────────┐     ┌──────────────────────────────────┐
-│   Java 后端           │     │   选品 Agent（本文档定义范围）      │
-│                      │     │                                  │
-│  deng_zong_shop 表    │     │  接收: GET /aggregated-data      │
-│       │               │ ◆──→│  处理: 8大核心能力(§三)          │
-│       ▼               │     │  输出: POST /analysis-results    │
-│  品线聚合引擎         │ ←──◆│                                  │
-│  ProductLineService   │     │  ★ 内部实现方式由Agent自行决定 ★   │
-│       │               │     │  可用: LLM / 向量库 / 规则引擎    │
-│       ▼               │     │  Java不关心内部，只看结果          │
-│  product_line_guidance │     └──────────────────────────────────┘
-│  + 推送服务            │
-└──────────────────────┘
-
-  ◆ = REST API（契约见 [图.md](../选品算法/图.md) §2）
+┌──────────────────────┐
+│  项目C: Vue前端 :5173 │  ← 唯一的调度者
+│  [开始分析]按钮        │
+│    ↓ ① 调Java聚合     │
+│    ↓ ② 调Agent分析    │
+│    ↓ ③ SSE实时进度    │
+└───────┬───────────────────┬───────────────────┐
+        │                   │                   │
+        ▼                   │                   ▼
+┌──────────────────────┐  │  ┌──────────────────────────────────────┐
+│  项目A: Java :8080   │  │  │  项目B: 选品Agent :8001 (本文档)    │
+│                      │  │  │                                      │
+│  deng_zong_shop 表    │  │  │  触发: 前端SSE长连接                │
+│       │               │  │  │  ① data_fetch: GET /aggregated-data │
+│       ▼               │  │  │     → 从Java拉取聚合数据          │
+│  品线聚合引擎         │◄───┘  │  ② 8大核心能力(§三) LLM推理        │
+│       │               │     │  ③ SSE推送每步进度给前端           │
+│       ▼               │     │  ④ POST /analysis-results          │
+│  product_line_guidance │◄─────│     → 回写结果到Java               │
+│                      │     │                                      │
+│  ★ Java不知道Agent存在 │     │  ★ 内部实现由Agent自行决定 ★        │
+└──────────────────────┘     └──────────────────────────────────────┘
 ```
+
+> **核心原则**：Java 只负责“存数据”和“存结果”，Agent 通过前端触发，直接和 Java 的数据API交互。
+> 三个项目可独立部署、独立扩缩、独立迭代。
 
 ---
 
@@ -37,7 +48,7 @@
 
 ### 2.1 数据来源
 
-Agent 从 `GET /api/v1/product-line/aggregated-data` 获取的原始数据。
+Agent 从 Java `GET /api/v1/product-line/aggregated-data?batchId=xxx` 拉取的原始数据（由 data_fetch 节点主动请求，非 Java 推送）。
 
 以下以 **Nail Tips (nodeId=2909187031)** 为实例展示完整数据包结构：
 
@@ -1091,26 +1102,32 @@ Nail Tips 属于 **极轻小件** → 使用第一行参数。
 
 ---
 
-## 四、Agent 执行流程
+## 四、Agent 执行流程（v2.1 前端直连模式）
 
-### 4.1 单次分析流程（处理一个批次的所有小类）
+### 4.1 单次分析流程
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Agent 启动                                             │
+│  ① 前端点击 [开始分析]                                   │
+│     ├─ 调Java聚合接口 → 拿到batchId                     │
+│     └─ 带batchId调Agent /selection/analyze (SSE)          │
+│                                                         │
+│  ② Agent 收到请求，建立SSE长连接                       │
 │     │                                                   │
 │     ▼                                                   │
-│  ① GET /api/v1/product-line/aggregated-data             │
-│     获取完整批次JSON                                      │
+│  ③ data_fetch: GET /aggregated-data?batchId=xxx         │
+│     从Java拉取完整批次JSON                                │
+│     → SSE: "数据加载完成，开始分析..."                  │
 │     │                                                   │
 │     ▼                                                   │
-│  ② 预处理                                               │
+│  ④ 预处理                                               │
 │     ├─ 解析品线数(N)、小类总数(M)                         │
 │     ├─ 加载内置知识库（品类成本、原型映射、风险模板）       │
 │     └─ 初始化结果容器 results[]                          │
+│     → SSE: "预处理完成，共{N}个品线/{M}个小类"           │
 │     │                                                   │
 │     ▼                                                   │
-│  ③ FOR EACH subCategory IN batch:                       │
+│  ⑤ FOR EACH subCategory IN batch:                       │
 │     │                                                   │
 │     ├─ 能力1: 语义品类理解 ──→ prototype, consumerProfile │
 │     ├─ 能力2: 竞争格局解剖 ──→ pattern, priceGap, CR3     │
@@ -1121,17 +1138,21 @@ Nail Tips 属于 **极轻小件** → 使用第一行参数。
 │     ├─ 能力7: 跨品线关联 ──→ relatedCategories[]         │
 │     ├─ 能力8: 最终裁决 ──→ recommendLevel, actionPlan    │
 │     │                                                   │
+│     └─ 每个能力完成 → SSE推送进度                       │
+│        "Nail Tips: 能力3/8 完成 (生命周期=成长期)"       │
 │     └─ 将结果 push 到 results[]                          │
 │     │                                                   │
 │     ▼                                                   │
-│  ④ 全局后处理                                            │
-│     ├─ 跨小类一致性检验（相邻小类推荐等级不应跳跃过大）      │
-│     ├─ 品线级汇总（各bsrId下的推荐/观望/避免比例）          │
+│  ⑥ 全局后处理                                            │
+│     ├─ 跨小类一致性检验                                    │
+│     ├─ 品线级汇总                                          │
 │     └─ 生成批次摘要                                       │
 │     │                                                   │
 │     ▼                                                   │
-│  ⑤ POST /api/v1/product-line/analysis-results           │
+│  ⑦ POST /api/v1/product-line/analysis-results           │
 │     回写全部结果到Java                                    │
+│     → SSE: "分析完成，结果已保存"                       │
+│     → SSE: 关闭连接                                     │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -1264,16 +1285,19 @@ Nail Tips 属于 **极轻小件** → 使用第一行参数。
 
 ---
 
-## 八、LangGraph 实现映射（SuperMew Selection Graph）
+## 八、LangGraph 实现映射（独立项目 sijue-selection-agent）
 
-> **本节说明**：基于 [supermew-选品接入方案.md](./supermew-选品接入方案.md) 的架构决策，
-> 选品Agent将以 **LangGraph StateGraph** 形式实现在 **SuperMew 项目** (`d:\项目\agentic rag\sijue-agengtic-rag`) 中。
+> **本节说明**：选品Agent 作为独立项目 `sijue-selection-agent`（Python :8001），
+> 参考 SuperMew RAG 的代码组织模式（不合并），以 **LangGraph StateGraph** 形式实现。
 > 本节建立「功能能力 → 代码节点」的完整映射关系。
+>
+> **与SuperMew RAG的关系**：参考模式，不共享代码。可复制 SuperMew 的
+> `graph.py`单例锁、`runner.py`降级模式、`.env`配置方式到新项目。
 
 ### 8.1 整体架构对照
 
 ```
-本文档定义的8大能力          SuperMew Selection Graph 实现
+本文档定义的8大能力          sijue-selection-agent 实现
 ─────────────────────        ──────────────────────────────────
 
 能力① 语义品类理解   ──→    semantic_understanding_node.py
@@ -1286,12 +1310,12 @@ Nail Tips 属于 **极轻小件** → 使用第一行参数。
 能力⑧ 最终裁决       ──→    final_verdict_node.py
 
 + 基础设施层：
-  state.py              ← SelectionState (TypedDict, ~40字段)
-  graph.py              ← StateGraph 构建 (9节点 + 1条件边)
-  runner.py             ← 同步/异步执行入口
-  java_client.py        ← HTTP客户端 (调用Java聚合API)
+  state.py              ← SelectionState (TypedDict, ~25字段)
+  graph.py              ← StateGraph 构建 (10节点 + 1条件边)
+  runner.py             ← 同步/异步执行入口 + SSE推送
+  java_client.py        ← HTTP客户端 (拉取Java聚合API + 回写结果)
   prompt_templates.py   ← 所有LLM提示词模板集中管理
-  routers/selection.py  ← FastAPI路由端点
+  routers/selection.py  ← FastAPI路由端点 (SSE StreamingResponse)
 ```
 
 ### 8.2 逐节点详细映射
@@ -1302,7 +1326,7 @@ Nail Tips 属于 **极轻小件** → 使用第一行参数。
 
 | 项目 | 说明 |
 |------|------|
-| **文件路径** | `backend/selection/nodes/data_fetch_node.py` |
+| **文件路径** | `nodes/data_fetch_node.py` |
 | **输入** | SelectionState.batch_id, SelectionState.marketplace |
 | **输出** | SelectionState.raw_data (完整聚合JSON), SelectionState.product_lines[] |
 | **核心逻辑** | 1. 调用 `java_client.get_aggregated_data()` <br> 2. 解析JSON填充State <br> 3. 统计品线数/小类数 |
@@ -1317,7 +1341,7 @@ Nail Tips 属于 **极轻小件** → 使用第一行参数。
 
 | 项目 | 说明 |
 |------|------|
-| **文件路径** | `backend/selection/nodes/semantic_understanding_node.py` |
+| **文件路径** | `nodes/semantic_understanding_node.py` |
 | **输入** | State.product_lines[i].node_name, node_full_path, bsr_id, sample_products[].title |
 | **输出** | State.category_understanding (完整JSON, 见§1.5) |
 | **使用的提示词** | `prompt_templates.SEMANTIC_UNDERSTANDING_PROMPT` |
@@ -1333,7 +1357,7 @@ Nail Tips 属于 **极轻小件** → 使用第一行参数。
 
 | 项目 | 说明 |
 |------|------|
-| **文件路径** | `backend/selection/nodes/competition_analysis_node.py` |
+| **文件路径** | `nodes/competition_analysis_node.py` |
 | **输入** | top_brands[], sample_products[], avg_price/min/max, bs/amazon_choice_count |
 | **输出** | State.competition_structure (完整JSON, 见§2.5) |
 | **使用的提示词** | `prompt_templates.COMPETITION_ANALYSIS_PROMPT` |
@@ -1349,7 +1373,7 @@ Nail Tips 属于 **极轻小件** → 使用第一行参数。
 
 | 项目 | 说明 |
 |------|------|
-| **文件路径** | `backend/selection/nodes/lifecycle_judgment_node.py` |
+| **文件路径** | `nodes/lifecycle_judgment_node.py` |
 | **输入** | units_growth_rate, bsr_change_rate, avg_ratings, listing_age[], product_count |
 | **输出** | State.lifecycle_stage (完整JSON, 见§3.5) |
 | **使用的提示词** | `prompt_templates.LIFECYCLE_JUDGMENT_PROMPT` |
@@ -1364,7 +1388,7 @@ Nail Tips 属于 **极轻小件** → 使用第一行参数。
 
 | 项目 | 说明 |
 |------|------|
-| **文件路径** | `backend/selection/nodes/profit_estimation_node.py` |
+| **文件路径** | `nodes/profit_estimation_node.py` |
 | **输入** | avg_price, bsr_id, shipping_profile(来自节点1), total_units |
 | **输出** | State.profit_feasibility (完整JSON, 见§4.4) |
 | **使用的提示词** | `prompt_templates.PROFIT_ESTIMATION_PROMPT` |
@@ -1418,7 +1442,7 @@ def route_differentiation(state: SelectionState) -> str:
 
 | 项目 | 说明 |
 |------|------|
-| **文件路径** | `backend/selection/nodes/risk_radar_node.py` |
+| **文件路径** | `nodes/risk_radar_node.py` |
 | **输入** | 前面所有节点的输出（竞争格局+生命周期+利润+差异化） |
 | **输出** | State.risk_radar (完整JSON, 见§6.3) |
 | **使用的提示词** | `prompt_templates.RISK_RADAR_PROMPT` |
@@ -1434,7 +1458,7 @@ def route_differentiation(state: SelectionState) -> str:
 
 | 项目 | 说明 |
 |------|------|
-| **文件路径** | `backend/selection/nodes/cross_line_discovery_node.py` |
+| **文件路径** | `nodes/cross_line_discovery_node.py` |
 | **输入** | 当前小类数据 + 同批次其他品线概览 + 可选DE站点数据 |
 | **输出** | State.cross_line_insights (完整JSON, 见§7.3) |
 | **使用的提示词** | `prompt_templates.CROSS_LINE_DISCOVERY_PROMPT` |
@@ -1450,7 +1474,7 @@ def route_differentiation(state: SelectionState) -> str:
 
 | 项目 | 说明 |
 |------|------|
-| **文件路径** | `backend/selection/nodes/final_verdict_node.py` |
+| **文件路径** | `nodes/final_verdict_node.py` |
 | **输入** | 节点1-7的全部输出（最复杂的输入） |
 | **输出** | State.final_verdict (完整JSON, 见§8.3) |
 | **使用的提示词** | `prompt_templates.FINAL_VERDICT_PROMPT` |
@@ -1464,7 +1488,7 @@ def route_differentiation(state: SelectionState) -> str:
 ### 8.3 State 字段与能力输出的对应关系
 
 ```python
-# backend/selection/state.py (SelectionState TypedDict)
+# selection/state.py (SelectionState TypedDict)
 
 class SelectionState(TypedDict):
     # === 节点0: 数据获取 ===
@@ -1512,7 +1536,7 @@ class SelectionState(TypedDict):
 
 ### 8.4 提示词模板索引
 
-所有提示词集中在 `backend/selection/prompt_templates.py`：
+所有提示词集中在 `selection/prompt_templates.py`：
 
 | 模板常量名 | 对应节点 | 核心内容 |
 |-----------|---------|---------|
@@ -1529,7 +1553,7 @@ class SelectionState(TypedDict):
 ### 8.5 图结构与条件边
 
 ```python
-# backend/selection/graph.py (伪代码)
+# selection/graph.py (伪代码)
 
 from langgraph.graph import StateGraph, END
 
@@ -1579,25 +1603,26 @@ selection_graph = graph.compile()
 
 | 维度 | RAG Graph (已有) | Selection Graph (新建) |
 |------|-----------------|----------------------|
-| **节点数量** | 18个 | 9个 |
+| **节点数量** | 18个 | 10个（含data_fetch） |
 | **条件边数量** | 6个 | 1个 |
 | **主要用途** | 问答式知识检索 | 批量品线分析 |
-| **输入来源** | 用户自然语言查询 | Java聚合数据API |
-| **输出形式** | 自然语言答案 + 来源引用 | 结构化JSON分析报告 |
-| **状态复杂度** | ~50字段 (AgenticRAGState) | ~40字段 (SelectionState) |
+| **输入来源** | 用户自然语言查询 | 前端触发 + 主动拉取Java数据 |
+| **输出形式** | 自然语言答案 + 来源引用 | 结构化JSON + SSE实时进度 |
+| **状态复杂度** | ~50字段 (AgenticRAGState) | ~25字段 (SelectionState) |
 | **LLM调用次数/次** | 3-5次 (检索+重排+生成) | 8-9次 (每个能力一次) |
 | **向量库使用** | ✅ Milvus检索 | ❌ 不需要 |
 | **并发模式** | 单用户会话 | 可并发多小类 |
+| **项目归属** | SuperMew RAG (现有) | sijue-selection-agent (新建独立项目) |
 
 ### 8.7 实现优先级与文件创建顺序
 
-参考 [supermew-选品接入方案.md](./supermew-选品接入方案.md) 的优先级定义：
+参考 §8.2 节点映射的优先级定义：
 
 **P0 - 核心骨架（必须首先完成）：**
-1. ✅ `state.py` — SelectionState 定义
-2. ✅ `graph.py` — StateGraph 构建与编译
-3. ✅ `runner.py` — 执行入口 (sync/async)
-4. ✅ `java_client.py` — Java API HTTP客户端
+1. ⬜ `state.py` — SelectionState 定义
+2. ⬜ `graph.py` — StateGraph 构建与编译
+3. ⬜ `runner.py` — 执行入口 (sync/async) + SSE进度推送
+4. ⬜ `java_client.py` — Java API HTTP客户端 (GET拉取 + POST回写)
 
 **P1 - 8个能力节点（核心逻辑）：**
 5. ⬜ `nodes/data_fetch_node.py`
@@ -1613,13 +1638,13 @@ selection_graph = graph.compile()
 
 **P2 - 提示词与集成：**
 15. ⬜ `prompt_templates.py` — 9个提示词模板
-16. ⬜ `routers/selection.py` — FastAPI路由端点
-17. ⬜ 修改 `api.py` — 添加路由注册
+16. ⬜ `routers/selection.py` — FastAPI路由端点 (SSE StreamingResponse)
+17. ⬜ `main.py` — 应用入口 + 路由注册
 
 **P3 - 测试与优化：**
 18. ⬜ 单元测试 (tests/test_selection_nodes.py)
 19. ⬜ 集成测试 (tests/test_selection_graph_e2e.py)
-20. ⬜ 性能优化 (批量并发、Token缓存)
+20. ⬜ 性能优化 (批量并发、Token缓存、SSE心跳)
 
 ---
 
@@ -1637,4 +1662,4 @@ selection_graph = graph.compile()
 > **文档版本历史**：
 > - v1: 初始版本（8大能力定义）
 > - v2: 补充完整JSON Schema、Nail Tips实例、算法文档映射矩阵
-> - **v2.1**: 新增 §八 LangGraph实现映射（SuperMew Selection Graph节点对照表）
+> - **v2.1**: 架构升级为三项目解耦模式（Java+独立Agent+Vue前端），新增data_fetch节点、SSE实时进度、前端直连调度

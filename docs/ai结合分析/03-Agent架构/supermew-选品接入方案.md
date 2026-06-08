@@ -1,6 +1,12 @@
-# SuperMew 选品模块接入方案 v1
+# SuperMew 选品模块接入方案 v1 — ❗已废弃
 
-> **定位**：在现有 SuperMew (sijue-agengtic-rag) Agentic RAG 项目中，新增选品分析 Selection Graph 模块。
+> **❗ 已废弃 (2026-06-09)**：选品Agent已决定独立为新项目 `sijue-selection-agent`，不再嵌入 SuperMew RAG。
+> **原因**：RAG（知识问答）和选品（商业分析引擎）在执行模型、资源需求、迭代节奏上完全不同，混用会导致资源竞争和耦合。
+> **替代文档**：
+> - 架构总览：[选品算法/图.md](../选品算法/图.md) v2.1（三项目解耦架构）
+> - 功能规格：[选品agent设计.md](./选品agent设计.md) v2.1
+>
+> **历史定位**：在现有 SuperMew (sijue-agengtic-rag) Agentic RAG 项目中，新增选品分析 Selection Graph 模块。
 > **核心原则**：复用 SuperMew 的 LangGraph 引擎、LLM 初始化、Runner 模式、API 风格，新增独立的 selection/ 包。
 > **废弃说明**：本文档替代原 `hermes-中转站架构设计.md`（Hermes 方案已放弃）。
 
