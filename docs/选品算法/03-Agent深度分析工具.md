@@ -1,16 +1,38 @@
-# Agent深度分析工具 — 选品第3层
+# Agent深度分析工具 — 选品第3层（v2 接口契约版）
 
-> 本文档设计第3层Agent深度分析的三大工具实现方案，强耦合现有系统的Agent/Pipeline设计。
+> **版本说明**：
+> - **v1 原始设计**：Java后端内置3个Tool函数 + Python Celery任务 + LLM调用
+> - **v2 当前架构**（2026-06-08）：L2+L3全部移交 **SuperMew Selection Graph**（基于LangGraph的选品分析工作流）
+> - 本文档从"Java实现方案"转变为 **"Agent接口契约"** —— 定义Agent应该产出什么，不规定Agent怎么实现
+> - 完整架构见 [图.md](./图.md) §0 和 §2，技术实现见 [supermew-选品接入方案.md](../ai结合分析/03-Agent架构/supermew-选品接入方案.md)
 
 ---
 
-## 一、定位
+## 一、定位变更
 
-第1层（硬筛选）和第2层（AI软评分）解决的是"哪些商品值得看"的问题。
+### v1 定位（原始）
 
-第3层解决的是"这些商品值不值得开"的问题——更深层的决策支持。
+Java内部的第3层分析模块，通过内置Tool函数调用LLM。
 
-**不是每条商品都需要第3层**。只有S1/S2级商品（selection_score ≥ 70）才值得深度分析。
+### v2 定位（当前）
+
+**SuperMew Selection Graph 的核心能力域。** Java后端不再内置任何AI推理逻辑。
+
+```
+v1:  Java → Tool函数 → LLM API → 结果写入DB
+v2:  Java提供聚合数据API → SuperMew Selection Graph(9节点LangGraph) 分析 → 回写结果API → Java存储+推送
+```
+
+**Agent需要覆盖的分析能力（原3大Tool + 扩展）**：
+
+| 能力 | 原Tool名 | v2中Agent的职责 | Java提供的输入 |
+|------|---------|----------------|--------------|
+| 竞品格局分析 | `analyze_competition` | 分析每个小类的竞争态势 | 聚合数据中的品牌/销量/BSR分布 |
+| 跨月趋势分析 | `analyze_product_trend` | 判断商品/品类生命周期阶段 | 多月数据（如有） |
+| 蓝海信号发现 | `discover_blue_ocean` | 识别蓝海/红海缝隙/利基/观望 | 全品类聚合统计 |
+| **品线综合评估** | **★ 新增 ★** | 对郑总店铺每个小类给出推荐等级 | deng_zong_shop聚合数据 |
+| 差异化切入分析 | `analyze_differentiation` | 给出价格带空白和切入点 | 价格区间/Listing质量数据 |
+| 爆发信号评估 | `detect_explosion_signals` | 评估信号的紧急程度和行动建议 | unitsGr/bsrCr等变化指标 |
 
 ---
 
@@ -246,9 +268,30 @@ def calc_blue_ocean_index(row):
 
 ---
 
-## 五、分析报告存储
+## 五、分析报告存储（v2更新）
 
-### product_analysis 表设计（建议）
+### v1 存储：product_analysis 表
+
+> 原设计：Agent分析结果写入 `product_analysis` 表。DDL 见本节原内容（保留参考）。
+
+### v2 存储：product_line_guidance 表
+
+> **当前架构**：SuperMew Selection Graph 分析结果通过 `POST /api/v1/product-line/analysis-results` 回写，
+> 存入 `product_line_guidance` 表。完整 DDL 见 [图.md](./图.md) §3.1。
+
+**v2 vs v1 存储对比**：
+
+| 维度 | v1 (product_analysis) | v2 (product_line_guidance) |
+|------|----------------------|---------------------------|
+| 分析粒度 | 单商品(ASIN) 或 单品类 | **小类(nodeId)** 为核心单位 |
+| 数据来源 | competitor_products | **deng_zong_shop** (郑总店铺) |
+| 输出字段 | report_json + llm_summary | analysis_report(JSON) + recommendLevel + opportunityScore |
+| 批次管理 | 无 | **有 batchId**，支持历史追溯 |
+| 推送机制 | 无 | **有**，写入库后自动推送前端+消息 |
+
+### product_analysis 表设计（v1参考，保留）
+
+> ⚠️ 以下为v1原始设计。v2架构下如需单商品级分析，可复用此表结构。
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -263,10 +306,6 @@ def calc_blue_ocean_index(row):
 | confidence | DECIMAL | 置信度 |
 | created_at | DATETIME | 创建时间 |
 | updated_at | DATETIME | 更新时间 |
-
-### 与现有product_analysis表的关系
-
-如果系统中已有 `product_analysis` 表，直接复用，新增 `analysis_type` 字段区分分析类型。如果没有，新建此表。
 
 ---
 
