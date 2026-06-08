@@ -1,6 +1,7 @@
 package com.sjzm.product.controller;
 
 import com.sjzm.common.Result;
+import com.sjzm.product.entity.AsinImportTask;
 import com.sjzm.product.service.AsinImportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -92,7 +93,9 @@ public class AsinImportController {
     public Result<Map<String, Object>> sellerExecute(
             @RequestParam Long taskId,
             @RequestParam(defaultValue = "") String month) {
+        AsinImportTask task = asinImportService.getTaskById(taskId);
+        int batchTotal = task != null && task.getBatchTotal() != null ? task.getBatchTotal() : 0;
         asinImportService.sellerExecute(taskId, month);
-        return Result.success(Map.of("taskId", taskId, "status", "RUNNING"));
+        return Result.success(Map.of("taskId", taskId, "status", "RUNNING", "batchTotal", batchTotal));
     }
 }
