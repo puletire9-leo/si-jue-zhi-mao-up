@@ -1,0 +1,16 @@
+schema_version: 1
+module_path: backend/product_domain
+title: 产品管理与数据分析
+scope:
+    - backend/app/api/v1/products.py
+    - backend/app/api/v1/product_data.py
+    - backend/app/api/v1/product_recycle.py
+    - backend/app/models/product.py
+    - backend/app/models/product_sales.py
+    - backend/app/services/product_service.py
+    - backend/app/services/product_data_service.py
+    - backend/app/services/product_recycle_service.py
+    - backend/app/services/product_sales_service.py
+source_files: []
+depends_on: []
+related_to: []

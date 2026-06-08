@@ -1,0 +1,15 @@
+schema_version: 1
+module_path: backend/selection_domain
+title: 选品管理与回收站
+scope:
+    - backend/app/api/v1/selection.py
+    - backend/app/api/v1/selection_recycle.py
+    - backend/app/models/selection.py
+    - backend/app/services/selection_service.py
+    - backend/app/services/selection_recycle_service.py
+    - backend/app/repositories/create_selection_tables.py
+    - backend/app/repositories/migrate_selection_tables.py
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/scoring_domain
