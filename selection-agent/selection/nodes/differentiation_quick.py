@@ -33,7 +33,11 @@ async def differentiation_quick_node(state: SelectionState) -> Dict[str, Any]:
 
     if result is None:
         return {
-            "differentiation_result": {},
+            "differentiation_result": {
+                "strategies": [],
+                "llmFailed": True,
+                "fallbackNote": "LLM调用失败，差异化快速分析不可用，评分已降级",
+            },
             "analysis_errors": state.get("analysis_errors", [])
             + ["差异化快速分析 LLM 调用失败"],
         }

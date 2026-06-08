@@ -15,7 +15,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-JAVA_BASE_URL = os.getenv("JAVA_BASE_URL", "http://localhost:8002")
+JAVA_BASE_URL = os.getenv("JAVA_BASE_URL", "http://localhost:8080")
 REQUEST_TIMEOUT = 30.0
 
 
@@ -72,6 +72,36 @@ class JavaClient:
 
         logger.info("分析结果回写成功")
         return True
+
+    async def get_category_baseline(
+        self, marketplace: str, category_label: str, month: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """获取品类基线数据 — final_verdict 节点调用。
+
+        Args:
+            marketplace:    站点 UK/DE/US
+            category_label: 品类名称
+            month:          基线月份（可选，默认取最新）
+
+        Returns:
+            品类基线数据（含百分位和健康度）
+        """
+        url = f"{self.base_url}/api/v1/category-baseline/health"
+        params = {"marketplace": marketplace, "categoryLabel": category_label}
+        if month:
+            params["month"] = month
+
+        logger.info(f"GET {url} — {marketplace}/{category_label}")
+
+        try:
+            response = await self.client.get(url, params=params)
+            response.raise_for_status()
+            data = response.json()
+            logger.info(f"获取品类基线成功: hasBaseline={data.get('hasBaseline', False)}")
+            return data
+        except Exception as e:
+            logger.warning(f"获取品类基线失败（降级处理）: {e}")
+            return {"hasBaseline": False, "error": str(e)}
 
     async def close(self):
         """关闭 httpx 客户端连接。"""

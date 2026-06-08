@@ -22,14 +22,17 @@ async def cross_line_discovery_node(state: SelectionState) -> Dict[str, Any]:
     sub = state.get("sub_categories", [{}])[0]
     raw_data = state.get("raw_data", {})
 
-    # 构建其他品线概览（不含当前品类的详细数据）
+    # 构建其他品线概览（包含更多可用字段）
     other_lines_overview = []
     for pl in raw_data.get("productLines", []):
         other_lines_overview.append({
             "bsrId": pl.get("bsrId", ""),
+            "nodeName": pl.get("nodeName", ""),
             "productCount": pl.get("productCount", 0),
             "totalUnits": pl.get("totalUnits", 0),
-            "subCategoryCount": pl.get("subCategoryCount", 0),
+            "totalRevenue": pl.get("totalRevenue", 0),
+            "avgPrice": pl.get("avgPrice", 0),
+            "unitsGrowthRate": pl.get("unitsGrowthRate", 0),
         })
 
     input_data = {
@@ -41,6 +44,16 @@ async def cross_line_discovery_node(state: SelectionState) -> Dict[str, Any]:
             "topBrands": sub.get("topBrands", []),
         },
         "otherProductLines": other_lines_overview,
+        # 注入前面节点的算法数据，让LLM基于真实指标做关联分析
+        "algorithmPrecompute": {
+            "competitionStructure": state.get("competition_structure", {}),
+            "lifecycleStage": state.get("lifecycle_stage", {}),
+            "profitFeasibility": state.get("profit_feasibility", {}),
+            "currentScore": {
+                "typicalMargin": state.get("profit_margin_typical", 0),
+                "goNoGo": state.get("go_no_go", "WAIT_AND_SEE"),
+            },
+        },
     }
 
     result = await call_llm_json(

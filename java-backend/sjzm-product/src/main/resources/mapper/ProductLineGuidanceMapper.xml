@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.mapper.ProductLineGuidanceMapper">
+
+    <!-- 批量插入品线指导意见 -->
+    <insert id="insertBatch" parameterType="list">
+        INSERT INTO product_line_guidance (
+            id, batch_id, marketplace, bsr_id, node_name, node_full_path,
+            archetype, archetype_method,
+            lifecycle_stage, lifecycle_window,
+            cr3, competition_pattern, entry_barrier,
+            profit_margin, profit_verdict,
+            opportunity_score, recommend_level, go_no_go,
+            price_band_json, score_breakdown_json, risk_rules_json, full_analysis_json,
+            created_at, updated_at
+        ) VALUES
+        <foreach collection="list" item="g" separator=",">
+            (
+                #{g.id}, #{g.batchId}, #{g.marketplace}, #{g.bsrId}, #{g.nodeName}, #{g.nodeFullPath},
+                #{g.archetype}, #{g.archetypeMethod},
+                #{g.lifecycleStage}, #{g.lifecycleWindow},
+                #{g.cr3}, #{g.competitionPattern}, #{g.entryBarrier},
+                #{g.profitMargin}, #{g.profitVerdict},
+                #{g.opportunityScore}, #{g.recommendLevel}, #{g.goNoGo},
+                #{g.priceBandJson}, #{g.scoreBreakdownJson}, #{g.riskRulesJson}, #{g.fullAnalysisJson},
+                NOW(), NOW()
+            )
+        </foreach>
+    </insert>
+
+    <!-- 按批次ID查询所有品线指导 -->
+    <select id="selectByBatchId" resultType="com.sjzm.product.entity.ProductLineGuidance">
+        SELECT * FROM product_line_guidance
+        WHERE batch_id = #{batchId}
+        ORDER BY opportunity_score DESC
+    </select>
+
+    <!-- 按批次ID删除（重跑时清理旧数据） -->
+    <delete id="deleteByBatchId">
+        DELETE FROM product_line_guidance WHERE batch_id = #{batchId}
+    </delete>
+
+</mapper>

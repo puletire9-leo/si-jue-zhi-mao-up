@@ -1,6 +1,6 @@
 """节点0: data_fetch — 从 Java 后端拉取聚合数据。
 
-这是 Selection Graph 的入口节点（Agent主动拉取，非Java推送）。
+由 runner 层直接调用一次（不在分析图内）。
 无 LLM 调用，纯数据操作。
 """
 
@@ -32,17 +32,16 @@ async def data_fetch_node(state: SelectionState) -> Dict[str, Any]:
         client = get_java_client()
         raw_data = await client.get_aggregated_data(batch_id)
 
-        # 解析小类列表
+        # 解析子品类列表（Java返回扁平productLines，每条即为子品类级聚合数据）
         sub_categories = []
         for product_line in raw_data.get("productLines", []):
-            for sub in product_line.get("subCategories", []):
-                sub["_bsr_id"] = product_line.get("bsrId", "")
-                sub["_bsr_product_count"] = product_line.get("productCount", 0)
-                sub_categories.append(sub)
+            product_line["_bsr_id"] = product_line.get("bsrId", "")
+            product_line["_bsr_product_count"] = product_line.get("productCount", 0)
+            sub_categories.append(product_line)
 
         elapsed = int((time.time() - start_time) * 1000)
         logger.info(
-            f"[data_fetch] 完成 — {len(sub_categories)} 个小类, {elapsed}ms"
+            f"[data_fetch] 完成 — {len(sub_categories)} 个子品类, {elapsed}ms"
         )
 
         return {
