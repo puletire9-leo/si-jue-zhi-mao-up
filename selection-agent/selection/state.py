@@ -32,7 +32,7 @@ class SelectionState(TypedDict, total=False):
     # @producer: semantic_understanding
     # @consumer: profit_estimation, differentiation_*, risk_radar
     category_understanding: Dict   # 原型 + 消费者画像 + 使用场景
-    current_archetype: str         # FP/TN/PS/DC/SP/AS
+    current_archetype: str         # DA/FH/FP/TN/PE/PS
 
     # ═══ 节点2: 竞争格局 ═══
     # @producer: competition_analysis
@@ -71,7 +71,13 @@ class SelectionState(TypedDict, total=False):
     # @consumer: runner (回写Java)
     final_verdict: Dict            # 完整裁决JSON
     recommend_level: str           # STRONGLY_RECOMMEND / RECOMMEND / WATCH / AVOID
-    opportunity_score: int         # 0-100
+    opportunity_score: int         # 0-100（L1层6维）
+    l2_score: float                # 0-100（L2层8维品类专属）
+
+    # ═══ 动态基线 ═══
+    # @producer: runner (从Java获取)
+    # @consumer: final_verdict (百分位评分)
+    category_baseline: Dict        # 品类基线数据（percentiles + health）
 
     # ═══ 元数据 ═══
     # @producer: runner / 各节点

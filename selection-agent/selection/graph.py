@@ -1,13 +1,15 @@
-"""Selection Graph — 10节点 LangGraph StateGraph 构建。
+"""Selection Graph — 9节点分析图 LangGraph StateGraph 构建。
 
 图结构:
 ```
-START → data_fetch → semantic_understanding → competition_analysis
+分析图（每个小类独立运行一次）:
+START → semantic_understanding → competition_analysis
   → lifecycle_judgment → profit_estimation
     ├─ margin ≥ 30% → differentiation_full  ─┐
     └─ margin < 30% → differentiation_quick ─┤
                                               ├→ risk_radar → cross_line_discovery → final_verdict → END
 ```
+data_fetch 是纯数据操作，在 runner 层调用一次，不进分析图。
 
 参考 SuperMew RAG 的 graph.py 单例锁懒加载模式。
 """
@@ -18,7 +20,6 @@ import threading
 from langgraph.graph import StateGraph, END
 
 from selection.state import SelectionState
-from selection.nodes.data_fetch import data_fetch_node
 from selection.nodes.semantic_understanding import semantic_understanding_node
 from selection.nodes.competition_analysis import competition_analysis_node
 from selection.nodes.lifecycle_judgment import lifecycle_judgment_node
@@ -51,11 +52,14 @@ def route_differentiation(state: SelectionState) -> str:
 
 
 def _build_graph() -> StateGraph:
-    """构建 Selection Graph。"""
+    """构建分析图（9节点，不含 data_fetch）。
+
+    data_fetch 在 runner 层单独调用一次，
+    此图处理单个小类的完整分析流程。
+    """
     graph = StateGraph(SelectionState)
 
-    # 添加10个节点
-    graph.add_node("data_fetch", data_fetch_node)
+    # 添加9个分析节点（data_fetch 在 runner 层处理）
     graph.add_node("semantic_understanding", semantic_understanding_node)
     graph.add_node("competition_analysis", competition_analysis_node)
     graph.add_node("lifecycle_judgment", lifecycle_judgment_node)
@@ -67,10 +71,9 @@ def _build_graph() -> StateGraph:
     graph.add_node("final_verdict", final_verdict_node)
 
     # 入口节点
-    graph.set_entry_point("data_fetch")
+    graph.set_entry_point("semantic_understanding")
 
-    # 线性流: data_fetch → 1 → 2 → 3 → 4
-    graph.add_edge("data_fetch", "semantic_understanding")
+    # 线性流: 1 → 2 → 3 → 4
     graph.add_edge("semantic_understanding", "competition_analysis")
     graph.add_edge("competition_analysis", "lifecycle_judgment")
     graph.add_edge("lifecycle_judgment", "profit_estimation")
@@ -109,5 +112,5 @@ def get_selection_graph():
             if _compiled_graph is None:
                 logger.info("首次构建 Selection Graph...")
                 _compiled_graph = _build_graph().compile()
-                logger.info("Selection Graph 构建完成 (10节点 + 1条件边)")
+                logger.info("Selection Graph 构建完成 (9分析节点 + 1条件边)")
     return _compiled_graph

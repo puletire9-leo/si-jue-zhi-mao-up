@@ -19,7 +19,7 @@ def create_app():
 
     app = FastAPI(
         title="思觉智贸 — 选品分析 Agent",
-        description="LangGraph 10节点选品分析，SSE实时进度推送",
+        description="LangGraph 9节点选品分析，多小类循环 + SSE实时进度推送",
         version="0.1.0",
     )
 

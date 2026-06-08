@@ -16,20 +16,24 @@ SEMANTIC_UNDERSTANDING_PROMPT = """你是一位跨境电商品类分析专家。
 ## 任务
 分析以下品类的商品数据，判断该品类属于哪种"品类原型"，并推断消费者画像。
 
-## 品类原型体系（6类）
-- FP (Fast Purchase): 快速消费品，低价高频，消费者追求便捷
-- TN (Trend-Driven): 趋势驱动型，时尚敏感，消费者追逐新品
-- PS (Problem Solver): 问题解决型，功能导向，消费者有明确痛点
-- DC (Decorative Choice): 装饰选择型，审美驱动，消费者追求个性化
-- SP (Specialist): 专业工具型，精度要求高，消费者为专业人士
-- AS (Auto-Supply): 自动补给型，周期性消耗，消费者追求稳定
+## 品类原型体系（6类，来自08-品类专属评分模型）
+- DA (装饰艺术): 视觉驱动、图案裂变，代表品类：家居装饰、墙贴、桌布
+- FH (功能家居): 实用驱动、性价比，代表品类：收纳、清洁工具、厨房小件
+- FP (时尚个人): 风格驱动、身份认同，代表品类：美甲、饰品、手机壳
+- TN (趋势潮流): 热度驱动、快速迭代，代表品类：新奇玩具、网红同款、IP衍生
+- PE (派对活动): 文化驱动、高销量，代表品类：派对用品、节日装饰、气球
+- PS (纸品文具): 极轻、图案裂变，代表品类：贴纸、贺卡、文具
+
+## 算法预计算结果（已确定，请直接引用，不要重新计算）
+输入数据中的 algorithmPrecompute 包含确定性算法已计算的原型匹配结果。
+请直接使用该原型值，重点放在消费者画像推理和使用场景分析上。
 
 ## 输入数据
 {input_data}
 
 ## 输出要求（JSON）
 {{
-  "archetype": "FP|TN|PS|DC|SP|AS",
+  "archetype": "DA|FH|FP|TN|PE|PS",
   "archetypeReason": "判断理由（一句话）",
   "consumerProfile": {{
     "typicalBuyer": "典型买家描述",
@@ -37,8 +41,20 @@ SEMANTIC_UNDERSTANDING_PROMPT = """你是一位跨境电商品类分析专家。
     "priceExpectation": "价格敏感度（HIGH|MEDIUM|LOW）"
   }},
   "usageScenarios": ["场景1", "场景2"],
+  "llmDimensionScores": {{
+    "emotionScore": 65,
+    "decorScore": 70,
+    "fissionScore": 40,
+    "cultureScore": 55
+  }},
   "confidence": 0.85
 }}
+
+## LLM 维度评分说明（llmDimensionScores，每项 0-100）
+- emotionScore: 情感价值 — 产品是否引发情感共鸣、礼物属性、美学享受
+- decorScore: 装饰属性 — 产品是否用于空间装饰、视觉提升、氛围营造
+- fissionScore: 裂变潜力 — 产品是否易于分享、DIY变体、用户创作内容
+- cultureScore: 文化属性 — 产品是否与特定文化/节日/身份认同关联
 """
 
 # ═══ 节点2: 竞争格局 ═══
@@ -46,6 +62,10 @@ COMPETITION_ANALYSIS_PROMPT = """你是一位跨境电商竞争分析专家。
 
 ## 任务
 分析该品类的竞争格局，包括市场集中度、价格带分布、品牌定位空白。
+
+## 算法预计算结果（已确定，请直接引用，不要重新计算）
+输入数据中的 algorithmPrecompute 包含确定性算法已计算的 CR3 值和价格带分析。
+请直接引用 cr3 和 priceBand 的数值，重点放在品牌定位分析和竞争策略解读上。
 
 ## 输入数据
 {input_data}
@@ -72,20 +92,30 @@ LIFECYCLE_JUDGMENT_PROMPT = """你是一位跨境电商市场趋势分析专家�
 ## 任务
 根据销量增速、BSR变化、评论增长等信号，判断该品类所处的生命周期阶段。
 
-## 生命周期阶段
-- EMERGING: 新兴期，搜索量上升但卖家少
-- GROWTH: 成长期，销量快速增长，新卖家涌入
-- MATURE: 成熟期，增速放缓，格局稳定
-- SATURATED: 饱和期，头部垄断，新卖家难获客
-- DECLINE: 衰退期，销量持续下降
-- SEASONAL: 季节性品类，需结合月份判断
+## 生命周期阶段（来自12-新品爆发信号检测）
+- EMERGING: 新兴期，销量增速>30%, BSR快降, 评论<50
+- GROWTH: 成长期，销量增速>10%, BSR稳定降, 评论增长中
+- MATURITY_STABLE: 成熟稳定，销量±10%, BSR±15%, 评论平稳
+- MATURITY_WITH_DECLINE: 成熟衰退，销量<-10%, BSR>+20%, 评论平台期
+- SATURATION: 饱和期，销量<-20%, CR3>0.8, 价格战频发
+- DECLINE: 衰退期，销量<-30%, 多家退出, 评论下降
+
+## 信号检测（4信号 × 3紧急度）
+- Speed(速度信号): 销量增速方向和幅度
+- Density(密度信号): SKU数量和卖家集中度
+- Follow(关注信号): 多店铺同时进入=积极信号
+- Quality(质量信号): 评分和评论数成熟度
+
+## 算法预计算结果（已确定，请直接引用，不要重新计算）
+输入数据中的 algorithmPrecompute 包含确定性算法已计算的生命周期阶段和信号值。
+请直接引用 stage 和 signals 的数值，重点放在跟品策略建议和市场窗口解读上。
 
 ## 输入数据
 {input_data}
 
 ## 输出要求（JSON）
 {{
-  "stage": "EMERGING|GROWTH|MATURE|SATURATED|DECLINE|SEASONAL",
+  "stage": "EMERGING|GROWTH|MATURITY_STABLE|MATURITY_WITH_DECLINE|SATURATION|DECLINE",
   "stageReason": "判断依据",
   "signals": [
     {{"name": "信号名", "value": 0.0, "direction": "UP|DOWN|FLAT", "urgency": "HIGH|MEDIUM|LOW"}}
@@ -106,6 +136,10 @@ PROFIT_ESTIMATION_PROMPT = """你是一位跨境电商利润分析专家。
 - 轻小件 (100g-500g): 头程£1-3, FBA £2.5-4
 - 中件 (500g-2kg): 头程£2-5, FBA £4-7
 - 重件 (>2kg): 头程£5+, FBA £7+
+
+## 算法预计算结果（已确定，请直接引用，不要重新计算）
+输入数据中的 algorithmPrecompute 包含确定性算法已计算的三场景利润率和盈亏平衡点。
+请直接引用 marginEstimate 的数值，重点放在利润风险分析和成本优化建议上。
 
 ## 输入数据
 {input_data}
@@ -131,22 +165,22 @@ DIFFERENTIATION_FULL_PROMPT = """你是一位跨境电商差异化策略专家�
 ## 任务
 该品类利润可行（≥30%），请提供3个差异化切入方案。
 
-## 切入角度框架（5维度）
-1. 功能差异化：解决竞品未覆盖的使用痛点
-2. 设计差异化：外观/包装/颜色的审美突破
-3. 定价差异化：价格空白带占位
-4. 包装差异化：组合/套装/礼品装
-5. 品牌差异化：品牌故事/定位/视觉体系
+## 切入角度框架（5维度，来自11-竞品差异化分析）
+1. PRICE_GAP: 价格空白 — 进入竞争对手忽略的价格带
+2. OPERATIONAL_EXCELLENCE: 运营卓越 — 通过Listing/服务/物流体验胜出
+3. LOW_REVIEW_EXPLOIT: 低评快起 — 针对竞品低评分弱点推出更优产品
+4. VARIANT_DIFFERENTIATION: 变体差异化 — 提供竞品没有的变体组合
+5. WHITE_LABEL_REPLACE: 白牌替代 — 替代高价白牌/大牌
 
 ## 输入数据
 {input_data}
 
 ## 输出要求（JSON）
 {{
-  "recommendation": "方案1标题",
+  "recommendation": "推荐的切入角度",
   "strategies": [
     {{
-      "angle": "FUNCTIONAL|DESIGN|PRICING|PACKAGING|BRANDING",
+      "angle": "PRICE_GAP|OPERATIONAL_EXCELLENCE|LOW_REVIEW_EXPLOIT|VARIANT_DIFFERENTIATION|WHITE_LABEL_REPLACE",
       "title": "方案标题",
       "description": "详细描述",
       "estimatedEffort": "LOW|MEDIUM|HIGH",
@@ -170,7 +204,7 @@ DIFFERENTIATION_QUICK_PROMPT = """你是一位跨境电商选品分析师。
 ## 输出要求（JSON）
 {{
   "recommendation": "一句话建议",
-  "angle": "FUNCTIONAL|DESIGN|PRICING|PACKAGING|BRANDING",
+  "angle": "PRICE_GAP|OPERATIONAL_EXCELLENCE|LOW_REVIEW_EXPLOIT|VARIANT_DIFFERENTIATION|WHITE_LABEL_REPLACE",
   "estimatedEffort": "LOW|MEDIUM|HIGH",
   "confidence": 0.60
 }}
@@ -189,6 +223,10 @@ RISK_RADAR_PROMPT = """你是一位跨境电商风险评估专家。
 4. COMPLIANCE: 合规风险（认证要求、禁售政策、知识产权）
 5. MARKET: 市场风险（需求波动、替代品、季节性）
 6. FINANCIAL: 财务风险（资金占用、汇率波动、平台扣款）
+
+## 算法预计算结果（已确定，请直接引用，不要重新计算）
+输入数据中的 algorithmPrecompute 包含确定性硬规则已评估的风险项。
+请直接引用 hardRules 的结果，重点放在补充软风险识别（合规、供应链、运营等）上。
 
 ## 输入数据
 {input_data}
@@ -251,14 +289,26 @@ FINAL_VERDICT_PROMPT = """你是一位资深跨境电商选品决策官。
 ## 任务
 综合前面8项分析结果，给出最终裁决：推荐等级、机会评分、行动计划。
 
-## 评分公式
-opportunityScore = demand(25) + profitability(20) - competition(20) + differentiation(15) + timing(10) - riskPenalty(10)
+## 评分公式（总分100）
+opportunityScore = demand(0-25) + profitability(0-20) + competition(0-20) + differentiation(0-15) + timing(0-10) - riskPenalty(0-10)
+
+注：competition 表示竞争可进入性（越容易进入分越高），riskPenalty 表示风险扣分。
 
 ## 推荐等级
 - STRONGLY_RECOMMEND: 强烈推荐，机会分≥80
 - RECOMMEND: 推荐，机会分60-79
 - WATCH: 观望，机会分40-59
 - AVOID: 避免，机会分<40
+
+## 算法预计算结果（已确定，请直接引用，不要重新计算）
+输入数据中的 algorithmPrecompute 包含确定性算法已计算的评分结果：
+- opportunityScore: L1层6维通用评分（总分100）
+- scoreBreakdown: L1层6维明细
+- l2Total: L2层8维品类专属评分（总分100，按品类原型权重加权）
+- l2ScoreBreakdown: L2层8维明细
+- compositePercentile: 百分位综合分（基于品类基线的P25/P50/P75）
+
+请直接引用这些数值，重点放在一句话总结、行动计划和关键指标建议上。
 
 ## 输入数据
 {input_data}
