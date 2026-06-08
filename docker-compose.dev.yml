@@ -212,6 +212,29 @@ services:
       - nacos-data:/home/nacos/data
     restart: unless-stopped
 
+  # ── 选品分析 Agent ──
+
+  selection-agent:
+    build:
+      context: ./selection-agent
+      dockerfile: Dockerfile
+    image: dev-selection-agent
+    container_name: dev-selection-agent
+    env_file:
+      - ./selection-agent/.env
+    environment:
+      - JAVA_BASE_URL=http://java-product:8002
+      - PORT=8001
+      - DEBUG=true
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./selection-agent:/app
+    command: uvicorn app:app --host 0.0.0.0 --port 8001 --reload --reload-dir .
+    depends_on:
+      java-product:
+        condition: service_started
+
 volumes:
   mysql-data:
   redis-data:
