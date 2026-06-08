@@ -36,42 +36,7 @@ public class CompetitorController {
 
     @GetMapping("/products")
     @Operation(summary = "从本地数据库查询竞品数据（GET）")
-    public Result<PageResult<CompetitorProductResponse>> getProducts(
-            @RequestParam(required = false) String marketplace,
-            @RequestParam(required = false) String month,
-            @RequestParam(required = false) List<String> asin,
-            @RequestParam(required = false) String source,
-            @RequestParam(required = false) String filterMode,
-            @RequestParam(required = false) String brand,
-            @RequestParam(required = false) String sellerName,
-            @RequestParam(required = false) String title,
-            @RequestParam(required = false) String grade,
-            @RequestParam(required = false) String weekTag,
-            @RequestParam(required = false) Integer isCurrent,
-            @RequestParam(required = false) String sortBy,
-            @RequestParam(required = false) String sortOrder,
-            @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "60") Integer size,
-            @RequestParam(required = false) Boolean groupByParent,
-            @RequestParam(required = false) Integer maxVariantCount) {
-        CompetitorQueryRequest request = new CompetitorQueryRequest();
-        request.setMarketplace(marketplace);
-        request.setMonth(month);
-        request.setAsin(asin);
-        request.setSource(source);
-        request.setFilterMode(filterMode);
-        request.setBrand(brand);
-        request.setSellerName(sellerName);
-        request.setTitle(title);
-        request.setGrade(grade);
-        request.setWeekTag(weekTag);
-        request.setIsCurrent(isCurrent);
-        request.setSortBy(sortBy);
-        request.setSortOrder(sortOrder);
-        request.setPage(page);
-        request.setSize(size);
-        request.setGroupByParent(groupByParent);
-        request.setMaxVariantCount(maxVariantCount);
+    public Result<PageResult<CompetitorProductResponse>> getProducts(@Valid CompetitorQueryRequest request) {
         return Result.success(competitorService.queryFromDb(request));
     }
 

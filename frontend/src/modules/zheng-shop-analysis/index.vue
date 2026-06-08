@@ -95,6 +95,7 @@
                 </el-tag>
                 <el-tag v-if="shop.data.source === 'selection'" type="info" size="small" effect="plain">选品</el-tag>
                 <span v-if="shop.data.latestMonth" class="shop-month">{{ shop.data.latestMonth }}</span>
+                <span v-if="shop.data.lastSyncedAt" class="shop-sync-time">{{ formatSyncTime(shop.data.lastSyncedAt) }}</span>
                 <span class="product-count-badge">{{ shop.data.productCount }} 个商品</span>
               </div>
               <div class="shop-meta">
@@ -420,6 +421,19 @@ const formatNumber = (num: number) => {
 
 const formatRevenueByMarket = (num: number, mp: string) => {
   return currencySymbol(mp) + formatNumber(num)
+}
+
+const formatSyncTime = (dt: string) => {
+  if (!dt) return ''
+  const d = new Date(dt)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffH = Math.floor(diffMs / 3600000)
+  const diffD = Math.floor(diffH / 24)
+  if (diffH < 1) return `${Math.floor(diffMs / 60000)} 分钟前`
+  if (diffH < 24) return `${diffH} 小时前`
+  if (diffD < 7) return `${diffD} 天前`
+  return d.toLocaleDateString('zh-CN')
 }
 
 const loadMoreStores = () => {
@@ -947,6 +961,12 @@ onMounted(() => {
 .shop-month {
   font-size: 12px;
   color: #909399;
+  margin-left: 4px;
+}
+
+.shop-sync-time {
+  font-size: 12px;
+  color: #67C23A;
   margin-left: 4px;
 }
 

@@ -218,7 +218,7 @@ const handleCompactSearch = () => {
  * 处理搜索
  */
 const handleSearch = () => {
-  emit('search', { ...formData })
+  emit('search', getQueryParams())
 }
 
 /**
@@ -227,7 +227,7 @@ const handleSearch = () => {
 const handleSellerChange = (val: string) => {
   // 选中卖家时，同步设置 storeName 用于搜索
   formData.storeName = val || ''
-  emit('search', { ...formData })
+  emit('search', getQueryParams())
 }
 
 /**
@@ -647,6 +647,7 @@ defineExpose({
           collapse-tags
           collapse-tags-tooltip
           style="width: 280px"
+          @change="handleSearch"
         >
           <el-option
             v-for="cat in categories"
@@ -837,6 +838,7 @@ defineExpose({
             collapse-tags
             collapse-tags-tooltip
             style="width: 100%"
+            @change="handleSearch"
           >
             <el-option
               v-for="cat in categories"

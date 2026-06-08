@@ -16,6 +16,7 @@ public class DengZongShopSeller {
     private String sellerName;
     private String storeUrl;
     private String notes;
+    private LocalDateTime lastSyncedAt;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;

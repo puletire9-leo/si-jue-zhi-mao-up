@@ -729,31 +729,9 @@ const loadProducts = async (params?: SelectionQueryParams) => {
     // 获取查询参数
     const queryParams = params || queryFormRef.value?.getQueryParams()
     
-    // 构建API参数（使用驼峰命名以匹配后端API的alias）
-    const apiParams: any = {
-      page: pagination.page,
-      size: pagination.size,
-      asin: queryParams?.asin || '',
-      productTitle: queryParams?.productTitle || '',
-      storeName: queryParams?.storeName || '',
-      sellerSelect: queryParams?.sellerSelect || '',
-      category: queryParams?.category || '',
-      sortBy: queryParams?.sortField || 'score',
-      sortOrder: queryParams?.sortOrder || 'desc',
-      // 筛选参数
-      country: queryParams?.country || '',
-      dataFilterMode: queryParams?.dataFilterMode || '',
-      listingDateStart: queryParams?.listingDateStart || '',
-      listingDateEnd: queryParams?.listingDateEnd || '',
-      grade: queryParams?.grade || '',
-      weekTag: queryParams?.weekTag || ''
-    }
+    // 使用统一参数映射函数构建API参数
+    const apiParams = buildApiParams(queryParams)
 
-    // isCurrent 需要转换为整数类型（后端期望 integer）
-    if (queryParams?.isCurrent !== undefined && queryParams?.isCurrent !== '') {
-      apiParams.isCurrent = parseInt(queryParams.isCurrent, 10)
-    }
-    
     // source 映射：根据 activeTab 设置数据来源筛选
     const sourceMap: Record<string, string> = {
       'new': '新品榜',
@@ -768,9 +746,9 @@ const loadProducts = async (params?: SelectionQueryParams) => {
       const dengParams: any = {
         page: apiParams.page,
         size: apiParams.size,
-        marketplace: apiParams.country || undefined,
-        title: apiParams.productTitle || undefined,
-        sellerName: apiParams.sellerSelect || apiParams.storeName || undefined,
+        marketplace: apiParams.marketplace || undefined,
+        title: apiParams.title || undefined,
+        sellerName: apiParams.sellerName || undefined,
         sortBy: apiParams.sortBy || 'units',
         sortOrder: apiParams.sortOrder || 'desc',
       }
@@ -782,22 +760,17 @@ const loadProducts = async (params?: SelectionQueryParams) => {
     } else {
       // 调用 Java 后端 competitor API
       const competitorParams: any = {
-        page: apiParams.page,
-        size: apiParams.size,
-        marketplace: apiParams.country || undefined,
+        ...apiParams,
         source: source || undefined,
-        filterMode: apiParams.dataFilterMode || undefined,
-        title: apiParams.productTitle || undefined,
-        sellerName: apiParams.storeName || undefined,
-        sortBy: apiParams.sortBy || 'units',
-        sortOrder: apiParams.sortOrder || 'desc',
-        asin: apiParams.asin || undefined,
         groupByParent: groupByParent.value || undefined,
         maxVariantCount: maxVariantCount.value ?? undefined,
-        grade: apiParams.grade || undefined,
-        weekTag: apiParams.weekTag || undefined,
-        isCurrent: apiParams.isCurrent,
       }
+      // 移除空值参数
+      Object.keys(competitorParams).forEach(key => {
+        if (competitorParams[key] === '' || competitorParams[key] === undefined || competitorParams[key] === null) {
+          delete competitorParams[key]
+        }
+      })
 
       console.log('加载产品列表，参数:', competitorParams, 'tab:', activeTab.value)
       const response = await competitorApi.getList(competitorParams)
@@ -814,6 +787,40 @@ const loadProducts = async (params?: SelectionQueryParams) => {
   } finally {
     loading.value = false
   }
+}
+
+/**
+ * 统一参数映射：从 SelectionQueryParams 自动映射到 API 查询参数
+ */
+const FILTER_TO_API_KEY: Record<string, string> = {
+  country: 'marketplace',
+  dataFilterMode: 'filterMode',
+  productTitle: 'title',
+  storeName: 'sellerName',
+  sortField: 'sortBy',
+}
+
+function buildApiParams(queryParams?: SelectionQueryParams): Record<string, any> {
+  const params: Record<string, any> = {
+    page: pagination.page,
+    size: pagination.size,
+    sortOrder: queryParams?.sortOrder || 'desc',
+  }
+  // 自动映射所有筛选字段（空字符串跳过）
+  const filterFields = ['asin', 'productTitle', 'storeName', 'sellerSelect', 'category',
+    'country', 'dataFilterMode', 'grade', 'weekTag', 'listingDateStart', 'listingDateEnd']
+  for (const field of filterFields) {
+    const val = queryParams?.[field as keyof SelectionQueryParams]
+    if (val !== '' && val !== undefined && val !== null) {
+      const apiKey = FILTER_TO_API_KEY[field] || field
+      params[apiKey] = Array.isArray(val) ? val.join(',') : val
+    }
+  }
+  // isCurrent 需要转换为整数类型
+  if (queryParams?.isCurrent !== undefined && queryParams?.isCurrent !== '') {
+    params.isCurrent = parseInt(queryParams.isCurrent as string, 10)
+  }
+  return params
 }
 
 const loadSelections = async () => {

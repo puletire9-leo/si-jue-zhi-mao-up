@@ -10,10 +10,12 @@ import com.sjzm.product.dto.CompetitorLookupRequest;
 import com.sjzm.product.entity.AsinImportResult;
 import com.sjzm.product.entity.AsinImportTask;
 import com.sjzm.product.entity.CompetitorProduct;
+import com.sjzm.product.entity.DengZongShopSeller;
 import com.sjzm.product.entity.SkipAsin;
 import com.sjzm.product.mapper.AsinImportResultMapper;
 import com.sjzm.product.mapper.AsinImportTaskMapper;
 import com.sjzm.product.mapper.CompetitorProductMapper;
+import com.sjzm.product.mapper.DengZongShopSellerMapper;
 import com.sjzm.product.mapper.SkipAsinMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -55,6 +57,7 @@ public class AsinImportService {
     private final CompetitorService competitorService;
     private final CompetitorProductMapper competitorProductMapper;
     private final SkipAsinMapper skipAsinMapper;
+    private final DengZongShopSellerMapper sellerMapper;
     private final ApiRateLimitService rateLimitService;
     private final InitialFilterConfigService initialFilterConfig;
     private final SellerspriteConfig sellerspriteConfig;
@@ -125,6 +128,7 @@ public class AsinImportService {
         // 4. 创建任务记录
         AsinImportTask task = new AsinImportTask();
         task.setMarketplace(marketplace);
+        task.setImportType("ASIN");
         task.setTaskStatus("READY");
         task.setTotalCount(rows.size());
         task.setPassCount(filterResult.get("PASS").size());
@@ -177,9 +181,11 @@ public class AsinImportService {
             return;
         }
 
-        // ---- 悲观锁：同一时间只允许一个任务执行 ----
+        // ---- 悲观锁：同一类型+同一市场只允许一个任务执行 ----
         Long activeCount = taskMapper.selectCount(
                 new LambdaQueryWrapper<AsinImportTask>()
+                        .eq(AsinImportTask::getImportType, "ASIN")
+                        .eq(AsinImportTask::getMarketplace, task.getMarketplace())
                         .in(AsinImportTask::getTaskStatus, List.of("RUNNING", "PAUSED")));
         if (activeCount != null && activeCount > 0) {
             task.setTaskStatus("REJECTED");
@@ -325,6 +331,7 @@ public class AsinImportService {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", t.getId());
             item.put("marketplace", t.getMarketplace());
+            item.put("importType", t.getImportType());
             item.put("status", t.getTaskStatus());
             item.put("totalCount", t.getTotalCount());
             item.put("passCount", t.getPassCount());
@@ -436,6 +443,7 @@ public class AsinImportService {
         // 创建新任务
         AsinImportTask newTask = new AsinImportTask();
         newTask.setMarketplace(oldTask.getMarketplace());
+        newTask.setImportType(oldTask.getImportType() != null ? oldTask.getImportType() : "ASIN");
         newTask.setTaskStatus("READY");
         newTask.setTotalCount(allFailed.size());
         newTask.setPassCount(allFailed.size());
@@ -661,9 +669,9 @@ public class AsinImportService {
 
     /** 
      * 调用卖家精灵 API 按店铺名获取产品并写入 competitor_products
-     * 事务：单店铺内的产品写入应原子化
+     * 注意：@Transactional 在 private 方法上不生效（Spring AOP 限制），
+     * 事务由调用方 sellerExecute 中的 competitorService.upsertAndFilter 内部保证
      */
-    @Transactional(rollbackFor = Exception.class)
     private int syncProductsBySeller(String sellerName, String marketplace, String month) {
         List<CompetitorProduct> batch = new ArrayList<>();
         int page = 1;
@@ -695,6 +703,16 @@ public class AsinImportService {
 
         if (!batch.isEmpty()) {
             competitorService.upsertAndFilter(batch, marketplace, "竞品店铺", month);
+        }
+
+        // 更新卖家最后同步时间
+        LambdaQueryWrapper<DengZongShopSeller> sellerQw = new LambdaQueryWrapper<>();
+        sellerQw.eq(DengZongShopSeller::getMarketplace, marketplace)
+                .eq(DengZongShopSeller::getSellerName, sellerName);
+        DengZongShopSeller seller = sellerMapper.selectOne(sellerQw);
+        if (seller != null) {
+            seller.setLastSyncedAt(LocalDateTime.now());
+            sellerMapper.updateById(seller);
         }
 
         return batch.size();

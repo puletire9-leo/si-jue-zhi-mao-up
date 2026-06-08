@@ -109,6 +109,7 @@ public class DengZongShopController {
                 row.put("storeUrl", seller.getStoreUrl());
                 row.put("notes", seller.getNotes());
                 row.put("sellerId", seller.getId());
+                row.put("lastSyncedAt", seller.getLastSyncedAt());
             }
         }
         return Result.success(summary);

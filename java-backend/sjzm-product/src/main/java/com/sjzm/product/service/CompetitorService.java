@@ -296,7 +296,8 @@ public class CompetitorService {
         productMapper.insertOnDuplicateKeyUpdate(product);
     }
 
-    /** 批量 upsert 并执行筛选（供卖家名导入等外部调用） */
+    /** 批量 upsert 并执行筛选（供卖家名导入等外部调用），单店铺产品写入原子化 */
+    @Transactional(rollbackFor = Exception.class)
     public int upsertAndFilter(List<CompetitorProduct> products, String marketplace, String source, String month) {
         for (CompetitorProduct p : products) {
             upsertProduct(p);
