@@ -1,0 +1,14 @@
+﻿店铺,站点,商品数,总体得分,总体层级,大类命中,小类命中,最佳匹配店铺,匹配店铺商品数,匹配得分,匹配方法
+Auslike Store,DE,50,0.866,完整,1,1,yingyaoshangmaoUKshop,176,0.753,bsr+nid+cos+pr
+COLVILL MOON STORE LIMITED,UK,46,0.851,简化,3,10,yanbiao-eu,242,0.643,bsr+nid+pr
+Godsendym Store,UK,44,0.844,简化,2,0,LIchenwei,183,0.654,bsr+nid+pr
+EVBOTGEE,DE,40,0.792,简化,4,8,xinchenliang,175,0.631,bsr+nid+pr
+JODI HOME TRADING LIMITED,UK,49,0.776,简化,4,13,LIchenwei,183,0.623,bsr+nid+pr
+yanbFirst,DE,26,0.746,简化,2,2,TAIZHOUMINGHAOZIDONGHUAKEJIYOUXIANGONGSI,136,0.733,bsr+nid+pr
+weihaiwangyushangmaoyouxiangongsi,DE,34,0.723,简化,4,4,xinchenliang,175,0.559,bsr+nid+pr
+ZACHARY WARMAN BRANDS LIMITED,UK,54,0.630,完整,3,15,luoheshinuomaixinxikejiyouxiangongsi,43,0.567,bsr+nid+cos+pr
+Goolee,UK,55,0.611,完整,1,1,zhoukoushiyuejieshangmaoyouxiangongsi,298,0.481,bsr+nid+cos+pr
+Huarui Eur,DE,72,0.535,完整,1,0,YMSM-EU,224,0.470,bsr+nid+cos+pr
+M Meterxity,UK,550,0.523,完整,1,7,zhoukouyitiaoshangmaoyouxiangongsi,227,0.488,bsr+nid+cos+pr
+YELARXI,UK,835,0.423,完整,1,2,zhoukouyitiaoshangmaoyouxiangongsi,227,0.444,bsr+nid+cos+pr
+Simon78000,DE,163,0.290,完整,1,0,ZUOQUANGUIDIANPU,227,0.260,bsr+nid+cos+pr
