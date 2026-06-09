@@ -52,6 +52,7 @@ frontend/src/api/generated/
 # Temp
 temp/
 tmp/
+~$*
 
 # Tool binaries (too large)
 tool/node.js/
