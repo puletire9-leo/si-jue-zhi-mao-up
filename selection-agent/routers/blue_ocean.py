@@ -42,35 +42,64 @@ async def trigger_scan(
     call_llm: bool = Query(True, description="是否调用LLM生成解读"),
     background_tasks: BackgroundTasks = None,
 ):
-    """触发全品类蓝海扫描。
+    """触发全品类蓝海扫描（后台异步执行）。
 
-    扫描是异步的（可能耗时数分钟），结果缓存到 data/blue_ocean/ 目录。
+    扫描可能耗时数分钟，结果缓存到 data/blue_ocean/ 目录。
     可通过 GET /scan-results 查询最新结果。
     """
-    result = await run_full_category_scan(
-        marketplace=marketplace,
-        month=month,
-        call_llm=call_llm,
-    )
-
-    # 缓存结果
-    os.makedirs(_CACHE_DIR, exist_ok=True)
     actual_month = month or datetime.now().strftime("%Y-%m")
-    cache_path = os.path.join(
-        _CACHE_DIR, f"scan_{marketplace}_{actual_month}.json"
+    task_id = f"{marketplace}_{actual_month}"
+    background_tasks.add_task(
+        _run_scan_background, marketplace, month, call_llm, task_id
     )
-
-    # 移除过大的 detail 数据以减小缓存文件
-    cache_result = {
-        k: v for k, v in result.items()
-        if k != "opportunity_cards"
+    return {
+        "status": "accepted",
+        "task_id": task_id,
+        "message": "扫描已启动，请通过 GET /scan-results 查询结果",
     }
-    cache_result["cards_count"] = len(result.get("opportunity_cards", []))
 
-    with open(cache_path, "w", encoding="utf-8") as f:
-        json.dump(cache_result, f, ensure_ascii=False, indent=2)
 
-    return result
+async def _run_scan_background(
+    marketplace: str,
+    month: Optional[str],
+    call_llm: bool,
+    task_id: str,
+) -> None:
+    """后台执行全品类扫描并缓存结果。
+
+    仅记录日志，不向上抛出异常（避免影响 FastAPI 进程）。
+    """
+    logger.info(f"[blue_ocean] 后台扫描开始: {task_id}")
+    try:
+        result = await run_full_category_scan(
+            marketplace=marketplace,
+            month=month,
+            call_llm=call_llm,
+        )
+
+        # 缓存结果
+        os.makedirs(_CACHE_DIR, exist_ok=True)
+        actual_month = month or datetime.now().strftime("%Y-%m")
+        cache_path = os.path.join(
+            _CACHE_DIR, f"scan_{marketplace}_{actual_month}.json"
+        )
+
+        # 移除过大的 detail 数据以减小缓存文件
+        cache_result = {
+            k: v for k, v in result.items()
+            if k != "opportunity_cards"
+        }
+        cache_result["cards_count"] = len(result.get("opportunity_cards", []))
+
+        with open(cache_path, "w", encoding="utf-8") as f:
+            json.dump(cache_result, f, ensure_ascii=False, indent=2)
+
+        logger.info(
+            f"[blue_ocean] 后台扫描完成: {task_id}, "
+            f"cards={cache_result['cards_count']}"
+        )
+    except Exception as e:
+        logger.error(f"[blue_ocean] 后台扫描失败: {task_id}, error={e}")
 
 
 @router.get("/scan-results")

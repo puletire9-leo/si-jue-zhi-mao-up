@@ -2,7 +2,7 @@
 
 执行流程：
   1. data_fetch: 从Java拉取一次聚合数据（所有小类）
-  2. FOR EACH sub_category: 运行分析图（9节点），收集结果
+  2. FOR EACH sub_category: 运行分析图（11节点），收集结果
   3. POST 回写Java
 
 提供两种执行模式：
@@ -138,11 +138,11 @@ def _record_decision_if_qualified(
 ) -> None:
     """对 S1/S2 级产品记录决策快照到 SQLite（非阻塞，失败仅记日志）。
 
-    触发条件: recommend_level 为 STRONG_BUY 或 RECOMMEND。
+    触发条件: recommend_level 为 STRONGLY_RECOMMEND 或 RECOMMEND。
     映射关系见计划 Task 2.2 — final_state 字段 → record_decision_snapshot 参数。
     """
     recommend_level = final_state.get("recommend_level", "WATCH")
-    if recommend_level not in ("STRONG_BUY", "RECOMMEND"):
+    if recommend_level not in ("STRONGLY_RECOMMEND", "RECOMMEND"):
         return
 
     try:
