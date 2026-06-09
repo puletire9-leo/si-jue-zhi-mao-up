@@ -61,6 +61,13 @@ class SelectionState(TypedDict, total=False):
     risk_radar: Dict               # 6类风险 + 严重度 + GoNoGo
     go_no_go: str                  # GO / CONDITIONAL_GO / NO_GO / WAIT_AND_SEE
 
+    # ═══ 节点: seller_profiling ═══
+    # @producer: seller_profiling_node
+    # @consumer: final_verdict
+    seller_profiling: Dict          # 卖家画像结果
+    seller_heat_signal: str         # 品类热度信号 (🔥/🌊/⚡/📊)
+    seller_recommendations: List[Dict]  # 智能推荐列表
+
     # ═══ 节点7: 跨品线关联 ═══
     # @producer: cross_line_discovery
     # @consumer: final_verdict
@@ -70,6 +77,11 @@ class SelectionState(TypedDict, total=False):
     # @producer: final_verdict
     # @consumer: runner (回写Java)
     final_verdict: Dict            # 完整裁决JSON
+
+    # ═══ 节点9: 爆发信号检测 ═══
+    # @producer: burst_signal_detection
+    # @consumer: final_verdict
+    burst_signals: Dict            # 爆发信号检测结果
     recommend_level: str           # STRONGLY_RECOMMEND / RECOMMEND / WATCH / AVOID
     opportunity_score: int         # 0-100（L1层6维）
     l2_score: float                # 0-100（L2层8维品类专属）
@@ -78,6 +90,16 @@ class SelectionState(TypedDict, total=False):
     # @producer: runner (从Java获取)
     # @consumer: final_verdict (百分位评分)
     category_baseline: Dict        # 品类基线数据（percentiles + health）
+
+    # ═══ 品类健康度 ═══
+    # @producer: final_verdict
+    # @consumer: runner (展示)
+    category_health: Dict            # 品类健康度评估结果
+
+    # ═══ 跨站点套利 ═══
+    # @producer: runner（data_fetch 阶段预取）
+    # @consumer: cross_line_discovery（跨站点套利分析）
+    raw_data_other_marketplace: Dict[str, Any]   # 对站聚合数据
 
     # ═══ 元数据 ═══
     # @producer: runner / 各节点

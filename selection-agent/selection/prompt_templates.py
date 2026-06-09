@@ -1,4 +1,4 @@
-"""选品分析提示词模板 — 9个LLM提示词集中管理。
+"""选品分析提示词模板 — 10个LLM提示词集中管理。
 
 每个模板对应 Selection Graph 中的一个节点。
 所有模板使用 {input_data} 占位符，由各节点在调用LLM前填充。
@@ -23,6 +23,24 @@ SEMANTIC_UNDERSTANDING_PROMPT = """你是一位跨境电商品类分析专家。
 - TN (趋势潮流): 热度驱动、快速迭代，代表品类：新奇玩具、网红同款、IP衍生
 - PE (派对活动): 文化驱动、高销量，代表品类：派对用品、节日装饰、气球
 - PS (纸品文具): 极轻、图案裂变，代表品类：贴纸、贺卡、文具
+
+## 原型决策树（快速判定规则）
+1. 产品是否视觉驱动 + 图案多变？ → DA
+2. 产品是否纯实用 + 性价比导向？ → FH
+3. 产品是否穿戴/个人风格？ → FP
+4. 产品是否社交媒体热度驱动？ → TN
+5. 产品是否与节日/庆祝/文化事件强关联？ → PE
+6. 产品是否纸基/极轻 + 图案裂变？ → PS
+
+## LLM维度评分参考基准
+| 原型 | 情感分参考 | 装饰分参考 | 裂变分参考 | 文化分参考 |
+|------|----------|----------|----------|----------|
+| DA   | 60-80   | 80-95   | 40-60   | 30-50   |
+| FH   | 20-40   | 10-25   | 20-40   | 10-25   |
+| FP   | 65-85   | 30-50   | 45-65   | 55-75   |
+| TN   | 70-90   | 10-25   | 55-75   | 40-60   |
+| PE   | 60-80   | 50-70   | 45-65   | 70-90   |
+| PS   | 30-50   | 10-25   | 70-90   | 30-50   |
 
 ## 算法预计算结果（已确定，请直接引用，不要重新计算）
 输入数据中的 algorithmPrecompute 包含确定性算法已计算的原型匹配结果。
@@ -66,6 +84,14 @@ COMPETITION_ANALYSIS_PROMPT = """你是一位跨境电商竞争分析专家。
 ## 算法预计算结果（已确定，请直接引用，不要重新计算）
 输入数据中的 algorithmPrecompute 包含确定性算法已计算的 CR3 值和价格带分析。
 请直接引用 cr3 和 priceBand 的数值，重点放在品牌定位分析和竞争策略解读上。
+
+## CR3策略矩阵
+| CR3范围 | 市场类型 | 进入策略建议 |
+|---------|---------|---------------|
+| <0.3   | 分散市场 | 品牌化机会大，可通过差异化快速进入 |
+| 0.3-0.6 | 适度集中 | 需明确切入角度，避免与中腰部品牌正面竞争 |
+| 0.6-0.8 | 寡头市场 | 寻找头部忽略的细分价格带或变体空白 |
+| ≥0.8   | 垄断市场 | 进入风险极高，仅考虑极窄利基市场 |
 
 ## 输入数据
 {input_data}
@@ -137,6 +163,13 @@ PROFIT_ESTIMATION_PROMPT = """你是一位跨境电商利润分析专家。
 - 中件 (500g-2kg): 头程£2-5, FBA £4-7
 - 重件 (>2kg): 头程£5+, FBA £7+
 
+## 盈亏平衡公式
+盈亏平衡月销量 = 月固定成本 / (售价 × 利润率)
+其中：
+- 月固定成本 ≈ £500（包含 PPC广告、仓储、工具订阅）
+- 利润率 = (售价 - 采购成本 - 头程 - FBA费 - 佣金 - VAT) / 售价
+- 安全边际: 实际月销量 / 盈亏平衡销量 > 2.0 为安全
+
 ## 算法预计算结果（已确定，请直接引用，不要重新计算）
 输入数据中的 algorithmPrecompute 包含确定性算法已计算的三场景利润率和盈亏平衡点。
 请直接引用 marginEstimate 的数值，重点放在利润风险分析和成本优化建议上。
@@ -172,6 +205,23 @@ DIFFERENTIATION_FULL_PROMPT = """你是一位跨境电商差异化策略专家�
 4. VARIANT_DIFFERENTIATION: 变体差异化 — 提供竞品没有的变体组合
 5. WHITE_LABEL_REPLACE: 白牌替代 — 替代高价白牌/大牌
 
+## 切入角度成功率参考
+| 角度 | 成功率 | 适用条件 | 典型利润提升 |
+|------|-------|---------|-------------|
+| PRICE_GAP | 60-75% | 存在明显价格空白带 | +5-15% |
+| OPERATIONAL_EXCELLENCE | 40-55% | 现有卖家服务差/Listing质量低 | +3-8% |
+| LOW_REVIEW_EXPLOIT | 50-65% | 头部产品评分<4.0 | +5-12% |
+| VARIANT_DIFFERENTIATION | 55-70% | 变体覆盖不全/颜色图案缺失 | +5-10% |
+| WHITE_LABEL_REPLACE | 35-50% | 白牌溢价>30% | +10-25% |
+
+## 算法预计算结果（已确定，请基于此增强，不要重新计算）
+输入数据中的 algorithmPrecompute 包含确定性算法已分析的：
+- 进入难度（entryDifficulty）+ 判定理由
+- 推荐切入价格带（recommendedPriceTier）
+- 价格空白机会列表（priceGapOpportunities）
+- 策略候选排名（strategyCandidates，按品类原型匹配度+价格带适配+蓝海信号加权排序）
+请基于这些结果做深入阐述和场景化建议，不要推翻算法结论。
+
 ## 输入数据
 {input_data}
 
@@ -198,6 +248,9 @@ DIFFERENTIATION_QUICK_PROMPT = """你是一位跨境电商选品分析师。
 ## 任务
 该品类利润偏薄（<30%），请给出1个最可行的快速建议。
 
+## 算法预计算结果（已确定，请基于此增强，不要重新计算）
+输入数据中的 algorithmPrecompute 包含确定性算法已分析的进入难度、推荐价格带和策略候选排名。请基于这些结果做简洁建议。
+
 ## 输入数据
 {input_data}
 
@@ -223,6 +276,16 @@ RISK_RADAR_PROMPT = """你是一位跨境电商风险评估专家。
 4. COMPLIANCE: 合规风险（认证要求、禁售政策、知识产权）
 5. MARKET: 市场风险（需求波动、替代品、季节性）
 6. FINANCIAL: 财务风险（资金占用、汇率波动、平台扣款）
+
+## 风险量化阈值参考
+| 风险类别 | HIGH触发条件 | MEDIUM触发条件 | LOW条件 |
+|---------|------------|---------------|-------|
+| 竞争 | CR3≥0.8 或 头部品牌>50%份额 | CR3 0.6-0.8 | CR3<0.6 |
+| 市场 | 增速<-30% 或 季节性波动>50% | 增速-10%~-30% | 增速>-10% |
+| 财务 | 利润率<10% 或 盈亏平衡>500件/月 | 利润率10-20% | 利润率>20% |
+| 运营 | 退货率>15% 或 评分<3.0 | 退货率5-15% | 退货率<5% |
+| 供应链 | 单一供应商>80% 或 前置时间>60天 | 2-3个供应商 | 多源供应 |
+| 合规 | 需强制认证 或 含知识产权风险 | 推荐认证 | 无特殊要求 |
 
 ## 算法预计算结果（已确定，请直接引用，不要重新计算）
 输入数据中的 algorithmPrecompute 包含确定性硬规则已评估的风险项。
@@ -261,6 +324,17 @@ CROSS_LINE_DISCOVERY_PROMPT = """你是一位跨境电商选品组合专家。
 4. CROSS_SELL: 交叉销售（不同品类但相同消费者）
 5. INPUT_SUPPLY: 供应链上下游（A品类是B的原材料）
 
+## 算法预计算结果（已确定，请基于此增强，不要重新计算）
+输入数据中的 algorithmPrecompute 包含确定性算法已计算和检测的：
+- competitionStructure / lifecycleStage / profitFeasibility: 前面节点的算法结果
+- currentScore: 当前品类评分和 Go/NoGo 状态
+- crossMarketArbitrage: 跨站套利检测结果（同ASIN跨站存在性检测）：
+  - opportunities: 所有套利机会（含 STRONG/MODERATE/WEAK 强度分类）
+  - strongOpportunities: 🔴 强信号列表
+  - summary.direction: 套利方向（UK→DE / DE→UK）
+  - summary.strongCount: 强信号数量
+请基于这些结果做深度解读和策略建议，不要推翻算法结论。
+
 ## 输入数据
 {input_data}
 
@@ -276,10 +350,72 @@ CROSS_LINE_DISCOVERY_PROMPT = """你是一位跨境电商选品组合专家。
     }}
   ],
   "crossMarketArbitrage": {{
-    "analyzed": false,
-    "reason": "当前版本不分析跨站套利"
+    "analyzed": true,
+    "interpretation": "基于算法检测结果的深度解读",
+    "topOpportunities": [
+      {{
+        "asin": "B0XXX",
+        "direction": "UK→DE|DE→UK",
+        "entryStrategy": "进入策略建议"
+      }}
+    ],
+    "summary": "跨站套利总结"
   }},
   "confidence": 0.65
+}}
+"""
+
+# ═══ 节点9: 新品爆发信号检测 ═══
+BURST_SIGNAL_PROMPT = """你是一位跨境电商市场趋势分析专家。
+
+## 任务
+根据确定性算法检测到的新品爆发信号，解读爆发原因、可持续性和建议行动。
+
+## 爆发信号解读框架
+- 🔴 立即行动（composite ≥ 80）：30天内BSR骤降80%+或销量翻3倍，火箭式起飞
+- 🟡 重点关注（composite ≥ 50）：月内增长显著，窗口期有限
+- 🟢 持续观察（composite ≥ 30）：有改善趋势，但幅度一般
+
+## 信号质量注意事项
+- BSR骤降 + 销量增长 + 评论增长：三者一致 → 信号可信度高
+- BSR骤降但评论零增长：可能广告推量 → 保持谨慎
+- 销量高但listingDays≤3天：数据不稳定 → 建议观察7天
+
+## 算法预计算结果（已确定，请直接引用，不要重新计算）
+输入数据中的 algorithmPrecompute 包含确定性算法已检测的：
+- topBursts: Top 5 爆发产品（含综合分、BSR/销量/评论三维得分、紧急度）
+- categoryBurstScore: 品类级爆发强度（0-100）
+- urgencyDistribution: 紧急度分布（critical/important/watch/none 各多少个）
+- hasCritical: 是否有 🔴 紧急信号
+
+请基于这些结果做深度解读和策略建议，不要推翻算法结论。
+
+## 输入数据
+{input_data}
+
+## 输出要求（JSON）
+{{
+  "topBursts": [
+    {{
+      "asin": "B0XXX",
+      "title": "商品标题",
+      "compositeScore": 85.5,
+      "urgency": "critical|important|watch",
+      "interpretation": "爆发原因解读（基于三维信号分析）"
+    }}
+  ],
+  "categoryBurstScore": 72.0,
+  "hasCritical": true,
+  "urgencyDistribution": {{"critical": 1, "important": 2, "watch": 3, "none": 50}},
+  "categoryAnalysis": {{
+    "isBursting": true,
+    "burstDriver": "季节性需求爆发|趋势引领|事件驱动|正常增长",
+    "sustainability": "可持续|短期热点|需继续观察",
+    "windowEstimate": "1-2周|1个月|3个月"
+  }},
+  "followUpActions": ["建议行动1", "建议行动2"],
+  "risks": ["风险提示1"],
+  "confidence": 0.75
 }}
 """
 
@@ -335,5 +471,112 @@ opportunityScore = demand(0-25) + profitability(0-20) + competition(0-20) + diff
   "notToDo": ["禁忌1", "禁忌2"],
   "keyMetricsToTrack": ["监控指标1", "监控指标2"],
   "confidence": 0.80
+}}
+"""
+
+
+# ═══ 蓝海全品类扫描 Prompt（V2） — 来自 09-蓝海发现算法升级.md §7 ───
+
+BLUE_OCEAN_OPPORTUNITY_CARD_PROMPT = """你是跨境电商选品专家。以下是{marketplace}站{month}月的品类机会分析数据。
+
+## 品类：{category_name}
+- 品类原型：{archetype}（{archetype_desc}）
+- 商品总数：{total}，新品数：{new_count}
+- 机会分型：{opportunity_type}
+
+## 10维雷达数据（0-100分，百分位归一化，越高越好）
+| 维度组 | 维度 | 得分 | 说明 |
+|--------|------|------|------|
+| 进入壁垒 | D3 评论壁垒 | {d3} | 评论门槛低=高分 |
+| 进入壁垒 | D4 品牌分散度 | {d4} | 无品牌垄断=高分 |
+| 进入壁垒 | D5 卖家分散度 | {d5} | 无卖家垄断=高分 |
+| 机会质量 | D1 新品活跃度 | {d1} | 新品占比高=活跃 |
+| 机会质量 | D2 新品成功率 | {d2} | 新品能活=高分 |
+| 机会质量 | D7 需求强度 | {d7} | 月销量大=高分 |
+| 机会质量 | D10 标签势能 | {d10} | 平台算法青睐=高分 |
+| 盈利可行 | D6 利润空间 | {d6} | 利润率高=高分 |
+| 盈利可行 | D8 价格战风险 | {d8} | 新品不降价=高分 |
+| 盈利可行 | D9 Listing差距 | {d9} | 运营可超越=高分 |
+
+## 测品推荐ASIN
+{test_product_table}
+
+请输出品类机会卡 JSON：
+{{
+  "summary": "一句话总结该品类的机会与风险",
+  "entry_difficulty": "easy/medium/hard",
+  "difficulty_reason": "进入难度理由",
+  "entry_angle": "推荐切入角度（价格带/设计差异化/运营优势）",
+  "top_pick": "最优测品ASIN",
+  "top_pick_reason": "优先推荐理由",
+  "risks": ["风险1", "风险2"],
+  "confidence": 0.0-1.0
+}}
+"""
+
+
+BLUE_OCEAN_OVERVIEW_PROMPT = """你是跨境电商选品专家。以下是{marketplace}站{month}月所有品类的机会分型汇总。
+
+## 分型统计
+- 🌊 蓝海机会（{blue_ocean_count}个）：{blue_ocean_list}
+- 🔥 红海有缝（{red_seam_count}个）：{red_seam_list}
+- 💎 小众精品（{niche_count}个）：{niche_list}
+- ⏳ 观望区（{watch_count}个）：{watch_list}
+- 🔍 关注区（{neutral_count}个）：{neutral_list}
+
+## 品类原型分布
+{archetype_distribution}
+
+请输出：
+1. 本月最值得投入的TOP5品类（跨分型，说明理由）
+2. 红海有缝中最值得尝试的TOP3（体现"红海也测品"思想）
+3. 整体市场趋势观察（竞争/需求/利润维度）
+
+输出 JSON：
+{{
+  "top5": [
+    {{"category": "品类名", "reason": "理由", "opportunity_type": "分型"}}
+  ],
+  "red_seam_top3": [
+    {{"category": "品类名", "reason": "尝试理由"}}
+  ],
+  "market_trends": "整体趋势分析文字",
+  "confidence": 0.0-1.0
+}}
+"""
+
+
+# ═══ 卖家行为画像 ═══
+SELLER_PROFILING_PROMPT = """你是一位跨境电商卖家行为分析专家。
+
+## 任务
+分析以下品类中活跃卖家的行为数据，生成卖家洞察摘要。
+
+## 输入数据
+{input_data}
+
+## 分析框架
+
+### 1. 品类热度解读
+- 🔥 郑总重仓：多店同品类 = 内部验证信号强
+- 🌊 冷门品类：聪明卖家少 = 先发优势窗口
+- ⚡ 外部聪明卖家活跃：郑总暂未布局 = 盲区机会
+- 📊 一般：各维度均无明显信号
+
+### 2. 跟品信号解读
+- 从首发→跟进的时间线判断赛道的紧迫性
+- 聪明卖家集中跟进 = 早期信号
+
+### 3. 推荐优先级
+- smart_consensus（聪明人共识）> dengzong_validated（内部验证+蓝海）> blind_spot（盲区发现）> follow_accel（跟品加速）
+
+## 输出要求
+输出 JSON：
+{{
+  "summary": "200字以内的卖家洞察摘要，包含热度信号、跟品信号、推荐优先级",
+  "insight": "同summary",
+  "urgency": "high/medium/low",
+  "key_findings": ["发现1", "发现2", "发现3"],
+  "confidence": 0.0-1.0
 }}
 """

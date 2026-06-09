@@ -1,4 +1,4 @@
-"""Selection Graph — 9节点分析图 LangGraph StateGraph 构建。
+"""Selection Graph — 11节点分析图 LangGraph StateGraph 构建。
 
 图结构:
 ```
@@ -7,7 +7,7 @@ START → semantic_understanding → competition_analysis
   → lifecycle_judgment → profit_estimation
     ├─ margin ≥ 30% → differentiation_full  ─┐
     └─ margin < 30% → differentiation_quick ─┤
-                                              ├→ risk_radar → cross_line_discovery → final_verdict → END
+                                              ├→ risk_radar → seller_profiling → cross_line_discovery → burst_signal_detection → final_verdict → END
 ```
 data_fetch 是纯数据操作，在 runner 层调用一次，不进分析图。
 
@@ -16,6 +16,7 @@ data_fetch 是纯数据操作，在 runner 层调用一次，不进分析图。
 
 import logging
 import threading
+from typing import Any, Dict
 
 from langgraph.graph import StateGraph, END
 
@@ -27,7 +28,9 @@ from selection.nodes.profit_estimation import profit_estimation_node
 from selection.nodes.differentiation_full import differentiation_full_node
 from selection.nodes.differentiation_quick import differentiation_quick_node
 from selection.nodes.risk_radar import risk_radar_node
+from selection.nodes.seller_profiling_node import seller_profiling_node
 from selection.nodes.cross_line_discovery import cross_line_discovery_node
+from selection.nodes.burst_signal_detection import burst_signal_detection_node
 from selection.nodes.final_verdict import final_verdict_node
 
 logger = logging.getLogger(__name__)
@@ -51,15 +54,76 @@ def route_differentiation(state: SelectionState) -> str:
 # ═══ 图构建 ═══
 
 
-def _build_graph() -> StateGraph:
-    """构建分析图（9节点，不含 data_fetch）。
+def _build_screening_graph() -> StateGraph:
+    """构建初筛图（能力1-4）。
 
-    data_fetch 在 runner 层单独调用一次，
-    此图处理单个小类的完整分析流程。
+    只运行语义理解→竞争→生命周期→利润推算，
+    用于快速评分决定是否进行深度分析。
     """
     graph = StateGraph(SelectionState)
 
-    # 添加9个分析节点（data_fetch 在 runner 层处理）
+    graph.add_node("semantic_understanding", semantic_understanding_node)
+    graph.add_node("competition_analysis", competition_analysis_node)
+    graph.add_node("lifecycle_judgment", lifecycle_judgment_node)
+    graph.add_node("profit_estimation", profit_estimation_node)
+
+    graph.set_entry_point("semantic_understanding")
+    graph.add_edge("semantic_understanding", "competition_analysis")
+    graph.add_edge("competition_analysis", "lifecycle_judgment")
+    graph.add_edge("lifecycle_judgment", "profit_estimation")
+    graph.add_edge("profit_estimation", END)
+
+    return graph
+
+
+def _build_deep_graph() -> StateGraph:
+    """构建深度分析图（能力5-8）。
+
+    从差异化→风险→跨品线→最终裁决。
+    假设 state 中已有能力1-4的输出。
+    使用 differentiation_router 节点做利润率分支判定。
+    """
+    graph = StateGraph(SelectionState)
+
+    # 路由器节点：根据利润率决定走 full 还是 quick
+    async def differentiation_router(state: SelectionState) -> Dict[str, Any]:
+        """纯路由，不修改 state，仅返回路由标记。"""
+        return {}  # 不修改任何状态
+
+    graph.add_node("differentiation_router", differentiation_router)
+    graph.add_node("differentiation_full", differentiation_full_node)
+    graph.add_node("differentiation_quick", differentiation_quick_node)
+    graph.add_node("risk_radar", risk_radar_node)
+    graph.add_node("seller_profiling", seller_profiling_node)
+    graph.add_node("cross_line_discovery", cross_line_discovery_node)
+    graph.add_node("burst_signal_detection", burst_signal_detection_node)
+    graph.add_node("final_verdict", final_verdict_node)
+
+    graph.set_entry_point("differentiation_router")
+    graph.add_conditional_edges(
+        "differentiation_router",
+        route_differentiation,
+        {
+            "differentiation_full": "differentiation_full",
+            "differentiation_quick": "differentiation_quick",
+        },
+    )
+
+    graph.add_edge("differentiation_full", "risk_radar")
+    graph.add_edge("differentiation_quick", "risk_radar")
+    graph.add_edge("risk_radar", "seller_profiling")
+    graph.add_edge("seller_profiling", "cross_line_discovery")
+    graph.add_edge("cross_line_discovery", "burst_signal_detection")
+    graph.add_edge("burst_signal_detection", "final_verdict")
+    graph.add_edge("final_verdict", END)
+
+    return graph
+
+
+def _build_full_graph() -> StateGraph:
+    """构建完整分析图（11节点，新增卖家行为画像）。"""
+    graph = StateGraph(SelectionState)
+
     graph.add_node("semantic_understanding", semantic_understanding_node)
     graph.add_node("competition_analysis", competition_analysis_node)
     graph.add_node("lifecycle_judgment", lifecycle_judgment_node)
@@ -67,18 +131,17 @@ def _build_graph() -> StateGraph:
     graph.add_node("differentiation_full", differentiation_full_node)
     graph.add_node("differentiation_quick", differentiation_quick_node)
     graph.add_node("risk_radar", risk_radar_node)
+    graph.add_node("seller_profiling", seller_profiling_node)
     graph.add_node("cross_line_discovery", cross_line_discovery_node)
+    graph.add_node("burst_signal_detection", burst_signal_detection_node)
     graph.add_node("final_verdict", final_verdict_node)
 
-    # 入口节点
     graph.set_entry_point("semantic_understanding")
 
-    # 线性流: 1 → 2 → 3 → 4
     graph.add_edge("semantic_understanding", "competition_analysis")
     graph.add_edge("competition_analysis", "lifecycle_judgment")
     graph.add_edge("lifecycle_judgment", "profit_estimation")
 
-    # ★ 唯一的条件边：根据利润率选择差异化深度 ★
     graph.add_conditional_edges(
         "profit_estimation",
         route_differentiation,
@@ -88,11 +151,12 @@ def _build_graph() -> StateGraph:
         },
     )
 
-    # 两个分支汇合后继续: 6 → 7 → 8 → END
     graph.add_edge("differentiation_full", "risk_radar")
     graph.add_edge("differentiation_quick", "risk_radar")
-    graph.add_edge("risk_radar", "cross_line_discovery")
-    graph.add_edge("cross_line_discovery", "final_verdict")
+    graph.add_edge("risk_radar", "seller_profiling")
+    graph.add_edge("seller_profiling", "cross_line_discovery")
+    graph.add_edge("cross_line_discovery", "burst_signal_detection")
+    graph.add_edge("burst_signal_detection", "final_verdict")
     graph.add_edge("final_verdict", END)
 
     return graph
@@ -101,16 +165,40 @@ def _build_graph() -> StateGraph:
 # ═══ 全局单例（参考 SuperMew graph.py 的 threading.Lock 模式） ═══
 
 _lock = threading.Lock()
-_compiled_graph = None
+_compiled_full_graph = None
+_compiled_screening_graph = None
+_compiled_deep_graph = None
 
 
 def get_selection_graph():
-    """获取全局编译好的 Selection Graph 单例（懒加载）。"""
-    global _compiled_graph
-    if _compiled_graph is None:
+    """获取全局编译好的完整 Selection Graph 单例（懒加载）。"""
+    global _compiled_full_graph
+    if _compiled_full_graph is None:
         with _lock:
-            if _compiled_graph is None:
+            if _compiled_full_graph is None:
                 logger.info("首次构建 Selection Graph...")
-                _compiled_graph = _build_graph().compile()
-                logger.info("Selection Graph 构建完成 (9分析节点 + 1条件边)")
-    return _compiled_graph
+                _compiled_full_graph = _build_full_graph().compile()
+                logger.info("Selection Graph 构建完成 (11分析节点 + 1条件边)")
+    return _compiled_full_graph
+
+
+def get_screening_graph():
+    """获取初筛图（能力1-4），用于快速评分。"""
+    global _compiled_screening_graph
+    if _compiled_screening_graph is None:
+        with _lock:
+            if _compiled_screening_graph is None:
+                logger.info("构建初筛 Graph (能力1-4)...")
+                _compiled_screening_graph = _build_screening_graph().compile()
+    return _compiled_screening_graph
+
+
+def get_deep_graph():
+    """获取深度分析图（能力5-8），用于初筛后的深度分析。"""
+    global _compiled_deep_graph
+    if _compiled_deep_graph is None:
+        with _lock:
+            if _compiled_deep_graph is None:
+                logger.info("构建深度分析 Graph (能力5-8)...")
+                _compiled_deep_graph = _build_deep_graph().compile()
+    return _compiled_deep_graph

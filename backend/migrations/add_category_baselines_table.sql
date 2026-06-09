@@ -17,17 +17,17 @@ CREATE TABLE IF NOT EXISTS category_baselines (
     baseline_month VARCHAR(7) NOT NULL COMMENT '基线月份 如 2026-06',
     
     -- 8维百分位基线（P25/P50/P75）
-    p25_size DECIMAL(5,2) COMMENT '体积友好性 P25',
-    p50_size DECIMAL(5,2) COMMENT '体积友好性 P50（中位数）',
-    p75_size DECIMAL(5,2) COMMENT '体积友好性 P75',
+    p25_size DECIMAL(12,2) COMMENT '体积友好性 P25 (g)',
+    p50_size DECIMAL(12,2) COMMENT '体积友好性 P50 (g)',
+    p75_size DECIMAL(12,2) COMMENT '体积友好性 P75 (g)',
     
-    p25_volume DECIMAL(5,2) COMMENT '销量/市场容量 P25',
-    p50_volume DECIMAL(5,2) COMMENT '销量/市场容量 P50',
-    p75_volume DECIMAL(5,2) COMMENT '销量/市场容量 P75',
+    p25_volume DECIMAL(12,2) COMMENT '销量/市场容量 P25',
+    p50_volume DECIMAL(12,2) COMMENT '销量/市场容量 P50',
+    p75_volume DECIMAL(12,2) COMMENT '销量/市场容量 P75',
     
-    p25_profit DECIMAL(5,2) COMMENT '利润率 P25',
-    p50_profit DECIMAL(5,2) COMMENT '利润率 P50',
-    p75_profit DECIMAL(5,2) COMMENT '利润率 P75',
+    p25_profit DECIMAL(12,2) COMMENT '利润率 P25',
+    p50_profit DECIMAL(12,2) COMMENT '利润率 P50',
+    p75_profit DECIMAL(12,2) COMMENT '利润率 P75',
     
     p25_emotion DECIMAL(5,2) COMMENT '情绪价值 P25',
     p50_emotion DECIMAL(5,2) COMMENT '情绪价值 P50',
@@ -50,9 +50,9 @@ CREATE TABLE IF NOT EXISTS category_baselines (
     p75_market DECIMAL(5,2) COMMENT '市场指标 P75',
     
     -- 品类健康度指标
-    avg_growth_rate DECIMAL(8,2) COMMENT '品类平均增速',
+    avg_growth_rate DECIMAL(8,4) COMMENT '品类平均增速',
     avg_cr3 DECIMAL(5,4) COMMENT '品类平均CR3',
-    avg_margin DECIMAL(5,2) COMMENT '品类平均利润率',
+    avg_margin DECIMAL(8,4) COMMENT '品类平均利润率',
     avg_rating DECIMAL(3,2) COMMENT '品类平均评分',
     total_products INT COMMENT '品类总产品数',
     
