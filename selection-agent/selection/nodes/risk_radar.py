@@ -104,8 +104,12 @@ async def risk_radar_node(state: SelectionState) -> Dict[str, Any]:
     # Go/NoGo: 硬规则优先级最高
     final_go_no_go = hard_risk_result.auto_go_no_go
     if final_go_no_go == "GO":
-        # 允许 LLM 降级（如 LLM 发现软风险）
-        final_go_no_go = result.get("goNoGo", "GO")
+        VALID_GO_NO_GO = {"GO", "CONDITIONAL_GO", "WAIT_AND_SEE", "NO_GO"}
+        llm_go = result.get("goNoGo", "")
+        if llm_go in VALID_GO_NO_GO:
+            final_go_no_go = llm_go
+        else:
+            logger.warning(f"[risk_radar] LLM 返回无效 goNoGo='{llm_go}'，保留硬规则值")
 
     return {
         "risk_radar": result,

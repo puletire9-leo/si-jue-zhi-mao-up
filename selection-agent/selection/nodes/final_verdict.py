@@ -16,6 +16,8 @@ from selection.prompt_templates import FINAL_VERDICT_PROMPT
 from selection.algorithms.opportunity_scorer import calculate_opportunity_score
 from selection.algorithms.l2_scorer import calculate_l2_score
 from selection.algorithms.percentile_scorer import score_dimensions_percentile, compute_composite_percentile
+from selection.algorithms.opportunity_classifier import classify_opportunity
+from selection.algorithms.category_health import assess_category_health
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +43,7 @@ async def final_verdict_node(state: SelectionState) -> Dict[str, Any]:
     diff_count = len(diff_strategies) if isinstance(diff_strategies, list) else 0
     diff_effort = diff.get("strategies", [{}])[0].get("estimatedEffort", "MEDIUM") if diff_strategies else "MEDIUM"
     # LLM失败时diff维度降级为最保守估计
-    if diff.get("llmFailed"):
+    if diff.get("algorithmOnly"):
         diff_count = 0
         diff_effort = "HIGH"
 
@@ -74,14 +76,20 @@ async def final_verdict_node(state: SelectionState) -> Dict[str, Any]:
     logger.info(f"[能力8] L1评分: total={score_result.total}, level={score_result.recommend_level}")
 
     # L2 评分（8维品类专属）
-    # LLM维度评分从 category_understanding.llmDimensionScores 提取（如未生成则使用默认值50）
+    # LLM维度评分从 category_understanding.llmDimensionScores 提取（如未生成则算法推算）
     cat_understanding = state.get("category_understanding", {})
     llm_dims = cat_understanding.get("llmDimensionScores", {})
+    # shippingProfile 由 profit_estimation 节点计算，不在 sub_categories 中
+    shipping_profile = state.get("profit_feasibility", {}).get(
+        "shippingProfile",
+        state.get("sub_categories", [{}])[0].get("shippingProfile", ""),
+    )
+    sub = state.get("sub_categories", [{}])[0]
     l2_result = calculate_l2_score(
         archetype=archetype,
-        shipping_profile=state.get("sub_categories", [{}])[0].get("shippingProfile", ""),
-        total_units=int(state.get("sub_categories", [{}])[0].get("totalUnits", 0)),
-        units_growth_rate=float(state.get("sub_categories", [{}])[0].get("unitsGrowthRate", 0)),
+        shipping_profile=shipping_profile,
+        total_units=int(sub.get("totalUnits", 0)),
+        units_growth_rate=float(sub.get("unitsGrowthRate", 0)),
         typical_margin=typical_margin,
         cr3=cr3_val,
         lifecycle_stage=lifecycle_stage,
@@ -90,8 +98,27 @@ async def final_verdict_node(state: SelectionState) -> Dict[str, Any]:
         decor_score=llm_dims.get("decorScore"),
         fission_score=llm_dims.get("fissionScore"),
         culture_score=llm_dims.get("cultureScore"),
+        avg_price=float(sub.get("avgPrice", 0)),
+        review_count=int(sub.get("avgRatings", 0)),
+        brand_count=int(sub.get("brandCount", 0)),
     )
     logger.info(f"[能力8] L2评分: total={l2_result.total:.1f}, archetype={archetype}")
+
+    # ── Step 1c: 品类健康度评估 ──
+    cat_health_result = assess_category_health(
+        category_label=cat_understanding.get("categoryName", ""),
+        marketplace=state.get("marketplace", "UK"),
+        avg_growth_rate=float(sub.get("unitsGrowthRate", 0)),
+        avg_cr3=cr3_val,
+        avg_margin=typical_margin,
+        avg_rating=float(sub.get("avgRating", 0)),  # 星级评分(1-5)，非评论数
+        total_products=int(sub.get("totalProducts", 0)),
+        has_baseline=bool(baseline_percentiles),
+        baseline_month=baseline_data.get("month"),
+        sample_size=baseline_data.get("sampleSize"),
+    )
+    logger.info(f"[能力8] 品类健康度: score={cat_health_result.overall_score}, "
+                f"status={cat_health_result.overall_status}")
 
     # 百分位评分（如有基线数据）
     percentile_results = None
@@ -99,8 +126,8 @@ async def final_verdict_node(state: SelectionState) -> Dict[str, Any]:
     if baseline_percentiles:
         # 将 L2 维度原始分传入百分位评分
         l2_dimension_scores = {dim: score.raw_score for dim, score in l2_result.dimensions.items()}
-        from selection.algorithms.constants import ARCHETYPE_WEIGHTS
-        weights = ARCHETYPE_WEIGHTS.get(archetype, ARCHETYPE_WEIGHTS["BASIC"])
+        from selection.algorithms.l2_scorer import _get_effective_weights
+        weights = _get_effective_weights(archetype)
 
         percentile_results = score_dimensions_percentile(
             l2_dimension_scores, baseline_percentiles
@@ -108,7 +135,21 @@ async def final_verdict_node(state: SelectionState) -> Dict[str, Any]:
         composite_percentile = compute_composite_percentile(percentile_results, weights)
         logger.info(f"[能力8] 百分位评分: composite={composite_percentile}")
 
+    # ── Step 1b: 机会分类器 ──
+    opp_class = classify_opportunity(
+        opportunity_score=score_result.total,
+        l2_score=l2_result.total,
+        lifecycle_stage=lifecycle_stage,
+        window_of_opportunity=window,
+        go_no_go=go_no_go,
+        typical_margin=typical_margin,
+        units_growth_rate=float(state.get("sub_categories", [{}])[0].get("unitsGrowthRate", 0)),
+        blue_ocean_class=comp.get("blueOcean", {}).get("classification", ""),
+    )
+    logger.info(f"[能力8] 机会分类: grade={opp_class.overall_grade}, urgency={opp_class.urgency}")
+
     # ── Step 2: LLM 总结 + 行动计划 ──
+    burst = state.get("burst_signals") or {}
     input_data = {
         "categoryUnderstanding": state.get("category_understanding", {}),
         "archetype": archetype,
@@ -119,6 +160,12 @@ async def final_verdict_node(state: SelectionState) -> Dict[str, Any]:
         "riskRadar": risk_radar,
         "goNoGo": go_no_go,
         "crossLineInsights": state.get("cross_line_insights", {}),
+        # 爆发信号
+        "burstSignals": burst,
+        # 卖家行为画像
+        "sellerProfiling": state.get("seller_profiling", {}),
+        "sellerHeatSignal": state.get("seller_heat_signal", ""),
+        "sellerRecommendations": state.get("seller_recommendations", []),
         # 注入确定性评分结果
         "algorithmPrecompute": {
             "scoreBreakdown": score_result.to_dict(),
@@ -127,6 +174,12 @@ async def final_verdict_node(state: SelectionState) -> Dict[str, Any]:
             "l2ScoreBreakdown": l2_result.to_dict(),
             "l2Total": l2_result.total,
             "compositePercentile": composite_percentile,
+            "opportunityClassification": opp_class.to_dict(),
+            "categoryHealthScore": cat_health_result.overall_score,
+            "categoryHealthStatus": cat_health_result.overall_status,
+            "categoryHealth": cat_health_result.to_dict(),
+            "burstScore": burst.get("categoryBurstScore", 0),
+            "hasCriticalBurst": burst.get("hasCritical", False),
         },
     }
 
@@ -142,12 +195,14 @@ async def final_verdict_node(state: SelectionState) -> Dict[str, Any]:
                 "l2ScoreBreakdown": l2_result.to_dict(),
                 "l2Total": l2_result.total,
                 "compositePercentile": composite_percentile,
+                "opportunityClassification": opp_class.to_dict(),
                 "oneLineSummary": "",
                 "actionPlan": {},
             },
             "recommend_level": score_result.recommend_level,
             "opportunity_score": score_result.total,
             "l2_score": l2_result.total,
+            "category_health": cat_health_result.to_dict(),
             "analysis_errors": state.get("analysis_errors", [])
             + ["最终裁决 LLM 调用失败，使用确定性评分"],
         }
@@ -159,10 +214,12 @@ async def final_verdict_node(state: SelectionState) -> Dict[str, Any]:
     result["l2ScoreBreakdown"] = l2_result.to_dict()
     result["l2Total"] = l2_result.total
     result["compositePercentile"] = composite_percentile
+    result["opportunityClassification"] = opp_class.to_dict()
 
     return {
         "final_verdict": result,
         "recommend_level": score_result.recommend_level,
         "opportunity_score": score_result.total,
         "l2_score": l2_result.total,
+        "category_health": cat_health_result.to_dict(),
     }

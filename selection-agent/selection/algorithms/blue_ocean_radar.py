@@ -354,3 +354,118 @@ def _generate_recommendations(
         recs.append("竞争分散，适合多SKU策略覆盖")
 
     return recs
+
+
+def enhance_with_seller_signals(
+    blue_ocean_result: BlueOceanResult,
+    seller_profiling: Optional[Dict[str, Any]] = None,
+) -> BlueOceanResult:
+    """注入卖家行为信号到蓝海结果（D5增强 + 热度标记）。
+
+    不改动原有蓝海评分逻辑，仅追加 seller 维度的增强信息。
+
+    Args:
+        blue_ocean_result: 蓝海雷达检测结果
+        seller_profiling:   卖家画像结果（来自 seller_profiling_node）
+
+    Returns:
+        增强后的 BlueOceanResult（在原对象上修改并返回）
+    """
+    if not seller_profiling:
+        return blue_ocean_result
+
+    # ── D5 卖家多样性增强 ──
+    heat_signal = seller_profiling.get("heat_signal", "")
+    dengzong_count = seller_profiling.get("dengzong_count", 0)
+    external_s_count = seller_profiling.get("external_s_count", 0)
+    total_sellers = seller_profiling.get("total_sellers", 0)
+    recommendations_list = seller_profiling.get("recommendations", [])
+
+    # 卖家信号附加到原有 signals dict
+    seller_signal_score = _compute_seller_signal_score(
+        heat_signal=heat_signal,
+        dengzong_count=dengzong_count,
+        external_s_count=external_s_count,
+    )
+
+    blue_ocean_result.signals["seller_diversity"] = BlueOceanSignal(
+        name="seller_diversity",
+        score=seller_signal_score,
+        status=_seller_status_from_score(seller_signal_score),
+        description=f"卖家多样性: 郑总{dengzong_count}店 + 外部S/A{external_s_count}个",
+        evidence=f"total_sellers={total_sellers}, heat={heat_signal}",
+    )
+
+    # ── 热度标记注入 recommendations ──
+    if heat_signal == "🔥":
+        blue_ocean_result.recommendations.append(
+            f"郑总重仓信号{heat_signal}：{dengzong_count}店在此品类，内部验证信号强"
+        )
+    elif heat_signal == "🌊":
+        blue_ocean_result.recommendations.append(
+            f"冷门品类{heat_signal}：聪明卖家少({total_sellers}卖家)，先发优势窗口"
+        )
+    elif heat_signal == "⚡":
+        blue_ocean_result.recommendations.append(
+            f"外部聪明卖家活跃{heat_signal}：{external_s_count}个S/A级卖家，郑总暂未布局"
+        )
+
+    # 智能推荐注入
+    for rec in recommendations_list[:3]:
+        rec_type = rec.get("rec_type", "")
+        if rec_type == "dengzong_validated":
+            blue_ocean_result.recommendations.append(
+                f"卖家交叉验证: {rec.get('reason', '')}"
+            )
+        elif rec_type == "blind_spot":
+            blue_ocean_result.recommendations.append(
+                f"卖家盲区: {rec.get('reason', '')}"
+            )
+
+    # ── 微调综合分（卖家信号 +10 加分，但上限100） ──
+    if heat_signal in ("🔥", "🌊"):
+        blue_ocean_result.overall_score = min(
+            100, blue_ocean_result.overall_score + 10
+        )
+
+    logger.info(
+        f"[blue_ocean_enhance] {blue_ocean_result.category_label}: "
+        f"seller_diversity={seller_signal_score}, heat={heat_signal}"
+    )
+
+    return blue_ocean_result
+
+
+def _compute_seller_signal_score(
+    heat_signal: str,
+    dengzong_count: int,
+    external_s_count: int,
+) -> int:
+    """计算卖家多样性信号分数 0-100。"""
+    score = 50  # 基线
+
+    if heat_signal == "🔥":
+        score += min(dengzong_count * 5, 30)  # 郑总重仓最多+30
+    elif heat_signal == "🌊":
+        score += 25  # 冷门品类 = 先发优势
+    elif heat_signal == "⚡":
+        score += min(external_s_count * 10, 30)  # 外部聪明卖家最多+30
+
+    # 外部S/A卖家加分
+    if external_s_count >= 3:
+        score += 15
+    elif external_s_count >= 1:
+        score += 5
+
+    return min(score, 100)
+
+
+def _seller_status_from_score(score: int) -> str:
+    """卖家信号分数 → 状态。"""
+    if score >= 75:
+        return "STRONG"
+    elif score >= 50:
+        return "MODERATE"
+    elif score >= 30:
+        return "WEAK"
+    return "ABSENT"

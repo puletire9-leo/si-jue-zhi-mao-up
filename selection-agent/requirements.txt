@@ -9,3 +9,10 @@ python-dotenv>=1.0.1
 pydantic>=2.8.0
 pydantic-settings>=2.2.0
 sse-starlette>=2.0.0
+
+# 定时任务
+apscheduler>=3.10
+
+# 测试
+pytest>=8.0.0
+pytest-asyncio>=0.23.0

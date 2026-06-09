@@ -15,6 +15,7 @@ from selection.llm_utils import call_llm_json
 from selection.prompt_templates import COMPETITION_ANALYSIS_PROMPT
 from selection.algorithms.cr3_calculator import calculate_cr3
 from selection.algorithms.price_band import analyze_price_band
+from selection.algorithms.blue_ocean_radar import detect_blue_ocean
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,22 @@ async def competition_analysis_node(state: SelectionState) -> Dict[str, Any]:
     logger.info(f"[能力2] 价格带: dominant={price_band_result.dominant_band}, "
                 f"gaps={len(price_band_result.price_gaps)}")
 
+    # ── Step 1b: 蓝海雷达 ──
+    blue_ocean_result = detect_blue_ocean(
+        category_label=sub.get("nodeName", ""),
+        marketplace=state.get("marketplace", "UK"),
+        cr3=cr3_result.cr3,
+        entry_barrier=cr3_result.entry_barrier,
+        units_growth_rate=float(sub.get("unitsGrowthRate", 0)),
+        avg_ratings=float(sub.get("avgRatings", 0)),
+        avg_rating=float(sub.get("avgRating", 0)),
+        avg_price=float(avg_price),
+        price_range=float(price_max) - float(price_min) if price_max and price_min else 0,
+        price_gaps=price_band_result.price_gaps,
+        product_count=product_count,
+    )
+    logger.info(f"[能力2] 蓝海: score={blue_ocean_result.overall_score}, class={blue_ocean_result.classification}")
+
     # ── Step 2: LLM 解读（注入算法结果） ──
     input_data = {
         "nodeName": sub.get("nodeName", ""),
@@ -61,6 +78,7 @@ async def competition_analysis_node(state: SelectionState) -> Dict[str, Any]:
         "algorithmPrecompute": {
             "cr3": cr3_result.to_dict(),
             "priceBand": price_band_result.to_dict(),
+            "blueOcean": blue_ocean_result.to_dict(),
         },
     }
 
