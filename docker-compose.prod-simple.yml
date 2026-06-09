@@ -65,8 +65,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     image: prod-backend
     container_name: prod-backend
     ports:
@@ -95,7 +95,6 @@ services:
     volumes:
       - prod-logs:/app/logs
       - prod-models:/app/model_cache
-      - ./领星:/app/领星
       - prod-download-cache:/app/下载缓存
     depends_on:
       mysql:
@@ -106,8 +105,8 @@ services:
 
   celery-download:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     image: prod-celery-download
     container_name: prod-celery-download
     command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=10 -Q download_tasks
