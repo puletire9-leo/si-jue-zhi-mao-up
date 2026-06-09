@@ -31,7 +31,7 @@ from selection.prompt_templates import (
     BLUE_OCEAN_OPPORTUNITY_CARD_PROMPT,
     BLUE_OCEAN_OVERVIEW_PROMPT,
 )
-from selection.algorithms.blue_ocean_radar import enhance_with_seller_signals
+from selection.algorithms.blue_ocean_radar import _compute_seller_signal_score
 
 logger = logging.getLogger(__name__)
 
@@ -339,6 +339,13 @@ async def _fetch_seller_profiles(
         )
         if isinstance(raw, dict):
             return raw
+        if isinstance(raw, list):
+            # List[Dict] → Dict[str, Dict]，按 category 字段分组
+            result: Dict[str, Dict[str, Any]] = {}
+            for item in raw:
+                cat = item.get("category", item.get("categoryName", "unknown"))
+                result[cat] = item
+            return result
         return {}
     except AttributeError:
         return {}
@@ -358,7 +365,11 @@ def _inject_seller_signals(
     heat = profiling.get("heat_signal", "")
     recs = profiling.get("recommendations", [])
 
-    seller_diversity_score = min(100, (dengzong + ext_s) * 15 + 20)
+    seller_diversity_score = _compute_seller_signal_score(
+        heat_signal=heat,
+        dengzong_count=dengzong,
+        external_s_count=ext_s,
+    )
     if total == 0:
         seller_diversity_score = 0
 

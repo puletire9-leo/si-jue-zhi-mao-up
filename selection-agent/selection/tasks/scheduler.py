@@ -43,22 +43,22 @@ def init_scheduler():
     # ── 月度蓝海全品类扫描（每月1号凌晨3点） ──
     scheduler.add_job(
         _run_blue_ocean_wrapper,
-        CronTrigger(day=1, hour=3, minute=0),
+        CronTrigger(day=1, hour=1, minute=0),
         id="monthly_blue_ocean",
         name="月度蓝海全品类扫描",
         replace_existing=True,
     )
-    logger.info("[scheduler] 注册: monthly_blue_ocean (每月1号 03:00)")
+    logger.info("[scheduler] 注册: monthly_blue_ocean (每月1号 01:00)")
 
     # ── 月度卖家行为画像全量扫描（每月1号凌晨5点） ──
     scheduler.add_job(
         _run_seller_scan_wrapper,
-        CronTrigger(day=1, hour=5, minute=0),
+        CronTrigger(day=1, hour=7, minute=0),
         id="monthly_seller_scan",
         name="月度卖家行为画像扫描",
         replace_existing=True,
     )
-    logger.info("[scheduler] 注册: monthly_seller_scan (每月1号 05:00)")
+    logger.info("[scheduler] 注册: monthly_seller_scan (每月1号 07:00)")
 
     scheduler.start()
     logger.info("[scheduler] APScheduler 已启动")

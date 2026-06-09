@@ -12,6 +12,7 @@
 import asyncio
 import os
 import logging
+import threading
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -19,7 +20,7 @@ from httpx import ConnectError, TimeoutException
 
 logger = logging.getLogger(__name__)
 
-JAVA_BASE_URL = os.getenv("JAVA_BASE_URL", "http://localhost:8080")
+JAVA_BASE_URL = os.getenv("JAVA_BASE_URL", "http://localhost:8002")
 REQUEST_TIMEOUT = 30.0
 MAX_RETRIES = int(os.getenv("JAVA_MAX_RETRIES", "3"))
 RETRY_DELAY = float(os.getenv("JAVA_RETRY_DELAY", "1.0"))
@@ -198,7 +199,7 @@ class JavaClient:
                 url,
                 json={
                     "marketplace": marketplace,
-                    "asins": asins,
+                    "asin": asins,
                     "month": month,
                 },
             )
@@ -206,6 +207,9 @@ class JavaClient:
             # Java Result<T> 包装解包
             if isinstance(data, dict) and "data" in data and "code" in data:
                 data = data["data"] or []
+            # PageResult 适配: {list:[...], total:N, page:N, size:N} → list
+            if isinstance(data, dict) and "list" in data:
+                data = data["list"]
             if isinstance(data, list):
                 logger.info(
                     f"竞品查询成功: {len(data)}/{len(asins)} 条"
@@ -445,7 +449,7 @@ class JavaClient:
     ) -> List[str]:
         """获取郑总店铺名单。
 
-        GET /api/v1/seller/dengzong-shops
+        GET /api/v1/deng-zong-shop/sellers
 
         Args:
             marketplace: 站点
@@ -453,7 +457,7 @@ class JavaClient:
         Returns:
             ["shop_name_1", ...]
         """
-        url = f"{self.base_url}/api/v1/seller/dengzong-shops"
+        url = f"{self.base_url}/api/v1/deng-zong-shop/sellers"
         logger.debug(f"GET {url} — {marketplace}")
 
         try:
@@ -475,11 +479,14 @@ class JavaClient:
 
 # 全局单例（供各节点直接导入使用）
 _java_client: Optional[JavaClient] = None
+_java_client_lock = threading.Lock()
 
 
 def get_java_client() -> JavaClient:
-    """获取全局 JavaClient 单例。"""
+    """获取全局 JavaClient 单例（线程安全）。"""
     global _java_client
     if _java_client is None:
-        _java_client = JavaClient()
+        with _java_client_lock:
+            if _java_client is None:
+                _java_client = JavaClient()
     return _java_client
