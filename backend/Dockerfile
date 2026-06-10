@@ -2,8 +2,7 @@
 # 继承基础镜像 (Python + 所有依赖)，只加源码和启动命令
 FROM sjzm-python-base
 
-COPY backend/ /app/
-COPY ./领星 /app/领星
+COPY . .
 
 EXPOSE 7090
 
