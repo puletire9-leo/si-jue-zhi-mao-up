@@ -23,6 +23,7 @@ from io import BytesIO
 import asyncio
 import hashlib
 import uuid
+import re
 import tempfile
 
 try:
@@ -277,6 +278,9 @@ def _convert_image_paths_to_urls(images_data):
                 elif img_path.startswith('//'):
                     # 协议相对URL，添加HTTPS协议
                     image_urls.append(f"https:{img_path}")
+                elif img_path.startswith(('/api/v1/image-proxy/', '/image-proxy/')):
+                    # 代理URL，保持原样，不转换
+                    image_urls.append(img_path)
                 elif img_path.startswith(('/images/', '/thumbnails/')):
                     # 已经是本地URL格式，直接使用
                     image_urls.append(img_path)
@@ -872,8 +876,8 @@ async def create_final_draft(
             draft.element,
             draft.modification_requirement,
             draft.infringement_label,
-            json.dumps(draft.images),
-            json.dumps(draft.reference_images),
+            json.dumps([img for img in draft.images if not str(img).startswith('data:')]),
+            json.dumps([img for img in draft.reference_images if not str(img).startswith('data:')]),
             draft.status,
             None,  # local_thumbnail_path
             'pending'  # local_thumbnail_status
@@ -1088,8 +1092,8 @@ async def _batch_create_final_drafts(
                 draft_data.element,
                 draft_data.modification_requirement,
                 draft_data.infringement_label,
-                json.dumps(draft_data.images),
-                json.dumps(draft_data.reference_images),
+                json.dumps([img for img in draft_data.images if not str(img).startswith('data:')]),
+                json.dumps([img for img in draft_data.reference_images if not str(img).startswith('data:')]),
                 draft_data.status
             ])
 
@@ -1967,13 +1971,36 @@ async def update_final_draft(
             update_fields.append("infringement_label = %s")
             params.append(draft_update.infringement_label)
 
+        # 提前导入cos_service供_normalize_image_url使用
+        from ...services.cos_service import cos_service as _cos_svc
+
+        # 辅助函数：规范化图片URL（代理URL→COS URL，过滤data URI）
+        def _normalize_image_url(img_url: str) -> Optional[str]:
+            if not img_url or str(img_url).startswith('data:'):
+                return None
+            url_str = str(img_url)
+            # 代理URL：提取filename参数，生成COS URL
+            if 'filename=' in url_str and '/image-proxy/' in url_str:
+                m = re.search(r'filename=([^&]+)', url_str)
+                if m:
+                    filename = m.group(1)
+                    return _cos_svc.get_full_url(f"final_drafts/{filename}")
+            # 已是完整COS URL，直接返回
+            return url_str
+
         if draft_update.images is not None:
+            # 规范化并过滤：data URI过滤掉，代理URL转COS URL
+            clean_images = [_normalize_image_url(img) for img in draft_update.images]
+            clean_images = [img for img in clean_images if img is not None]
             update_fields.append("images = %s")
-            params.append(json.dumps(draft_update.images))
+            params.append(json.dumps(clean_images))
 
         if draft_update.reference_images is not None:
+            # 规范化并过滤
+            clean_ref_images = [_normalize_image_url(img) for img in draft_update.reference_images]
+            clean_ref_images = [img for img in clean_ref_images if img is not None]
             update_fields.append("reference_images = %s")
-            params.append(json.dumps(draft_update.reference_images))
+            params.append(json.dumps(clean_ref_images))
 
         if draft_update.status is not None:
             update_fields.append("status = %s")
@@ -2003,30 +2030,58 @@ async def update_final_draft(
         else:
             new_reference_images = old_reference_images
         
-        # 找出被删除的图片（通过COS对象键比较，避免URL格式不同导致误删）
-        def _url_to_key(url: str) -> str:
-            """提取URL中的对象键用于比较"""
-            key = _extract_cos_object_key(url)
-            return key if key else url
+        # 找出被删除的图片（通过文件名比较，兼容不同URL格式）
+        def _url_to_filename(url: str) -> Optional[str]:
+            """从URL提取文件名用于比较，兼容COS URL、代理URL、本地路径等格式"""
+            if not url:
+                return None
+            # 过滤掉 data: URI，这些不应该参与比较
+            if url.startswith('data:'):
+                return None
+            # 尝试从URL中提取文件名
+            # 处理 /api/v1/image-proxy/local?filename=xxx.webp 格式
+            if 'filename=' in url:
+                import re
+                m = re.search(r'filename=([^&]+)', url)
+                if m:
+                    return m.group(1)
+            # 处理标准URL：取路径最后一段
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            basename = os.path.basename(parsed.path)
+            if basename:
+                return basename
+            return url
 
-        old_image_keys = {_url_to_key(img): img for img in old_images}
-        new_image_keys = {_url_to_key(img) for img in new_images}
-        deleted_images = [url for key, url in old_image_keys.items() if key not in new_image_keys]
+        # 构建新旧文件名集合
+        def _get_filenames(urls: list) -> set:
+            result = set()
+            for u in urls:
+                fn = _url_to_filename(u)
+                if fn:
+                    result.add(fn)
+            return result
 
-        old_ref_keys = {_url_to_key(img): img for img in old_reference_images}
-        new_ref_keys = {_url_to_key(img) for img in new_reference_images}
-        deleted_reference_images = [url for key, url in old_ref_keys.items() if key not in new_ref_keys]
+        old_filenames = {_url_to_filename(img): img for img in old_images if _url_to_filename(img)}
+        new_filenames = _get_filenames(new_images)
+        deleted_images = [url for fn, url in old_filenames.items() if fn not in new_filenames]
+
+        old_ref_filenames = {_url_to_filename(img): img for img in old_reference_images if _url_to_filename(img)}
+        new_ref_filenames = _get_filenames(new_reference_images)
+        deleted_reference_images = [url for fn, url in old_ref_filenames.items() if fn not in new_ref_filenames]
 
         deleted_all_images = deleted_images + deleted_reference_images
-        
-        # 删除腾讯云COS上的旧图片
+
+        # 删除腾讯云COS上的旧图片（仅删除确认是COS URL的图片）
         if deleted_all_images and cos_service.enabled:
             logger.info(f"开始删除定稿旧图片 - SKU: {sku}, 图片数量: {len(deleted_all_images)}")
-            
-            from ...services.cos_service import cos_service
-            
+
             for image_url in deleted_all_images:
                 try:
+                    # 只处理COS URL，跳过代理URL和data URI
+                    if not image_url or image_url.startswith('data:') or '/image-proxy/' in image_url:
+                        logger.info(f"跳过非COS图片删除 - URL: {image_url[:80] if image_url else 'None'}, 定稿SKU: {sku}")
+                        continue
                     # 提取COS对象键
                     object_key = _extract_cos_object_key(image_url)
                     if object_key:
@@ -2036,10 +2091,10 @@ async def update_final_draft(
                             logger.info(f"成功删除COS图片 - 对象键: {object_key}, 定稿SKU: {sku}")
                         else:
                             logger.error(f"删除COS图片失败 - 对象键: {object_key}, 定稿SKU: {sku}, 错误: {error_msg}")
-                        
+
                         # 生成所有可能的缩略图对象键
                         thumbnail_keys = _generate_thumbnail_object_keys(object_key)
-                        
+
                         # 删除所有对应的缩略图
                         for thumbnail_key in thumbnail_keys:
                             success, error_msg = await cos_service.delete_image(thumbnail_key)
@@ -2049,9 +2104,9 @@ async def update_final_draft(
                                 # 缩略图删除失败不影响主流程，只记录日志
                                 logger.warning(f"删除缩略图失败 - 对象键: {thumbnail_key}, 定稿SKU: {sku}, 错误: {error_msg}")
                     else:
-                        logger.warning(f"无法提取COS对象键，跳过删除 - URL: {image_url}, 定稿SKU: {sku}")
+                        logger.warning(f"无法提取COS对象键，跳过删除 - URL: {image_url[:80]}, 定稿SKU: {sku}")
                 except Exception as e:
-                    logger.error(f"删除定稿旧图片失败 - URL: {image_url}, 定稿SKU: {sku}, 错误: {str(e)}")
+                    logger.error(f"删除定稿旧图片失败 - URL: {image_url[:80] if image_url else 'None'}, 定稿SKU: {sku}, 错误: {str(e)}")
                     # 图片删除失败不影响主流程，继续处理其他图片
         
         # 执行更新
