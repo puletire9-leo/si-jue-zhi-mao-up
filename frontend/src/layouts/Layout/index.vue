@@ -56,7 +56,7 @@ const handleToggleSidebar = () => {
   flex-shrink: 0;
   height: 100%;
   background: white;
-  box-shadow: 2px 0 12px rgba(124, 97, 212, 0.08);
+  box-shadow: 2px 0 12px rgba(180, 83, 9, 0.08);
   transition: width 0.25s ease;
   z-index: 100;
 }
@@ -65,14 +65,14 @@ const handleToggleSidebar = () => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: #FFFBF7;
+  background: #faf8f5;
   overflow: hidden;
 }
 
 .header {
   height: 64px;
   background: white;
-  border-bottom: 1px solid #F0EBE6;
+  border-bottom: 1px solid #e5e1da;
   flex-shrink: 0;
 }
 

@@ -244,7 +244,7 @@ if (rememberedUsername) {
 
 .login-left {
   flex: 1.2;
-  background: linear-gradient(135deg, #FFFBF7 0%, #FFF5EE 50%, #F8F4FF 100%);
+  background: linear-gradient(135deg, #faf8f5 0%, #FFF5EE 50%, #f5f0eb 100%);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -272,7 +272,7 @@ if (rememberedUsername) {
 .shape-1 {
   width: 350px;
   height: 350px;
-  background: linear-gradient(135deg, rgba(124, 97, 212, 0.15), rgba(159, 133, 224, 0.1));
+  background: linear-gradient(135deg, rgba(180, 83, 9, 0.15), rgba(217, 119, 6, 0.1));
   top: -120px;
   right: -80px;
   animation: float 8s ease-in-out infinite;
@@ -290,7 +290,7 @@ if (rememberedUsername) {
 .shape-3 {
   width: 180px;
   height: 180px;
-  background: linear-gradient(135deg, rgba(124, 97, 212, 0.08), transparent);
+  background: linear-gradient(135deg, rgba(180, 83, 9, 0.08), transparent);
   bottom: 25%;
   right: 15%;
   animation: float 6s ease-in-out infinite;
@@ -316,7 +316,7 @@ if (rememberedUsername) {
 .logo-icon {
   width: 90px;
   height: 90px;
-  background: linear-gradient(135deg, #7C61D4, #9F85E0);
+  background: linear-gradient(135deg, #b45309, #d97706);
   border-radius: 22px;
   display: flex;
   align-items: center;
@@ -325,7 +325,7 @@ if (rememberedUsername) {
   color: white;
   font-size: 42px;
   font-weight: 700;
-  box-shadow: 0 12px 40px rgba(124, 97, 212, 0.35);
+  box-shadow: 0 12px 40px rgba(180, 83, 9, 0.35);
   transform: rotate(-5deg);
   transition: transform 0.3s ease;
 
@@ -337,14 +337,14 @@ if (rememberedUsername) {
 .brand-name {
   font-size: 38px;
   font-weight: 600;
-  color: #2F281D;
+  color: #1a1a1a;
   margin-bottom: 10px;
   letter-spacing: 0.05em;
 }
 
 .brand-tagline {
   font-size: 16px;
-  color: #6B5E52;
+  color: #6b7280;
   margin-bottom: 48px;
 }
 
@@ -366,7 +366,7 @@ if (rememberedUsername) {
   gap: 14px;
   padding: 10px 0;
   border-bottom: 1px solid rgba(240, 235, 230, 0.6);
-  color: #2F281D;
+  color: #1a1a1a;
   font-size: 14px;
 
   &:last-child {
@@ -386,8 +386,8 @@ if (rememberedUsername) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(124, 97, 212, 0.12), rgba(159, 133, 224, 0.08));
-  color: #7C61D4;
+  background: linear-gradient(135deg, rgba(180, 83, 9, 0.12), rgba(217, 119, 6, 0.08));
+  color: #b45309;
   flex-shrink: 0;
 }
 
@@ -412,13 +412,13 @@ if (rememberedUsername) {
   h2 {
     font-size: 28px;
     font-weight: 600;
-    color: #2F281D;
+    color: #1a1a1a;
     margin-bottom: 8px;
   }
 
   p {
     font-size: 14px;
-    color: #6B5E52;
+    color: #6b7280;
   }
 }
 
@@ -432,15 +432,15 @@ if (rememberedUsername) {
     
     .el-input__wrapper {
       padding: 4px 16px;
-      box-shadow: 0 0 0 1px #F0EBE6;
+      box-shadow: 0 0 0 1px #e5e1da;
       transition: all 0.2s ease;
 
       &:hover {
-        box-shadow: 0 0 0 1px #E5DFD8;
+        box-shadow: 0 0 0 1px #d6cfc6;
       }
 
       &.is-focus {
-        box-shadow: 0 0 0 2px rgba(124, 97, 212, 0.2), 0 0 0 1px #7C61D4;
+        box-shadow: 0 0 0 2px rgba(180, 83, 9, 0.2), 0 0 0 1px #b45309;
       }
     }
 
@@ -450,16 +450,16 @@ if (rememberedUsername) {
     }
 
     .el-input__prefix {
-      color: #A89F96;
+      color: #9ca3af;
     }
   }
 
   :deep(.el-checkbox) {
-    --el-checkbox-checked-bg-color: #7C61D4;
-    --el-checkbox-checked-input-border-color: #7C61D4;
+    --el-checkbox-checked-bg-color: #b45309;
+    --el-checkbox-checked-input-border-color: #b45309;
 
     .el-checkbox__label {
-      color: #6B5E52;
+      color: #6b7280;
       font-size: 14px;
     }
   }
@@ -474,13 +474,13 @@ if (rememberedUsername) {
 
 .forgot-link {
   font-size: 14px;
-  color: #7C61D4;
+  color: #b45309;
   text-decoration: none;
   font-weight: 500;
   transition: color 0.2s ease;
 
   &:hover {
-    color: #6347C0;
+    color: #92400e;
     text-decoration: underline;
   }
 }
@@ -488,19 +488,19 @@ if (rememberedUsername) {
 .login-button {
   width: 100%;
   height: 48px;
-  background: linear-gradient(135deg, #7C61D4, #9F85E0);
+  background: linear-gradient(135deg, #b45309, #d97706);
   border: none;
   border-radius: 12px;
   font-size: 16px;
   font-weight: 600;
   letter-spacing: 0.05em;
   color: white;
-  box-shadow: 0 4px 14px rgba(124, 97, 212, 0.35);
+  box-shadow: 0 4px 14px rgba(180, 83, 9, 0.35);
   transition: all 0.25s ease;
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(124, 97, 212, 0.45);
+    box-shadow: 0 6px 20px rgba(180, 83, 9, 0.45);
   }
 
   &:active {
@@ -514,15 +514,15 @@ if (rememberedUsername) {
 
   p {
     font-size: 13px;
-    color: #A89F96;
+    color: #9ca3af;
   }
 
   code {
-    background: #F8F4FF;
+    background: #f5f0eb;
     padding: 2px 8px;
     border-radius: 4px;
     font-family: monospace;
-    color: #7C61D4;
+    color: #b45309;
     font-weight: 500;
   }
 }

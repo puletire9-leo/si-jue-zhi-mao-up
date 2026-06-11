@@ -195,16 +195,33 @@ async def run_seller_scan(
         result["errors"].append(f"热度矩阵构建失败: {e}")
         logger.error(f"[seller_scan] 热度矩阵失败: {e}")
 
-    # ── Step 5: 跟品信号 ──
+    # ── Step 5: 跟品信号（双轨：品类级 + 产品级）──
     follow_signals: List[FollowSignal] = []
     try:
-        follow_signals = detect_follow_signals(
+        from selection.algorithms.seller_profiling import (
+            detect_follow_signals,
+            detect_product_follow_signals,
+        )
+        # 品类级：市场热度信号
+        cat_signals = detect_follow_signals(
             products_by_category=products_by_category,
             seller_grades=seller_grades,
             dengzong_names=dengzong_names,
         )
+        # 产品级：parent_asin 跨店铺追踪
+        product_signals = detect_product_follow_signals(
+            all_products=all_products,
+            seller_grades=seller_grades,
+            dengzong_names=dengzong_names,
+        )
+        follow_signals = cat_signals + product_signals
         result["follow_signals"] = len(follow_signals)
-        logger.info(f"[seller_scan] 跟品信号: {len(follow_signals)} 条")
+        result["category_signals"] = len(cat_signals)
+        result["product_signals"] = len(product_signals)
+        logger.info(
+            f"[seller_scan] 跟品信号: {len(follow_signals)} 条 "
+            f"(品类级={len(cat_signals)}, 产品级={len(product_signals)})"
+        )
     except Exception as e:
         result["errors"].append(f"跟品信号检测失败: {e}")
         logger.error(f"[seller_scan] 跟品信号失败: {e}")
@@ -234,9 +251,13 @@ async def run_seller_scan(
         signal_dicts = [s.to_dict() for s in follow_signals]
         await client.post_follow_signals(signal_dicts)
 
+        # 回写品类热度矩阵
+        heat_dicts = [h.to_dict() for h in heat_rows]
+        await client.post_heat_matrix(heat_dicts)
+
         logger.info(
             f"[seller_scan] 回写成功: "
-            f"{len(profile_dicts)} 画像 + {len(signal_dicts)} 信号"
+            f"{len(profile_dicts)} 画像 + {len(signal_dicts)} 信号 + {len(heat_dicts)} 热度"
         )
     except Exception as e:
         result["errors"].append(f"回写失败: {e}")

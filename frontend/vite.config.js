@@ -110,6 +110,15 @@ export default defineConfig(({ mode }) => {
           timeout: 300000,
           logLevel: 'warn'
         },
+        '/api/v1/product-line': {
+          target: mode === 'development'
+            ? `http://${env.VITE_SELECTION_AGENT_HOST || 'localhost'}:${env.VITE_SELECTION_AGENT_PORT || '8011'}`
+            : (env.VITE_SELECTION_AGENT_URL || 'http://localhost:8011'),
+          changeOrigin: true,
+          secure: false,
+          timeout: 30000,
+          logLevel: 'warn'
+        },
         '/api/v1/auth': {
           target: javaUserTarget,
           changeOrigin: true,
@@ -122,6 +131,16 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
           timeout: 30000,
+          logLevel: 'warn'
+        },
+        // 选品 Agent SSE 服务（必须在 ^/api 兜底规则之前）
+        '/selection-api': {
+          target: mode === 'development'
+            ? `http://${env.VITE_SELECTION_AGENT_HOST || 'localhost'}:${env.VITE_SELECTION_AGENT_PORT || '8011'}`
+            : (env.VITE_SELECTION_AGENT_URL || 'http://localhost:8011'),
+          changeOrigin: true,
+          secure: false,
+          timeout: 600000,
           logLevel: 'warn'
         },
         // Python 后端（兜底）

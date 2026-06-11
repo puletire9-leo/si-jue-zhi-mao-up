@@ -71,13 +71,13 @@ const handleToggle = (item: { title: string }) => {
   margin-bottom: 24px;
   font-size: 18px;
   font-weight: 600;
-  color: #2F281D;
+  color: #1a1a1a;
 }
 
 .preferences-list {
   background: white;
   border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(124, 97, 212, 0.08);
+  box-shadow: 0 2px 12px rgba(180, 83, 9, 0.08);
   overflow: hidden;
 }
 
@@ -86,14 +86,14 @@ const handleToggle = (item: { title: string }) => {
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid #F0EBE6;
+  border-bottom: 1px solid #e5e1da;
 
   &:last-child {
     border-bottom: none;
   }
 
   &:hover {
-    background: #FFFBF7;
+    background: #faf8f5;
   }
 }
 
@@ -102,7 +102,7 @@ const handleToggle = (item: { title: string }) => {
 
   .preference-title {
     font-weight: 600;
-    color: #2F281D;
+    color: #1a1a1a;
     margin-bottom: 4px;
   }
 
@@ -117,7 +117,7 @@ const handleToggle = (item: { title: string }) => {
     background: #E5E7EB;
 
     &.is-active {
-      background: linear-gradient(135deg, #7C61D4, #9F85E0);
+      background: linear-gradient(135deg, #b45309, #d97706);
     }
   }
 }

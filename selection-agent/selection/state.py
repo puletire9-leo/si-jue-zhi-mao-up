@@ -21,6 +21,7 @@ class SelectionState(TypedDict, total=False):
     # @consumer: data_fetch
     batch_id: str
     marketplace: str           # UK / DE / US
+    month: str                 # 数据月份 如 202605
 
     # ═══ 节点0: data_fetch ═══
     # @producer: data_fetch

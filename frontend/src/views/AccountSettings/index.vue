@@ -123,7 +123,7 @@ onMounted(() => {
   width: 240px;
   background: white;
   border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(124, 97, 212, 0.08);
+  box-shadow: 0 2px 12px rgba(180, 83, 9, 0.08);
 }
 
 .account-menu {
@@ -137,14 +137,14 @@ onMounted(() => {
     gap: 8px;
     padding: 12px 16px;
     margin-bottom: 24px;
-    color: #6B5E52;
+    color: #6b7280;
     cursor: pointer;
     border-radius: 10px;
     transition: all 0.2s;
 
     &:hover {
-      background: #F8F4FF;
-      color: #7C61D4;
+      background: #f5f0eb;
+      color: #b45309;
     }
   }
 
@@ -155,7 +155,7 @@ onMounted(() => {
     padding: 16px;
     margin-bottom: 16px;
     border-radius: 12px;
-    background: linear-gradient(135deg, #FFFBF7, #F8F4FF);
+    background: linear-gradient(135deg, #faf8f5, #f5f0eb);
 
     .user-detail {
       display: flex;
@@ -163,7 +163,7 @@ onMounted(() => {
 
       .nickname {
         font-weight: 600;
-        color: #2F281D;
+        color: #1a1a1a;
       }
 
       .username {
@@ -178,18 +178,18 @@ onMounted(() => {
     line-height: 44px;
     margin-bottom: 4px;
     border-radius: 10px;
-    color: #6B5E52;
+    color: #6b7280;
     transition: all 0.2s;
 
     &:hover {
-      background: #F8F4FF;
-      color: #7C61D4;
+      background: #f5f0eb;
+      color: #b45309;
     }
 
     &.is-active {
-      background: linear-gradient(135deg, #7C61D4, #9F85E0);
+      background: linear-gradient(135deg, #b45309, #d97706);
       color: white;
-      box-shadow: 0 4px 12px rgba(124, 97, 212, 0.3);
+      box-shadow: 0 4px 12px rgba(180, 83, 9, 0.3);
     }
   }
 }

@@ -91,6 +91,22 @@ _KEYWORD_FALLBACK = {
         "lesezeichen", "briefmarke", "untersetzer", "umschlag",
         "aufkleber", "schreibwaren",
     ],
+    "UNKNOWN": [],  # placeholder
+}
+
+# ── 品类→原型直接映射（优先于关键词匹配）──
+_CATEGORY_TO_ARCHETYPE = {
+    "Automotive": "FH",           # 汽车配件→功能型
+    "Sports & Outdoors": "FH",    # 运动户外→功能型
+    "Car & Motorbike": "FH",
+    "Electronics & Photo": "FH",
+    "Computers & Accessories": "FH",
+    "Health & Personal Care": "FH",
+    "Pet Supplies": "FH",
+    "DIY & Tools": "FH",
+    "Large Appliances": "FH",
+    "Business, Industry & Science": "FH",
+    "Musical Instruments & DJ": "FP",
 }
 
 
@@ -125,6 +141,21 @@ def map_archetype(
                 archetype=archetype, confidence=1.0,
                 match_method="EXACT", matched_keyword=key,
             )
+
+    # ── Level 1.5: 品类名直接映射 ──
+    category_key = _CATEGORY_TO_ARCHETYPE.get(node_name)
+    if not category_key:
+        # 尝试模糊匹配
+        for cat, arch in _CATEGORY_TO_ARCHETYPE.items():
+            if cat.lower() in node_name.lower() or node_name.lower() in cat.lower():
+                category_key = arch
+                break
+    if category_key:
+        logger.info(f"[archetype_mapper] 品类映射: '{node_name}' → {category_key}")
+        return ArchetypeMatch(
+            archetype=category_key, confidence=0.7,
+            match_method="CATEGORY_MAP", matched_keyword=node_name,
+        )
 
     # ── Level 2: 关键词回退 ──
     # 在 node_name 和 node_full_path 中搜索关键词（使用词边界避免误匹配）

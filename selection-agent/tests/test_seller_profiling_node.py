@@ -10,7 +10,7 @@ import sys
 # 预 mock LLM 依赖链，避免导入 torch 触发 Windows DLL crash
 sys.modules["selection.llm_utils"] = MagicMock()
 sys.modules["selection.llm_utils"].call_llm_json = AsyncMock(
-    return_value='{"summary": "test", "insights": []}'
+    return_value={"summary": "test", "insights": []}
 )
 sys.modules["selection.llm_utils"].call_llm = AsyncMock(
     return_value="test response"

@@ -8,6 +8,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Mapper
@@ -57,6 +58,16 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
         "  <if test='isCurrent != null'> AND cp.is_current = #{isCurrent}</if>" +
         "  <if test='maxVariantCount != null'> AND cp.variations &lt;= #{maxVariantCount}</if>" +
         "  <if test='category != null'> AND FIND_IN_SET(SUBSTRING_INDEX(cp.node_label_path, ':', 1), #{category})</if>" +
+        "  <if test='priceMin != null'> AND cp.price &gt;= #{priceMin}</if>" +
+        "  <if test='priceMax != null'> AND cp.price &lt;= #{priceMax}</if>" +
+        "  <if test='bsrMax != null'> AND cp.bsr &lt;= #{bsrMax}</if>" +
+        "  <if test='ratingMin != null'> AND cp.rating &gt;= #{ratingMin}</if>" +
+        "  <if test='weightMax != null'> AND cp.weight_g &lt;= #{weightMax}</if>" +
+        "  <if test='keywordList != null and keywordList.size() > 0'>" +
+        "    <foreach collection='keywordList' item='word' open='' separator='' close=''>" +
+        "      AND cp.title LIKE CONCAT('%', #{word}, '%')" +
+        "    </foreach>" +
+        "  </if>" +
         ") t WHERE ((t.filter_mode IN ('MODE1','MODE2') AND t.rn &lt;= 3) " +
         "   OR (t.filter_mode NOT IN ('MODE1','MODE2') AND t.rn = 1)) " +
         "<if test='sortBy != null and sortOrder != null'>" +
@@ -89,6 +100,12 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
             @Param("isCurrent") Integer isCurrent,
             @Param("maxVariantCount") Integer maxVariantCount,
             @Param("category") String category,
+            @Param("priceMin") BigDecimal priceMin,
+            @Param("priceMax") BigDecimal priceMax,
+            @Param("bsrMax") Integer bsrMax,
+            @Param("ratingMin") BigDecimal ratingMin,
+            @Param("weightMax") BigDecimal weightMax,
+            @Param("keywordList") List<String> keywordList,
             @Param("sortBy") String sortBy,
             @Param("sortOrder") String sortOrder,
             @Param("offset") int offset,
@@ -138,6 +155,16 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
         "    <if test='weekTag != null'> AND cp.week_tag = #{weekTag}</if>" +
         "    <if test='isCurrent != null'> AND cp.is_current = #{isCurrent}</if>" +
         "    <if test='category != null'> AND FIND_IN_SET(SUBSTRING_INDEX(cp.node_label_path, ':', 1), #{category})</if>" +
+        "    <if test='priceMin != null'> AND cp.price &gt;= #{priceMin}</if>" +
+        "    <if test='priceMax != null'> AND cp.price &lt;= #{priceMax}</if>" +
+        "    <if test='bsrMax != null'> AND cp.bsr &lt;= #{bsrMax}</if>" +
+        "    <if test='ratingMin != null'> AND cp.rating &gt;= #{ratingMin}</if>" +
+        "    <if test='weightMax != null'> AND cp.weight_g &lt;= #{weightMax}</if>" +
+        "    <if test='keywordList != null and keywordList.size() > 0'>" +
+        "      <foreach collection='keywordList' item='word' open='' separator='' close=''>" +
+        "        AND cp.title LIKE CONCAT('%', #{word}, '%')" +
+        "      </foreach>" +
+        "    </if>" +
         "  ) t" +
         "  <if test='maxVariantCount != null'> WHERE t.variations &lt;= #{maxVariantCount}</if>" +
         ") ranked WHERE ((ranked.filter_mode IN ('MODE1','MODE2') AND ranked.rn &lt;= 3) " +
@@ -155,5 +182,11 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
             @Param("weekTag") String weekTag,
             @Param("isCurrent") Integer isCurrent,
             @Param("maxVariantCount") Integer maxVariantCount,
-            @Param("category") String category);
+            @Param("category") String category,
+            @Param("priceMin") BigDecimal priceMin,
+            @Param("priceMax") BigDecimal priceMax,
+            @Param("bsrMax") Integer bsrMax,
+            @Param("ratingMin") BigDecimal ratingMin,
+            @Param("weightMax") BigDecimal weightMax,
+            @Param("keywordList") List<String> keywordList);
 }

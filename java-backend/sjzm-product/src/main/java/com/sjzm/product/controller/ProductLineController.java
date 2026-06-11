@@ -28,17 +28,18 @@ public class ProductLineController {
     private final ProductLineGuidanceService guidanceService;
 
     /**
-     * 聚合品线数据 — Agent data_fetch 节点调用。
-     * 按BSR子品类分组统计竞品数据。
+     * 聚合品线数据 — 从 deng_zong_shop 按 marketplace+month 两级聚合。
+     * 返回 L1品线(bsr_id) → L2小类(node_id) → 样本商品 的树形结构。
      *
-     * @param batchId 批次ID（对应week_tag，如 "2026-W24"）
-     * @return {"productLines": [...], "batchId": "..."}
+     * @param marketplace 站点 UK/DE
+     * @param month       数据月份 如 202605
      */
     @GetMapping("/aggregated-data")
-    @Operation(summary = "聚合品线数据", description = "按BSR子品类分组统计竞品数据，供Agent分析")
+    @Operation(summary = "聚合品线数据", description = "从deng_zong_shop按bsr_id/node_id两级聚合，供Agent分析")
     public Result<Map<String, Object>> getAggregatedData(
-            @RequestParam String batchId) {
-        Map<String, Object> data = guidanceService.aggregateData(batchId);
+            @RequestParam(defaultValue = "UK") String marketplace,
+            @RequestParam String month) {
+        Map<String, Object> data = guidanceService.aggregateData(marketplace, month);
         return Result.success(data);
     }
 

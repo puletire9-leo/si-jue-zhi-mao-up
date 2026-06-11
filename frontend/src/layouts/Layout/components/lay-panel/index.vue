@@ -83,13 +83,13 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid #F0EBE6;
+  border-bottom: 1px solid #e5e1da;
 
   h4 {
     margin: 0;
     font-size: 16px;
     font-weight: 600;
-    color: #2F281D;
+    color: #1a1a1a;
   }
 
   .close-icon {
@@ -100,12 +100,12 @@ onUnmounted(() => {
     justify-content: center;
     border-radius: 6px;
     cursor: pointer;
-    color: #6B5E52;
+    color: #6b7280;
     transition: all 0.2s;
 
     &:hover {
-      background: #F8F4FF;
-      color: #7C61D4;
+      background: #f5f0eb;
+      color: #b45309;
     }
   }
 }
@@ -119,7 +119,7 @@ onUnmounted(() => {
 
 .panel-footer {
   padding: 12px 20px;
-  border-top: 1px solid #F0EBE6;
+  border-top: 1px solid #e5e1da;
   display: flex;
   justify-content: flex-end;
 }
@@ -143,7 +143,7 @@ onUnmounted(() => {
 
       &:hover {
         background: #252540;
-        color: #9F85E0;
+        color: #d97706;
       }
     }
   }

@@ -44,6 +44,10 @@ spring:
               uri: http://java-product:8002
               predicates:
                 - Path=/api/v1/images/**,/api/v1/image-proxy/**
+            - id: selection-agent
+              uri: http://selection-agent-v2:8011
+              predicates:
+                - Path=/api/v1/product-line/model/**
 
 jwt:
   secret: ${JWT_SECRET:sjzm-default-secret-key-must-change-in-production-2024}

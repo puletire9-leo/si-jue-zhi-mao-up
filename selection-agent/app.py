@@ -58,6 +58,28 @@ def create_app():
         from selection.tasks.scheduler import init_scheduler
         init_scheduler()
 
+    # ── 关闭时清理资源 ──
+    @app.on_event("shutdown")
+    async def shutdown_resources():
+        logger.info("[shutdown] 正在清理资源...")
+        
+        # 关闭 APScheduler
+        from selection.tasks.scheduler import scheduler
+        if scheduler.running:
+            scheduler.shutdown(wait=False)
+            logger.info("[shutdown] APScheduler 已关闭")
+        
+        # 关闭 JavaClient 连接
+        try:
+            from selection.java_client import get_java_client
+            client = get_java_client()
+            await client.close()
+            logger.info("[shutdown] JavaClient 连接已关闭")
+        except Exception as e:
+            logger.warning(f"[shutdown] JavaClient 关闭异常: {e}")
+        
+        logger.info("[shutdown] 资源清理完成")
+
     logger.info("Selection Agent 启动完成")
     return app
 
