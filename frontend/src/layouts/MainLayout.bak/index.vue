@@ -281,7 +281,7 @@ const handleTagClose = (path: string): void => {
   background: white;
   z-index: 999;
   transition: transform 0.25s ease;
-  box-shadow: 2px 0 12px rgba(124, 97, 212, 0.08);
+  box-shadow: 2px 0 12px rgba(180, 83, 9, 0.08);
   
   &.sidebar-collapsed {
     transform: translateX(-100%);
@@ -300,13 +300,13 @@ const handleTagClose = (path: string): void => {
     gap: 12px;
     height: 64px;
     padding: 0 20px;
-    background: linear-gradient(135deg, #FFFBF7, #F8F4FF);
-    border-bottom: 1px solid #F0EBE6;
+    background: linear-gradient(135deg, #faf8f5, #f5f0eb);
+    border-bottom: 1px solid #e5e1da;
 
     .logo-icon {
       width: 36px;
       height: 36px;
-      background: linear-gradient(135deg, #7C61D4, #9F85E0);
+      background: linear-gradient(135deg, #b45309, #d97706);
       border-radius: 10px;
       display: flex;
       align-items: center;
@@ -314,13 +314,13 @@ const handleTagClose = (path: string): void => {
       color: white;
       font-weight: 700;
       font-size: 18px;
-      box-shadow: 0 2px 8px rgba(124, 97, 212, 0.3);
+      box-shadow: 0 2px 8px rgba(180, 83, 9, 0.3);
     }
 
     .logo-text {
       font-size: 17px;
       font-weight: 600;
-      color: #2F281D;
+      color: #1a1a1a;
     }
   }
 
@@ -336,18 +336,18 @@ const handleTagClose = (path: string): void => {
       line-height: 44px;
       margin-bottom: 4px;
       border-radius: 10px;
-      color: #6B5E52;
+      color: #6b7280;
       transition: all 0.2s ease;
 
       &:hover {
-        background: #F8F4FF;
-        color: #7C61D4;
+        background: #f5f0eb;
+        color: #b45309;
       }
 
       &.is-active {
-        background: linear-gradient(135deg, #7C61D4, #9F85E0);
+        background: linear-gradient(135deg, #b45309, #d97706);
         color: white;
-        box-shadow: 0 4px 12px rgba(124, 97, 212, 0.3);
+        box-shadow: 0 4px 12px rgba(180, 83, 9, 0.3);
       }
     }
 
@@ -357,12 +357,12 @@ const handleTagClose = (path: string): void => {
         line-height: 44px;
         margin-bottom: 4px;
         border-radius: 10px;
-        color: #6B5E52;
+        color: #6b7280;
         transition: all 0.2s ease;
 
         &:hover {
-          background: #F8F4FF;
-          color: #7C61D4;
+          background: #f5f0eb;
+          color: #b45309;
         }
       }
 
@@ -374,8 +374,8 @@ const handleTagClose = (path: string): void => {
           font-size: 13px;
 
           &.is-active {
-            background: rgba(124, 97, 212, 0.15);
-            color: #7C61D4;
+            background: rgba(180, 83, 9, 0.15);
+            color: #b45309;
             box-shadow: none;
           }
         }
@@ -392,7 +392,7 @@ const handleTagClose = (path: string): void => {
   bottom: 0;
   display: flex;
   flex-direction: column;
-  background: #FFFBF7;
+  background: #faf8f5;
   transition: left 0.25s ease;
 }
 
@@ -401,7 +401,7 @@ const handleTagClose = (path: string): void => {
   justify-content: space-between;
   align-items: center;
   background: white;
-  border-bottom: 1px solid #F0EBE6;
+  border-bottom: 1px solid #e5e1da;
   padding: 0 20px;
   height: 64px;
 
@@ -414,11 +414,11 @@ const handleTagClose = (path: string): void => {
       width: 36px;
       height: 36px;
       border-radius: 10px;
-      background: #F8F4FF;
-      color: #7C61D4;
+      background: #f5f0eb;
+      color: #b45309;
 
       &:hover {
-        background: #7C61D4;
+        background: #b45309;
         color: white;
       }
     }
@@ -430,7 +430,7 @@ const handleTagClose = (path: string): void => {
     height: 40px;
     display: flex;
     align-items: center;
-    background: #F8F4FF;
+    background: #f5f0eb;
     border-radius: 10px;
     padding: 0 8px;
 
@@ -446,7 +446,7 @@ const handleTagClose = (path: string): void => {
       font-size: 13px;
       border-radius: 8px;
       background: white;
-      color: #6B5E52;
+      color: #6b7280;
       transition: all 0.2s ease;
 
       &:hover {
@@ -454,7 +454,7 @@ const handleTagClose = (path: string): void => {
       }
 
       &.el-tag--info {
-        background: linear-gradient(135deg, #7C61D4, #9F85E0);
+        background: linear-gradient(135deg, #b45309, #d97706);
         color: white;
       }
     }
@@ -470,17 +470,17 @@ const handleTagClose = (path: string): void => {
       border-radius: 12px;
 
       &:hover {
-        background: #F8F4FF;
+        background: #f5f0eb;
       }
 
       .username {
         font-size: 14px;
         font-weight: 500;
-        color: #2F281D;
+        color: #1a1a1a;
       }
 
       .user-avatar {
-        background: linear-gradient(135deg, #7C61D4, #EAAE87);
+        background: linear-gradient(135deg, #b45309, #EAAE87);
         color: white;
       }
     }
@@ -489,7 +489,7 @@ const handleTagClose = (path: string): void => {
 
 .main-content {
   flex: 1;
-  background: #FFFBF7;
+  background: #faf8f5;
   padding: 20px;
   overflow-y: auto;
 }

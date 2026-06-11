@@ -131,6 +131,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '产品数据看板', icon: 'TrendCharts' }
       },
       {
+        path: 'product-line-analysis',
+        name: 'ProductLineAnalysis',
+        component: () => import('@/views/ProductLineAnalysis/index.vue'),
+        meta: { title: '品线分析', icon: 'DataAnalysis' }
+      },
+      {
         path: 'report-viewer',
         name: 'ReportViewer',
         component: () => import('@/views/ReportViewer/index.vue'),

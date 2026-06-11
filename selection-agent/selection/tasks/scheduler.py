@@ -40,7 +40,7 @@ def init_scheduler():
     )
     logger.info("[scheduler] 注册: quarterly_calib (每季度首月1号 04:00)")
 
-    # ── 月度蓝海全品类扫描（每月1号凌晨3点） ──
+    # ── 月度蓝海全品类扫描（每月1号凌晨1点） ──
     scheduler.add_job(
         _run_blue_ocean_wrapper,
         CronTrigger(day=1, hour=1, minute=0),

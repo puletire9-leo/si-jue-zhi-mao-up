@@ -4,7 +4,7 @@ import { storageConfigure, storageConfigureChange } from "@/utils/storage";
 export function useDataThemeChange() {
   const themeColors = ref([
     { color: "#ffffff", themeColor: "light" },
-    { color: "#1b2a47", themeColor: "default" },
+    { color: "#b45309", themeColor: "default" },
     { color: "#722ed1", themeColor: "saucePurple" },
     { color: "#eb2f96", themeColor: "pink" },
     { color: "#f5222d", themeColor: "dusk" },
@@ -31,7 +31,7 @@ export function useDataThemeChange() {
     document.documentElement.setAttribute("data-theme", theme);
     
     if (theme === "default" || theme === "light") {
-      setEpThemeColor("#7C61D4");
+      setEpThemeColor("#b45309");
     } else {
       const colors = themeColors.value.find(v => v.themeColor === theme);
       if (colors) {

@@ -85,6 +85,7 @@ from selection.algorithms.seller_profiling import (
     grade_seller,
     build_category_heat_matrix,
     detect_follow_signals,
+    detect_product_follow_signals,
     generate_smart_recommendations,
     SellerProfile,
     CategoryHeatRow,

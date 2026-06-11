@@ -17,6 +17,7 @@ services:
       MYSQL_DATABASE: sijuelishi_dev
     volumes:
       - mysql-data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -88,6 +89,9 @@ services:
       VITE_BACKEND_PORT: "8090"
       VITE_JAVA_HOST: java-product
       VITE_JAVA_PORT: "8002"
+      # 选品 Agent SSE 服务（容器间通信）
+      VITE_SELECTION_AGENT_HOST: selection-agent
+      VITE_SELECTION_AGENT_PORT: "8011"
       # 走网关代理时取消下面注释，并注释上面两行
       VITE_USE_GATEWAY: "true"
       VITE_GATEWAY_HOST: gateway
@@ -212,25 +216,28 @@ services:
       - nacos-data:/home/nacos/data
     restart: unless-stopped
 
-  # ── 选品分析 Agent ──
+  # ── 选品分析 Agent v2 (Hermes 框架) ──
 
-  selection-agent:
+  selection-agent-v2:
     build:
-      context: ./selection-agent
+      context: ./selection-agent-v2
       dockerfile: Dockerfile
-    image: dev-selection-agent
-    container_name: dev-selection-agent
+    image: dev-selection-agent-v2
+    container_name: dev-selection-agent-v2
     env_file:
-      - ./selection-agent/.env
+      - ./selection-agent-v2/.env
     environment:
       - JAVA_BASE_URL=http://java-product:8002
-      - PORT=8001
-      - DEBUG=true
+      - HERMES_HOME=/root/.hermes
+      - PYTHONPATH=/app
     ports:
-      - "8001:8001"
+      - "8012:8011"
     volumes:
-      - ./selection-agent:/app
-    command: uvicorn app:app --host 0.0.0.0 --port 8001 --reload --reload-dir .
+      - ./selection-agent-v2:/app
+    # API 服务由 Dockerfile CMD 启动 (uvicorn api_server:app)
+    # 批量分析: docker exec dev-selection-agent-v2 python batch_runner.py
+    stdin_open: true
+    tty: true
     depends_on:
       java-product:
         condition: service_started

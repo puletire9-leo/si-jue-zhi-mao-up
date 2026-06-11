@@ -31,38 +31,29 @@ router = APIRouter(prefix="/selection", tags=["选品分析"])
 
 @router.get("/analyze")
 async def analyze_selection(
-    batch_id: str = Query(..., description="批次ID"),
     marketplace: str = Query("UK", description="站点 UK/DE/US"),
+    month: str = Query(..., description="数据月份 如 202605"),
 ):
-    """SSE 端点 — 选品分析（多小类循环 + 回写Java）。
+    """SSE 端点 — 郑总店铺品线分析（从deng_zong_shop聚合→多小类循环+回写Java）。
 
     前端调用方式:
     ```
     const evtSource = new EventSource(
-      '/selection-api/selection/analyze?batchId=20260609-001&marketplace=UK'
+      '/selection/analyze?marketplace=UK&month=202605'
     );
-    evtSource.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      // data.event: start|data_ready|sub_start|progress|
-      //             node_error|sub_complete|heartbeat|
-      //             writeback|complete|error
-    };
     ```
 
     典型事件流:
     1. start       → 分析开始
     2. data_ready  → "共N个小类待分析"
     3. sub_start   → "开始分析 Nail Tips"
-    4. progress ×N → "能力1完成... 能力8完成..."
-    5. sub_complete → "Nail Tips 分析完成"
-    6. (重复3-5, N个小类)
-    7. writeback   → "正在回写结果"
-    8. complete    → "全部完成, 回写成功"
+    4. progress ×N → "能力1完成..."
+    5. complete    → "全部完成"
     """
-    logger.info(f"[SSE] 新分析请求: batchId={batch_id}, marketplace={marketplace}")
+    logger.info(f"[SSE] 新分析请求: marketplace={marketplace}, month={month}")
 
     async def event_generator():
-        async for event in run_selection_stream(batch_id, marketplace):
+        async for event in run_selection_stream(marketplace, month):
             yield {
                 "event": event["event"],
                 "data": json.dumps(event["data"], ensure_ascii=False),
@@ -73,15 +64,15 @@ async def analyze_selection(
 
 @router.post("/analyze-sync")
 async def analyze_selection_sync(
-    batch_id: str = Query(..., description="批次ID"),
     marketplace: str = Query("UK", description="站点 UK/DE/US"),
+    month: str = Query(..., description="数据月份 如 202605"),
 ):
-    """同步端点 — 分析并回写（用于内部调用/定时任务）。
+    """同步端点 — 对郑总店铺品线做全量分析并回写。
 
-    直接返回分析结果摘要，同时自动回写 Java 后端。
+    数据源: deng_zong_shop → L1品线(bsr_id) → L2小类(node_id)
     """
-    logger.info(f"[sync] 新分析请求: batchId={batch_id}")
-    result = await run_and_writeback(batch_id, marketplace)
+    logger.info(f"[sync] 新分析请求: marketplace={marketplace}, month={month}")
+    result = await run_and_writeback(marketplace, month)
     return result
 
 
@@ -93,7 +84,8 @@ async def verify_decisions(
 ):
     """批量验证历史选品决策准确性。"""
     from selection.algorithms.decision_verifier import batch_verify_decisions
-    results = batch_verify_decisions(decisions)
+    verify_month = datetime.now().strftime("%Y-%m")
+    results = batch_verify_decisions(decisions, verify_month)
     return {
         "verified": len(results),
         "results": [r.__dict__ for r in results],

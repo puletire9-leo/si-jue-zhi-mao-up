@@ -149,12 +149,12 @@ const openSettingPanel = () => {
     .toggle-btn {
       width: 36px;
       height: 36px;
-      background: #F8F4FF;
-      color: #7C61D4;
+      background: #f5f0eb;
+      color: #b45309;
       border: none;
 
       &:hover {
-        background: #7C61D4;
+        background: #b45309;
         color: white;
       }
     }
@@ -169,12 +169,12 @@ const openSettingPanel = () => {
       width: 36px;
       height: 36px;
       background: transparent;
-      color: #6B5E52;
+      color: #6b7280;
       border: none;
 
       &:hover {
-        background: #F8F4FF;
-        color: #7C61D4;
+        background: #f5f0eb;
+        color: #b45309;
       }
     }
 
@@ -189,17 +189,17 @@ const openSettingPanel = () => {
       transition: background 0.2s;
 
       &:hover {
-        background: #F8F4FF;
+        background: #f5f0eb;
       }
 
       .username {
         font-size: 14px;
         font-weight: 500;
-        color: #2F281D;
+        color: #1a1a1a;
       }
 
       .user-avatar {
-        background: linear-gradient(135deg, #7C61D4, #EAAE87);
+        background: linear-gradient(135deg, #b45309, #EAAE87);
         color: white;
       }
     }
@@ -212,10 +212,10 @@ const openSettingPanel = () => {
     .navbar-left {
       .toggle-btn {
         background: #252540;
-        color: #9F85E0;
+        color: #d97706;
 
         &:hover {
-          background: #7C61D4;
+          background: #b45309;
           color: white;
         }
       }
@@ -227,7 +227,7 @@ const openSettingPanel = () => {
 
         &:hover {
           background: #252540;
-          color: #9F85E0;
+          color: #d97706;
         }
       }
 

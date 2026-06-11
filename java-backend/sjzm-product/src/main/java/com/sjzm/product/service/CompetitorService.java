@@ -336,18 +336,27 @@ public class CompetitorService {
         int offset = (request.getPage() - 1) * request.getSize();
         // 校验排序方向，防止 SQL 注入
         String sortOrder = "asc".equalsIgnoreCase(request.getSortOrder()) ? "ASC" : "DESC";
+        // 关键词拆分为列表
+        java.util.List<String> keywordList = request.getKeywords() != null
+                ? java.util.Arrays.stream(request.getKeywords().split(","))
+                        .map(String::strip).filter(s -> !s.isEmpty()).collect(java.util.stream.Collectors.toList())
+                : java.util.List.of();
         List<CompetitorProduct> records = productMapper.selectGroupedByParent(
                 request.getMarketplace(), request.getMonth(), request.getSource(),
                 request.getFilterMode(), request.getBrand(), request.getSellerName(),
                 request.getTitle(), request.getGrade(), request.getWeekTag(),
                 request.getIsCurrent(), request.getMaxVariantCount(), request.getCategory(),
+                request.getPriceMin(), request.getPriceMax(), request.getBsrMax(),
+                request.getRatingMin(), request.getWeightMax(), keywordList,
                 request.getSortBy(), sortOrder, offset, request.getSize());
 
         long total = productMapper.countGroupedByParent(
                 request.getMarketplace(), request.getMonth(), request.getSource(), request.getFilterMode(),
                 request.getBrand(), request.getSellerName(), request.getTitle(),
                 request.getGrade(), request.getWeekTag(), request.getIsCurrent(),
-                request.getMaxVariantCount(), request.getCategory());
+                request.getMaxVariantCount(), request.getCategory(),
+                request.getPriceMin(), request.getPriceMax(), request.getBsrMax(),
+                request.getRatingMin(), request.getWeightMax(), keywordList);
 
         // 批量查子类目，避免 N+1
         List<Long> productIds = records.stream().map(CompetitorProduct::getId).collect(Collectors.toList());
@@ -418,6 +427,33 @@ public class CompetitorService {
         }
         if (request.getIsCurrent() != null) {
             wrapper.eq(CompetitorProduct::getIsCurrent, request.getIsCurrent());
+        }
+
+        // ── 品线模型筛选（P5 新增）──
+        if (request.getPriceMin() != null) {
+            wrapper.ge(CompetitorProduct::getPrice, request.getPriceMin());
+        }
+        if (request.getPriceMax() != null) {
+            wrapper.le(CompetitorProduct::getPrice, request.getPriceMax());
+        }
+        if (request.getBsrMax() != null) {
+            wrapper.le(CompetitorProduct::getBsr, request.getBsrMax());
+        }
+        if (request.getRatingMin() != null) {
+            wrapper.ge(CompetitorProduct::getRating, request.getRatingMin());
+        }
+        if (request.getWeightMax() != null) {
+            wrapper.le(CompetitorProduct::getWeightG, request.getWeightMax());
+        }
+        if (StringUtils.hasText(request.getKeywords())) {
+            // 逗号分隔多词，所有词需同时匹配标题（AND 语义）
+            String[] words = request.getKeywords().split(",");
+            for (String word : words) {
+                String trimmed = word.strip();
+                if (!trimmed.isEmpty()) {
+                    wrapper.like(CompetitorProduct::getTitle, trimmed);
+                }
+            }
         }
 
         // 动态排序（白名单列名）
@@ -519,6 +555,7 @@ public class CompetitorService {
             case "createdAt" -> wrapper.orderBy(true, asc, CompetitorProduct::getCreatedAt);
             case "ratings" -> wrapper.orderBy(true, asc, CompetitorProduct::getRatings);
             case "rating" -> wrapper.orderBy(true, asc, CompetitorProduct::getRating);
+            case "weightG" -> wrapper.orderBy(true, asc, CompetitorProduct::getWeightG);
             case "score" -> wrapper.orderBy(true, asc, CompetitorProduct::getScore);
             default -> wrapper.orderBy(true, asc, CompetitorProduct::getUnits);
         }

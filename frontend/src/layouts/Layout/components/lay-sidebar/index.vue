@@ -228,15 +228,15 @@ const handleSelect = (index: string) => {
     gap: 12px;
     height: 64px;
     padding: 0 20px;
-    background: linear-gradient(135deg, #FFFBF7, #F8F4FF);
-    border-bottom: 1px solid #F0EBE6;
+    background: linear-gradient(135deg, #faf8f5, #f5f0eb);
+    border-bottom: 1px solid #e5e1da;
     flex-shrink: 0;
 
     .logo-icon {
       width: 36px;
       height: 36px;
       min-width: 36px;
-      background: linear-gradient(135deg, #7C61D4, #9F85E0);
+      background: linear-gradient(135deg, #b45309, #d97706);
       border-radius: 10px;
       display: flex;
       align-items: center;
@@ -244,13 +244,13 @@ const handleSelect = (index: string) => {
       color: white;
       font-weight: 700;
       font-size: 18px;
-      box-shadow: 0 2px 8px rgba(124, 97, 212, 0.3);
+      box-shadow: 0 2px 8px rgba(180, 83, 9, 0.3);
     }
 
     .logo-text {
       font-size: 17px;
       font-weight: 600;
-      color: #2F281D;
+      color: #1a1a1a;
       white-space: nowrap;
     }
   }
@@ -275,18 +275,18 @@ const handleSelect = (index: string) => {
       line-height: 44px;
       margin-bottom: 4px;
       border-radius: 10px;
-      color: #6B5E52;
+      color: #6b7280;
       transition: all 0.2s ease;
 
       &:hover {
-        background: #F8F4FF;
-        color: #7C61D4;
+        background: #f5f0eb;
+        color: #b45309;
       }
 
       &.is-active {
-        background: linear-gradient(135deg, #7C61D4, #9F85E0);
+        background: linear-gradient(135deg, #b45309, #d97706);
         color: white;
-        box-shadow: 0 4px 12px rgba(124, 97, 212, 0.3);
+        box-shadow: 0 4px 12px rgba(180, 83, 9, 0.3);
       }
     }
 
@@ -296,12 +296,12 @@ const handleSelect = (index: string) => {
         line-height: 44px;
         margin-bottom: 4px;
         border-radius: 10px;
-        color: #6B5E52;
+        color: #6b7280;
         transition: all 0.2s ease;
 
         &:hover {
-          background: #F8F4FF;
-          color: #7C61D4;
+          background: #f5f0eb;
+          color: #b45309;
         }
       }
 
@@ -313,8 +313,8 @@ const handleSelect = (index: string) => {
           font-size: 13px;
 
           &.is-active {
-            background: rgba(124, 97, 212, 0.15);
-            color: #7C61D4;
+            background: rgba(180, 83, 9, 0.15);
+            color: #b45309;
             box-shadow: none;
           }
         }
@@ -343,11 +343,11 @@ const handleSelect = (index: string) => {
 
         &:hover {
           background: #252540;
-          color: #9F85E0;
+          color: #d97706;
         }
 
         &.is-active {
-          background: linear-gradient(135deg, #7C61D4, #9F85E0);
+          background: linear-gradient(135deg, #b45309, #d97706);
           color: white;
         }
       }
@@ -358,15 +358,15 @@ const handleSelect = (index: string) => {
 
           &:hover {
             background: #252540;
-            color: #9F85E0;
+            color: #d97706;
           }
         }
 
         :deep(.el-menu) {
           .el-menu-item {
             &.is-active {
-              background: rgba(124, 97, 212, 0.2);
-              color: #9F85E0;
+              background: rgba(180, 83, 9, 0.2);
+              color: #d97706;
             }
           }
         }

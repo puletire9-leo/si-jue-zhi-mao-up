@@ -56,30 +56,44 @@ class JavaClient:
         # 不应到达这里
         raise RuntimeError(f"重试耗尽: {url}")
 
-    async def get_aggregated_data(self, batch_id: str) -> Dict[str, Any]:
-        """拉取聚合数据 — data_fetch 节点调用。
+    async def get_aggregated_data(
+        self, marketplace: str = "UK", month: str = ""
+    ) -> Dict[str, Any]:
+        """拉取郑总店铺品线聚合数据 — data_fetch 节点调用。
+
+        从 deng_zong_shop 按 bsr_id (L1品线) + node_id (L2小类) 两级聚合。
 
         Args:
-            batch_id: 批次ID（如 "20260609-001"）
+            marketplace: 站点 UK/DE
+            month:       数据月份 如 202605
 
         Returns:
-            Java 返回的完整聚合 JSON
+            Java 返回的完整聚合 JSON:
+            {batchId, productLines: [{bsrId, subCategories: [...]}, ...]}
 
         Raises:
             httpx.HTTPStatusError: Java API 返回非200
             httpx.ConnectError: Java 服务不可达
         """
         url = f"{self.base_url}/api/v1/product-line/aggregated-data"
-        logger.info(f"GET {url}?batchId={batch_id}")
+        logger.info(f"GET {url}?marketplace={marketplace}&month={month}")
 
-        response = await self._request_with_retry("GET", url, params={"batchId": batch_id})
+        response = await self._request_with_retry("GET", url, params={
+            "marketplace": marketplace,
+            "month": month,
+        })
 
         data = response.json()
-        # Java Result<T> 包装: {"code": 200, "data": {...}, "message": "..."}
-        # 安全解包：优先取 data 字段，不存在则返回原始 JSON（兼容非Result包装的响应）
         if isinstance(data, dict) and "data" in data and "code" in data:
             data = data["data"] or {}
-        logger.info(f"拉取聚合数据成功: {len(data.get('productLines', []))} 品线")
+
+        total_products = data.get("totalProducts", 0)
+        product_lines = data.get("productLines", [])
+        sub_count = sum(len(pl.get("subCategories", [])) for pl in product_lines)
+        logger.info(
+            f"拉取品线聚合数据成功: {len(product_lines)} L1品线, "
+            f"{sub_count} L2小类, {total_products} 商品"
+        )
         return data
 
     async def post_analysis_results(
@@ -444,6 +458,32 @@ class JavaClient:
             logger.warning(f"跟品信号回写失败: {e}")
             return False
 
+    async def post_heat_matrix(
+        self, rows: List[Dict[str, Any]]
+    ) -> bool:
+        """回写品类热度矩阵 — seller_scan 完成后调用。
+
+        POST /api/v1/seller/heat-matrix
+
+        Args:
+            rows: 品类热度行列表
+
+        Returns:
+            True=成功
+        """
+        url = f"{self.base_url}/api/v1/seller/heat-matrix"
+        logger.info(f"POST {url} — {len(rows)} 行热度数据")
+
+        try:
+            response = await self._request_with_retry(
+                "POST", url, json={"rows": rows},
+            )
+            logger.info("品类热度矩阵回写成功")
+            return True
+        except Exception as e:
+            logger.warning(f"品类热度矩阵回写失败: {e}")
+            return False
+
     async def get_dengzong_shops(
         self, marketplace: str
     ) -> List[str]:
@@ -469,8 +509,13 @@ class JavaClient:
             if isinstance(data, dict) and "data" in data and "code" in data:
                 data = data["data"] or []
             if isinstance(data, list):
-                logger.info(f"郑总店铺: {len(data)} 个")
-                return data
+                # Java 返回 List<DengZongShopSeller>，提取 sellerName
+                names = [
+                    d.get("sellerName", "") if isinstance(d, dict) else str(d)
+                    for d in data
+                ]
+                logger.info(f"郑总店铺: {len(names)} 个")
+                return names
             return []
         except Exception as e:
             logger.warning(f"郑总店铺名单获取失败: {e}")

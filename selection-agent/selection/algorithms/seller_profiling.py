@@ -52,7 +52,14 @@ class SellerProfile:
     category_focus: Dict[str, float]  # 品类专注度 {category: ratio}
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        d = asdict(self)
+        # category_focus 序列化为 JSON 字符串
+        if isinstance(d.get("category_focus"), dict):
+            import json
+            d["category_focus"] = json.dumps(d["category_focus"])
+        # is_dengzong 序列化为 1/0（Java 期望整数）
+        d["is_dengzong"] = 1 if d.get("is_dengzong") else 0
+        return d
 
 
 @dataclass
@@ -107,16 +114,16 @@ class SmartRecommendation:
 
 def compute_product_strength_score(
     products: List[Dict[str, Any]],
+    min_samples: int = 5,
 ) -> Dict[str, ProductStrengthScore]:
-    """计算每个商品在同 marketplace+nodeLabelLevel2 内的实力分。
+    """计算每个商品在同 marketplace+品类组 内的实力分 (§3.1 修正版)。
 
-    §3.1: 商品实力分 = BSR百分位 × 0.4 + 月销量百分位 × 0.6
-
-    BSR 百分位: 越低越好，需反转（BSR=1 → 100分, BSR=500k → 0分）
-    月销量百分位: 越高越好（units=max → 100分, units=0 → 0分）
+    先按 marketplace+category 分组，组内计算百分位（≥min_samples）。
+    小品类回退到全局百分位，避免小样本偏误。
 
     Args:
-        products: 商品列表 [{asin, seller_name, bsr, units}, ...]
+        products: 商品列表 [{asin, seller_name, bsr, units, node_label_path?}, ...]
+        min_samples: 品类内最少商品数，低于此数用全局百分位
 
     Returns:
         {asin: ProductStrengthScore}
@@ -124,15 +131,47 @@ def compute_product_strength_score(
     if not products:
         return {}
 
-    # 提取 BSR 和 units 列表
-    bsrs = [(p.get("bsr", 999999) or 999999) for p in products]
-    units_list = [(p.get("units", 0) or 0) for p in products]
+    # ── 分组 key: marketplace + 品类标签 ──
+    def _group_key(p):
+        mp = p.get("marketplace", "")
+        cat = p.get("category")
+        if not cat:
+            node_path = p.get("node_label_path") or p.get("nodeLabelPath") or ""
+            parts = node_path.split(":") if node_path else [""]
+            cat = parts[0].strip() if len(parts) > 0 else "OTHER"
+        return f"{mp}|{cat}"
 
-    # 计算百分位
-    bsr_pcts = _percentile_rank_list(bsrs, reverse=True)  # 反转: 低BSR=高分
-    units_pcts = _percentile_rank_list(units_list, reverse=False)  # 高销量=高分
+    groups: Dict[str, List[int]] = {}  # key -> list of indices
+    for i, p in enumerate(products):
+        key = _group_key(p)
+        groups.setdefault(key, []).append(i)
+
+    # ── 全局百分位（小品类兜底） ──
+    all_bsrs = [(p.get("bsr", 999999) or 999999) for p in products]
+    all_units = [(p.get("units", 0) or 0) for p in products]
+    global_bsr_pcts = _percentile_rank_list(all_bsrs, reverse=True)
+    global_units_pcts = _percentile_rank_list(all_units, reverse=False)
 
     result = {}
+    bsr_pcts = [0.0] * len(products)
+    units_pcts = [0.0] * len(products)
+
+    for key, indices in groups.items():
+        if len(indices) >= min_samples:
+            # ── 品类内百分位 ──
+            group_bsrs = [all_bsrs[i] for i in indices]
+            group_units = [all_units[i] for i in indices]
+            g_bsr_pcts = _percentile_rank_list(group_bsrs, reverse=True)
+            g_units_pcts = _percentile_rank_list(group_units, reverse=False)
+            for j, gi in enumerate(indices):
+                bsr_pcts[gi] = g_bsr_pcts[j]
+                units_pcts[gi] = g_units_pcts[j]
+        else:
+            # ── 小品类用全局兜底 ──
+            for gi in indices:
+                bsr_pcts[gi] = global_bsr_pcts[gi]
+                units_pcts[gi] = global_units_pcts[gi]
+
     for i, p in enumerate(products):
         asin = p.get("asin", p.get("identifier", f"unknown_{i}"))
         composite = bsr_pcts[i] * 0.4 + units_pcts[i] * 0.6
@@ -251,8 +290,14 @@ def compute_smart_seller_score(
         for cat, cnt in sorted(category_counts.items(), key=lambda x: -x[1])[:5]
     }
 
-    # 最擅长的原型（简化：用最主要品类名推断，实际由 Java 提供）
-    archetype = "UNKNOWN"
+    # 最擅长的原型：根据最大品类自动推断
+    top_category = list(category_focus.keys())[0] if category_focus else ""
+    try:
+        from selection.algorithms.archetype_mapper import map_archetype
+        result = map_archetype(top_category)
+        archetype = result.archetype if result else "UNKNOWN"
+    except Exception:
+        archetype = "UNKNOWN"
 
     avg_units = (
         sum(p.get("units", 0) or 0 for p in seller_products) / len(seller_products)
@@ -463,6 +508,121 @@ def detect_follow_signals(
     strength_order = {"strong": 0, "moderate": 1, "weak": 2}
     signals.sort(key=lambda s: strength_order.get(s.signal_strength, 3))
 
+    return signals
+
+
+# ── 产品级跟品信号（parent_asin匹配）─────────────────────────
+
+
+def detect_product_follow_signals(
+    all_products: List[Dict[str, Any]],
+    seller_grades: Dict[str, str],
+    dengzong_names: Optional[set] = None,
+    min_delay_days: int = 7,
+) -> List[FollowSignal]:
+    """产品级跟品检测 — 通过 parent_asin 匹配追踪同一产品跨店铺传播。
+
+    与 detect_follow_signals 的区别:
+      - 品类级: 检测"多个卖家进入同一品类"→ 市场热度信号
+      - 产品级: 检测"同一个 ASIN 在不同店铺出现"→ 直接跟品行为
+
+    使用 parent_asin 匹配：同一 parent_asin 出现在不同 seller_name 下即视为跟品。
+
+    Args:
+        all_products:  全量商品列表（不按品类分组）
+        seller_grades: {seller_name: grade}
+        dengzong_names: 郑总店铺名集合
+        min_delay_days: 最小跟进延迟（天），<此值视为同时上架
+
+    Returns:
+        产品级跟品信号列表
+    """
+    if dengzong_names is None:
+        dengzong_names = set()
+
+    # ── Step 1: 按 parent_asin 分组，只保留跨店铺的 ──
+    by_parent: Dict[str, List[Dict]] = {}
+    for p in all_products:
+        parent = p.get("parent_asin") or p.get("parentAsin") or p.get("asin", "")
+        if not parent:
+            continue
+        by_parent.setdefault(parent, []).append(p)
+
+    # ── Step 2: 对每个 parent_asin，检测首发和跟进者 ──
+    signals = []
+    for parent_asin, products in by_parent.items():
+        # 需要至少2个不同卖家
+        sellers = set(
+            p.get("seller_name", p.get("sellerName", "")) for p in products
+        )
+        if len(sellers) < 2:
+            continue
+
+        # 按 listing_days 降序找首发
+        sorted_products = sorted(
+            products,
+            key=lambda p: p.get("listing_days", 0) or 0,
+            reverse=True,
+        )
+
+        first = sorted_products[0]
+        first_seller = first.get("seller_name", first.get("sellerName", ""))
+        first_asin = first.get("asin", "")
+        first_days = first.get("listing_days", 0) or 0
+        category = first.get("node_label_path") or first.get("nodeLabelPath") or first.get("category", "")
+
+        # 找跟进者
+        followers = []
+        smart_count = 0
+        for p in sorted_products[1:]:
+            sn = p.get("seller_name", p.get("sellerName", ""))
+            if sn == first_seller:
+                continue
+
+            delay = first_days - (p.get("listing_days", 0) or 0)
+            if delay < min_delay_days:
+                continue
+
+            grade = seller_grades.get(sn, "C")
+            followers.append({
+                "seller": sn,
+                "asin": p.get("asin", ""),
+                "delay_days": delay,
+                "grade": grade,
+            })
+            if grade in ("S", "A"):
+                smart_count += 1
+
+        if not followers:
+            continue
+
+        # 信号强度
+        recent = [f for f in followers if f["delay_days"] <= 60]
+        smart_recent = sum(1 for f in recent if f["grade"] in ("S", "A"))
+        dengzong_recent = sum(1 for f in recent if f["seller"] in dengzong_names)
+        total_recent = len(recent)
+
+        if smart_recent >= 3:
+            strength = "strong"
+        elif smart_recent >= 2 or dengzong_recent >= 3:
+            strength = "moderate"
+        else:
+            strength = "weak"
+
+        signals.append(FollowSignal(
+            marketplace=products[0].get("marketplace", ""),
+            month=products[0].get("month", ""),
+            category=f"[产品级] {category}",
+            first_seller=first_seller,
+            first_asin=first_asin,
+            first_listing_days=first_days,
+            followers=followers,
+            signal_strength=strength,
+            smart_follower_count=smart_count,
+        ))
+
+    strength_order = {"strong": 0, "moderate": 1, "weak": 2}
+    signals.sort(key=lambda s: strength_order.get(s.signal_strength, 3))
     return signals
 
 

@@ -43,6 +43,7 @@
     "axios": "^1.7.0",
     "echarts": "^6.0.0",
     "element-plus": "^2.13.1",
+    "esbuild": "^0.28.0",
     "file-saver": "^2.0.5",
     "jszip": "^3.10.1",
     "pinia": "^3.0.4",

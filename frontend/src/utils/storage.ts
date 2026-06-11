@@ -22,7 +22,7 @@ interface StorageConfig {
 
 const defaultConfig: StorageConfig = {
   themeMode: 'light',
-  themeColor: '#7C61D4',
+  themeColor: '#b45309',
   menuLayout: 'vertical',
   stretchType: 'fixed',
   customWidth: 1440,

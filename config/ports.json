@@ -6,7 +6,7 @@
   "dev": {
     "python_backend": 8090,
     "frontend": 8179,
-    "selection_agent": 8001
+    "selection_agent": 8011
   },
   "prod": {
     "python_backend": 7090,

@@ -15,6 +15,7 @@
 import asyncio
 import logging
 import os
+import threading
 import time
 from typing import Any, AsyncGenerator, Dict, List
 
@@ -36,11 +37,12 @@ SCREENING_SCORE_THRESHOLD = int(os.getenv("SCREENING_SCORE_THRESHOLD", "60"))
 MAX_CONCURRENT = int(os.getenv("MAX_CONCURRENT_SUBS", "3"))
 
 
-def create_initial_state(batch_id: str, marketplace: str = "UK") -> SelectionState:
+def create_initial_state(marketplace: str = "UK", month: str = "") -> SelectionState:
     """创建初始状态（空壳，data_fetch 填充数据）。"""
     return SelectionState(
-        batch_id=batch_id,
+        batch_id="",
         marketplace=marketplace,
+        month=month,
         raw_data={},
         sub_categories=[],
         category_understanding={},
@@ -172,7 +174,7 @@ def _record_decision_if_qualified(
 
         # 决策信息
         decision_score = float(final_state.get("opportunity_score", 0))
-        decision_status = "LAUNCH" if recommend_level == "STRONG_BUY" else "CONDITIONAL"
+        decision_status = "LAUNCH" if recommend_level == "STRONGLY_RECOMMEND" else "CONDITIONAL"
 
         # 信号加成
         signal_boosts = verdict.get("signalBoosts", verdict.get("signal_boosts", {}))
@@ -276,13 +278,13 @@ def _generate_brief_report(state: SelectionState, score: int, level: str) -> Dic
 
 
 async def run_selection_stream(
-    batch_id: str,
     marketplace: str = "UK",
+    month: str = "",
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """异步流式执行 Selection Graph，yield SSE 事件。
 
     执行流程：
-    1. data_fetch 一次拉取所有小类
+    1. data_fetch 从 deng_zong_shop 拉取郑总品线聚合数据
     2. 循环每个小类，运行分析图，yield 每个节点进度
     3. 全部完成后回写 Java
 
@@ -301,7 +303,7 @@ async def run_selection_stream(
     }
 
     # ── 步骤1: data_fetch（一次拉取全部小类） ──
-    base_state = create_initial_state(batch_id, marketplace)
+    base_state = create_initial_state(marketplace, month)
     try:
         fetch_result = await data_fetch_node(base_state)
         base_state.update(fetch_result)
@@ -462,7 +464,7 @@ async def run_selection_stream(
             )
 
             # ── Phase 2: 深度分析（能力5-8）或简要报告 ──
-            if screening_score >= SCREENING_SCORE_THRESHOLD or screening_level in ("STRONG_BUY", "RECOMMEND"):
+            if screening_score >= SCREENING_SCORE_THRESHOLD or screening_level in ("STRONGLY_RECOMMEND", "RECOMMEND"):
                 # 跑深度分析
                 yield {
                     "event": "progress",
@@ -638,7 +640,7 @@ async def run_selection_stream(
     }
 
 
-async def run_and_writeback(batch_id: str, marketplace: str = "UK") -> Dict[str, Any]:
+async def run_and_writeback(marketplace: str = "UK", month: str = "") -> Dict[str, Any]:
     """执行分析并将结果回写 Java（非流式，用于内部调用/定时任务）。
 
     Returns:
@@ -647,137 +649,165 @@ async def run_and_writeback(batch_id: str, marketplace: str = "UK") -> Dict[str,
     overall_start = time.time()
 
     # 1. data_fetch
-    base_state = create_initial_state(batch_id, marketplace)
+    base_state = create_initial_state(marketplace, month)
     try:
         fetch_result = await data_fetch_node(base_state)
         base_state.update(fetch_result)
     except Exception as e:
-        return {"status": "error", "batch_id": batch_id, "error": f"data_fetch 失败: {e}"}
+        return {"status": "error", "error": f"data_fetch 失败: {e}"}
 
-    sub_categories = base_state.get("sub_categories", [])
-    if not sub_categories:
-        return {"status": "error", "batch_id": batch_id, "error": "无小类数据"}
+    sub_categories_all = base_state.get("sub_categories", [])
+    if not sub_categories_all:
+        return {"status": "error", "error": "无小类数据"}
+
+    # ── 只分析郑总重仓 Top 小类（TOP_L1 × TOP_L2_PER_L1）──
+    top_l1_count = int(os.getenv("TOP_L1_CATEGORIES", "3"))
+    top_l2_per_l1 = int(os.getenv("TOP_L2_PER_L1", "3"))
+    raw_data = base_state.get("raw_data", {})
+    product_lines = raw_data.get("productLines", [])
+    selected_subs = []
+    for pl in product_lines[:top_l1_count]:
+        bsr_id = pl.get("bsrId", "")
+        for sub in pl.get("subCategories", [])[:top_l2_per_l1]:
+            sub["_bsr_id"] = bsr_id
+            sub["_product_line"] = bsr_id
+            selected_subs.append(sub)
+    sub_categories = selected_subs
+    logger.info(
+        f"[runner-sync] 筛选: TOP{top_l1_count}品线×TOP{top_l2_per_l1}小类={len(sub_categories)}小类 "
+        f"(原始{len(sub_categories_all)}小类)"
+    )
 
     # ── 并行预取对站数据（跨站套利用） ──
     _other_mp_map = {"UK": "DE", "DE": "UK", "US": "UK"}
     other_marketplace = _other_mp_map.get(marketplace, "UK")
     try:
         client = get_java_client()
-        other_batch_id = batch_id.replace(marketplace, other_marketplace, 1)
-        other_data = await client.get_aggregated_data(other_batch_id)
+        other_data = await client.get_aggregated_data(
+            marketplace=other_marketplace, month=month
+        )
         base_state["raw_data_other_marketplace"] = other_data
         logger.info(f"[runner-sync] 对站数据预取成功: {other_marketplace}")
     except Exception as e:
         logger.warning(f"[runner-sync] 对站数据预取失败({other_marketplace}): {e}")
         base_state["raw_data_other_marketplace"] = {}
 
-    # 2. 分批处理小类（初筛 + 深度分析）
+    # 2. 分批处理小类（初筛 + 深度分析）— 并行化
     all_results: List[Dict[str, Any]] = []
     all_errors: List[str] = []
     archetype_cache: Dict[str, Dict] = {}
-    screening_graph = get_screening_graph()
-    deep_graph = get_deep_graph()
+    archetype_cache_lock = threading.Lock()
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 
-    for idx, sub in enumerate(sub_categories):
-        sub_name = sub.get("nodeName", f"小类#{idx+1}")
-        bsr_id = sub.get("bsrId", sub.get("_bsr_id", ""))
-        logger.info(f"[runner-sync] 分析 [{idx+1}/{len(sub_categories)}]: {sub_name}")
+    async def _analyze_one(idx: int, sub: Dict[str, Any]) -> Dict[str, Any]:
+        """处理单个小类（两阶段: 初筛→深度分析），返回结果 dict。"""
+        async with semaphore:
+            sub_name = sub.get("nodeName", f"小类#{idx+1}")
+            bsr_id = sub.get("bsrId", sub.get("_bsr_id", ""))
+            logger.info(f"[runner-sync] 分析 [{idx+1}/{len(sub_categories)}]: {sub_name}")
 
-        sub_state = create_sub_state(base_state, sub, idx, len(sub_categories))
+            sub_state = create_sub_state(base_state, sub, idx, len(sub_categories))
 
-        # 复用原型缓存
-        if bsr_id and bsr_id in archetype_cache:
-            cached = archetype_cache[bsr_id]
-            sub_state["category_understanding"] = cached.get("category_understanding", {})
-            sub_state["current_archetype"] = cached.get("current_archetype", "UNKNOWN")
+            # 复用原型缓存（线程安全）
+            with archetype_cache_lock:
+                if bsr_id and bsr_id in archetype_cache:
+                    cached = archetype_cache[bsr_id]
+                    sub_state["category_understanding"] = cached.get("category_understanding", {})
+                    sub_state["current_archetype"] = cached.get("current_archetype", "UNKNOWN")
 
-        # ── 获取品类基线（百分位评分用，final_verdict 消费） ──
-        try:
-            client = get_java_client()
-            baseline = await client.get_category_baseline(
-                marketplace=marketplace,
-                category_label=sub_name,
-            )
-            sub_state["category_baseline"] = baseline
-            logger.info(
-                f"[runner-sync] 品类基线: {sub_name} hasBaseline={baseline.get('hasBaseline', False)}"
-            )
-        except Exception as e:
-            logger.warning(f"[runner-sync] 获取品类基线失败({sub_name}): {e}")
-            # 非致命：百分位评分在 final_verdict 中优雅降级
-
-        # Phase 1: 初筛
-        try:
-            final_state = await screening_graph.ainvoke(sub_state)
-        except Exception as e:
-            all_errors.append(f"{sub_name}: 初筛失败 - {e}")
-            continue
-
-        # 缓存原型
-        if bsr_id and final_state.get("current_archetype", "UNKNOWN") != "UNKNOWN":
-            archetype_cache[bsr_id] = {
-                "category_understanding": final_state.get("category_understanding", {}),
-                "current_archetype": final_state.get("current_archetype", "UNKNOWN"),
-            }
-
-        # 快速评分
-        score, level = _quick_screening_score(final_state)
-
-        # Phase 2: 深度分析或简要报告
-        if score >= SCREENING_SCORE_THRESHOLD or level in ("STRONG_BUY", "RECOMMEND"):
+            # ── 获取品类基线 ──
             try:
-                final_state = await deep_graph.ainvoke(final_state)
+                client = get_java_client()
+                baseline = await client.get_category_baseline(
+                    marketplace=marketplace,
+                    category_label=sub_name,
+                )
+                sub_state["category_baseline"] = baseline
             except Exception as e:
-                all_errors.append(f"{sub_name}: 深度分析失败 - {e}")
-                # 深度分析失败 → 降级为简报并标记 screeningOnly
+                logger.warning(f"[runner-sync] 获取品类基线失败({sub_name}): {e}")
+
+            # Phase 1: 初筛
+            screening_graph = get_screening_graph()
+            try:
+                final_state = await screening_graph.ainvoke(sub_state)
+            except Exception as e:
+                return {"nodeName": sub_name, "error": f"初筛失败: {e}"}
+
+            # 缓存原型
+            with archetype_cache_lock:
+                if bsr_id and final_state.get("current_archetype", "UNKNOWN") != "UNKNOWN":
+                    archetype_cache[bsr_id] = {
+                        "category_understanding": final_state.get("category_understanding", {}),
+                        "current_archetype": final_state.get("current_archetype", "UNKNOWN"),
+                    }
+
+            # 快速评分
+            score, level = _quick_screening_score(final_state)
+
+            # Phase 2: 深度分析
+            deep_graph = get_deep_graph()
+            if score >= SCREENING_SCORE_THRESHOLD or level in ("STRONGLY_RECOMMEND", "RECOMMEND"):
+                try:
+                    final_state = await deep_graph.ainvoke(final_state)
+                except Exception as e:
+                    brief = _generate_brief_report(final_state, score, level)
+                    brief["oneLineSummary"] = f"深度分析失败({e})，使用初筛结果"
+                    final_state["final_verdict"] = brief
+                    final_state["recommend_level"] = level
+                    final_state["opportunity_score"] = score
+            else:
                 brief = _generate_brief_report(final_state, score, level)
-                brief["oneLineSummary"] = f"深度分析失败({e})，使用初筛结果"
                 final_state["final_verdict"] = brief
                 final_state["recommend_level"] = level
                 final_state["opportunity_score"] = score
-        else:
-            brief = _generate_brief_report(final_state, score, level)
-            final_state["final_verdict"] = brief
-            final_state["recommend_level"] = level
-            final_state["opportunity_score"] = score
 
-        sub_errors = final_state.get("analysis_errors", [])
-        all_errors.extend(sub_errors)
+            _record_decision_if_qualified(final_state, sub, marketplace)
 
-        verdict = final_state.get("final_verdict", {})
-        all_results.append({
-            "nodeId": sub.get("nodeId"),
-            "bsrId": sub.get("_bsr_id", ""),
-            "nodeName": sub_name,
-            "recommendLevel": final_state.get("recommend_level", "WATCH"),
-            "opportunityScore": final_state.get("opportunity_score", 0),
-            "l2Score": final_state.get("l2_score", 0),
-            "analysisReport": verdict,
-            "confidence": verdict.get("confidence", 0),
-            "screeningOnly": verdict.get("screeningOnly", False),
-            "errors": sub_errors,
-            # Java 结构化查询所需的顶层字段
-            "archetype": final_state.get("current_archetype", "UNKNOWN"),
-            "lifecycleStage": verdict.get("lifecycleStage") or final_state.get("lifecycle_stage", {}).get("stage", "UNKNOWN"),
-            "cr3": verdict.get("cr3") or final_state.get("competition_structure", {}).get("cr3_computed", {}).get("cr3", 0),
-            "profitMargin": final_state.get("profit_margin_typical", 0),
-            "goNoGo": final_state.get("go_no_go", "WAIT_AND_SEE"),
-            "categoryHealth": verdict.get("categoryHealth", {}),
-        })
+            verdict = final_state.get("final_verdict", {})
+            return {
+                "nodeId": sub.get("nodeId"),
+                "bsrId": sub.get("_bsr_id", ""),
+                "nodeName": sub_name,
+                "recommendLevel": final_state.get("recommend_level", "WATCH"),
+                "opportunityScore": final_state.get("opportunity_score", 0),
+                "l2Score": final_state.get("l2_score", 0),
+                "analysisReport": verdict,
+                "confidence": verdict.get("confidence", 0),
+                "screeningOnly": verdict.get("screeningOnly", False),
+                "errors": final_state.get("analysis_errors", []),
+                "archetype": final_state.get("current_archetype", "UNKNOWN"),
+                "lifecycleStage": verdict.get("lifecycleStage") or final_state.get("lifecycle_stage", {}).get("stage", "UNKNOWN"),
+                "cr3": verdict.get("cr3") or final_state.get("competition_structure", {}).get("cr3_computed", {}).get("cr3", 0),
+                "profitMargin": final_state.get("profit_margin_typical", 0),
+                "goNoGo": final_state.get("go_no_go", "WAIT_AND_SEE"),
+                "categoryHealth": verdict.get("categoryHealth", {}),
+            }
 
-        # ── 决策反馈闭环: 记录 S1/S2 级产品决策快照 ──
-        _record_decision_if_qualified(final_state, sub, marketplace)
+    # 并行执行所有小类，每分析完一个立即保存
+    tasks = [asyncio.ensure_future(_analyze_one(idx, sub)) for idx, sub in enumerate(sub_categories)]
+    saved_count = 0
 
-    # 3. 回写 Java
+    for coro in asyncio.as_completed(tasks):
+        r = await coro
+        if isinstance(r, Exception):
+            all_errors.append(str(r))
+        elif isinstance(r, dict):
+            if r.get("error"):
+                all_errors.append(r["error"])
+            else:
+                all_results.append(r)
+                # ── 立即保存单个结果 ──
+                try:
+                    client = get_java_client()
+                    await client.post_analysis_results(batch_id, [r])
+                    saved_count += 1
+                    logger.info(f"[runner-sync] 已保存: {r.get('nodeName')} ({saved_count}/{len(sub_categories)})")
+                except Exception as e:
+                    all_errors.append(f"保存失败({r.get('nodeName')}): {e}")
+                    logger.error(f"[runner-sync] 保存失败: {r.get('nodeName')} - {e}")
+
     elapsed = int((time.time() - overall_start) * 1000)
-
-    try:
-        client = get_java_client()
-        await client.post_analysis_results(batch_id, all_results)
-        writeback_ok = True
-    except Exception as e:
-        all_errors.append(f"回写失败: {e}")
-        writeback_ok = False
+    writeback_ok = saved_count == len(all_results) and len(all_results) > 0
 
     return {
         "status": "ok" if not all_errors else "partial",
@@ -786,6 +816,7 @@ async def run_and_writeback(batch_id: str, marketplace: str = "UK") -> Dict[str,
         "processing_time_ms": elapsed,
         "total_sub_categories": len(sub_categories),
         "analyzed_count": len(all_results),
+        "saved_count": saved_count,
         "writeback_ok": writeback_ok,
         "errors": all_errors,
         "results_summary": [

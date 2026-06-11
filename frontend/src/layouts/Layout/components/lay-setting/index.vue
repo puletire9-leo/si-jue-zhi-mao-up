@@ -414,7 +414,7 @@ onUnmounted(() => {
   .section-title {
     font-size: 14px;
     font-weight: 600;
-    color: #2F281D;
+    color: #1a1a1a;
     margin-bottom: 12px;
   }
 }
@@ -430,7 +430,7 @@ onUnmounted(() => {
     align-items: center;
     gap: 6px;
     padding: 12px 8px;
-    background: #F8F4FF;
+    background: #f5f0eb;
     border: 2px solid transparent;
     border-radius: 8px;
     cursor: pointer;
@@ -441,8 +441,8 @@ onUnmounted(() => {
     }
 
     &.active {
-      border-color: #7C61D4;
-      background: #F8F4FF;
+      border-color: #b45309;
+      background: #f5f0eb;
     }
 
     .mode-icon {
@@ -451,7 +451,7 @@ onUnmounted(() => {
 
     .mode-label {
       font-size: 12px;
-      color: #6B5E52;
+      color: #6b7280;
     }
   }
 }
@@ -478,7 +478,7 @@ onUnmounted(() => {
     }
 
     &.active {
-      border-color: #7C61D4;
+      border-color: #b45309;
     }
 
     .check-icon {
@@ -496,7 +496,7 @@ onUnmounted(() => {
   .layout-btn {
     flex: 1;
     height: 44px;
-    background: #F8F4FF;
+    background: #f5f0eb;
     border: 2px solid transparent;
     border-radius: 8px;
     cursor: pointer;
@@ -510,7 +510,7 @@ onUnmounted(() => {
     }
 
     &.active {
-      border-color: #7C61D4;
+      border-color: #b45309;
     }
 
     .layout-icon {
@@ -525,7 +525,7 @@ onUnmounted(() => {
           top: 0;
           width: 35%;
           height: 100%;
-          background: #7C61D4;
+          background: #b45309;
           border-radius: 2px;
         }
         .content {
@@ -546,7 +546,7 @@ onUnmounted(() => {
           top: 0;
           width: 100%;
           height: 35%;
-          background: #7C61D4;
+          background: #b45309;
           border-radius: 2px;
         }
         .content {
@@ -567,7 +567,7 @@ onUnmounted(() => {
           top: 0;
           width: 100%;
           height: 35%;
-          background: #7C61D4;
+          background: #b45309;
           border-radius: 2px;
         }
         .sidebar {
@@ -576,7 +576,7 @@ onUnmounted(() => {
           bottom: 0;
           width: 35%;
           height: 60%;
-          background: #9F85E0;
+          background: #d97706;
           border-radius: 2px;
         }
         .content {
@@ -601,12 +601,12 @@ onUnmounted(() => {
   .stretch-btn {
     flex: 1;
     padding: 10px;
-    background: #F8F4FF;
+    background: #f5f0eb;
     border: 2px solid transparent;
     border-radius: 6px;
     cursor: pointer;
     font-size: 13px;
-    color: #6B5E52;
+    color: #6b7280;
     transition: all 0.2s;
 
     &:hover {
@@ -614,8 +614,8 @@ onUnmounted(() => {
     }
 
     &.active {
-      border-color: #7C61D4;
-      color: #7C61D4;
+      border-color: #b45309;
+      color: #b45309;
     }
   }
 }
@@ -631,12 +631,12 @@ onUnmounted(() => {
   .style-btn {
     flex: 1;
     padding: 10px;
-    background: #F8F4FF;
+    background: #f5f0eb;
     border: 2px solid transparent;
     border-radius: 6px;
     cursor: pointer;
     font-size: 13px;
-    color: #6B5E52;
+    color: #6b7280;
     transition: all 0.2s;
 
     &:hover {
@@ -644,8 +644,8 @@ onUnmounted(() => {
     }
 
     &.active {
-      border-color: #7C61D4;
-      color: #7C61D4;
+      border-color: #b45309;
+      color: #b45309;
     }
   }
 }
@@ -656,7 +656,7 @@ onUnmounted(() => {
   justify-content: space-between;
   padding: 8px 0;
   font-size: 13px;
-  color: #6B5E52;
+  color: #6b7280;
 
   .text-input {
     width: 150px;
@@ -701,8 +701,8 @@ onUnmounted(() => {
       }
 
       &.active {
-        border-color: #9F85E0;
-        background: rgba(124, 97, 212, 0.2);
+        border-color: #d97706;
+        background: rgba(180, 83, 9, 0.2);
       }
 
       .mode-icon {
@@ -724,7 +724,7 @@ onUnmounted(() => {
       }
 
       &.active {
-        border-color: #9F85E0;
+        border-color: #d97706;
       }
 
       .layout-icon {
@@ -733,7 +733,7 @@ onUnmounted(() => {
         &.mix {
           .sidebar,
           .header {
-            background: #9F85E0;
+            background: #d97706;
           }
           .content {
             background: #3D3D5C;
@@ -753,8 +753,8 @@ onUnmounted(() => {
       }
 
       &.active {
-        border-color: #9F85E0;
-        color: #9F85E0;
+        border-color: #d97706;
+        color: #d97706;
       }
     }
   }
@@ -769,8 +769,8 @@ onUnmounted(() => {
       }
 
       &.active {
-        border-color: #9F85E0;
-        color: #9F85E0;
+        border-color: #d97706;
+        color: #d97706;
       }
     }
   }
