@@ -99,24 +99,32 @@
         </el-form-item>
       </el-form>
 
-      <div v-loading="loading" class="product-cards-grid">
-        <UniversalCard
-          v-for="product in productList"
-          :key="product.sku"
-          :product="product"
-          :selected="selectedSkus.includes(product.sku)"
-          mode="product"
-          @click="handleCardClick"
-          @select="handleSelect"
-          @delete="handleDeleteProduct"
-        />
-        
-        <el-empty
-          v-if="!loading && productList.length === 0"
-          description="暂无产品数据"
-          :image-size="200"
-        />
-      </div>
+      <!-- 骨架屏（首次加载） -->
+      <template v-if="loading && !hasLoaded">
+        <SkeletonWrapper variant="card-grid" :count="12" />
+      </template>
+
+      <!-- 卡片网格（首次加载后） -->
+      <template v-else>
+        <div v-loading="refreshing" class="product-cards-grid">
+          <UniversalCard
+            v-for="product in productList"
+            :key="product.sku"
+            :product="product"
+            :selected="selectedSkus.includes(product.sku)"
+            mode="product"
+            @click="handleCardClick"
+            @select="handleSelect"
+            @delete="handleDeleteProduct"
+          />
+
+          <el-empty
+            v-if="!loading && productList.length === 0"
+            description="暂无产品数据"
+            :image-size="200"
+          />
+        </div>
+      </template>
 
       <div class="pagination-container">
         <div class="page-size-selector">
@@ -396,13 +404,14 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'Products' })
-import { ref, reactive, onMounted, onBeforeMount } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeMount } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, Delete, Search, Refresh, Download, Upload, Picture, UploadFilled, PictureFilled, Select, CircleClose } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import UniversalCard from '@/components/UniversalCard/index.vue'
 import ProductDetailDialog from '@/components/ProductDetailDialog/index.vue'
 import AnnouncementBar from '@/views/ProductDataDashboard/components/AnnouncementBar.vue'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import { productApi, productRecycleApi } from '@/api/product'
 import type { Product } from '@/types/api'
 import type { UploadInstance, UploadFile } from 'element-plus'
@@ -432,6 +441,8 @@ const selectedSkus = ref<string[]>([])
 const selectedProduct = ref<Product | null>(null)
 const detailDialogVisible = ref<boolean>(false)
 const loading = ref<boolean>(false)
+const hasLoaded = ref(false)
+const refreshing = computed(() => loading.value && hasLoaded.value)
 const importDialogVisible = ref<boolean>(false)
 const searchByImageDialogVisible = ref<boolean>(false)
 const importing = ref<boolean>(false)
@@ -497,6 +508,7 @@ const loadProducts = async (): Promise<void> => {
     ElMessage.error('加载产品列表失败')
   } finally {
     loading.value = false
+    hasLoaded.value = true
   }
 }
 
@@ -843,10 +855,17 @@ onBeforeMount(() => {
 .image-preview {
   margin-top: 20px;
   text-align: center;
-  
+
   .el-image {
     max-width: 100%;
     max-height: 300px;
+  }
+}
+
+// ---- Dark Mode Overrides ----
+:deep(html.dark) {
+  .page-size-selector label {
+    color: var(--el-text-color-secondary);
   }
 }
 </style>

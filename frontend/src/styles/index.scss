@@ -462,60 +462,6 @@ html.dark {
   }
 
   // Element Plus 组件深色主题
-  .el-card {
-    background: $dark-bg-color;
-    border-color: $dark-border-color;
-  }
-
-  .el-input__wrapper {
-    background: $dark-bg-color;
-    border-color: $dark-border-color;
-
-    .el-input__inner {
-      color: $dark-text-primary;
-    }
-  }
-
-  .el-table {
-    background: $dark-bg-color;
-
-    .el-table__header,
-    .el-table__body {
-      .el-table__row {
-        &:hover > td {
-          background: $dark-bg-hover;
-        }
-      }
-    }
-
-    .el-table__header {
-      th {
-        background: $dark-bg-hover;
-        color: $dark-text-secondary;
-        border-color: $dark-border-color;
-      }
-    }
-
-    .el-table__body {
-      td {
-        border-color: $dark-border-color;
-        color: $dark-text-primary;
-      }
-    }
-  }
-
-  .el-dialog {
-    background: $dark-bg-color;
-
-    .el-dialog__header {
-      border-color: $dark-border-color;
-
-      .el-dialog__title {
-        color: $dark-text-primary;
-      }
-    }
-  }
-
   .el-button {
     &.el-button--primary {
       background: $primary-color;
@@ -549,51 +495,6 @@ html.dark {
     }
   }
 
-  .el-dropdown-menu {
-    background: $dark-bg-color;
-    border-color: $dark-border-color;
-
-    .el-dropdown-menu__item {
-      color: $dark-text-primary;
-
-      &:hover {
-        background: $dark-bg-hover;
-      }
-    }
-  }
-
-  .el-tag {
-    background: $dark-bg-hover;
-    border-color: $dark-border-color;
-    color: $dark-text-primary;
-
-    &.el-tag--info {
-      background: rgba($primary-color, 0.2);
-      color: $primary-light;
-    }
-  }
-
-  .el-switch {
-    .el-switch__core {
-      background: $dark-border-color;
-
-      &.is-active {
-        background: $primary-color;
-      }
-    }
-  }
-
-  .el-breadcrumb__item:last-child .el-breadcrumb__inner {
-    color: $dark-text-primary;
-  }
-
-  .el-breadcrumb__inner {
-    color: $dark-text-secondary;
-  }
-
-  .el-avatar {
-    background: $dark-bg-hover;
-  }
 
   .el-scrollbar__wrap {
     background: transparent;

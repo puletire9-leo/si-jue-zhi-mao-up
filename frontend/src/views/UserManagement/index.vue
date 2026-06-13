@@ -15,8 +15,9 @@
         </div>
       </template>
 
+      <SkeletonWrapper :loading="loading && !hasLoaded" variant="table">
       <el-table
-        v-loading="loading"
+        v-loading="refreshing"
         :data="userList"
         style="width: 100%"
       >
@@ -95,6 +96,7 @@
           </template>
         </el-table-column>
       </el-table>
+      </SkeletonWrapper>
     </el-card>
 
     <el-dialog
@@ -201,19 +203,22 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'Users' })
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { userApi } from '@/api/user'
 import { systemConfigApi } from '@/api/systemConfig'
 import { useUserStore } from '@/stores/user'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 
 // 用户状态管理
 const userStore = useUserStore()
 
 const userList = ref([])
 const dialogVisible = ref(false)
-const loading = ref(false)
+const loading = ref(true)
+const hasLoaded = ref(false)
+const refreshing = computed(() => loading.value && hasLoaded.value)
 const isEdit = ref(false)
 const developerList = ref([])
 
@@ -250,6 +255,7 @@ const loadUsers = async () => {
   } catch (error) {
     ElMessage.error('加载用户列表失败')
   } finally {
+    hasLoaded.value = true
     loading.value = false
   }
 }
@@ -375,5 +381,15 @@ onMounted(() => {
   color: #909399;
   font-size: 14px;
   margin-left: 10px;
+}
+
+:deep(html.dark) {
+  .user-management {
+    background: var(--el-bg-color);
+  }
+
+  .card-header {
+    color: var(--el-text-color-primary);
+  }
 }
 </style>

@@ -474,4 +474,34 @@ onMounted(async () => {
     width: 100%;
   }
 }
+
+// ---- Dark Mode Overrides ----
+html.dark {
+  .stat-card {
+    &:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  .today-stats .stat-item {
+    .stat-label {
+      color: var(--el-text-color-secondary);
+    }
+
+    .stat-value {
+      color: var(--el-text-color-primary);
+    }
+  }
+
+  .type-distribution .type-item {
+    .type-name {
+      color: var(--el-text-color-regular);
+    }
+
+    .type-count {
+      color: var(--el-text-color-primary);
+    }
+  }
+}
 </style>

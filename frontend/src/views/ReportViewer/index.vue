@@ -1,7 +1,7 @@
 <template>
   <div class="report-dashboard min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
     <!-- 顶部导航栏 -->
-    <header class="bg-white shadow-md sticky top-0 z-10">
+    <header class="report-header bg-white shadow-md sticky top-0 z-10">
       <div class="container mx-auto px-4 py-3">
         <div class="flex items-center justify-between">
           <!-- 左侧标题 -->
@@ -78,7 +78,7 @@
     <!-- 主内容区 -->
     <div class="container mx-auto px-4 py-6 flex flex-col lg:flex-row gap-6">
       <!-- 侧边栏导航 -->
-      <aside class="lg:w-64 bg-white rounded-xl shadow-md p-4 sticky top-24 self-start">
+      <aside class="report-sidebar lg:w-64 bg-white rounded-xl shadow-md p-4 sticky top-24 self-start">
         <h3 class="text-lg font-semibold text-gray-800 mb-4">报告导航</h3>
         <nav>
           <ul class="space-y-2">
@@ -146,9 +146,9 @@
         </nav>
         
         <!-- 报告信息 -->
-        <div class="mt-8 pt-4 border-t border-gray-200">
+        <div class="sidebar-divider mt-8 pt-4 border-t border-gray-200">
           <h4 class="text-sm font-medium text-gray-600 mb-2">报告信息</h4>
-          <div class="text-xs text-gray-500 space-y-1">
+          <div class="sidebar-info-text text-xs text-gray-500 space-y-1">
             <p>生成时间: {{ reportMeta?.generateTime || '加载中...' }}</p>
             <p>数据范围: {{ reportMeta?.dateRange || '加载中...' }}</p>
             <p>开发人员: {{ reportMeta?.developer || '加载中...' }}</p>
@@ -158,14 +158,14 @@
 
       <!-- 主内容 -->
       <main class="flex-1">
-        <!-- 加载状态 -->
-        <div v-if="loading" class="flex justify-center items-center py-20 bg-white rounded-xl shadow-md">
-          <el-icon class="is-loading text-blue-600 mr-2"><Loading /></el-icon>
-          <span class="text-gray-600">加载报告中...</span>
-        </div>
+        <!-- 骨架屏: 首次加载 -->
+        <template v-if="loading && !hasLoaded">
+          <SkeletonWrapper variant="stats" />
+        </template>
 
-        <!-- 错误状态 -->
-        <div v-else-if="error" class="text-center py-20 bg-white rounded-xl shadow-md">
+        <template v-else>
+          <!-- 错误状态 -->
+          <div v-if="error" class="text-center py-20 bg-white rounded-xl shadow-md">
           <el-icon class="text-red-500 text-4xl mb-4"><CircleClose /></el-icon>
           <h3 class="text-lg font-medium text-red-500 mb-2">加载失败</h3>
           <p class="text-gray-500 mb-4">{{ error }}</p>
@@ -175,9 +175,9 @@
         </div>
 
         <!-- 报告内容 -->
-        <div v-else-if="reportMeta" class="space-y-6">
+        <div v-else-if="reportMeta" v-loading="refreshing" class="report-content space-y-6">
           <!-- 概览部分 -->
-          <section id="overview" class="bg-white rounded-xl shadow-md p-6">
+          <section id="overview" class="report-section bg-white rounded-xl shadow-md p-6">
             <div class="flex items-center justify-between mb-6">
               <h2 class="text-2xl font-bold text-blue-900">{{ reportMeta.title }}</h2>
               <el-tag type="info">{{ reportMeta.subtitle }}</el-tag>
@@ -245,7 +245,7 @@
             <!-- 关键发现 -->
             <div class="mt-8">
               <h3 class="text-lg font-semibold text-gray-800 mb-4">关键发现</h3>
-              <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <div class="findings-box bg-gray-50 rounded-lg p-4 border border-gray-200">
                 <ul class="space-y-2">
                   <li class="flex items-start gap-2">
                     <el-icon class="text-blue-500 mt-0.5"><CircleCheck /></el-icon>
@@ -269,47 +269,47 @@
           </section>
 
           <!-- 销售趋势部分 -->
-          <section id="sales" class="bg-white rounded-xl shadow-md p-6">
+          <section id="sales" class="report-section bg-white rounded-xl shadow-md p-6">
             <h2 class="text-xl font-bold text-blue-900 mb-4">月度销售趋势</h2>
-            <div class="bg-white rounded-lg shadow p-4">
+            <div class="chart-container bg-white rounded-lg shadow p-4">
               <div ref="salesChartRef" class="w-full h-96"></div>
             </div>
           </section>
 
           <!-- 成本分析部分 -->
-          <section id="acoas" class="bg-white rounded-xl shadow-md p-6">
+          <section id="acoas" class="report-section bg-white rounded-xl shadow-md p-6">
             <h2 class="text-xl font-bold text-blue-900 mb-4">ACoAS变化趋势</h2>
-            <div class="bg-white rounded-lg shadow p-4">
+            <div class="chart-container bg-white rounded-lg shadow p-4">
               <div ref="acoasChartRef" class="w-full h-96"></div>
             </div>
           </section>
 
           <!-- 店铺绩效部分 -->
-          <section id="stores" class="bg-white rounded-xl shadow-md p-6">
+          <section id="stores" class="report-section bg-white rounded-xl shadow-md p-6">
             <h2 class="text-xl font-bold text-blue-900 mb-4">店铺绩效排名</h2>
-            <div class="bg-white rounded-lg shadow p-4">
+            <div class="chart-container bg-white rounded-lg shadow p-4">
               <div ref="storeChartRef" class="w-full h-96"></div>
             </div>
           </section>
 
           <!-- 类目分析部分 -->
-          <section id="categories" class="bg-white rounded-xl shadow-md p-6">
+          <section id="categories" class="report-section bg-white rounded-xl shadow-md p-6">
             <h2 class="text-xl font-bold text-blue-900 mb-4">类目销售分布</h2>
-            <div class="bg-white rounded-lg shadow p-4">
+            <div class="chart-container bg-white rounded-lg shadow p-4">
               <div ref="categoryChartRef" class="w-full h-96"></div>
             </div>
           </section>
 
           <!-- 产品分析部分 -->
-          <section id="products" class="bg-white rounded-xl shadow-md p-6">
+          <section id="products" class="report-section bg-white rounded-xl shadow-md p-6">
             <h2 class="text-xl font-bold text-blue-900 mb-4">产品分类分析</h2>
-            <div class="bg-white rounded-lg shadow p-4">
+            <div class="chart-container bg-white rounded-lg shadow p-4">
               <div ref="productChartRef" class="w-full h-96"></div>
             </div>
           </section>
 
           <!-- 产品数据表格 -->
-          <section class="bg-white rounded-xl shadow-md p-6">
+          <section class="report-section bg-white rounded-xl shadow-md p-6">
             <div class="flex items-center justify-between mb-4">
               <h2 class="text-xl font-bold text-blue-900">产品数据表格</h2>
               <div class="flex gap-2">
@@ -332,6 +332,7 @@
                 </el-button>
               </div>
             </div>
+            <SkeletonWrapper :loading="tableLoading" variant="table">
             <el-table
               v-loading="tableLoading"
               :data="tableData"
@@ -367,6 +368,7 @@
                 </template>
               </el-table-column>
             </el-table>
+            </SkeletonWrapper>
             <div class="mt-4 flex justify-end">
               <el-pagination
                 v-model:current-page="pagination.currentPage"
@@ -381,7 +383,7 @@
           </section>
 
           <!-- 原始报告内容 -->
-          <section class="bg-white rounded-xl shadow-md p-6">
+          <section class="report-section bg-white rounded-xl shadow-md p-6">
             <h2 class="text-xl font-bold text-blue-900 mb-4">详细报告</h2>
             <div class="prose max-w-none">
               <div v-html="reportContent" />
@@ -398,11 +400,12 @@
             加载报告
           </el-button>
         </div>
+      </template>
       </main>
     </div>
 
     <!-- 底部信息栏 -->
-    <footer class="bg-white border-t border-gray-200 mt-8">
+    <footer class="report-footer bg-white border-t border-gray-200 mt-8">
       <div class="container mx-auto px-4 py-4">
         <div class="flex flex-col sm:flex-row justify-between items-center gap-2">
           <p class="text-sm text-gray-500">
@@ -421,18 +424,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { 
-  ArrowLeft, Loading, CircleClose, Document, Refresh, DataAnalysis, 
+import {
+  ArrowLeft, CircleClose, Document, Refresh, DataAnalysis,
   TrendCharts, Money, Shop, Grid, Box, Download, CircleCheck, DataLine
 } from '@element-plus/icons-vue'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import { reportApi } from '@/api/report'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as echarts from 'echarts'
 
 const router = useRouter()
 const loading = ref(false)
+const hasLoaded = ref(false)
+const refreshing = computed(() => loading.value && hasLoaded.value)
 const error = ref('')
 const reportContent = ref('')
 const selectedDeveloper = ref('total')
@@ -555,6 +561,7 @@ async function loadReport() {
     error.value = '报告加载失败，请重试'
   } finally {
     loading.value = false
+    hasLoaded.value = true
   }
 }
 
@@ -2206,5 +2213,75 @@ nav ul li a:hover::after {
 /* 卡片阴影 */
 .card-shadow {
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+// ---- Dark Mode Overrides ----
+html.dark {
+  .report-dashboard {
+    background: var(--el-bg-color-page);
+  }
+
+  .report-header {
+    background: var(--el-bg-color-overlay);
+    border-bottom-color: var(--el-border-color-light);
+
+    h1 { color: var(--el-text-color-primary); }
+    p { color: var(--el-text-color-secondary); }
+  }
+
+  .report-sidebar {
+    background: var(--el-bg-color-overlay);
+
+    h3, h4 { color: var(--el-text-color-primary); }
+    .sidebar-info-text { color: var(--el-text-color-secondary); }
+    .sidebar-divider { border-color: var(--el-border-color-light); }
+
+    nav a {
+      color: var(--el-text-color-regular);
+      &:hover { background: var(--el-fill-color-light); }
+    }
+  }
+
+  .report-section {
+    background: var(--el-bg-color-overlay);
+
+    h2 { color: var(--el-text-color-primary); }
+
+    .findings-box {
+      background: var(--el-fill-color-light);
+      border-color: var(--el-border-color-light);
+    }
+
+    .chart-container {
+      background: var(--el-bg-color);
+      box-shadow: none;
+      border: 1px solid var(--el-border-color-light);
+    }
+  }
+
+  .report-content {
+    .text-gray-500 { color: var(--el-text-color-secondary) !important; }
+    .text-gray-600 { color: var(--el-text-color-secondary) !important; }
+    .text-gray-800 { color: var(--el-text-color-primary) !important; }
+    .text-gray-400 { color: var(--el-text-color-placeholder) !important; }
+    .text-blue-900 { color: var(--el-color-primary) !important; }
+  }
+
+  .report-footer {
+    background: var(--el-bg-color-overlay);
+    border-color: var(--el-border-color-light);
+
+    p { color: var(--el-text-color-secondary); }
+  }
+
+  /* 核心指标卡片 — theme-aware variable colors */
+  .report-section .grid > div {
+    border-color: var(--el-border-color-light) !important;
+  }
+
+  /* echart 加载遮罩 */
+  :deep(.echarts-loading-mask) {
+    background: rgba(0, 0, 0, 0.6) !important;
+  }
 }
 </style>

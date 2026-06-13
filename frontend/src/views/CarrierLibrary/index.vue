@@ -1682,4 +1682,61 @@ onMounted(() => {
   border-top: 1px solid #e4e7ed;
   z-index: 10;
 }
+
+// 暗黑模式支持 — 覆盖硬编码颜色为 Element Plus CSS 变量
+:deep(html.dark) {
+  .carrier-library {
+    background: var(--el-bg-color);
+  }
+
+  .drafts-grid {
+    background: var(--el-bg-color);
+  }
+
+  .simple-filter-dialog .filter-section {
+    background: var(--el-bg-color);
+    border-color: var(--el-border-color);
+  }
+
+  .header-title {
+    color: var(--el-text-color-primary);
+  }
+
+  .el-pagination {
+    background: var(--el-bg-color);
+    border-top-color: var(--el-border-color);
+  }
+
+  .advanced-search-icon-btn {
+    background: var(--el-fill-color-light);
+    color: var(--el-text-color-secondary);
+
+    &:hover {
+      background: var(--el-color-primary-light-9);
+      color: var(--el-color-primary);
+    }
+  }
+
+  .batch-item {
+    border-color: var(--el-border-color);
+
+    .batch-name {
+      color: var(--el-text-color-primary);
+    }
+
+    .image-count {
+      color: var(--el-text-color-secondary);
+    }
+
+    &:hover {
+      border-color: var(--el-color-primary);
+      background-color: var(--el-color-primary-light-9);
+    }
+
+    &.selected {
+      border-color: var(--el-color-primary);
+      background-color: var(--el-color-primary-light-9);
+    }
+  }
+}
 </style>
