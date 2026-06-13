@@ -118,7 +118,7 @@ const allSelectedOnPage = computed(() => {
   border-bottom: 1px solid var(--el-border-color-light, #e5e1da);
   font-size: 13px;
 
-  .grid-count { color: var(--el-text-color-secondary, #6b7280); }
+  .grid-count { color: var(--el-text-color-secondary, #6b7280); font-weight: 600; }
   .grid-selected { color: var(--el-color-primary, #b45309); font-weight: 600; }
 }
 

@@ -72,8 +72,6 @@
         clearable
         style="width:240px"
         size="small"
-        @keyup.enter="store.searchByKeyword(store.searchKeyword)"
-        @clear="store.searchByKeyword('')"
       />
 
       <button class="mobile-tree-btn" @click="mobileTreeOpen = true">
@@ -196,8 +194,8 @@
     <div v-if="store.selectedCount > 0" class="bottom-bar">
       <span>已选 {{ store.selectedCount }} 件</span>
       <el-button size="small" @click="store.clearSelection()">清空</el-button>
-      <el-button type="primary" size="small" @click="store.batchAddToSelection()">批量加入选品</el-button>
-      <el-button size="small" @click="store.exportSelectedExcel()">导出Excel</el-button>
+      <el-button type="primary" size="small" :loading="store.batchLoading" @click="store.batchAddToSelection()">批量加入选品</el-button>
+      <el-button size="small" :loading="store.exportLoading" @click="store.exportSelectedExcel()">导出Excel</el-button>
     </div>
 
     <!-- 商品详情弹窗 -->
@@ -207,7 +205,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Menu, FolderOpened } from '@element-plus/icons-vue'
 import { useProductLineSelectionStore } from './store'
 import ProductLineTree from './components/ProductLineTree.vue'
@@ -284,11 +282,22 @@ onMounted(() => {
   store.initData()
 })
 
-watch([() => store.marketplace, () => store.month], () => {
-  // 切换市场/月份时重置选中状态，避免选中不存在的类目
-  store.selectedBsrId = ''
-  store.selectedNodeId = ''
-  store.initData()
+watch([() => store.marketplace, () => store.month], (newVals, oldVals) => {
+  if (store.selectedCount > 0 || store.hasFilters) {
+    ElMessageBox.confirm(
+      '切换市场或月份将清空当前筛选和选中，是否继续？',
+      '确认切换',
+      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+    ).then(() => {
+      store.selectedBsrId = ''
+      store.selectedNodeId = ''
+      store.initData()
+    }).catch(() => {})
+  } else {
+    store.selectedBsrId = ''
+    store.selectedNodeId = ''
+    store.initData()
+  }
 })
 
 watch(() => store.selectedBatchId, (newId) => {
@@ -301,6 +310,15 @@ watch(() => store.selectedBatchId, (newId) => {
   } else if (store.selectedBsrId) {
     store.selectCategory(store.selectedBsrId, store.selectedBsrName)
   }
+})
+
+// 搜索输入 300ms 防抖
+let searchDebounce: ReturnType<typeof setTimeout> | null = null
+watch(() => store.searchKeyword, (val) => {
+  if (searchDebounce) clearTimeout(searchDebounce)
+  searchDebounce = setTimeout(() => {
+    store.searchByKeyword(val)
+  }, 300)
 })
 </script>
 
@@ -405,12 +423,23 @@ export default { name: 'ProductLineSelection' }
 }
 .cat-l1 {
   color: $text-secondary;
-  &.active { color: $primary-color; }
+  &.active {
+    color: $primary-color;
+    border: 1px solid var(--el-color-primary, #b45309);
+    background: rgba(180, 83, 9, 0.04);
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
   &.clickable { cursor: pointer; &:hover { color: $primary-color; text-decoration: underline; } }
 }
 .cat-sep { color: $text-tertiary; }
 .cat-l2 { color: $text-secondary; }
-.cat-l2.active { color: $primary-color; }
+.cat-l2.active {
+  color: $primary-color;
+  background: rgba(180, 83, 9, 0.04);
+  border-radius: 4px;
+  padding: 4px 8px;
+}
 .cat-hint {
   margin-left: auto;
   font-size: 11px;

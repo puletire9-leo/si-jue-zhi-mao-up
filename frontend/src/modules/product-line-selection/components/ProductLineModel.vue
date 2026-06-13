@@ -389,4 +389,16 @@ async function openMdReport() {
 @media (max-width: 768px) {
   .health-banner { flex-direction: column; align-items: flex-start; }
 }
+
+@media (max-width: 768px) {
+  .metrics {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .health-banner {
+    flex-direction: column;
+  }
+  .model-card {
+    padding: 12px;
+  }
+}
 </style>
