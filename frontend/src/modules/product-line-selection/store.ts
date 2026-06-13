@@ -45,6 +45,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
   // ---- 新增状态 ----
   const searchKeyword = ref('')
   const selectedProducts = ref(new Set<string>())
+  const sortBy = ref('')
 
   // ---- 计算 ----
   const filterCount = computed(() => activeFilters.value.length)
@@ -73,11 +74,12 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
       treeData.value = raw.map((g: ProductLineGroup, idx: number) => {
         // bsrName 可能缺失，从第一个子类的 nodeFullPath 提取 L1 名称
         const l1Name = g.bsrName || (g.subCategories?.[0]?.nodeFullPath?.split(':')[0]) || g.bsrId
+        const existing = treeData.value.find(t => t.id === g.bsrId)
         return {
           id: g.bsrId,
           name: l1Name,
           icon: '📦',
-          expanded: idx === 0,
+          expanded: existing?.expanded ?? idx === 0,
           children: (g.subCategories || []).map((sc: SubCategoryItem) => ({
             id: `${g.bsrId}_${sc.nodeId}`,
             name: sc.nodeName,
@@ -88,7 +90,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
         }
       })
     } catch (err) {
-      console.warn('[Store]', err)
+      ElMessage.error('品线树加载失败，请检查网络或刷新重试')
     } finally {
       treeLoading.value = false
     }
@@ -105,7 +107,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
         }
       }
     } catch (err) {
-      console.warn('[Store]', err)
+      ElMessage.error('批次列表加载失败')
     }
   }
 
@@ -115,6 +117,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     const exists = activeFilters.value.find(f => f.value === value && f.type === type)
     if (exists) return
     activeFilters.value.push({ id: `f-${++_filterSeq}`, type, label, value, source })
+    searchCompetitors()
   }
 
   function removeFilter(id: string) {
@@ -139,6 +142,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
         month: month.value.replace('-', ''),  // FIXED: MED-8 — 'YYYY-MM' → 'YYYYMM' 匹配数据库格式
         page: competitorPage.value,
         size: competitorPageSize.value,
+        sortBy: sortBy.value || undefined,
       }
       if (filter.bsrId) params.bsrId = filter.bsrId
       if (filter.nodeId) params.nodeId = filter.nodeId
@@ -189,10 +193,12 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     closeResults()
     competitorPage.value = 1
     selectedProducts.value = new Set()
-    searchKeyword.value = ''
     modelData.value = null
     modelLoading.value = false
     await loadProducts({ bsrId })
+    if (competitorResults.value.length === 0) {
+      ElMessage.info('该大类下暂无商品数据')
+    }
   }
 
   // ---- L2 小类点击（取代 selectNode） ----
@@ -206,7 +212,6 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     closeResults()
     competitorPage.value = 1
     selectedProducts.value = new Set()
-    searchKeyword.value = ''
 
     // 模型后台异步加载，不阻塞竞品展示
     const reqId = String(Date.now()) + String(Math.random()).slice(2) // FIXED: HIGH-4 — safe fallback for non-secure contexts
@@ -230,8 +235,8 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
   }
 
   /**
- * fetchElements 当前未被任何组件直接调用，保留作为手动使用的导出接口
- */
+   * fetchElements 当前未被任何组件直接调用，保留作为手动使用的导出接口
+   */
   async function fetchElements(nodeId: number, mkp?: string, m?: string) {
     const mp = mkp ?? marketplace.value
     const mo = m ?? month.value
@@ -273,6 +278,17 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
 
   function openResults() { resultsVisible.value = true }
   function closeResults() { resultsVisible.value = false }
+
+  // ---- 排序 ----
+  function setSortBy(val: string) {
+    sortBy.value = val
+    if (selectedNodeId.value || selectedBsrId.value) {
+      loadProducts({
+        nodeId: selectedNodeId.value ? Number(selectedNodeId.value) : undefined,
+        bsrId: selectedBsrId.value || undefined,
+      })
+    }
+  }
 
   // ---- 选品操作 ----
 
@@ -324,8 +340,9 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
       })
       // 清空已选中
       selectedProducts.value = new Set()
+      ElMessage.success(`已加入 ${products.length} 件商品到选品库`)
     } catch (err) {
-      console.warn('[Store]', err)
+      ElMessage.error('批量加入选品失败，请重试')
     }
   }
 
@@ -351,8 +368,9 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
       a.download = `selected-asins-${Date.now()}.xlsx`
       a.click()
       window.URL.revokeObjectURL(url)
+      ElMessage.success(`已导出 ${products.length} 条 ASIN`)
     } catch (err) {
-      console.warn('[Store]', err)
+      ElMessage.error('导出 Excel 失败，请重试')
     }
   }
 
@@ -378,6 +396,8 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     selectedProducts,
     selectedProductList,
     selectedCount,
+    sortBy,
+    setSortBy,
     // ---- 新增方法 ----
     toggleProductSelection,
     selectAllOnPage,

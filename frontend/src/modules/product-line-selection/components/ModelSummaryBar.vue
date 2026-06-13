@@ -7,7 +7,7 @@
         {{ healthLabel }}
       </span>
       <span class="summary-text">{{ summaryLine }}</span>
-      <span class="expand-icon">▸ 展开</span>
+      <span class="expand-icon">▸ 展开模型详情</span>
     </div>
 
     <!-- 展开态: 完整模型详情 -->
