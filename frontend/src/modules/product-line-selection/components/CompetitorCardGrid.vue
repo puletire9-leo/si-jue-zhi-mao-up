@@ -1,18 +1,20 @@
 <template>
   <div class="card-grid-container">
-    <div v-loading="loading" class="card-grid">
-      <UniversalCard
-        v-for="item in products"
-        :key="item.asin"
-        :product="item"
-        mode="selection"
-        :selected="selectedAsins?.has(item.asin)"
-        @click="$emit('cardClick', item)"
-        @toggle-select="$emit('toggleSelect', item.asin)"
-        @view="$emit('viewDetail', item)"
-      />
-      <el-empty v-if="!loading && products.length === 0" description="点击左侧品线大类或小类查看竞品" />
-    </div>
+    <SkeletonWrapper :loading="loading" variant="card-grid" :count="12">
+      <div class="card-grid">
+        <UniversalCard
+          v-for="item in products"
+          :key="item.asin"
+          :product="item"
+          mode="selection"
+          :selected="selectedAsins?.has(item.asin)"
+          @click="$emit('cardClick', item)"
+          @toggle-select="$emit('toggleSelect', item.asin)"
+          @view="$emit('viewDetail', item)"
+        />
+        <el-empty v-if="!loading && products.length === 0" description="点击左侧品线大类或小类查看竞品" />
+      </div>
+    </SkeletonWrapper>
     <div class="grid-footer" v-if="total > 0">
       <el-pagination
         :total="total"
@@ -29,6 +31,7 @@
 
 <script setup lang="ts">
 import UniversalCard from '@/components/UniversalCard/index.vue'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import { ElEmpty, ElPagination } from 'element-plus'
 import type { CompetitorProductRaw } from '@/api/competitor'
 

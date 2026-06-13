@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>品线选品 — 思觉智贸</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================
+       Amber Classic 设计系统
+       ============================================ */
+    :root {
+      --primary: #b45309;
+      --primary-light: #d97706;
+      --primary-dark: #92400e;
+      --bg: #faf8f5;
+      --bg-hover: #f5f0eb;
+      --bg-body: #f5f0eb;
+      --surface: #ffffff;
+      --fg: #1a1a1a;
+      --fg-secondary: #6b7280;
+      --fg-tertiary: #9ca3af;
+      --fg-disabled: #d1ccc4;
+      --border: #e5e1da;
+      --border-hover: #d6cfc6;
+      --success: #059669;
+      --warning: #b45309;
+      --danger: #dc2626;
+      --info: #0891b2;
+      --font-display: 'Playfair Display', 'Noto Serif SC', Georgia, serif;
+      --font-body: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', 'SF Mono', Monaco, monospace;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 10px;
+      --radius-xl: 14px;
+      --shadow-sm: 0 2px 8px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 20px rgba(0,0,0,0.06);
+      --shadow-lg: 0 8px 30px rgba(0,0,0,0.08);
+      --transition: 0.2s ease;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-body);
+      color: var(--fg);
+      font-size: 14px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    /* ============================================
+       顶部工具栏
+       ============================================ */
+    .topbar {
+      height: 52px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 16px;
+      z-index: 10;
+    }
+    .tb-brand {
+      font-weight: 600;
+      color: var(--fg-secondary);
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+    .tb-brand span { color: var(--fg); }
+    .tb-breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--fg-tertiary); }
+    .tb-breadcrumb .current { color: var(--fg); font-weight: 500; }
+    .tb-spacer { flex: 1; }
+    .tb-select {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 12px;
+      background: var(--bg-hover);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: 12px;
+      color: var(--fg);
+      cursor: pointer;
+      font-family: inherit;
+      transition: all var(--transition);
+    }
+    .tb-select:hover { border-color: var(--primary); }
+    .tb-select select { border: none; background: transparent; font: inherit; color: inherit; cursor: pointer; outline: none; }
+    .tb-btn {
+      padding: 8px 16px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+      letter-spacing: 0.02em;
+      transition: all var(--transition);
+    }
+    .tb-btn:hover { background: var(--primary-dark); }
+    .tb-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+    /* ============================================
+       三栏布局
+       ============================================ */
+    .workspace {
+      display: flex;
+      height: calc(100% - 52px);
+    }
+
+    /* 品线树 */
+    .tree-panel {
+      width: 280px;
+      min-width: 200px;
+      max-width: 400px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .tree-search {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .tree-search input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      font-family: inherit;
+      background: var(--bg);
+      color: var(--fg);
+      outline: none;
+      transition: all var(--transition);
+    }
+    .tree-search input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(180,83,9,0.1); }
+    .tree-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+    .tree-group { margin-bottom: 4px; }
+    .tree-l1 {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 16px;
+      font-size: 13px; font-weight: 600;
+      color: var(--fg-secondary);
+      cursor: pointer;
+      transition: all var(--transition);
+      letter-spacing: 0.02em;
+    }
+    .tree-l1:hover { color: var(--fg); background: var(--bg-hover); }
+    .tree-l1 .arrow { width: 16px; text-align: center; font-size: 10px; transition: transform var(--transition); }
+    .tree-l1 .count { margin-left: auto; font-size: 11px; color: var(--fg-tertiary); font-weight: 400; }
+    .tree-l2 {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 16px 6px 40px;
+      font-size: 13px;
+      color: var(--fg-secondary);
+      cursor: pointer;
+      transition: all var(--transition);
+      border-left: 3px solid transparent;
+    }
+    .tree-l2:hover { color: var(--fg); background: var(--bg-hover); }
+    .tree-l2.active {
+      color: var(--primary);
+      background: rgba(180,83,9,0.05);
+      border-left-color: var(--primary);
+      font-weight: 600;
+    }
+    .tree-l2 .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .tree-l2 .dot.done { background: var(--success); }
+    .tree-l2 .dot.pending { background: var(--fg-tertiary); }
+    .tree-l2 .count { margin-left: auto; font-size: 11px; color: var(--fg-tertiary); font-weight: 400; }
+    .tree-resize {
+      width: 4px;
+      cursor: col-resize;
+      background: transparent;
+      flex-shrink: 0;
+      transition: background var(--transition);
+      position: relative; z-index: 5;
+    }
+    .tree-resize:hover, .tree-resize:active { background: var(--primary); }
+
+    /* 模型面板 */
+    .model-panel {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .model-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--fg-tertiary);
+      gap: 12px;
+    }
+    .model-empty .icon { font-size: 48px; opacity: 0.3; }
+    .model-empty .hint { font-size: 15px; }
+    .model-empty .sub { font-size: 13px; opacity: 0.7; }
+
+    /* 模型 — 健康度横幅 */
+    .health-banner {
+      display: flex; align-items: center; gap: 16px;
+      padding: 16px 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+    }
+    .health-ring {
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 700;
+      flex-shrink: 0;
+      font-family: var(--font-mono);
+    }
+    .health-ring.healthy { background: conic-gradient(var(--success) 0deg, var(--success) 280deg, var(--border) 280deg 360deg); color: var(--success); }
+    .health-ring.stable { background: conic-gradient(var(--info) 0deg, var(--info) 240deg, var(--border) 240deg 360deg); color: var(--info); }
+    .health-info h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .health-info p { font-size: 13px; color: var(--fg-secondary); line-height: 1.5; }
+    .health-info .metrics { display: flex; gap: 16px; margin-top: 8px; }
+    .health-info .metric { font-size: 12px; color: var(--fg-tertiary); }
+    .health-info .metric strong { color: var(--fg); font-family: var(--font-mono); }
+
+    /* 模型 — 卡片区 */
+    .model-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+    }
+    .model-card-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer;
+      transition: background var(--transition);
+    }
+    .model-card-header:hover { background: var(--bg-hover); }
+    .model-card-header h4 { font-size: 14px; font-weight: 600; }
+    .model-card-header .arrow { font-size: 12px; color: var(--fg-tertiary); transition: transform var(--transition); }
+    .model-card-header .arrow.open { transform: rotate(180deg); }
+    .model-card-body { padding: 16px 20px; }
+    .model-card-body.hidden { display: none; }
+
+    /* 元素 / 载体标签 */
+    .tag-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .elem-tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 12px;
+      background: var(--bg-hover);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .elem-tag:hover, .elem-tag.selected { border-color: var(--primary); color: var(--primary); background: rgba(180,83,9,0.04); }
+    .elem-tag .count { font-size: 11px; color: var(--fg-tertiary); font-family: var(--font-mono); }
+    .elem-tag.hot { border-color: rgba(220,38,38,0.3); background: rgba(220,38,38,0.04); }
+    .elem-tag.rising { border-color: rgba(234,88,12,0.3); background: rgba(234,88,12,0.04); }
+
+    .carrier-card {
+      display: flex; gap: 16px; padding: 14px;
+      background: var(--bg-hover);
+      border-radius: var(--radius-lg);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .carrier-card:hover, .carrier-card.selected { border-color: var(--primary); background: rgba(180,83,9,0.03); }
+    .carrier-thumb {
+      width: 64px; height: 64px;
+      background: linear-gradient(135deg, rgba(180,83,9,0.08), rgba(217,119,6,0.05));
+      border-radius: var(--radius-md);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px;
+      flex-shrink: 0;
+    }
+    .carrier-info { flex: 1; }
+    .carrier-info .name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .carrier-info .meta { font-size: 12px; color: var(--fg-secondary); }
+    .carrier-info .stats { display: flex; gap: 12px; margin-top: 6px; font-size: 12px; }
+    .carrier-info .stats span { color: var(--fg-tertiary); }
+    .carrier-info .stats strong { color: var(--fg); font-family: var(--font-mono); }
+
+    /* 推荐组合 */
+    .combo-card {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 14px;
+      background: rgba(180,83,9,0.05);
+      border: 1px solid rgba(180,83,9,0.15);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .combo-card:hover { border-color: var(--primary); box-shadow: var(--shadow-sm); }
+    .combo-name { font-size: 13px; font-weight: 600; }
+    .combo-detail { font-size: 12px; color: var(--fg-secondary); }
+    .combo-btn {
+      margin-left: auto;
+      padding: 5px 12px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    /* 底部操作栏 */
+    .action-bar {
+      display: flex; gap: 12px; padding: 16px 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      align-items: center;
+    }
+    .filter-tags { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+    .filter-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 8px;
+      background: rgba(180,83,9,0.08);
+      color: var(--primary);
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .filter-tag .close { cursor: pointer; font-size: 14px; line-height: 1; opacity: 0.6; }
+    .filter-tag .close:hover { opacity: 1; }
+
+    /* 结果面板 */
+    .result-panel {
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      transition: height 0.3s ease;
+      display: flex;
+      flex-direction: column;
+    }
+    .result-panel.closed { height: 0; border-top: none; overflow: hidden; }
+    .result-panel.open { height: 45vh; min-height: 300px; }
+    .result-header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-hover);
+    }
+    .result-header .title { font-size: 14px; font-weight: 600; }
+    .result-header .count { font-size: 12px; color: var(--fg-tertiary); }
+    .result-header .spacer { flex: 1; }
+    .result-header .close-btn {
+      width: 28px; height: 28px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      color: var(--fg-secondary);
+    }
+    .result-table-wrap { flex: 1; overflow: auto; }
+    .result-table { width: 100%; border-collapse: collapse; }
+    .result-table th {
+      position: sticky; top: 0;
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 11px; font-weight: 600;
+      color: var(--fg-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: var(--surface);
+      border-bottom: 2px solid var(--border);
+      z-index: 2;
+    }
+    .result-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .result-table tr:hover td { background: var(--bg-hover); }
+    .result-table .mono { font-family: var(--font-mono); font-size: 12px; }
+    .result-table .check-col { width: 40px; text-align: center; }
+    .result-table input[type="checkbox"] { accent-color: var(--primary); }
+
+    /* 表格状态标签 */
+    .pill {
+      display: inline-block;
+      font-size: 11px; font-weight: 600;
+      padding: 2px 8px;
+      border-radius: var(--radius-sm);
+      letter-spacing: 0.02em;
+    }
+    .pill.sell { background: rgba(5,150,105,0.1); color: var(--success); }
+    .pill.new { background: rgba(180,83,9,0.1); color: var(--primary); }
+    .pill.out { background: rgba(220,38,38,0.08); color: var(--danger); }
+
+    /* 结果底栏 */
+    .result-footer {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 20px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-hover);
+      font-size: 12px;
+      color: var(--fg-secondary);
+    }
+    .result-footer .spacer { flex: 1; }
+    .result-footer .page-btn {
+      width: 28px; height: 28px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+    }
+    .result-footer .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* 响应式 */
+    @media (max-width: 900px) {
+      .tree-panel { display: none; }
+      .tree-panel.mobile-open { display: flex; position: fixed; inset: 0; z-index: 100; width: 100%; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 顶部工具栏 -->
+  <div class="topbar">
+    <div class="tb-brand"><span>思觉智贸</span> · 选品</div>
+    <div class="tb-breadcrumb">
+      选品中心 / <span class="current">品线选品</span>
+    </div>
+    <div class="tb-spacer"></div>
+    <label class="tb-select">
+      站点 <select><option>US</option><option>UK</option><option>DE</option></select>
+    </label>
+    <label class="tb-select">
+      月份 <select><option>2026-05</option><option>2026-04</option></select>
+    </label>
+    <label class="tb-select">
+      版本 <select><option>v3</option><option>v2</option></select>
+    </label>
+  </div>
+
+  <!-- 工作区 -->
+  <div class="workspace">
+    <!-- 品线树 -->
+    <div class="tree-panel" id="treePanel">
+      <div class="tree-search">
+        <input type="text" placeholder="搜索品线或小类…" oninput="filterTree(this.value)" />
+      </div>
+      <div class="tree-list" id="treeList">
+        <div class="tree-group">
+          <div class="tree-l1" onclick="toggleGroup(this)">
+            <span class="arrow">▾</span> 🏠 Home & Kitchen
+            <span class="count">12 子类</span>
+          </div>
+          <div class="tree-l2 active" data-node="kitchen-dining" onclick="selectNode(this, 'Kitchen & Dining', 'healthy')">
+            <span class="dot done"></span> Kitchen & Dining
+            <span class="count">3,241</span>
+          </div>
+          <div class="tree-l2" data-node="home-decor" onclick="selectNode(this, 'Home Decor', 'stable')">
+            <span class="dot done"></span> Home Decor
+            <span class="count">2,186</span>
+          </div>
+          <div class="tree-l2" data-node="storage-org" onclick="selectNode(this, 'Storage & Organization', 'healthy')">
+            <span class="dot done"></span> Storage & Organization
+            <span class="count">1,953</span>
+          </div>
+          <div class="tree-l2" data-node="bedding" onclick="selectNode(this, 'Bedding', 'declining')">
+            <span class="dot pending"></span> Bedding
+            <span class="count">892</span>
+          </div>
+        </div>
+        <div class="tree-group">
+          <div class="tree-l1" onclick="toggleGroup(this)">
+            <span class="arrow">▾</span> 🔧 Tools & Home Improvement
+            <span class="count">8 子类</span>
+          </div>
+          <div class="tree-l2" data-node="power-tools" onclick="selectNode(this, 'Power Tools', 'stable')">
+            <span class="dot done"></span> Power Tools
+            <span class="count">1,567</span>
+          </div>
+          <div class="tree-l2" data-node="hand-tools" onclick="selectNode(this, 'Hand Tools', 'healthy')">
+            <span class="dot done"></span> Hand Tools
+            <span class="count">2,340</span>
+          </div>
+          <div class="tree-l2" data-node="lighting" onclick="selectNode(this, 'Lighting & Ceiling Fans', 'healthy')">
+            <span class="dot pending"></span> Lighting & Ceiling Fans
+            <span class="count">3,102</span>
+          </div>
+        </div>
+        <div class="tree-group">
+          <div class="tree-l1" onclick="toggleGroup(this)">
+            <span class="arrow">▾</span> 🧸 Toys & Games
+            <span class="count">6 子类</span>
+          </div>
+          <div class="tree-l2" data-node="board-games" onclick="selectNode(this, 'Board Games', 'healthy')">
+            <span class="dot done"></span> Board Games
+            <span class="count">1,234</span>
+          </div>
+          <div class="tree-l2" data-node="plush" onclick="selectNode(this, 'Plush Toys', 'risky')">
+            <span class="dot pending"></span> Plush Toys
+            <span class="count">567</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tree-resize" id="treeResize"></div>
+
+    <!-- 品线模型 -->
+    <div class="model-panel" id="modelPanel">
+      <!-- 空状态 -->
+      <div class="model-empty" id="modelEmpty">
+        <div class="icon">↖</div>
+        <div class="hint">选择左侧品线查看模型</div>
+        <div class="sub">点击已分析的子类节点加载品线模型数据</div>
+      </div>
+
+      <!-- 模型内容（默认隐藏） -->
+      <div id="modelContent" style="display:none;display:flex;flex-direction:column;gap:16px;">
+        <!-- 健康度横幅 -->
+        <div class="health-banner">
+          <div class="health-ring healthy" id="healthRing">78</div>
+          <div class="health-info">
+            <h3 id="modelTitle">Kitchen & Dining</h3>
+            <p>品类健康度良好，市场规模稳定增长，竞争强度适中，利润空间可观</p>
+            <div class="metrics">
+              <div class="metric">市场规模 <strong>¥2.4M</strong></div>
+              <div class="metric">竞争强度 <strong>中低</strong></div>
+              <div class="metric">利润空间 <strong>32%</strong></div>
+              <div class="metric">趋势 <strong>↑ 12%</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 已验证元素 -->
+        <div class="model-card" id="elemCard">
+          <div class="model-card-header" onclick="toggleCard(this)">
+            <h4>已验证元素 <span style="font-size:11px;color:var(--fg-tertiary);font-weight:400">(点击筛选)</span></h4>
+            <span class="arrow open">▾</span>
+          </div>
+          <div class="model-card-body">
+            <div class="tag-row">
+              <span class="elem-tag hot selected" onclick="toggleFilter(this,'元素')">不锈钢 <span class="count">847</span></span>
+              <span class="elem-tag selected" onclick="toggleFilter(this,'元素')">便携式 <span class="count">623</span></span>
+              <span class="elem-tag" onclick="toggleFilter(this,'元素')">多功能 <span class="count">512</span></span>
+              <span class="elem-tag rising" onclick="toggleFilter(this,'元素')">硅胶 <span class="count">438</span></span>
+              <span class="elem-tag" onclick="toggleFilter(this,'元素')">可调节 <span class="count">391</span></span>
+              <span class="elem-tag" onclick="toggleFilter(this,'元素')">BPA-Free <span class="count">356</span></span>
+              <span class="elem-tag" onclick="toggleFilter(this,'元素')">洗碗机安全 <span class="count">298</span></span>
+              <span class="elem-tag rising" onclick="toggleFilter(this,'元素')">竹制 <span class="count">267</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 载体画像 -->
+        <div class="model-card" id="carrierCard">
+          <div class="model-card-header" onclick="toggleCard(this)">
+            <h4>载体画像 <span style="font-size:11px;color:var(--fg-tertiary);font-weight:400">(点击加入筛选)</span></h4>
+            <span class="arrow open">▾</span>
+          </div>
+          <div class="model-card-body" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px">
+            <div class="carrier-card selected" onclick="toggleCarrier(this,'不锈钢研磨器')">
+              <div class="carrier-thumb">☕</div>
+              <div class="carrier-info">
+                <div class="name">不锈钢研磨器</div>
+                <div class="meta">厨房小家电</div>
+                <div class="stats"><span>均价 <strong>¥189</strong></span><span>竞品 <strong>47</strong></span></div>
+              </div>
+            </div>
+            <div class="carrier-card" onclick="toggleCarrier(this,'可叠加收纳盒')">
+              <div class="carrier-thumb">📦</div>
+              <div class="carrier-info">
+                <div class="name">可叠加收纳盒</div>
+                <div class="meta">家居收纳</div>
+                <div class="stats"><span>均价 <strong>¥45</strong></span><span>竞品 <strong>128</strong></span></div>
+              </div>
+            </div>
+            <div class="carrier-card" onclick="toggleCarrier(this,'硅胶厨具套装')">
+              <div class="carrier-thumb">🍳</div>
+              <div class="carrier-info">
+                <div class="name">硅胶厨具套装</div>
+                <div class="meta">厨房工具</div>
+                <div class="stats"><span>均价 <strong>¥128</strong></span><span>竞品 <strong>63</strong></span></div>
+              </div>
+            </div>
+            <div class="carrier-card" onclick="toggleCarrier(this,'竹制砧板')">
+              <div class="carrier-thumb">🪵</div>
+              <div class="carrier-info">
+                <div class="name">竹制砧板</div>
+                <div class="meta">厨房配件</div>
+                <div class="stats"><span>均价 <strong>¥89</strong></span><span>竞品 <strong>85</strong></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 推荐组合 -->
+        <div class="model-card" id="comboCard">
+          <div class="model-card-header" onclick="toggleCard(this)">
+            <h4>推荐组合</h4>
+            <span class="arrow open">▾</span>
+          </div>
+          <div class="model-card-body" style="display:grid;gap:8px">
+            <div class="combo-card">
+              <div style="flex:1">
+                <div class="combo-name">不锈钢 + 便携式 + 研磨器</div>
+                <div class="combo-detail">评分 94 · 利润预估 ¥52/件</div>
+              </div>
+              <button class="combo-btn" onclick="applyCombo('不锈钢+便携式+研磨器')">一键应用</button>
+            </div>
+            <div class="combo-card">
+              <div style="flex:1">
+                <div class="combo-name">硅胶 + BPA-Free + 厨具套装</div>
+                <div class="combo-detail">评分 89 · 利润预估 ¥38/件</div>
+              </div>
+              <button class="combo-btn" onclick="applyCombo('硅胶+BPA-Free+厨具')">一键应用</button>
+            </div>
+            <div class="combo-card">
+              <div style="flex:1">
+                <div class="combo-name">竹制 + 可调节 + 收纳盒</div>
+                <div class="combo-detail">评分 86 · 利润预估 ¥41/件</div>
+              </div>
+              <button class="combo-btn" onclick="applyCombo('竹制+可调节+收纳盒')">一键应用</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 操作栏 -->
+        <div class="action-bar" id="actionBar">
+          <div class="filter-tags" id="filterTags">
+            <span class="filter-tag">不锈钢 <span class="close" onclick="removeFilter(this)">&times;</span></span>
+            <span class="filter-tag">便携式 <span class="close" onclick="removeFilter(this)">&times;</span></span>
+            <span class="filter-tag">载体:不锈钢研磨器 <span class="close" onclick="removeFilter(this)">&times;</span></span>
+          </div>
+          <button class="tb-btn" onclick="openResults()">应用全部筛选</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 竞品结果面板 -->
+  <div class="result-panel closed" id="resultPanel">
+    <div class="result-header">
+      <span class="title">竞品结果</span>
+      <span class="count" id="resultCount">76 条匹配</span>
+      <span class="spacer"></span>
+      <button class="tb-btn" style="font-size:12px;padding:6px 14px;margin-right:8px" onclick="batchSelect()">批量加入选品</button>
+      <button class="close-btn" onclick="closeResults()">✕</button>
+    </div>
+    <div class="result-table-wrap">
+      <table class="result-table">
+        <thead>
+          <tr>
+            <th class="check-col"><input type="checkbox" /></th>
+            <th>ASIN</th>
+            <th>商品名称</th>
+            <th class="mono">价格</th>
+            <th class="mono">BSR</th>
+            <th class="mono">评分</th>
+            <th>元素匹配</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="check-col"><input type="checkbox" /></td><td class="mono">B0DGH4T7RK</td><td>便携式不锈钢咖啡研磨器 — 手摇款</td><td class="mono">¥189</td><td class="mono">#847</td><td class="mono">4.6 ★</td><td>8/10</td><td><span class="pill sell">在售</span></td></tr>
+          <tr><td class="check-col"><input type="checkbox" /></td><td class="mono">B0DKL9M2NP</td><td>不锈钢便携咖啡粉研磨机 — 电动</td><td class="mono">¥268</td><td class="mono">#1,203</td><td class="mono">4.3 ★</td><td>7/10</td><td><span class="pill sell">在售</span></td></tr>
+          <tr><td class="check-col"><input type="checkbox" /></td><td class="mono">B0CFHR8WJX</td><td>便携式不锈钢研磨器套装 — 粗中细三档</td><td class="mono">¥245</td><td class="mono">#562</td><td class="mono">4.8 ★</td><td>9/10</td><td><span class="pill new">新品</span></td></tr>
+          <tr><td class="check-col"><input type="checkbox" /></td><td class="mono">B0NGT5PLXA</td><td>不锈钢便携研磨器 — 陶瓷刀盘</td><td class="mono">¥156</td><td class="mono">#3,421</td><td class="mono">4.4 ★</td><td>6/10</td><td><span class="pill out">缺货</span></td></tr>
+          <tr><td class="check-col"><input type="checkbox" /></td><td class="mono">B0PXQ9RDJK</td><td>专业级不锈钢咖啡磨豆机 — 便携式</td><td class="mono">¥320</td><td class="mono">#412</td><td class="mono">4.7 ★</td><td>9/10</td><td><span class="pill sell">在售</span></td></tr>
+          <tr><td class="check-col"><input type="checkbox" /></td><td class="mono">B0ZMW2KTNL</td><td>不锈钢研磨器 — 便携露营款</td><td class="mono">¥178</td><td class="mono">#2,108</td><td class="mono">4.5 ★</td><td>7/10</td><td><span class="pill sell">在售</span></td></tr>
+          <tr><td class="check-col"><input type="checkbox" /></td><td class="mono">B0AKL7HNXC</td><td>手动不锈钢研磨器 — 便携式薄款</td><td class="mono">¥135</td><td class="mono">#5,723</td><td class="mono">4.2 ★</td><td>5/10</td><td><span class="pill sell">在售</span></td></tr>
+          <tr><td class="check-col"><input type="checkbox" /></td><td class="mono">B0DYU3VMQP</td><td>便携式咖啡研磨器 — 不锈钢双层</td><td class="mono">¥199</td><td class="mono">#1,876</td><td class="mono">4.6 ★</td><td>8/10</td><td><span class="pill sell">在售</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="result-footer">
+      <span>1–8 / 76</span>
+      <span class="spacer"></span>
+      <button class="page-btn" disabled>‹</button>
+      <button class="page-btn">1</button>
+      <button class="page-btn">2</button>
+      <button class="page-btn">3</button>
+      <button class="page-btn">›</button>
+    </div>
+  </div>
+
+  <script>
+    // ---- 品线树交互 ----
+    function selectNode(el, name, health) {
+      document.querySelectorAll('.tree-l2').forEach(e => e.classList.remove('active'));
+      el.classList.add('active');
+      document.getElementById('modelEmpty').style.display = 'none';
+      document.getElementById('modelContent').style.display = 'flex';
+      document.getElementById('modelTitle').textContent = name;
+      // 更新健康度
+      const ring = document.getElementById('healthRing');
+      const scores = { healthy: [78, 'healthy', 'conic-gradient(#059669 0deg, #059669 280deg, var(--border) 280deg 360deg)'], stable: [62, 'stable', 'conic-gradient(#0891b2 0deg, #0891b2 223deg, var(--border) 223deg 360deg)'], declining: [45, 'declining', 'conic-gradient(#ca8a04 0deg, #ca8a04 162deg, var(--border) 162deg 360deg)'], risky: [28, 'risky', 'conic-gradient(#dc2626 0deg, #dc2626 101deg, var(--border) 101deg 360deg)'] };
+      const s = scores[health] || scores.healthy;
+      ring.textContent = s[0]; ring.className = 'health-ring ' + s[1]; ring.style.background = s[2]; ring.style.color = 'var(--success)';
+      if (health === 'declining') ring.style.color = '#ca8a04'; if (health === 'risky') ring.style.color = '#dc2626';
+      if (health === 'stable') ring.style.color = '#0891b2';
+      // 关闭结果
+      closeResults();
+    }
+
+    function toggleGroup(el) {
+      const arrow = el.querySelector('.arrow');
+      const group = el.parentElement;
+      const items = group.querySelectorAll('.tree-l2');
+      items.forEach(i => i.style.display = i.style.display === 'none' ? '' : 'none');
+      arrow.textContent = arrow.textContent === '▾' ? '▸' : '▾';
+      arrow.style.transform = arrow.textContent === '▸' ? 'rotate(-90deg)' : 'rotate(0)';
+    }
+
+    function filterTree(val) {
+      document.querySelectorAll('.tree-l2').forEach(el => {
+        el.style.display = el.textContent.toLowerCase().includes(val.toLowerCase()) ? '' : 'none';
+      });
+    }
+
+    // ---- 元素/载体筛选 ----
+    function toggleFilter(el, type) {
+      el.classList.toggle('selected');
+      const name = el.textContent.replace(/\d+/g,'').trim();
+      if (el.classList.contains('selected')) addFilterTag(name, type); else removeFilterByName(name);
+    }
+
+    function toggleCarrier(el, name) {
+      el.classList.toggle('selected');
+      if (el.classList.contains('selected')) addFilterTag('载体:'+name, '载体'); else removeFilterByName('载体:'+name);
+    }
+
+    function applyCombo(combo) {
+      combo.split('+').forEach(part => addFilterTag(part.trim(), '组合'));
+      document.querySelectorAll('.elem-tag').forEach(el => {
+        const name = el.textContent.replace(/\d+/g,'').trim();
+        if (combo.includes(name)) el.classList.add('selected');
+      });
+    }
+
+    function addFilterTag(name, type) {
+      const tags = document.getElementById('filterTags');
+      if (tags.querySelector('.filter-tag') && tags.querySelector('.filter-tag').textContent.includes(name)) return;
+      const tag = document.createElement('span'); tag.className = 'filter-tag';
+      tag.innerHTML = name + ' <span class="close" onclick="removeFilter(this)">&times;</span>';
+      tags.appendChild(tag);
+    }
+
+    function removeFilter(el) { el.parentElement.remove(); }
+    function removeFilterByName(name) { document.querySelectorAll('.filter-tag').forEach(t => { if (t.textContent.trim().startsWith(name)) t.remove(); }); }
+
+    // ---- 卡片折叠 ----
+    function toggleCard(header) {
+      const body = header.nextElementSibling;
+      const arrow = header.querySelector('.arrow');
+      body.classList.toggle('hidden');
+      arrow.classList.toggle('open');
+    }
+
+    // ---- 结果面板 ----
+    function openResults() {
+      document.getElementById('resultPanel').classList.remove('closed');
+      document.getElementById('resultPanel').classList.add('open');
+    }
+    function closeResults() {
+      document.getElementById('resultPanel').classList.add('closed');
+      document.getElementById('resultPanel').classList.remove('open');
+    }
+    function batchSelect() {
+      alert('批量加入选品 — 已选中 3 个竞品，请选择目标选品列表');
+    }
+
+    // ---- 拖拽分隔线 ----
+    (function(){
+      const resize = document.getElementById('treeResize');
+      const tree = document.getElementById('treePanel');
+      let startX, startW;
+      resize.addEventListener('mousedown', function(e) {
+        startX = e.clientX;
+        startW = tree.offsetWidth;
+        document.addEventListener('mousemove', onDrag);
+        document.addEventListener('mouseup', onDrop);
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+      });
+      function onDrag(e) {
+        const w = Math.max(200, Math.min(400, startW + (e.clientX - startX)));
+        tree.style.width = w + 'px';
+      }
+      function onDrop() {
+        document.removeEventListener('mousemove', onDrag);
+        document.removeEventListener('mouseup', onDrop);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+    })();
+  </script>
+</body>
+</html>

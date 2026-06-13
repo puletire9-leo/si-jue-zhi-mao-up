@@ -87,87 +87,89 @@
       </el-form>
 
       <!-- 网格布局显示 -->
-      <div
-        class="grid-container"
-        @drop="handleDropOnContainer"
-        @dragover="handleDragOver"
-        @dragleave="handleDragLeave"
-        :class="{ 'drag-over': isDragOver }"
-      >
-        <!-- 文件夹列表 -->
+      <SkeletonWrapper :loading="loading" variant="card-grid" :count="8">
         <div
-          v-for="folder in folderList"
-          :key="folder.id"
-          class="grid-item folder-item"
-          :class="{ 'drag-target': dragOverFolderId === folder.id }"
-          draggable="true"
-          @dragstart="handleFolderDragStart(folder, $event)"
-          @dragover="handleFolderDragOver(folder, $event)"
-          @dragleave="handleFolderDragLeave(folder)"
-          @drop="handleDropOnFolder(folder, $event)"
-          @click="handleFolderClick(folder)"
-          @contextmenu.prevent="handleContextMenu($event, folder, 'folder')"
+          class="grid-container"
+          @drop="handleDropOnContainer"
+          @dragover="handleDragOver"
+          @dragleave="handleDragLeave"
+          :class="{ 'drag-over': isDragOver }"
         >
-          <div class="item-icon folder-icon">
-            <el-icon :size="48"><Folder /></el-icon>
+          <!-- 文件夹列表 -->
+          <div
+            v-for="folder in folderList"
+            :key="folder.id"
+            class="grid-item folder-item"
+            :class="{ 'drag-target': dragOverFolderId === folder.id }"
+            draggable="true"
+            @dragstart="handleFolderDragStart(folder, $event)"
+            @dragover="handleFolderDragOver(folder, $event)"
+            @dragleave="handleFolderDragLeave(folder)"
+            @drop="handleDropOnFolder(folder, $event)"
+            @click="handleFolderClick(folder)"
+            @contextmenu.prevent="handleContextMenu($event, folder, 'folder')"
+          >
+            <div class="item-icon folder-icon">
+              <el-icon :size="48"><Folder /></el-icon>
+            </div>
+            <div class="item-name" :title="folder.name">{{ folder.name }}</div>
+            <div class="item-count">{{ folder.itemCount || 0 }} 项</div>
           </div>
-          <div class="item-name" :title="folder.name">{{ folder.name }}</div>
-          <div class="item-count">{{ folder.itemCount || 0 }} 项</div>
-        </div>
 
-        <!-- 链接列表 -->
-        <div
-          v-for="link in linkList"
-          :key="link.id"
-          class="grid-item link-item"
-          draggable="true"
-          @dragstart="handleLinkDragStart(link, $event)"
-          @click="handleLinkClick(link)"
-          @contextmenu.prevent="handleContextMenu($event, link, 'link')"
-        >
-          <div class="item-icon link-icon">
-            <el-icon :size="40"><Link /></el-icon>
+          <!-- 链接列表 -->
+          <div
+            v-for="link in linkList"
+            :key="link.id"
+            class="grid-item link-item"
+            draggable="true"
+            @dragstart="handleLinkDragStart(link, $event)"
+            @click="handleLinkClick(link)"
+            @contextmenu.prevent="handleContextMenu($event, link, 'link')"
+          >
+            <div class="item-icon link-icon">
+              <el-icon :size="40"><Link /></el-icon>
+            </div>
+            <div class="item-name" :title="link.name">{{ link.name }}</div>
+            <div class="item-url" :title="link.url">{{ link.url }}</div>
+            <div class="item-actions">
+              <el-button
+                type="primary"
+                link
+                size="small"
+                :icon="View"
+                @click.stop="handlePreview(link)"
+              >
+                预览
+              </el-button>
+              <el-button
+                type="success"
+                link
+                size="small"
+                :icon="Download"
+                @click.stop="handleDownload(link)"
+              >
+                保存
+              </el-button>
+              <el-button
+                type="danger"
+                link
+                size="small"
+                :icon="Delete"
+                @click.stop="handleDelete(link)"
+              >
+                删除
+              </el-button>
+            </div>
           </div>
-          <div class="item-name" :title="link.name">{{ link.name }}</div>
-          <div class="item-url" :title="link.url">{{ link.url }}</div>
-          <div class="item-actions">
-            <el-button
-              type="primary"
-              link
-              size="small"
-              :icon="View"
-              @click.stop="handlePreview(link)"
-            >
-              预览
-            </el-button>
-            <el-button
-              type="success"
-              link
-              size="small"
-              :icon="Download"
-              @click.stop="handleDownload(link)"
-            >
-              保存
-            </el-button>
-            <el-button
-              type="danger"
-              link
-              size="small"
-              :icon="Delete"
-              @click.stop="handleDelete(link)"
-            >
-              删除
-            </el-button>
-          </div>
-        </div>
 
-        <!-- 空状态 -->
-        <el-empty
-          v-if="folderList.length === 0 && linkList.length === 0"
-          description="暂无内容"
-          :image-size="120"
-        />
-      </div>
+          <!-- 空状态 -->
+          <el-empty
+            v-if="folderList.length === 0 && linkList.length === 0"
+            description="暂无内容"
+            :image-size="120"
+          />
+        </div>
+      </SkeletonWrapper>
 
       <!-- 分页 -->
       <div class="pagination-container" v-if="pagination.total > 0">
@@ -302,6 +304,7 @@ import {
   Download,
   Folder
 } from '@element-plus/icons-vue'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 
 // 类型定义
 interface Folder {
@@ -323,6 +326,7 @@ interface Link {
 // 响应式数据
 const folderList = ref<Folder[]>([])
 const linkList = ref<Link[]>([])
+const loading = ref(true)
 const selectedIds = ref<number[]>([])
 const currentFolderId = ref<number | null>(null)
 const breadcrumbFolders = ref<Folder[]>([])
@@ -390,6 +394,8 @@ const loadData = async () => {
     pagination.total = folderList.value.length + linkList.value.length
   } catch (error) {
     ElMessage.error('加载数据失败')
+  } finally {
+    loading.value = false
   }
 }
 
@@ -711,14 +717,14 @@ onUnmounted(() => {
   .breadcrumb-container {
     margin-bottom: 20px;
     padding: 10px 0;
-    border-bottom: 1px solid #e4e7ed;
+    border-bottom: 1px solid var(--el-border-color-lighter);
 
     .breadcrumb-root {
       cursor: pointer;
-      color: #409eff;
+      color: var(--el-color-primary);
 
       &:hover {
-        color: #66b1ff;
+        color: var(--el-color-primary-light-3);
       }
     }
   }
@@ -742,8 +748,8 @@ onUnmounted(() => {
     transition: all 0.3s;
 
     &.drag-over {
-      border-color: #409eff;
-      background-color: #f5f7fa;
+      border-color: var(--el-color-primary);
+      background-color: var(--el-fill-color-light);
     }
 
     .grid-item {
@@ -757,13 +763,13 @@ onUnmounted(() => {
       position: relative;
 
       &:hover {
-        background-color: #f5f7fa;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+        background-color: var(--el-fill-color-light);
+        box-shadow: var(--el-box-shadow-light);
       }
 
       &.drag-target {
-        background-color: #ecf5ff;
-        border: 2px dashed #409eff;
+        background-color: var(--el-color-primary-light-9);
+        border: 2px dashed var(--el-color-primary);
       }
 
       .item-icon {
@@ -773,17 +779,17 @@ onUnmounted(() => {
         justify-content: center;
 
         &.folder-icon {
-          color: #e6a23c;
+          color: var(--el-color-warning);
         }
 
         &.link-icon {
-          color: #409eff;
+          color: var(--el-color-primary);
         }
       }
 
       .item-name {
         font-size: 14px;
-        color: #303133;
+        color: var(--el-text-color-primary);
         text-align: center;
         width: 100%;
         overflow: hidden;
@@ -794,7 +800,7 @@ onUnmounted(() => {
 
       .item-url {
         font-size: 12px;
-        color: #909399;
+        color: var(--el-text-color-secondary);
         text-align: center;
         width: 100%;
         overflow: hidden;
@@ -804,7 +810,7 @@ onUnmounted(() => {
 
       .item-count {
         font-size: 12px;
-        color: #909399;
+        color: var(--el-text-color-secondary);
       }
 
       .item-actions {
@@ -843,16 +849,16 @@ onUnmounted(() => {
     transition: all 0.3s;
 
     &:hover {
-      background-color: #f5f7fa;
+      background-color: var(--el-fill-color-light);
     }
 
     &.selected {
-      background-color: #ecf5ff;
-      color: #409eff;
+      background-color: var(--el-color-primary-light-9);
+      color: var(--el-color-primary);
     }
 
     .el-icon {
-      color: #e6a23c;
+      color: var(--el-color-warning);
     }
   }
 }
@@ -874,14 +880,14 @@ onUnmounted(() => {
       transition: all 0.3s;
 
       &:hover {
-        background-color: #f5f7fa;
+        background-color: var(--el-fill-color-light);
       }
 
       &.delete {
-        color: #f56c6c;
+        color: var(--el-color-danger);
 
         &:hover {
-          background-color: #fef0f0;
+          background-color: var(--el-color-danger-light-9);
         }
       }
     }

@@ -140,7 +140,10 @@
     </el-card>
 
     <!-- 导入记录 -->
-    <el-card class="history-card">
+    <template v-if="historyLoading && !historyLoaded">
+      <SkeletonWrapper variant="table" :rows="5" />
+    </template>
+    <el-card v-else class="history-card">
       <template #header>
         <div class="card-header">
           <span>导入记录</span>
@@ -151,7 +154,7 @@
         </div>
       </template>
 
-      <el-table :data="importHistory" border stripe>
+      <el-table :data="importHistory" border stripe v-loading="historyLoading">
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column prop="fileName" label="文件名" min-width="200" />
         <el-table-column prop="recordCount" label="记录数" width="100" />
@@ -240,6 +243,7 @@ import {
 import type { UploadFile, UploadFiles } from 'element-plus'
 import * as XLSX from 'xlsx'
 import ProductTable from './components/ProductTable.vue'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import { uploadLingxingImage } from '@/api/lingxing'
 import { extractImagesFromExcel, uint8ArrayToFile } from './utils/excelImageExtractor'
 
@@ -278,6 +282,10 @@ interface ImportLog {
   type: 'info' | 'success' | 'warning' | 'error'
 }
 const importLogs = ref<ImportLog[]>([])
+
+// 导入记录加载状态
+const historyLoading = ref(false)
+const historyLoaded = ref(false)
 
 /**
  * 添加导入日志
@@ -805,6 +813,7 @@ const handleFinish = () => {
  * 加载导入历史记录
  */
 const loadImportHistory = async () => {
+  historyLoading.value = true
   try {
     importHistory.value = [
       {
@@ -825,6 +834,9 @@ const loadImportHistory = async () => {
     pagination.total = importHistory.value.length
   } catch (error) {
     ElMessage.error('加载导入记录失败')
+  } finally {
+    historyLoading.value = false
+    historyLoaded.value = true
   }
 }
 
@@ -1256,5 +1268,129 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+// ====== Dark Mode Overrides ======
+html.dark {
+  .page-title {
+    color: var(--el-text-color-primary);
+  }
+
+  .page-desc {
+    color: var(--el-text-color-secondary);
+  }
+
+  .import-card {
+    .upload-icon {
+      color: var(--el-color-primary);
+    }
+
+    .upload-text {
+      color: var(--el-text-color-regular);
+
+      em {
+        color: var(--el-color-primary);
+      }
+    }
+
+    .upload-tip {
+      color: var(--el-text-color-placeholder);
+    }
+
+    .developer-select-area {
+      background-color: var(--el-fill-color-light);
+    }
+
+    .selected-developer {
+      color: var(--el-text-color-regular);
+    }
+
+    .import-logs {
+      background-color: var(--el-fill-color);
+      border-color: var(--el-border-color-light);
+
+      .logs-header {
+        background-color: var(--el-fill-color-light);
+        border-bottom-color: var(--el-border-color-light);
+        color: var(--el-text-color-regular);
+      }
+
+      .log-item {
+        &:hover {
+          background-color: var(--el-fill-color-light);
+        }
+
+        .log-time {
+          color: var(--el-text-color-placeholder);
+        }
+
+        &.info {
+          color: var(--el-text-color-regular);
+        }
+
+        &.success {
+          color: var(--el-color-success);
+        }
+
+        &.warning {
+          color: var(--el-color-warning);
+        }
+
+        &.error {
+          color: var(--el-color-danger);
+        }
+      }
+    }
+
+    .step-actions {
+      border-top-color: var(--el-border-color-light);
+    }
+
+    .result-success .result-icon {
+      color: var(--el-color-success);
+    }
+
+    .result-error .result-icon {
+      color: var(--el-color-danger);
+    }
+
+    .result-importing .loading-icon {
+      color: var(--el-color-primary);
+    }
+  }
+
+  .history-card {
+    .pagination-wrapper {
+      .el-pagination {
+        --el-pagination-text-color: var(--el-text-color-regular);
+        --el-pagination-button-color: var(--el-text-color-regular);
+      }
+    }
+  }
+
+  // Developer dialog
+  :deep(.developer-list) {
+    .developer-item {
+      border-color: var(--el-border-color-light);
+
+      &:hover {
+        border-color: var(--el-color-primary);
+        background-color: var(--el-fill-color-light);
+      }
+
+      &.active {
+        border-color: var(--el-color-primary);
+        background-color: var(--el-color-primary-light-9);
+      }
+
+      .developer-name {
+        color: var(--el-text-color-primary);
+      }
+    }
+
+    .check-icon {
+      color: var(--el-color-primary);
+    }
+  }
 }
 </style>

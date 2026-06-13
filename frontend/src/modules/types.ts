@@ -13,10 +13,14 @@ export interface ModuleManifest {
   menuOrder?: number
   /** 权限标识，预留 */
   permissions?: string[]
+  /** 是否为外部链接（如数据看板），外部链接无 component */
+  external?: boolean
+  /** 是否在菜单中隐藏（如回收站页面），仍会注册路由 */
+  hiddenInMenu?: boolean
   route: {
     path: string
     name: string
-    component: () => Promise<any>
+    component?: () => Promise<any>
     children?: RouteRecordRaw[]
     meta?: Record<string, any>
   }

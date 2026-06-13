@@ -1,5 +1,5 @@
 <template>
-  <div class="model-panel" v-loading="store.modelLoading">
+  <div class="model-panel">
     <!-- 空状态 -->
     <div v-if="!store.selectedNodeId" class="model-empty">
       <div class="empty-icon">↖</div>
@@ -7,8 +7,8 @@
       <div class="empty-sub">点击已分析的子类节点加载品线模型数据</div>
     </div>
 
-    <!-- 模型内容 -->
-    <template v-else>
+    <!-- 骨架屏 / 模型内容 -->
+    <SkeletonWrapper v-else :loading="store.modelLoading" variant="list" :count="6">
       <!-- 健康度横幅 -->
       <div class="health-banner">
         <div class="health-ring" :class="store.selectedNodeHealth" :style="healthRingStyle">
@@ -107,18 +107,18 @@
         </el-table>
         <div v-else class="empty-text">暂无好品数据</div>
       </ModelCard>
-    </template>
 
-    <!-- MD 报告弹窗 -->
-    <el-dialog
-      v-model="mdDialogVisible"
-      title="品线分析报告"
-      width="800px"
-      top="5vh"
-      destroy-on-close
-    >
-      <div class="md-content" v-html="sanitizedMd" /><!-- FIXED: HIGH-3 -->
-    </el-dialog>
+      <!-- MD 报告弹窗 -->
+      <el-dialog
+        v-model="mdDialogVisible"
+        title="品线分析报告"
+        width="800px"
+        top="5vh"
+        destroy-on-close
+      >
+        <div class="md-content" v-html="sanitizedMd" /><!-- FIXED: HIGH-3 -->
+      </el-dialog>
+    </SkeletonWrapper>
   </div>
 </template>
 
@@ -131,6 +131,7 @@ import { useProductLineSelectionStore } from '../store'
 import { getModelMd } from '@/api/product-line'
 import { healthScoreMap, healthColorMap, saturationLabel } from '../composables/useModelDisplay'  // FIXED: MED-1
 import ModelCard from './ModelCard.vue'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import ElementTagCloud from './ElementTagCloud.vue'
 import type { ProvenElement } from './ElementTagCloud.vue'
 import CarrierGrid from './CarrierGrid.vue'

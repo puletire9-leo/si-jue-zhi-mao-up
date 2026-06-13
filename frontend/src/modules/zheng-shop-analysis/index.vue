@@ -62,7 +62,7 @@
           <el-button size="small" @click="selectRange(0, 100)">前100</el-button>
           <el-button size="small" @click="selectRange(0, 200)">前200</el-button>
           <el-input v-model.number="rangeStart" size="small" style="width: 70px" placeholder="起" />
-          <span style="color: #909399">—</span>
+          <span style="color: var(--el-text-color-secondary)">—</span>
           <el-input v-model.number="rangeEnd" size="small" style="width: 70px" placeholder="止" />
           <el-button type="primary" size="small" @click="selectRange(rangeStart - 1, rangeEnd)">选择范围</el-button>
           <el-button size="small" :type="selectionMode ? 'warning' : ''" @click="selectionMode = !selectionMode">
@@ -75,7 +75,8 @@
         </div>
       </template>
 
-      <div v-loading="loading" class="shop-list">
+      <SkeletonWrapper :loading="loading && !hasLoaded" variant="list" :count="12">
+        <div v-loading="loading" class="shop-list">
         <div
           v-for="shop in displayedStores"
           :key="shop.key"
@@ -168,6 +169,7 @@
 
         <el-empty v-if="!loading && filteredStores.length === 0" description="暂无店铺数据" />
       </div>
+      </SkeletonWrapper>
     </el-card>
 
     <!-- 批量导入抽屉 -->
@@ -219,6 +221,7 @@ import request from '@/utils/request'
 import { competitorApi } from '@/api/competitor'
 import { selectionApi } from '@/api/selection'
 import { asinImportApi } from '@/api/asinImport'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 
 defineOptions({ name: 'ZhengShopOverview' })
 
@@ -258,6 +261,7 @@ const STORE_PAGE_SIZE = 20
 
 const router = useRouter()
 const loading = ref(false)
+const hasLoaded = ref(false)
 const marketplace = ref('')
 const searchText = ref('')
 const stores = ref<UnifiedStore[]>([])
@@ -525,6 +529,7 @@ const loadAllStores = async () => {
 
     stores.value = [...zhengStores, ...filteredSelection]
     displayCount.value = STORE_PAGE_SIZE
+    hasLoaded.value = true
 
     // 加载已保存的评级
     await loadSavedRatings()
@@ -809,33 +814,33 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   padding: 16px 12px;
-  background: #fff;
-  border: 1px solid #e4e7ed;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-light);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .stat-card:hover {
-  border-color: #409eff;
-  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.1);
+  border-color: var(--el-color-primary);
+  box-shadow: 0 2px 8px var(--el-color-primary-light-8);
 }
 
 .stat-card.active {
-  border-color: #409eff;
-  background: #ecf5ff;
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
 }
 
 .stat-label {
   font-size: 13px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   margin-bottom: 4px;
 }
 
 .stat-value {
   font-size: 24px;
   font-weight: 700;
-  color: #303133;
+  color: var(--el-text-color-primary);
 }
 
 /* 卡片头部 */
@@ -860,7 +865,7 @@ onMounted(() => {
 
 .summary-text {
   font-size: 13px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
 }
 
 .header-actions {
@@ -879,19 +884,19 @@ onMounted(() => {
 
 .shop-card {
   position: relative;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--el-border-color-light);
   border-radius: 8px;
   overflow: hidden;
   transition: box-shadow 0.2s;
 }
 
 .shop-card:hover {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 12px var(--el-box-shadow-light);
 }
 
 .shop-card-selected {
-  border-color: #409eff;
-  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+  border-color: var(--el-color-primary);
+  box-shadow: 0 0 0 2px var(--el-color-primary-light-8);
 }
 
 .shop-select-overlay {
@@ -905,13 +910,13 @@ onMounted(() => {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--el-bg-color);
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .shop-select-overlay:hover {
-  background: #ecf5ff;
+  background: var(--el-color-primary-light-9);
 }
 
 .shop-header {
@@ -920,14 +925,14 @@ onMounted(() => {
   justify-content: space-between;
   padding: 14px 16px;
   cursor: pointer;
-  background: #fafafa;
+  background: var(--el-fill-color-light);
   transition: background 0.2s;
   height: 100%;
   box-sizing: border-box;
 }
 
 .shop-header:hover {
-  background: #f0f2f5;
+  background: var(--el-fill-color-lighter);
 }
 
 .shop-info {
@@ -952,7 +957,7 @@ onMounted(() => {
 .shop-name {
   font-weight: 600;
   font-size: 15px;
-  color: #303133;
+  color: var(--el-text-color-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -960,21 +965,21 @@ onMounted(() => {
 
 .shop-month {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   margin-left: 4px;
 }
 
 .shop-sync-time {
   font-size: 12px;
-  color: #67C23A;
+  color: var(--el-color-success);
   margin-left: 4px;
 }
 
 .product-count-badge {
   font-size: 13px;
   font-weight: 600;
-  color: #409eff;
-  background: #ecf5ff;
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
   padding: 2px 8px;
   border-radius: 10px;
   flex-shrink: 0;
@@ -982,7 +987,7 @@ onMounted(() => {
 
 .shop-meta {
   font-size: 12px;
-  color: #606266;
+  color: var(--el-text-color-regular);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -991,7 +996,7 @@ onMounted(() => {
 
 .shop-meta .divider {
   margin: 0 6px;
-  color: #dcdfe6;
+  color: var(--el-border-color-lighter);
 }
 
 /* 等级分布标签 */
@@ -1004,20 +1009,20 @@ onMounted(() => {
   margin-right: 4px;
 }
 
-.grade-s { background: #f0f9eb; color: #67c23a; }
-.grade-a { background: #ecf5ff; color: #409eff; }
-.grade-b { background: #fdf6ec; color: #e6a23c; }
-.grade-c { background: #f4f4f5; color: #909399; }
-.grade-d { background: #fef0f0; color: #f56c6c; }
+.grade-s { background: var(--el-color-success-light-9); color: var(--el-color-success); }
+.grade-a { background: var(--el-color-primary-light-9); color: var(--el-color-primary); }
+.grade-b { background: var(--el-color-warning-light-9); color: var(--el-color-warning); }
+.grade-c { background: var(--el-fill-color); color: var(--el-text-color-secondary); }
+.grade-d { background: var(--el-color-danger-light-9); color: var(--el-color-danger); }
 
 .listing-days {
-  color: #67c23a;
+  color: var(--el-color-success);
   font-size: 12px;
 }
 
 .shop-notes {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   margin-top: 2px;
 }
 
@@ -1029,14 +1034,14 @@ onMounted(() => {
   font-size: 12px;
 
   .rating-label {
-    color: #909399;
+    color: var(--el-text-color-secondary);
   }
   .rating-score {
-    color: #303133;
+    color: var(--el-text-color-primary);
     font-weight: 600;
   }
   .rating-match {
-    color: #909399;
+    color: var(--el-text-color-secondary);
   }
 }
 
@@ -1060,34 +1065,34 @@ onMounted(() => {
   gap: 8px;
   flex-wrap: wrap;
   padding: 12px 0 4px;
-  border-top: 1px solid #e4e7ed;
+  border-top: 1px solid var(--el-border-color-light);
   margin-top: 12px;
 }
 
 .batch-label {
   font-size: 13px;
   font-weight: 500;
-  color: #606266;
+  color: var(--el-text-color-regular);
 }
 
 /* 批量导入抽屉 */
 .batch-summary-card {
   padding: 12px;
-  background: #f0f9eb;
+  background: var(--el-color-success-light-9);
   border-radius: 8px;
   margin-bottom: 12px;
 }
 
 .batch-stat {
   font-size: 14px;
-  color: #303133;
+  color: var(--el-text-color-primary);
   margin-bottom: 4px;
 }
 
 .store-name-list {
   max-height: 400px;
   overflow-y: auto;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--el-border-color-light);
   border-radius: 6px;
   padding: 8px;
 }
@@ -1108,7 +1113,7 @@ onMounted(() => {
 }
 
 .store-mp {
-  color: #909399;
+  color: var(--el-text-color-secondary);
   font-size: 12px;
   flex-shrink: 0;
 }
@@ -1116,13 +1121,13 @@ onMounted(() => {
 .batch-progress {
   margin-top: 16px;
   padding: 12px;
-  background: #f5f7fa;
+  background: var(--el-fill-color-light);
   border-radius: 8px;
 }
 
 .progress-detail {
   font-size: 13px;
-  color: #606266;
+  color: var(--el-text-color-regular);
   margin-top: 8px;
   text-align: center;
 }
@@ -1132,7 +1137,7 @@ onMounted(() => {
   max-height: 200px;
   overflow-y: auto;
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   white-space: pre-wrap;
   word-break: break-all;
 }
