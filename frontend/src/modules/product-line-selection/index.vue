@@ -107,6 +107,8 @@
             <span class="cat-sep">/</span>
             <span class="cat-l2 active">{{ store.selectedNodeName }}</span>
           </template>
+          <span v-if="!store.selectedNodeId" class="cat-hint">显示大类全部商品</span>
+          <span v-else class="cat-hint">AI 模型分析筛选</span>
         </div>
 
         <!-- 品线模型摘要条 -->
@@ -160,12 +162,11 @@
             </span>
           </div>
           <el-button
-            type="primary"
-            :disabled="!store.hasFilters"
-            :loading="store.competitorLoading"
-            @click="store.searchCompetitors()"
+            v-if="store.hasFilters"
+            size="small"
+            @click="store.clearFilters(); store.searchCompetitors()"
           >
-            应用全部筛选
+            清除筛选
           </el-button>
         </div>
 
@@ -177,11 +178,16 @@
           :current-page="store.competitorPage"
           :page-size="store.competitorPageSize"
           :selected-asins="store.selectedProducts"
+          :selected-count="store.selectedCount"
+          :sort-by="store.sortBy"
           @toggle-select="(asin: string) => store.toggleProductSelection(asin, !store.selectedProducts.has(asin))"
           @view-detail="openDetail"
           @card-click="openDetail"
           @page-change="store.goToPage"
           @size-change="(s) => { store.competitorPageSize = s; store.searchCompetitors() }"
+          @select-all-current="store.selectAllOnPage(store.competitorResults)"
+          @deselect-all-current="store.clearSelection()"
+          @sort-change="store.setSortBy"
         />
       </div>
     </div>
@@ -405,6 +411,11 @@ export default { name: 'ProductLineSelection' }
 .cat-sep { color: $text-tertiary; }
 .cat-l2 { color: $text-secondary; }
 .cat-l2.active { color: $primary-color; }
+.cat-hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--el-text-color-secondary, #9ca3af);
+}
 
 // ---- 操作栏 ----
 .action-bar {
