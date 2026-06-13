@@ -165,12 +165,16 @@
 
     <!-- 管理层视图 - 可拖拽仪表盘 -->
     <template v-if="currentView === 'manager'">
-      <DraggableDashboard :is-compare-mode="isCompareMode" />
+      <SkeletonWrapper :loading="pageLoading" variant="card-grid">
+        <DraggableDashboard :is-compare-mode="isCompareMode" />
+      </SkeletonWrapper>
     </template>
 
     <!-- 开发视图 -->
     <template v-else>
-      <ProductDetailTable />
+      <SkeletonWrapper :loading="pageLoading" variant="table">
+        <ProductDetailTable />
+      </SkeletonWrapper>
     </template>
   </div>
 </template>
@@ -184,6 +188,7 @@ import { reportApi } from '@/api/report'
 import { ElMessage } from 'element-plus'
 import { Delete, Timer, Calendar, Watch, TrendCharts, Setting, DataAnalysis } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 
 // 导入组件
 import FilterPanel from './components/FilterPanel.vue'
@@ -192,6 +197,7 @@ import ProductDetailTable from './components/ProductDetailTable.vue'
 import AnnouncementBar from './components/AnnouncementBar.vue'
 
 const store = useProductDataStore()
+const pageLoading = ref(true)
 const clearingCache = ref(false)
 const router = useRouter()
 
@@ -555,6 +561,8 @@ onMounted(async () => {
   } catch (error) {
     console.error('初始化数据失败:', error)
     ElMessage.error('初始化失败')
+  } finally {
+    pageLoading.value = false
   }
 })
 </script>
@@ -567,8 +575,8 @@ onMounted(async () => {
 
 /* 对比日期选择器样式 */
 :deep(.compare-date-picker .el-input__wrapper) {
-  border-color: #409eff;
-  background-color: #ecf5ff;
+  border-color: var(--el-color-primary);
+  background-color: var(--el-color-primary-light-9);
 }
 
 /* 对比控制栏样式 */
@@ -636,17 +644,45 @@ onMounted(async () => {
 :deep(.el-button-group .el-button) {
   background: rgba(255, 255, 255, 0.9);
   border-color: rgba(255, 255, 255, 0.5);
-  color: #606266;
+  color: var(--el-text-color-regular);
 }
 
 :deep(.el-button-group .el-button--primary) {
-  background: #409eff;
-  border-color: #409eff;
+  background: var(--el-color-primary);
+  border-color: var(--el-color-primary);
   color: white;
 }
 
 :deep(.el-button-group .el-button:hover:not(.el-button--primary)) {
   background: white;
-  color: #409eff;
+  color: var(--el-color-primary);
+}
+
+/* 暗黑模式适配 */
+:deep(html.dark) {
+  .product-data-dashboard {
+    background: var(--el-bg-color);
+  }
+
+  .compare-control-bar {
+    .period-box {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .vs-divider {
+      background: rgba(255, 255, 255, 0.1);
+    }
+  }
+
+  :deep(.el-button-group .el-button) {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: var(--el-text-color-primary);
+
+    &:hover:not(.el-button--primary) {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+    }
+  }
 }
 </style>

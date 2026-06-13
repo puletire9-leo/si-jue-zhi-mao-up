@@ -23,6 +23,11 @@ const userInfo = ref({
   nickname: ''
 })
 
+// 骨架屏加载状态
+const loading = ref(false)
+const hasLoaded = ref(true)
+const refreshing = ref(false)
+
 const panes = [
   {
     key: 'profile',
@@ -65,7 +70,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="account-settings">
+  <template v-if="loading && !hasLoaded">
+    <div class="account-settings">
+      <SkeletonWrapper variant="list" />
+    </div>
+  </template>
+  <div v-else v-loading="refreshing" class="account-settings">
     <el-container class="account-container">
       <el-aside class="account-sidebar">
         <el-menu :default-active="activePane" class="account-menu">
@@ -197,5 +207,43 @@ onMounted(() => {
 .account-content {
   padding: 24px;
   background: transparent;
+}
+
+/* ====== 暗黑模式 ====== */
+:deep(html.dark) {
+  .account-settings {
+    background: var(--el-bg-color);
+  }
+
+  .account-sidebar {
+    background: var(--el-bg-color-overlay);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  }
+
+  .back-btn {
+    color: var(--el-text-color-secondary);
+
+    &:hover {
+      background: var(--el-fill-color-light);
+      color: var(--el-color-primary);
+    }
+  }
+
+  .user-info {
+    background: var(--el-fill-color-lighter);
+  }
+
+  .user-detail .nickname {
+    color: var(--el-text-color-primary);
+  }
+
+  :deep(.el-menu-item) {
+    color: var(--el-text-color-secondary);
+
+    &:hover {
+      background: var(--el-fill-color-light);
+      color: var(--el-color-primary);
+    }
+  }
 }
 </style>

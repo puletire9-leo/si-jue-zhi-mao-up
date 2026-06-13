@@ -9,7 +9,7 @@
       </el-breadcrumb>
       <div class="tb-spacer" />
 
-      <label class="tb-select">
+      <label class="tb-select desktop-only">
         站点
         <el-select v-model="store.marketplace" size="small" style="width:80px">
           <el-option label="US" value="US" />
@@ -18,7 +18,7 @@
         </el-select>
       </label>
 
-      <label class="tb-select">
+      <label class="tb-select desktop-only">
         月份
         <el-select v-model="store.month" size="small" style="width:100px">
           <el-option
@@ -30,7 +30,7 @@
         </el-select>
       </label>
 
-      <label class="tb-select">
+      <label class="tb-select desktop-only">
         版本
         <el-select v-model="store.selectedBatchId" size="small" style="width:180px">
           <el-option
@@ -46,6 +46,25 @@
           · {{ store.selectedBatchInfo.analyzedAt }}
         </span>
       </label>
+
+      <MobileActionSheet
+        class="mobile-only"
+        title="站点"
+        :options="siteOptions"
+        v-model="store.marketplace"
+      />
+      <MobileActionSheet
+        class="mobile-only"
+        title="月份"
+        :options="monthActionOptions"
+        v-model="store.month"
+      />
+      <MobileActionSheet
+        class="mobile-only"
+        title="版本"
+        :options="batchOptions"
+        v-model="store.selectedBatchId"
+      />
 
       <el-input
         v-model="store.searchKeyword"
@@ -189,6 +208,7 @@ import ProductLineTree from './components/ProductLineTree.vue'
 import ModelSummaryBar from './components/ModelSummaryBar.vue'
 import CompetitorCardGrid from './components/CompetitorCardGrid.vue'
 import ProductDetailDialog from '@/components/ProductDetailDialog/index.vue'
+import MobileActionSheet from '@/components/MobileActionSheet/index.vue'
 
 const store = useProductLineSelectionStore()
 const mobileTreeOpen = ref(false)
@@ -206,6 +226,21 @@ const monthOptions = computed(() => {
   }
   return months
 })
+
+// MobileActionSheet 选项
+const siteOptions = [
+  { label: 'US', value: 'US' },
+  { label: 'UK', value: 'UK' },
+  { label: 'DE', value: 'DE' },
+]
+
+const monthActionOptions = computed(() =>
+  monthOptions.value.map(m => ({ label: m, value: m }))
+)
+
+const batchOptions = computed(() =>
+  store.batches.map(b => ({ label: b.batchId, value: b.batchId }))
+)
 
 // 拖拽分隔线
 const treeWidth = ref(280)
@@ -422,6 +457,14 @@ export default { name: 'ProductLineSelection' }
 }
 
 // ---- 响应式 ----
+.desktop-only.desktop-only {
+  @media (max-width: 900px) { display: none; }
+}
+
+.mobile-only.mobile-only {
+  @media (min-width: 901px) { display: none; }
+}
+
 @media (max-width: 900px) {
   .mobile-tree-btn { display: inline-flex; align-items: center; gap: 4px; }
 

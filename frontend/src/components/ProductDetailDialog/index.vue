@@ -8,7 +8,8 @@
     class="product-detail-dialog"
     @close="handleClose"
   >
-    <div v-loading="loading" class="dialog-content">
+    <SkeletonWrapper :loading="loading" variant="list">
+      <div class="dialog-content">
       <div v-if="product" class="detail-container">
         <div class="detail-header">
           <div class="product-image">
@@ -460,6 +461,7 @@
 
       <el-empty v-else description="暂无详细信息" />
     </div>
+    </SkeletonWrapper>
   </el-dialog>
 </template>
 
@@ -711,7 +713,7 @@ watch(() => props.visible, (newVal) => {
   width: 100%;
   height: 100%;
   border-radius: 8px;
-  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  background: linear-gradient(135deg, var(--el-fill-color-lighter, #f8fafc) 0%, var(--el-border-color-extra-light, #e2e8f0) 100%);
 }
 
 .image-error {
@@ -721,7 +723,7 @@ watch(() => props.visible, (newVal) => {
   width: 100%;
   height: 100%;
   font-size: 48px;
-  color: #cbd5e1;
+  color: var(--el-text-color-disabled, #cbd5e1);
 }
 
 .product-info {
@@ -732,17 +734,17 @@ watch(() => props.visible, (newVal) => {
 
 .product-id {
   font-size: 24px;
-  color: #2c3e50;
+  color: var(--el-text-color-primary, #2c3e50);
   margin-bottom: 8px;
   font-weight: bold;
 }
 
 .product-name {
   font-size: 18px;
-  color: #34495e;
+  color: var(--el-text-color-regular, #34495e);
   margin-bottom: 20px;
   padding-bottom: 15px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--el-border-color-extra-light, #f0f0f0);
   font-weight: 600;
 }
 
@@ -763,9 +765,9 @@ watch(() => props.visible, (newVal) => {
   display: flex;
   align-items: flex-start;
   padding: 12px;
-  background-color: #f8f9fa;
+  background-color: var(--el-fill-color-light, #f8f9fa);
   border-radius: 4px;
-  
+
   &.full-width {
     grid-column: 1 / -1;
   }
@@ -773,7 +775,7 @@ watch(() => props.visible, (newVal) => {
 
 .info-label {
   width: 100px;
-  color: #7f8c8d;
+  color: var(--el-text-color-secondary, #7f8c8d);
   font-weight: 500;
   font-size: 14px;
   flex-shrink: 0;
@@ -781,14 +783,14 @@ watch(() => props.visible, (newVal) => {
 
 .info-value {
   flex: 1;
-  color: #2c3e50;
+  color: var(--el-text-color-primary, #2c3e50);
   font-size: 14px;
   word-break: break-all;
-  
+
   &.price {
     font-size: 18px;
     font-weight: bold;
-    color: #e74c3c;
+    color: var(--el-color-danger, #e74c3c);
   }
 }
 
@@ -801,13 +803,13 @@ watch(() => props.visible, (newVal) => {
 .sub-products-section {
   margin-top: 30px;
   padding-top: 30px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--el-border-color-light, #e2e8f0);
 }
 
 .section-title {
   font-size: 16px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--el-text-color-primary, #2c3e50);
   margin-bottom: 20px;
 }
 
@@ -818,14 +820,14 @@ watch(() => props.visible, (newVal) => {
 }
 
 .sub-product-card {
-  background-color: #fff;
+  background-color: var(--el-bg-color, #fff);
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--el-border-color-light, #e2e8f0);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   overflow: hidden;
   transition: all 0.3s ease;
   cursor: pointer;
-  
+
   &:hover {
     transform: translateY(-4px);
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
@@ -836,7 +838,7 @@ watch(() => props.visible, (newVal) => {
   width: 100%;
   padding-top: 75%;
   position: relative;
-  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  background: linear-gradient(135deg, var(--el-fill-color-lighter, #f8fafc) 0%, var(--el-border-color-extra-light, #e2e8f0) 100%);
   overflow: hidden;
 }
 
@@ -861,7 +863,7 @@ watch(() => props.visible, (newVal) => {
 .sub-card-sku {
   font-size: 11px;
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--el-text-color-placeholder, #94a3b8);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 6px;
@@ -870,7 +872,7 @@ watch(() => props.visible, (newVal) => {
 .sub-card-name {
   font-size: 13px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--el-text-color-primary, #1e293b);
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -883,7 +885,7 @@ watch(() => props.visible, (newVal) => {
 .variants-section {
   margin-top: 30px;
   padding-top: 30px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--el-border-color-light, #e2e8f0);
 }
 
 .variants-grid {
@@ -895,9 +897,9 @@ watch(() => props.visible, (newVal) => {
 }
 
 .variant-card {
-  background: #fff;
+  background: var(--el-bg-color, #fff);
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--el-border-color-light, #e2e8f0);
   overflow: hidden;
   transition: all 0.2s;
   display: flex;
@@ -905,13 +907,13 @@ watch(() => props.visible, (newVal) => {
   padding: 10px;
 
   &:hover {
-    border-color: #409EFF;
-    box-shadow: 0 2px 8px rgba(64,158,255,0.15);
+    border-color: var(--el-color-primary, #409EFF);
+    box-shadow: 0 2px 8px rgba(64, 158, 255, 0.15);
   }
 
   &.variant-current {
-    border-color: #67C23A;
-    background: #f0f9eb;
+    border-color: var(--el-color-success, #67C23A);
+    background: var(--el-color-success-light-9, #f0f9eb);
   }
 }
 
@@ -921,7 +923,7 @@ watch(() => props.visible, (newVal) => {
   height: 60px;
   border-radius: 4px;
   overflow: hidden;
-  background: #f5f7fa;
+  background: var(--el-fill-color-light, #f5f7fa);
 }
 
 .variant-img {
@@ -938,7 +940,7 @@ watch(() => props.visible, (newVal) => {
 .variant-title {
   font-size: 12px;
   line-height: 1.4;
-  color: #303133;
+  color: var(--el-text-color-primary, #303133);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -952,6 +954,6 @@ watch(() => props.visible, (newVal) => {
   flex-wrap: wrap;
   gap: 6px;
   font-size: 11px;
-  color: #909399;
+  color: var(--el-text-color-placeholder, #909399);
 }
 </style>

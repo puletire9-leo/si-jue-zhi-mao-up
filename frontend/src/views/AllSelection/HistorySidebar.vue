@@ -20,12 +20,13 @@
       </div>
 
       <!-- 历史列表 -->
-      <div class="history-list" v-loading="loading">
-        <template v-if="groupedHistory.length === 0">
-          <el-empty description="暂无导入记录" />
-        </template>
+      <div class="history-list">
+        <SkeletonWrapper :loading="loading" variant="list" :count="8" :rows="2">
+          <template v-if="groupedHistory.length === 0">
+            <el-empty description="暂无导入记录" />
+          </template>
 
-        <div v-for="group in groupedHistory" :key="group.label" class="history-group">
+          <div v-for="group in groupedHistory" :key="group.label" class="history-group">
           <div class="group-label">{{ group.label }}</div>
 
           <div
@@ -124,7 +125,7 @@
               </div>
             </div>
           </div>
-        </div>
+        </SkeletonWrapper>
       </div>
     </div>
   </el-drawer>

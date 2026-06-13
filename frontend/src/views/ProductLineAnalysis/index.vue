@@ -292,7 +292,7 @@ onBeforeUnmount(() => {
 }
 
 .page-desc {
-  color: #909399;
+  color: var(--el-text-color-secondary);
   font-size: 13px;
 }
 
@@ -315,24 +315,24 @@ onBeforeUnmount(() => {
 }
 
 .status-bar.connecting {
-  background: #ecf5ff;
-  color: #409eff;
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
 }
 .status-bar.running {
-  background: #f0f9eb;
-  color: #67c23a;
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success);
 }
 .status-bar.success {
-  background: #f0f9eb;
-  color: #67c23a;
+  background: var(--el-color-success-light-9);
+  color: var(--el-color-success);
 }
 .status-bar.warning {
-  background: #fdf6ec;
-  color: #e6a23c;
+  background: var(--el-color-warning-light-9);
+  color: var(--el-color-warning);
 }
 .status-bar.error {
-  background: #fef0f0;
-  color: #f56c6c;
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
 }
 
 .results-section {
@@ -359,6 +359,6 @@ onBeforeUnmount(() => {
 
 .elapsed-text {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
 }
 </style>
