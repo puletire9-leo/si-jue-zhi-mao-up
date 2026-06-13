@@ -7,6 +7,13 @@ import { selectionApi } from '@/api/selection'
 import type { ProductLineGroup, BatchInfo, FilterCondition, FilterType, TreeGroup, TreeNode, ProductLineModelData } from '@/types/productLine'
 import type { CompetitorProductRaw } from '@/api/competitor'
 
+interface SubCategoryItem {
+  nodeId: string | number
+  nodeName?: string
+  nodeFullPath?: string
+  productCount?: number
+}
+
 export const useProductLineSelectionStore = defineStore('productLineSelection', () => {
   // ---- 状态 ----
   const marketplace = ref('UK')
@@ -71,7 +78,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
           name: l1Name,
           icon: '📦',
           expanded: idx === 0,
-          children: (g.subCategories || []).map((sc: any) => ({
+          children: (g.subCategories || []).map((sc: SubCategoryItem) => ({
             id: `${g.bsrId}_${sc.nodeId}`,
             name: sc.nodeName,
             nodeId: Number(sc.nodeId),
@@ -80,11 +87,8 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
           }))
         }
       })
-    } catch {
-      // FIXED: HIGH-1
-      ElMessage.error(`品线树加载失败`)
-      console.debug('[store] fetchTree failed')  // dev-only, filtered in production
-      treeData.value = []
+    } catch (err) {
+      console.warn('[Store]', err)
     } finally {
       treeLoading.value = false
     }
@@ -100,11 +104,8 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
           selectedBatchId.value = raw[0].batchId
         }
       }
-    } catch {
-      // FIXED: HIGH-1
-      ElMessage.error(`批次列表加载失败`)
-      console.debug('[store] fetchBatchesList failed')  // dev-only, filtered in production
-      batches.value = []
+    } catch (err) {
+      console.warn('[Store]', err)
     }
   }
 
@@ -170,11 +171,8 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
       const res = await competitorApi.getDengZongShopList(params)
       competitorResults.value = (res?.data?.list ?? []) as CompetitorProductRaw[]
       competitorTotal.value = res?.data?.total ?? 0
-    } catch {
-      // FIXED: HIGH-1
-      ElMessage.error(`竞品商品加载失败`)
-      competitorResults.value = []
-      competitorTotal.value = 0
+    } catch (err) {
+      console.warn('[Store]', err)
     } finally {
       competitorLoading.value = false
     }
@@ -242,11 +240,8 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     try {
       const res = await getProductLineElements(nodeId, mp, mo)
       elementsData.value = res?.data ?? null
-    } catch {
-      // FIXED: HIGH-1
-      ElMessage.error(`元素数据加载失败`)
-      console.debug('[store] fetchElements failed')  // dev-only, filtered in production
-      elementsData.value = null
+    } catch (err) {
+      console.warn('[Store]', err)
     } finally {
       modelLoading.value = false
     }
@@ -329,10 +324,8 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
       })
       // 清空已选中
       selectedProducts.value = new Set()
-    } catch {
-      // FIXED: HIGH-1
-      ElMessage.error(`批量加入选品失败`)
-      console.debug('[store] batchAddToSelection failed')  // dev-only, filtered in production
+    } catch (err) {
+      console.warn('[Store]', err)
     }
   }
 
@@ -358,10 +351,8 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
       a.download = `selected-asins-${Date.now()}.xlsx`
       a.click()
       window.URL.revokeObjectURL(url)
-    } catch {
-      // FIXED: HIGH-1
-      ElMessage.error(`导出 Excel 失败`)
-      console.debug('[store] exportSelectedExcel failed')  // dev-only, filtered in production
+    } catch (err) {
+      console.warn('[Store]', err)
     }
   }
 

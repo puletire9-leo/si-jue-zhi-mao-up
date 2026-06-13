@@ -584,4 +584,49 @@ onMounted(() => {
   text-align: center;
   padding: 60px 20px;
 }
+
+:deep(html.dark) {
+  .selection-detail {
+    background: var(--el-bg-color-page);
+  }
+
+  .detail-card {
+    background: var(--el-bg-color);
+    border-color: var(--el-border-color);
+  }
+
+  .no-data-card {
+    background: var(--el-bg-color);
+    border-color: var(--el-border-color);
+  }
+
+  .product-asin {
+    color: var(--el-text-color-primary);
+  }
+
+  .product-title {
+    color: var(--el-text-color-primary);
+    border-bottom-color: var(--el-border-color);
+  }
+
+  .info-item {
+    background: var(--el-fill-color-lighter);
+  }
+
+  .info-label {
+    color: var(--el-text-color-secondary);
+  }
+
+  .info-value {
+    color: var(--el-text-color-primary);
+  }
+
+  .image-error {
+    color: var(--el-text-color-placeholder);
+  }
+
+  .main-image {
+    background: linear-gradient(135deg, var(--el-fill-color-lighter) 0%, var(--el-fill-color) 100%);
+  }
+}
 </style>

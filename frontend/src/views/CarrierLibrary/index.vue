@@ -209,31 +209,38 @@
         </template>
       </el-dialog>
 
-      <!-- 载体网格 -->
-      <div v-loading="loading" class="drafts-grid">
-        <!-- 载体卡片组件 -->
-        <CarrierCard
-          v-for="carrier in carrierList"
-          :key="carrier.id"
-          :carrier="carrier"
-          :selected="selectedItems.includes(carrier.id)"
-          :card-width="cardWidth"
-          :card-height="cardHeight"
-          @select="handleSelect"
-          @edit="handleEdit"
-          @update="handleUpdateCarrier"
-          @delete="handleDelete"
-          @download="handleDownload"
-          @resize="handleCardResize"
-        />
-        
-        <!-- 空状态 -->
-        <el-empty
-          v-if="!loading && carrierList.length === 0"
-          description="暂无载体数据"
-          :image-size="200"
-        />
-      </div>
+      <!-- 载体骨架屏（首次加载） -->
+      <template v-if="loading && !hasLoaded">
+        <SkeletonWrapper variant="card-grid" :count="12" />
+      </template>
+
+      <!-- 载体网格（首次加载后） -->
+      <template v-else>
+        <div v-loading="refreshing" class="drafts-grid">
+          <!-- 载体卡片组件 -->
+          <CarrierCard
+            v-for="carrier in carrierList"
+            :key="carrier.id"
+            :carrier="carrier"
+            :selected="selectedItems.includes(carrier.id)"
+            :card-width="cardWidth"
+            :card-height="cardHeight"
+            @select="handleSelect"
+            @edit="handleEdit"
+            @update="handleUpdateCarrier"
+            @delete="handleDelete"
+            @download="handleDownload"
+            @resize="handleCardResize"
+          />
+
+          <!-- 空状态 -->
+          <el-empty
+            v-if="!loading && carrierList.length === 0"
+            description="暂无载体数据"
+            :image-size="200"
+          />
+        </div>
+      </template>
 
       <!-- 分页 -->
       <el-pagination
@@ -384,6 +391,7 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'CarrierLibrary' })
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -436,6 +444,8 @@ const userStore = useUserStore()
 
 // 响应式数据
 const loading = ref(false)
+const hasLoaded = ref(false)
+const refreshing = computed(() => loading.value && hasLoaded.value)
 const dialogVisible = ref(false)
 const batchDialogVisible = ref(false)
 const batchImportDialogVisible = ref(false)
@@ -613,6 +623,8 @@ const loadCarriers = async (): Promise<void> => {
     console.error('加载载体数据失败:', error)
     ElMessage.error(error.message || '加载载体数据失败')
   } finally {
+    // 标记首次加载完成，以便切换骨架屏
+    hasLoaded.value = true
     // 确保loading状态总是被设置为false
     loading.value = false
   }

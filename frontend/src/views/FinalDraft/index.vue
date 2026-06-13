@@ -219,7 +219,8 @@
       </el-dialog>
 
       <!-- 定稿产品网格 -->
-      <div v-loading="loading" class="drafts-grid">
+      <SkeletonWrapper :loading="loading" variant="card-grid">
+        <div class="drafts-grid">
         <!-- 定稿卡片组件 -->
         <DraftCard
           v-for="draft in draftList"
@@ -239,6 +240,7 @@
           :image-size="200"
         />
       </div>
+      </SkeletonWrapper>
 
       <!-- 分页 -->
       <el-pagination
@@ -422,7 +424,7 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'FinalDraft' })
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Upload, Download, Sort, Search, Refresh, Collection, Check, ArrowDown, Delete, List, Filter, Edit, CircleClose } from '@element-plus/icons-vue'
@@ -432,6 +434,7 @@ import DraftCard from './components/DraftCard.vue'
 import DraftDialog from './components/DraftDialog.vue'
 import BatchImportDialog from './components/BatchImportDialog.vue'
 import BatchEditDialog from './components/BatchEditDialog.vue'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 
 // 导入API
 import { finalDraftApi } from '@/api/finalDraft'
@@ -495,6 +498,14 @@ const {
   handleAdvancedSearch,
 } = useDraftList()
 
+const hasLoaded = ref(false)
+const refreshing = computed(() => loading.value && hasLoaded.value)
+
+watch(loading, (val) => {
+  if (!val && !hasLoaded.value) {
+    hasLoaded.value = true
+  }
+})
 
 // 类型定义
 interface Draft {

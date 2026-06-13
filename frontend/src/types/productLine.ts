@@ -164,11 +164,12 @@ export interface TreeGroup {
 /** 筛选条件类型 */
 export type FilterType = 'element' | 'carrier' | 'price' | 'keyword' | 'combo'
 
-/** 筛选条件 */
-export interface FilterCondition {
-  id: string
-  type: FilterType
-  label: string
-  value: string
-  source: string
+export interface GoodProductItem {
+  asin: string
+  elements?: string[]
+  carriers?: string[]
+  scenes?: string[]
+  keywordsEn?: string[]
+  keywordsCn?: string[]
 }
+

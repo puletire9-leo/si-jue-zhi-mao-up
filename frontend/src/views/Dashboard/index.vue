@@ -1,5 +1,8 @@
 <template>
-  <div class="dashboard">
+  <template v-if="loading && !hasLoaded">
+    <SkeletonWrapper variant="stats" />
+  </template>
+  <div v-else v-loading="refreshing" class="dashboard">
     <el-row :gutter="20">
       <el-col
         :xs="24"
@@ -174,7 +177,6 @@
             </div>
           </template>
           <el-table
-            v-loading="loading"
             :data="recentProducts"
             style="width: 100%"
           >
@@ -292,10 +294,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Box, Picture, User, FolderOpened, Plus, Upload, Download, Setting } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import { productApi } from '@/api/product'
 import { statisticsApi } from '@/api/statistics'
 import { getProductTypeTag } from '@/types/utils'
@@ -305,7 +308,9 @@ defineOptions({
 })
 
 const router = useRouter()
-const loading = ref(false)
+const loading = ref(true)
+const hasLoaded = ref(false)
+const refreshing = computed(() => loading.value && hasLoaded.value)
 
 const statistics = reactive({
   totalProducts: 0,
@@ -331,7 +336,6 @@ const loadStatistics = async () => {
 }
 
 const loadRecentProducts = async () => {
-  loading.value = true
   try {
     const res = await productApi.getList({ page: 1, size: 5 })
     recentProducts.value = res?.data?.list || res?.list || []
@@ -381,9 +385,12 @@ const goToSettings = () => {
   router.push('/settings')
 }
 
-onMounted(() => {
-  loadStatistics()
-  loadRecentProducts()
+onMounted(async () => {
+  await Promise.all([
+    loadStatistics(),
+    loadRecentProducts()
+  ])
+  hasLoaded.value = true
 })
 </script>
 

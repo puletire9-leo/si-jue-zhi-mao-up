@@ -147,7 +147,7 @@ import DOMPurify from 'dompurify'  // FIXED: HIGH-3
 import { useProductLineSelectionStore } from '../store'
 import { getModelMd } from '@/api/product-line'
 import { healthScoreMap, healthColorMap, saturationLabel } from '../composables/useModelDisplay'  // FIXED: MED-1
-import type { ProductLineModelData } from '@/types/productLine'
+import type { ProductLineModelData, GoodProductItem } from '@/types/productLine'
 import ElementTagCloud from './ElementTagCloud.vue'
 import type { ProvenElement as TagCloudElement } from './ElementTagCloud.vue'
 import CarrierGrid from './CarrierGrid.vue'
@@ -307,7 +307,7 @@ const comboData = computed<ComboItem[]>(() => {
 // ---- 元素饱和度 / 价格空白 / 好品清单（FIXED: MED-1 — saturationLabel 来自 composable）----
 const elementSaturation = computed(() => props.modelData?.elementSaturation ?? null)
 const priceGaps = computed(() => props.modelData?.priceGaps ?? null)
-const goodProducts = computed<any[]>(() => props.modelData?.goodProducts ?? [])
+const goodProducts = computed<GoodProductItem[]>(() => props.modelData?.goodProducts ?? [])
 
 // ---- 查看完整 MD 报告 ----
 const mdDialogVisible = ref(false)
