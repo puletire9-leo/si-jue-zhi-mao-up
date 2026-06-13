@@ -106,6 +106,13 @@ export interface CompetitorListParams {
   size?: number
   groupByParent?: boolean
   maxVariantCount?: number
+  priceMin?: number
+  priceMax?: number
+  bsrMax?: number
+  ratingMin?: number
+  weightMax?: number
+  keywords?: string
+  nodeId?: number | string
 }
 
 export interface CompetitorListResponse {
@@ -138,7 +145,12 @@ export function normalizeProduct(raw: CompetitorProductRaw): Record<string, any>
   return result
 }
 
-function getProductType(source: string): 'new' | 'reference' | 'zheng' | '' {
+/**
+ * 根据 source 字段推断产品类型
+ * @param source 来源字段（如 '新品榜', '竞品', '郑总店铺'）
+ * @returns 'new' | 'reference' | 'zheng' | ''
+ */
+export function getProductType(source: string): 'new' | 'reference' | 'zheng' | '' {
   if (!source) return ''
   if (source.includes('新品')) return 'new'
   if (source.includes('竞品')) return 'reference'

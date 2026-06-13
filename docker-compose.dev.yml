@@ -11,9 +11,9 @@ services:
     ports:
       - "3307:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       MYSQL_USER: sijue
-      MYSQL_PASSWORD: sijue123456
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-sijue123456}
       MYSQL_DATABASE: sijuelishi_dev
     volumes:
       - mysql-data:/var/lib/mysql
@@ -53,13 +53,13 @@ services:
       - MYSQL_PORT=3306
       - MYSQL_DATABASE=sijuelishi_dev
       - MYSQL_USER=sijue
-      - MYSQL_PASSWORD=sijue123456
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-sijue123456}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - IMAGE_READ_MODE=cloud
       - BACKUP_DIR=/app/backup
-      - JWT_SECRET=sjzm-dev-jwt-secret-change-in-production
-      - SECRET_KEY=sjzm-dev-secret-key-change-in-production
+      - JWT_SECRET=${JWT_SECRET:-sjzm-dev-jwt-secret-change-in-production}
+      - SECRET_KEY=${SECRET_KEY:-sjzm-dev-secret-key-change-in-production}
     ports:
       - "8090:8090"
     volumes:
@@ -90,7 +90,7 @@ services:
       VITE_JAVA_HOST: java-product
       VITE_JAVA_PORT: "8002"
       # 选品 Agent SSE 服务（容器间通信）
-      VITE_SELECTION_AGENT_HOST: selection-agent
+      VITE_SELECTION_AGENT_HOST: selection-agent-v2
       VITE_SELECTION_AGENT_PORT: "8011"
       # 走网关代理时取消下面注释，并注释上面两行
       VITE_USE_GATEWAY: "true"
@@ -129,12 +129,12 @@ services:
       MYSQL_PORT: 3306
       MYSQL_DATABASE: sijuelishi_dev
       MYSQL_USERNAME: sijue
-      MYSQL_PASSWORD: sijue123456
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-sijue123456}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDISSON_ADDRESS: redis://redis:6379
-      SELLERSPRITE_SECRET_KEY: d03bb00611a44f9ca30bf58205ac0f00
-      JWT_SECRET: sjzm-dev-jwt-secret-change-in-production
+      # FIXED: CRIT-2 — 移除硬编码 API Key，改由 .env 注入
+      JWT_SECRET: ${JWT_SECRET:-sjzm-dev-jwt-secret-change-in-production}
     depends_on:
       mysql:
         condition: service_healthy
@@ -162,7 +162,7 @@ services:
       SJZM_USER_URI: http://java-user:8001
       SJZM_PRODUCT_URI: http://java-product:8002
       GATEWAY_AUTH_ENABLED: "false"  # 开发环境关闭JWT认证
-      JWT_SECRET: sjzm-dev-jwt-secret-change-in-production
+      JWT_SECRET: ${JWT_SECRET:-sjzm-dev-jwt-secret-change-in-production}
     depends_on:
       - java-user
       - java-product
@@ -189,11 +189,11 @@ services:
       MYSQL_PORT: 3306
       MYSQL_DATABASE: sijuelishi_dev
       MYSQL_USERNAME: sijue
-      MYSQL_PASSWORD: sijue123456
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-sijue123456}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDISSON_ADDRESS: redis://redis:6379
-      JWT_SECRET: sjzm-dev-jwt-secret-change-in-production
+      JWT_SECRET: ${JWT_SECRET:-sjzm-dev-jwt-secret-change-in-production}
     depends_on:
       mysql:
         condition: service_healthy

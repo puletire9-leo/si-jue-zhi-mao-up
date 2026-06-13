@@ -446,7 +446,8 @@ def save_product_line_elements(
     inserted = 0
     try:
         if params_list:
-            inserted = cur.executemany(sql, params_list)
+            cur.executemany(sql, params_list)
+            inserted = len(params_list)
             db_conn.commit()
     except Exception as e:
         db_conn.rollback()

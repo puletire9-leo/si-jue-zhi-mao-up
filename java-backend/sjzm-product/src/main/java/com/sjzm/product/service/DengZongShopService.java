@@ -1,10 +1,13 @@
 package com.sjzm.product.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sjzm.product.config.SellerspriteConfig;
 import com.sjzm.product.entity.DengZongShop;
+import com.sjzm.product.entity.DengZongShopSeller;
 import com.sjzm.product.mapper.DengZongShopMapper;
+import com.sjzm.product.mapper.DengZongShopSellerMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,6 +20,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -27,6 +31,7 @@ public class DengZongShopService {
     private final SellerspriteConfig config;
     private final SellerspriteConfigService sellerspriteConfigService;
     private final DengZongShopMapper mapper;
+    private final DengZongShopSellerMapper sellerMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -62,7 +67,7 @@ public class DengZongShopService {
 
             if (inserted >= total) break;
             page++;
-            try { Thread.sleep(300); } catch (InterruptedException ignored) {}
+            try { Thread.sleep(300); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         }
 
         log.info("同步完成: sellerName={}, total={}, inserted={}", sellerName, total, inserted);
@@ -159,7 +164,7 @@ public class DengZongShopService {
         if (item.path("availableDate").isNumber()) {
             e.setAvailableDate(item.path("availableDate").longValue());
         }
-        e.setCreatedAt(LocalDateTime.now());
+        
         e.setUpdatedAt(LocalDateTime.now());
         return e;
     }
@@ -171,6 +176,46 @@ public class DengZongShopService {
             try { return new BigDecimal(v.asText().replace("%", "")); } catch (Exception ignored) {}
         }
         return null;
+    }
+
+    // ===== MED-6: 委托方法 — Controller 不再直接注入 Mapper =====
+    public long countGroupedByParent(String marketplace, String month, String brand,
+            String sellerName, String title, String category, String bsrId, Long nodeId) {
+        return mapper.countGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId);
+    }
+
+    public List<DengZongShop> selectGroupedByParent(String marketplace, String month, String brand,
+            String sellerName, String title, String category, String bsrId, Long nodeId,
+            String sortBy, String sortOrder, int offset, int size) {
+        return mapper.selectGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId, sortBy, sortOrder, offset, size);
+    }
+
+    public List<DengZongShop> shopSelectList(LambdaQueryWrapper<DengZongShop> qw) {
+        return mapper.selectList(qw);
+    }
+
+    public long shopSelectCount(LambdaQueryWrapper<DengZongShop> qw) {
+        return mapper.selectCount(qw);
+    }
+
+    public List<Map<String, Object>> selectSellerSummary(String marketplace) {
+        return mapper.selectSellerSummary(marketplace);
+    }
+
+    public List<DengZongShopSeller> sellerSelectList(LambdaQueryWrapper<DengZongShopSeller> qw) {
+        return sellerMapper.selectList(qw);
+    }
+
+    public int sellerInsert(DengZongShopSeller seller) {
+        return sellerMapper.insert(seller);
+    }
+
+    public int sellerUpdateById(DengZongShopSeller seller) {
+        return sellerMapper.updateById(seller);
+    }
+
+    public int sellerDeleteById(Long id) {
+        return sellerMapper.deleteById(id);
     }
 
     private String getNestedText(JsonNode node, String parent, String field) {

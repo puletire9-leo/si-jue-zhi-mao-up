@@ -12,160 +12,260 @@
       <!-- 健康度横幅 -->
       <div class="health-banner">
         <div class="health-ring" :class="store.selectedNodeHealth" :style="healthRingStyle">
-          {{ healthScore }}
+          {{ healthDisplay.score }}
         </div>
         <div class="health-info">
           <h3>{{ store.selectedNodeName }}</h3>
-          <p>品类健康度良好，市场规模稳定增长，竞争强度适中，利润空间可观</p>
+          <p>{{ healthDisplay.reason || '正在分析品类健康状态…' }}</p>
           <div class="metrics">
-            <div class="metric">市场规模 <strong>¥2.4M</strong></div>
-            <div class="metric">竞争强度 <strong>中低</strong></div>
-            <div class="metric">利润空间 <strong>32%</strong></div>
-            <div class="metric">趋势 <strong class="up">↑ 12%</strong></div>
+            <div class="metric">BSR P50 <strong>{{ healthDisplay.bsrP50 }}</strong></div>
+            <div class="metric">最低评分 <strong>{{ healthDisplay.ratingMin }}</strong></div>
+            <div class="metric">中位重量 <strong>{{ healthDisplay.weightMedian }}g</strong></div>
+            <div class="metric">FBA 占比 <strong>{{ healthDisplay.fbaMedian }}%</strong></div>
+          </div>
+          <div class="metrics" v-if="healthDisplay.hasPrice">
+            <div class="metric">价格区间 <strong>{{ healthDisplay.priceMin }}–{{ healthDisplay.priceMax }}</strong></div>
+            <div class="metric">均价 <strong>{{ healthDisplay.priceAvg }}</strong></div>
+            <div class="metric">甜蜜点 <strong>{{ healthDisplay.sweetSpot }}%</strong></div>
+          </div>
+          <div class="health-actions">
+            <el-button text type="primary" size="small" :loading="mdLoading" @click="openMdReport">
+              查看完整分析报告
+            </el-button>
           </div>
         </div>
       </div>
 
-      <!-- 已验证元素 -->
-      <ModelCard title="已验证元素" subtitle="点击筛选" :expanded="true">
-        <div class="tag-row">
-          <span
-            v-for="elem in elements"
-            :key="elem.name"
-            class="elem-tag"
-            :class="{
-              selected: isElemSelected(elem),
-              hot: elem.trend === 'hot',
-              rising: elem.trend === 'rising'
-            }"
-            @click="toggleElement(elem)"
-          >
-            {{ elem.name }}
-            <span class="count">{{ elem.count }}</span>
-          </span>
+      <!-- 搜索关键词 -->
+      <ModelCard title="搜索关键词" :expanded="true">
+        <div class="kw-section">
+          <div class="kw-group" v-if="searchKeywords?.en?.length">
+            <span class="kw-label">EN</span>
+            <span v-for="kw in searchKeywords.en" :key="kw" class="kw-tag" title="点击复制" @click="copyText(kw)">{{ kw }}</span>
+          </div>
+          <div class="kw-group" v-if="searchKeywords?.cn?.length">
+            <span class="kw-label">CN</span>
+            <span v-for="kw in searchKeywords.cn" :key="kw" class="kw-tag" title="点击复制" @click="copyText(kw)">{{ kw }}</span>
+          </div>
+          <div v-if="!searchKeywords?.en?.length && !searchKeywords?.cn?.length" class="empty-text">暂无搜索关键词</div>
         </div>
+      </ModelCard>
+
+      <!-- 已验证元素 -->
+      <ElementTagCloud :elements="provenElements" />
+
+      <!-- 元素饱和度 -->
+      <ModelCard title="元素饱和度" :expanded="false">
+        <div v-if="elementSaturation?.length" class="sat-list">
+          <div v-for="s in elementSaturation" :key="s.element" class="sat-item">
+            <span class="sat-name">{{ s.element }}</span>
+            <span class="sat-freq">{{ s.frequency }}次</span>
+            <span class="sat-tag" :class="s.saturation">{{ saturationLabel(s.saturation) }}</span>
+            <span class="sat-insight">{{ s.insight }}</span>
+          </div>
+        </div>
+        <div v-else class="empty-text">暂无饱和度数据</div>
+      </ModelCard>
+
+      <!-- 价格空白 -->
+      <ModelCard title="价格空白" :expanded="false">
+        <div v-if="priceGaps?.length" class="gap-list">
+          <div v-for="g in priceGaps" :key="g.range" class="gap-item">
+            <span class="gap-range">{{ g.range }}</span>
+            <span class="gap-opp">{{ g.opportunity }}</span>
+          </div>
+        </div>
+        <div v-else class="empty-text">暂无价格空白数据</div>
       </ModelCard>
 
       <!-- 载体画像 -->
-      <ModelCard title="载体画像" subtitle="点击加入筛选" :expanded="true">
-        <div class="carrier-grid">
-          <div
-            v-for="c in carriers"
-            :key="c.name"
-            class="carrier-card"
-            :class="{ selected: isCarrierSelected(c) }"
-            @click="toggleCarrier(c)"
-          >
-            <div class="carrier-thumb">{{ c.icon }}</div>
-            <div class="carrier-info">
-              <div class="name">{{ c.name }}</div>
-              <div class="meta">{{ c.category }}</div>
-              <div class="stats">
-                <span>均价 <strong>{{ c.avgPrice }}</strong></span>
-                <span>竞品 <strong>{{ c.competitorCount }}</strong></span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </ModelCard>
+      <CarrierGrid :carriers="carrierDetails" />
 
       <!-- 推荐组合 -->
-      <ModelCard title="推荐组合" :expanded="true">
-        <div class="combo-list">
-          <div v-for="combo in combos" :key="combo.name" class="combo-card" @click="applyCombo(combo)">
-            <div class="combo-text">
-              <div class="combo-name">{{ combo.name }}</div>
-              <div class="combo-detail">评分 {{ combo.score }} · 利润预估 {{ combo.profit }}</div>
-            </div>
-            <button class="combo-btn" @click.stop="applyCombo(combo)">一键应用</button>
-          </div>
-        </div>
+      <ComboCards :combos="recommendedCombos" />
+
+      <!-- 好品清单 -->
+      <ModelCard title="好品清单" subtitle="已验证高潜力产品" :expanded="false">
+        <el-table v-if="goodProducts.length" :data="goodProducts.slice(0, 20)" stripe size="small" height="320">
+          <el-table-column prop="asin" label="ASIN" width="130">
+            <template #default="{ row }"><span class="mono">{{ row.asin }}</span></template>
+          </el-table-column>
+          <el-table-column label="元素" min-width="160">
+            <template #default="{ row }">{{ (row.elements || []).slice(0, 3).join(', ') }}</template>
+          </el-table-column>
+          <el-table-column label="载体" min-width="120">
+            <template #default="{ row }">{{ (row.carriers || []).slice(0, 2).join(', ') }}</template>
+          </el-table-column>
+          <el-table-column label="场景" min-width="140">
+            <template #default="{ row }">{{ (row.scenes || []).slice(0, 2).join(', ') }}</template>
+          </el-table-column>
+          <el-table-column label="搜索词" min-width="160">
+            <template #default="{ row }">
+              <span class="tags">{{ (row.keywordsEn || []).slice(0, 2).join(', ') }}</span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div v-else class="empty-text">暂无好品数据</div>
       </ModelCard>
     </template>
+
+    <!-- MD 报告弹窗 -->
+    <el-dialog
+      v-model="mdDialogVisible"
+      title="品线分析报告"
+      width="800px"
+      top="5vh"
+      destroy-on-close
+    >
+      <div class="md-content" v-html="sanitizedMd" /><!-- FIXED: HIGH-3 -->
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { ref, computed } from 'vue'
+import { ElMessage } from 'element-plus'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'  // FIXED: HIGH-3
 import { useProductLineSelectionStore } from '../store'
+import { getModelMd } from '@/api/product-line'
+import { healthScoreMap, healthColorMap, saturationLabel } from '../composables/useModelDisplay'  // FIXED: MED-1
 import ModelCard from './ModelCard.vue'
+import ElementTagCloud from './ElementTagCloud.vue'
+import type { ProvenElement } from './ElementTagCloud.vue'
+import CarrierGrid from './CarrierGrid.vue'
+import type { CarrierItem } from './CarrierGrid.vue'
+import ComboCards from './ComboCards.vue'
+import type { ComboItem } from './ComboCards.vue'
 
 const store = useProductLineSelectionStore()
 
-// ---- 数据 ----
-const elements = ref([
-  { name: '不锈钢', count: 847, trend: 'hot' },
-  { name: '便携式', count: 623, trend: 'normal' },
-  { name: '多功能', count: 512, trend: 'normal' },
-  { name: '硅胶', count: 438, trend: 'rising' },
-  { name: '可调节', count: 391, trend: 'normal' },
-  { name: 'BPA-Free', count: 356, trend: 'normal' },
-  { name: '洗碗机安全', count: 298, trend: 'normal' },
-  { name: '竹制', count: 267, trend: 'rising' },
-])
+// ---- 健康度映射（FIXED: MED-1 — 使用 composable）----
 
-const carriers = ref([
-  { name: '不锈钢研磨器', icon: '☕', category: '厨房小家电', avgPrice: '¥189', competitorCount: 47 },
-  { name: '可叠加收纳盒', icon: '📦', category: '家居收纳', avgPrice: '¥45', competitorCount: 128 },
-  { name: '硅胶厨具套装', icon: '🍳', category: '厨房工具', avgPrice: '¥128', competitorCount: 63 },
-  { name: '竹制砧板', icon: '🪵', category: '厨房配件', avgPrice: '¥89', competitorCount: 85 },
-])
-
-const combos = ref([
-  { name: '不锈钢 + 便携式 + 研磨器', score: 94, profit: '¥52/件', items: ['不锈钢', '便携式', '研磨器'] },
-  { name: '硅胶 + BPA-Free + 厨具套装', score: 89, profit: '¥38/件', items: ['硅胶', 'BPA-Free', '厨具套装'] },
-  { name: '竹制 + 可调节 + 收纳盒', score: 86, profit: '¥41/件', items: ['竹制', '可调节', '收纳盒'] },
-])
-
-// ---- 健康度环形图计算 ----
-const healthScores: Record<string, { score: number; gradient: string; color: string }> = {
-  healthy: { score: 78, gradient: '#059669', color: '#059669' },
-  stable: { score: 62, gradient: '#0891b2', color: '#0891b2' },
-  declining: { score: 45, gradient: '#ca8a04', color: '#ca8a04' },
-  risky: { score: 28, gradient: '#dc2626', color: '#dc2626' },
-}
-
-const healthScore = computed(() => healthScores[store.selectedNodeHealth]?.score ?? 0)
-const healthRingStyle = computed(() => {
-  const s = healthScores[store.selectedNodeHealth] ?? healthScores.healthy
-  const deg = (s.score / 100) * 360
+const healthDisplay = computed(() => {
+  const data = store.modelData
+  const health = data?.overallHealth || store.selectedNodeHealth
+  const score = data?.overallHealth
+    ? (healthScoreMap[health] ?? 50)
+    : (healthScoreMap[store.selectedNodeHealth] ?? 50)
+  const qb = data?.qualityBenchmark
+  const pb = data?.priceBand
   return {
-    background: `conic-gradient(${s.gradient} 0deg, ${s.gradient} ${deg}deg, #e5e1da ${deg}deg 360deg)`,
-    color: s.color
+    score,
+    reason: data?.healthReason || '',
+    bsrP50: qb?.bsr_p50 ?? '—',
+    ratingMin: qb?.rating_min ?? '—',
+    weightMedian: qb?.weight_g_median ?? '—',
+    fbaMedian: qb?.fba_median ?? '—',
+    hasPrice: !!(pb?.min || pb?.max),
+    priceMin: pb?.min != null ? `£${pb.min}` : '—',
+    priceMax: pb?.max != null ? `£${pb.max}` : '—',
+    priceAvg: pb?.avg != null ? `£${pb.avg}` : '—',
+    sweetSpot: pb?.sweet_spot_ratio != null ? Math.round(pb.sweet_spot_ratio * 100) : '—',
   }
 })
 
-// ---- 元素/载体选中状态 ----
-function isElemSelected(e: { name: string }) {
-  return store.activeFilters.some(f => f.value === e.name && f.type === 'element')
-}
-function isCarrierSelected(c: { name: string }) {
-  return store.activeFilters.some(f => f.label.startsWith('载体:') && f.label.includes(c.name))
-}
-
-function toggleElement(e: { name: string; count: number }) {
-  if (isElemSelected(e)) {
-    store.removeFilterByLabel(e.name)
-  } else {
-    store.addFilter('element', e.name, e.name, '模型-元素')
+const healthRingStyle = computed(() => {
+  const data = store.modelData
+  const health = data?.overallHealth || store.selectedNodeHealth
+  const s = healthDisplay.value.score
+  const color = healthColorMap[health] ?? '#059669'
+  const deg = (s / 100) * 360
+  return {
+    background: `conic-gradient(${color} 0deg, ${color} ${deg}deg, #e5e1da ${deg}deg 360deg)`,
+    color,
   }
-}
+})
 
-function toggleCarrier(c: { name: string; icon: string; avgPrice: string; competitorCount: number }) {
-  const label = `载体:${c.name}`
-  if (isCarrierSelected(c)) {
-    store.removeFilterByLabel(label)
-  } else {
-    store.addFilter('carrier', label, c.name, '模型-载体')
-  }
-}
-
-function applyCombo(combo: { items: string[] }) {
-  combo.items.forEach(item => {
-    if (!store.activeFilters.find(f => f.value === item)) {
-      store.addFilter('combo', item, item, '推荐组合')
-    }
+// ---- 从 store 读取真实数据 ----
+const provenElements = computed<ProvenElement[]>(() => {
+  const raw = store.modelData?.provenElements
+  if (!raw) return []
+  return raw.map((el) => {
+    const tags: string[] = el.signalTags || []
+    let trend: ProvenElement['trend'] = 'normal'
+    if (tags.some(t => /BURST/i.test(t))) trend = 'hot'
+    else if (tags.some(t => /RISING/i.test(t))) trend = 'rising'
+    return { name: el.name, frequency: el.frequency, carriers: el.carriers, signalTags: tags, insight: el.insight, trend }
   })
+})
+
+const carrierDetails = computed<CarrierItem[]>(() => {
+  const raw = store.modelData?.carrierDetail
+  if (!raw) return []
+  return raw.map((c) => ({
+    name: c.name,
+    count: c.count,
+    avg_price: c.avg_price,
+    avg_weight_g: c.avg_weight_g,
+    avg_fba: c.avg_fba,
+    variant_strategy: c.variant_strategy,
+    lightweight: c.lightweight,
+  }))
+})
+
+const recommendedCombos = computed<ComboItem[]>(() => {
+  const raw = store.modelData?.recommendedCombos
+  if (!raw) return []
+  return raw.map((c) => ({
+    elements: c.elements,
+    carriers: c.carriers,
+    scenes: c.scenes,
+    keywordsEn: c.keywordsEn,
+    keywordsCn: c.keywordsCn,
+    heat: c.heat,
+    reason: c.reason,
+  }))
+})
+
+// ---- 搜索关键词 ----
+const searchKeywords = computed(() => store.modelData?.searchKeywords ?? null)
+
+// ---- 元素饱和度（FIXED: MED-1 — saturationLabel 来自 composable）----
+const elementSaturation = computed(() => store.modelData?.elementSaturation ?? null)
+
+// ---- 价格空白 ----
+const priceGaps = computed(() => store.modelData?.priceGaps ?? null)
+
+// ---- 好品清单 ----
+const goodProducts = computed(() => store.modelData?.goodProducts ?? [])
+
+// ---- 复制工具 ----
+function copyText(text: string) {
+  navigator.clipboard.writeText(text).then(() => {
+    ElMessage.success(`已复制: ${text}`)
+  }).catch(() => {
+    ElMessage.info(text)
+  })
+}
+
+// ---- MD 报告 ----
+const mdDialogVisible = ref(false)
+const mdContent = ref('')
+const mdLoading = ref(false)
+
+const renderedMd = computed(() => {
+  if (!mdContent.value) return ''
+  return marked.parse(mdContent.value) as string
+})
+
+// FIXED: HIGH-3 — DOMPurify 过滤 XSS
+const sanitizedMd = computed(() => DOMPurify.sanitize(renderedMd.value))
+
+async function openMdReport() {
+  const nodeId = Number(store.selectedNodeId)
+  if (!nodeId) return
+  mdLoading.value = true
+  try {
+    const res = await getModelMd(nodeId, store.marketplace)
+    mdContent.value = res?.data?.markdown ?? '暂无报告内容'
+    mdDialogVisible.value = true
+  } catch {
+    mdContent.value = '加载分析报告失败'
+    mdDialogVisible.value = true
+  } finally {
+    mdLoading.value = false
+  }
 }
 </script>
 
@@ -228,93 +328,64 @@ function applyCombo(combo: { items: string[] }) {
   .metric strong.up { color: $success-color; }
 }
 
-// ---- 元素标签 ----
-.tag-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.health-actions { margin-top: 8px; }
 
-.elem-tag {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 12px;
-  background: $bg-hover;
-  border: 1px solid $border-color;
-  border-radius: $radius-md;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all $transition-fast;
-
-  &:hover { border-color: $primary-color; color: $primary-color; }
-  &.selected { border-color: $primary-color; color: $primary-color; background: rgba($primary-color, 0.04); }
-  &.hot { border-color: rgba($danger-color, 0.25); background: rgba($danger-color, 0.04); }
-  &.rising { border-color: rgba(#ea580c, 0.25); background: rgba(#ea580c, 0.04); }
-
-  .count { font-size: 11px; color: $text-tertiary; font-family: $font-family-mono; }
+// ---- 搜索关键词 ----
+.kw-section { display: flex; flex-direction: column; gap: 10px; }
+.kw-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.kw-label { font-size: 11px; font-weight: 600; color: $text-tertiary; width: 28px; flex-shrink: 0; }
+.kw-tag {
+  display: inline-block; padding: 3px 10px; background: $bg-hover; border: 1px solid $border-color;
+  border-radius: $radius-md; font-size: 12px; cursor: pointer; transition: all $transition-fast;
+  &:hover { border-color: $primary-color; color: $primary-color; background: rgba($primary-color, 0.04); }
 }
+.empty-text { font-size: 12px; color: $text-tertiary; padding: 12px 0; text-align: center; }
 
-// ---- 载体卡片 ----
-.carrier-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-
-.carrier-card {
-  display: flex; gap: 14px; padding: 14px;
-  background: $bg-hover;
-  border-radius: $radius-lg;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: all $transition-fast;
-
-  &:hover, &.selected { border-color: $primary-color; background: rgba($primary-color, 0.03); }
-
-  .carrier-thumb {
-    width: 56px; height: 56px;
-    background: linear-gradient(135deg, rgba($primary-color, 0.08), rgba($primary-light, 0.05));
-    border-radius: $radius-md;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 24px;
-    flex-shrink: 0;
-  }
-
-  .carrier-info {
-    flex: 1;
-    .name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
-    .meta { font-size: 12px; color: $text-secondary; margin-bottom: 6px; }
-    .stats { display: flex; gap: 16px; font-size: 12px; color: $text-tertiary; }
-    .stats strong { font-family: $font-family-mono; color: $text-primary; }
-  }
+// ---- 元素饱和度 ----
+.sat-list { display: flex; flex-direction: column; gap: 8px; }
+.sat-item { display: flex; align-items: center; gap: 10px; font-size: 12px; padding: 6px 0; border-bottom: 1px solid $border-color; &:last-child { border-bottom: none; } }
+.sat-name { font-weight: 600; min-width: 100px; }
+.sat-freq { color: $text-tertiary; min-width: 40px; }
+.sat-tag {
+  display: inline-block; padding: 1px 8px; border-radius: $radius-sm; font-size: 11px; font-weight: 600;
+  &.high { background: rgba($danger-color, 0.08); color: $danger-color; }
+  &.medium { background: rgba($warning-color, 0.08); color: $warning-color; }
+  &.low { background: rgba($success-color, 0.08); color: $success-color; }
 }
+.sat-insight { color: $text-secondary; flex: 1; }
 
-// ---- 推荐组合 ----
-.combo-list { display: grid; gap: 8px; }
+// ---- 价格空白 ----
+.gap-list { display: flex; flex-direction: column; gap: 6px; }
+.gap-item { display: flex; align-items: center; gap: 12px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid $border-color; &:last-child { border-bottom: none; } }
+.gap-range { font-weight: 600; color: $primary-color; min-width: 100px; }
+.gap-opp { color: $text-secondary; flex: 1; }
 
-.combo-card {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 16px;
-  background: rgba($primary-color, 0.04);
-  border: 1px solid rgba($primary-color, 0.12);
-  border-radius: $radius-md;
-  cursor: pointer;
-  transition: all $transition-fast;
+// ---- 好品清单 ----
+.mono { font-family: $font-family-mono; font-size: 12px; }
+.tags { font-size: 12px; color: $text-secondary; }
 
-  &:hover { border-color: $primary-color; box-shadow: $shadow-sm; }
+.md-content {
+  font-size: 14px;
+  line-height: 1.7;
+  color: $text-primary;
+  max-height: 70vh;
+  overflow-y: auto;
 
-  .combo-text { flex: 1; }
-  .combo-name { font-size: 13px; font-weight: 600; }
-  .combo-detail { font-size: 12px; color: $text-secondary; margin-top: 2px; }
-}
-
-.combo-btn {
-  padding: 5px 14px;
-  background: $primary-color;
-  color: white;
-  border: none;
-  border-radius: $radius-sm;
-  font-size: 12px; font-weight: 500;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background $transition-fast;
-
-  &:hover { background: $primary-dark; }
+  h1 { font-size: 22px; margin: 20px 0 12px; }
+  h2 { font-size: 18px; margin: 16px 0 10px; }
+  h3 { font-size: 15px; margin: 12px 0 8px; }
+  p { margin: 8px 0; }
+  ul, ol { padding-left: 20px; }
+  li { margin: 4px 0; }
+  code { background: $bg-hover; padding: 2px 6px; border-radius: $radius-sm; font-size: 13px; }
+  pre code { display: block; padding: 12px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  th, td { border: 1px solid $border-color; padding: 8px 12px; text-align: left; }
+  th { background: $bg-hover; font-weight: 600; }
+  strong { font-weight: 600; }
 }
 
 @media (max-width: 768px) {
-  .carrier-grid { grid-template-columns: 1fr; }
   .health-banner { flex-direction: column; align-items: flex-start; }
 }
 </style>

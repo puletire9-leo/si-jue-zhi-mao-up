@@ -110,6 +110,20 @@ export default defineConfig(({ mode }) => {
           timeout: 300000,
           logLevel: 'warn'
         },
+        '/api/v1/product-line/aggregated-data': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 30000,
+          logLevel: 'warn'
+        },
+        '/api/v1/product-line/guidance': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 30000,
+          logLevel: 'warn'
+        },
         '/api/v1/product-line': {
           target: mode === 'development'
             ? `http://${env.VITE_SELECTION_AGENT_HOST || 'localhost'}:${env.VITE_SELECTION_AGENT_PORT || '8011'}`

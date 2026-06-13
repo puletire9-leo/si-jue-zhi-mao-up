@@ -15,8 +15,16 @@
     <div class="tree-list">
       <div v-for="group in filteredGroups" :key="group.id" class="tree-group">
         <!-- L1: 大类 -->
-        <div class="tree-l1" @click="group.expanded = !group.expanded">
-          <span class="arrow" :class="{ expanded: group.expanded }">
+        <div
+          class="tree-l1"
+          :class="{ active: group.id === store.selectedBsrId && !store.selectedNodeId }"
+          @click="handleL1Click(group)"
+        >
+          <span
+            class="arrow"
+            :class="{ expanded: group.expanded }"
+            @click.stop="group.expanded = !group.expanded"
+          >
             <el-icon><ArrowRight /></el-icon>
           </span>
           <span class="icon">{{ group.icon }}</span>
@@ -30,8 +38,8 @@
           v-show="group.expanded"
           :key="node.id"
           class="tree-l2"
-          :class="{ active: node.id === store.selectedNodeId }"
-          @click="handleNodeClick(node)"
+          :class="{ active: String(node.nodeId) === store.selectedNodeId }"
+          @click="handleNodeClick(node, group.id)"
         >
           <span class="dot" :class="node.status" />
           {{ node.name }}
@@ -55,72 +63,46 @@
 import { ref, computed } from 'vue'
 import { Search, ArrowRight, Close } from '@element-plus/icons-vue'
 import { useProductLineSelectionStore } from '../store'
+import type { TreeNode } from '@/types/productLine'
 
 defineProps<{ mobileOpen?: boolean }>()
-defineEmits<{ closeMobile: [] }>()
+const emit = defineEmits<{
+  closeMobile: []
+  selectL1: [bsrId: string, bsrName: string]
+  selectL2: [nodeId: number, nodeName: string, bsrId: string]
+}>()
 
 const store = useProductLineSelectionStore()
 const searchText = ref('')
 
-// ---- 模拟数据 ----
-interface TreeNode {
-  id: string
-  name: string
-  icon?: string
-  productCount: number
-  status: 'done' | 'pending' | 'empty'
-}
-interface TreeGroup { id: string; name: string; icon: string; expanded: boolean; children: TreeNode[] }
-
-const groups = ref<TreeGroup[]>([
-  {
-    id: 'home-kitchen', name: 'Home & Kitchen', icon: '🏠', expanded: true,
-    children: [
-      { id: 'kitchen-dining', name: 'Kitchen & Dining', productCount: 3241, status: 'done' },
-      { id: 'home-decor', name: 'Home Decor', productCount: 2186, status: 'done' },
-      { id: 'storage-org', name: 'Storage & Organization', productCount: 1953, status: 'done' },
-      { id: 'bedding', name: 'Bedding', productCount: 892, status: 'pending' },
-      { id: 'bath', name: 'Bath', productCount: 654, status: 'empty' },
-    ]
-  },
-  {
-    id: 'tools', name: 'Tools & Home Improvement', icon: '🔧', expanded: true,
-    children: [
-      { id: 'power-tools', name: 'Power Tools', productCount: 1567, status: 'done' },
-      { id: 'hand-tools', name: 'Hand Tools', productCount: 2340, status: 'done' },
-      { id: 'lighting', name: 'Lighting & Ceiling Fans', productCount: 3102, status: 'pending' },
-      { id: 'hardware', name: 'Hardware', productCount: 1203, status: 'done' },
-    ]
-  },
-  {
-    id: 'toys', name: 'Toys & Games', icon: '🧸', expanded: false,
-    children: [
-      { id: 'board-games', name: 'Board Games', productCount: 1234, status: 'done' },
-      { id: 'plush', name: 'Plush Toys', productCount: 567, status: 'pending' },
-      { id: 'building', name: 'Building Toys', productCount: 2109, status: 'done' },
-    ]
-  },
-])
-
 // ---- 搜索过滤 ----
 const filteredGroups = computed(() => {
   const q = searchText.value.toLowerCase().trim()
-  if (!q) return groups.value
-  return groups.value
-    .map(g => ({
-      ...g,
-      children: g.children.filter(c =>
+  if (!q) return store.treeData
+  return store.treeData
+    .map(g => {
+      const l1Match = g.name.toLowerCase().includes(q)
+      const filteredChildren = g.children.filter(c =>
         c.name.toLowerCase().includes(q)
-      ),
-      expanded: true
-    }))
-    .filter(g => g.children.length > 0)
+      )
+      return {
+        ...g,
+        children: l1Match ? g.children : filteredChildren,
+        expanded: true
+      }
+    })
+    .filter(g => g.children.length > 0 || g.name.toLowerCase().includes(q))
 })
 
 // ---- 节点点击 ----
-function handleNodeClick(node: TreeNode) {
-  const health = node.status === 'done' ? 'healthy' : node.status === 'pending' ? 'stable' : 'declining'
-  store.selectNode(node.id, node.name, health)
+function handleL1Click(group: any) {
+  group.expanded = true
+  emit('selectL1', group.id, group.name)
+}
+
+function handleNodeClick(node: TreeNode, parentBsrId: string) {
+  if (node.nodeId == null) return
+  emit('selectL2', node.nodeId, node.name, parentBsrId)
 }
 </script>
 
@@ -128,7 +110,6 @@ function handleNodeClick(node: TreeNode) {
 @use '@/styles/variables.scss' as *;
 
 .tree-panel {
-  width: 280px;
   min-width: 200px;
   max-width: 400px;
   background: $bg-color;
@@ -185,6 +166,12 @@ function handleNodeClick(node: TreeNode) {
     background: $bg-hover;
   }
 
+  &.active {
+    color: $primary-color;
+    background: rgba($primary-color, 0.06);
+    font-weight: 700;
+  }
+
   .arrow {
     width: 16px;
     display: flex;
@@ -237,9 +224,8 @@ function handleNodeClick(node: TreeNode) {
     border-radius: 50%;
     flex-shrink: 0;
 
-    &.done { background: $success-color; }
-    &.pending { background: $info-color; }
-    &.empty { background: $text-tertiary; }
+    &.analyzed { background: $success-color; }
+    &.pending { background: $text-tertiary; }
   }
 
   .count {

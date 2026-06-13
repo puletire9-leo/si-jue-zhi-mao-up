@@ -8,9 +8,11 @@ AI 分析引擎 — DeepSeek 调用 + Prompt + 结果解析
 
 from __future__ import annotations
 
+import atexit
 import json
 import logging
 import os
+import sys
 import threading
 from dataclasses import dataclass, field
 from typing import Any
@@ -25,6 +27,8 @@ logger = logging.getLogger(__name__)
 
 _client: OpenAI | None = None
 _client_lock = threading.Lock()
+# FIXED: MED-11 register cleanup on interpreter exit
+atexit.register(lambda: _client.close() if _client else None)
 
 
 def _get_client() -> OpenAI:
@@ -33,7 +37,7 @@ def _get_client() -> OpenAI:
         with _client_lock:
             if _client is None:  # double-check
                 _client = OpenAI(
-                    api_key=os.environ.get("DEEPSEEK_API_KEY", ""),
+                    api_key=os.environ["DEEPSEEK_API_KEY"],  # FIXED: CRIT-6
                     base_url="https://api.deepseek.com",
                 )
     return _client
@@ -106,7 +110,7 @@ SYSTEM_PROMPT = """你是亚马逊选品分析专家。你的任务是从郑总�
 ## 数据说明
 - 数据源: deng_zong_shop（郑总28家英国亚马逊店铺），已验证样本
 - 字段: asin, title, price, units, bsr, rating, ratings, listingDays, weightG(克), fba(£), variations, signals[]
-- 上下文已附带脚本预计算的数据: priceBand, qualityBenchmark, carrierStats, reviewMoats, sellerStats — 直接引用，不要重算
+- 上下文已附带脚本预计算的数据: priceBand, qualityBenchmark, reviewMoats, sellerStats — 直接引用，不要重算
 
 信号标签: BURST(需求热点) / RISING(增长新品) / STABLE(长期爆款) / DECLINING(已衰退) / DEAD(已失效) / VARIANT(裂变) / SWEET_SPOT(理想价格£5.99-8.99)
 
@@ -125,7 +129,7 @@ SYSTEM_PROMPT = """你是亚马逊选品分析专家。你的任务是从郑总�
 每个: name, frequency, carriers[], signal_tags[], insight(一句话发现)
 
 ### 4. carrier_detail
-基于脚本预计算的 carrierStats 数据，加你的轻小件判断和变体策略命名。
+基于商品列表中的 pkg_weight 和 fba 字段，做出你的载体判断、轻小件判断和变体策略命名。
 每个: name, count, avg_price, avg_weight_g, avg_fba, avg_variants, variant_strategy("高变体裂变(10+)" / "中等(4-9)" / "低变体(1-3)"), lightweight, lightweight_reason
 
 ### 5. emerging_elements
@@ -151,7 +155,7 @@ keywords_en 用于亚马逊搜索，keywords_cn 用于理解买家意图
 [{range, opportunity}]
 
 ### 10. lightweight_summary
-基于 carrierStats 的实际重量+FBA数据，一句话总结轻小件特征
+基于商品列表中的实际重量+FBA数据，一句话总结轻小件特征
 
 ## 约束
 - 元素/载体/场景保留英文原文，keywords_en/keywords_cn 是独立的搜索词
@@ -318,6 +322,12 @@ def parse_ai_response(raw: str) -> AIResult:
     return result
 
 
+# FIXED: MED-10 env-controlled thinking disable
+def should_disable_thinking() -> bool:
+    """Check env DEEPSEEK_DISABLE_THINKING; default enabled (1)."""
+    return os.environ.get("DEEPSEEK_DISABLE_THINKING", "1").lower() in ("1", "true", "yes")
+
+
 # ── 主入口 ───────────────────────────────────────────────────
 
 def ai_analyze(analysis: SubCategoryAnalysis, model: str = "deepseek-v4-flash") -> AIResult | None:
@@ -345,7 +355,7 @@ def ai_analyze(analysis: SubCategoryAnalysis, model: str = "deepseek-v4-flash") 
             ],
             temperature=0.3,
             max_tokens=32768,
-            extra_body={"thinking": {"type": "disabled"}},  # 关闭reasoning，否则token全被吃掉
+            extra_body=({"thinking": {"type": "disabled"}} if should_disable_thinking() else None),  # FIXED: MED-10
         )
         raw = response.choices[0].message.content or ""
         logger.info(f"  AI返回: {len(raw)} chars, {response.usage.total_tokens if response.usage else '?'} tokens")

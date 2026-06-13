@@ -21,20 +21,41 @@
       <label class="tb-select">
         月份
         <el-select v-model="store.month" size="small" style="width:100px">
-          <el-option label="2026-05" value="2026-05" />
-          <el-option label="2026-04" value="2026-04" />
-          <el-option label="2026-03" value="2026-03" />
+          <el-option
+            v-for="m in monthOptions"
+            :key="m"
+            :label="m"
+            :value="m"
+          />
         </el-select>
       </label>
 
       <label class="tb-select">
         版本
-        <el-select v-model="store.batchVersion" size="small" style="width:70px">
-          <el-option label="v3" value="v3" />
-          <el-option label="v2" value="v2" />
-          <el-option label="v1" value="v1" />
+        <el-select v-model="store.selectedBatchId" size="small" style="width:180px">
+          <el-option
+            v-for="b in store.batches"
+            :key="b.batchId"
+            :label="b.batchId"
+            :value="b.batchId"
+          />
         </el-select>
+        <span v-if="store.selectedBatchInfo" class="batch-meta">
+          v{{ store.selectedBatchInfo.dataVersion }}
+          · {{ store.selectedBatchInfo.status }}
+          · {{ store.selectedBatchInfo.analyzedAt }}
+        </span>
       </label>
+
+      <el-input
+        v-model="store.searchKeyword"
+        placeholder="搜索商品标题..."
+        clearable
+        style="width:240px"
+        size="small"
+        @keyup.enter="store.searchByKeyword(store.searchKeyword)"
+        @clear="store.searchByKeyword('')"
+      />
 
       <button class="mobile-tree-btn" @click="mobileTreeOpen = true">
         <el-icon><Menu /></el-icon> 品线
@@ -43,18 +64,66 @@
 
     <!-- 工作区 -->
     <div class="workspace">
-      <!-- 品线树 -->
       <ProductLineTree
         :mobile-open="mobileTreeOpen"
         @close-mobile="mobileTreeOpen = false"
+        @select-l1="(bsrId, name) => store.selectCategory(bsrId, name)"
+        @select-l2="(nodeId, name, bsrId) => store.selectSubCategory(nodeId, name, bsrId)"
       />
 
       <!-- 拖拽分隔线 (桌面端) -->
-      <div class="tree-resize" />
+      <div class="tree-resize" @mousedown="startResize" />
 
-      <!-- 品线模型 + 操作栏 -->
-      <div class="model-wrapper">
-        <ProductLineModel />
+      <div class="content-area">
+        <!-- 类目导航条 -->
+        <div v-if="store.selectedBsrId" class="category-header">
+          <span
+            class="cat-l1"
+            :class="{ clickable: !!store.selectedNodeId, active: !store.selectedNodeId }"
+            @click="store.selectedNodeId && store.selectCategory(store.selectedBsrId, store.selectedBsrName)"
+          >
+            📦 {{ store.selectedBsrName }}
+          </span>
+          <template v-if="store.selectedNodeId && store.selectedNodeName">
+            <span class="cat-sep">/</span>
+            <span class="cat-l2 active">{{ store.selectedNodeName }}</span>
+          </template>
+        </div>
+
+        <!-- 品线模型摘要条 -->
+        <ModelSummaryBar
+          v-if="store.selectedNodeId"
+          :model-data="store.modelData"
+          :loading="store.modelLoading"
+        />
+
+        <!-- 空白状态引导 -->
+        <div v-else-if="!store.selectedBsrId" class="empty-guide">
+          <div class="empty-guide-icon">
+            <el-icon><FolderOpened /></el-icon>
+          </div>
+          <h3 class="empty-guide-title">从左侧选择类目开始</h3>
+          <p class="empty-guide-desc">
+            点击左侧品线树中的大类查看该品类所有商品，<br>
+            或展开大类后点击子类加载 AI 品线模型与精准筛选。
+          </p>
+          <div class="empty-guide-steps">
+            <div class="step">
+              <span class="step-num">1</span>
+              <span>选择市场与月份</span>
+            </div>
+            <div class="step-arrow">→</div>
+            <div class="step">
+              <span class="step-num">2</span>
+              <span>点击左侧类目</span>
+            </div>
+            <div class="step-arrow">→</div>
+            <div class="step">
+              <span class="step-num">3</span>
+              <span>浏览竞品数据</span>
+            </div>
+          </div>
+        </div>
 
         <!-- 筛选操作栏 -->
         <div v-if="store.selectedNodeId" class="action-bar">
@@ -74,43 +143,124 @@
           <el-button
             type="primary"
             :disabled="!store.hasFilters"
-            @click="store.openResults()"
+            :loading="store.competitorLoading"
+            @click="store.searchCompetitors()"
           >
             应用全部筛选
           </el-button>
         </div>
+
+        <!-- 商品卡片网格 -->
+        <CompetitorCardGrid
+          :products="store.competitorResults"
+          :total="store.competitorTotal"
+          :loading="store.competitorLoading"
+          :current-page="store.competitorPage"
+          :page-size="store.competitorPageSize"
+          :selected-asins="store.selectedProducts"
+          @toggle-select="(asin: string) => store.toggleProductSelection(asin, !store.selectedProducts.has(asin))"
+          @view-detail="openDetail"
+          @card-click="openDetail"
+          @page-change="store.goToPage"
+          @size-change="(s) => { store.competitorPageSize = s; store.searchCompetitors() }"
+        />
       </div>
     </div>
 
-    <!-- 竞品结果 -->
-    <CompetitorResultTable
-      @batch-select="handleBatchSelect"
-      @view-detail="handleViewDetail"
-    />
+    <!-- 底部操作栏 -->
+    <div v-if="store.selectedCount > 0" class="bottom-bar">
+      <span>已选 {{ store.selectedCount }} 件</span>
+      <el-button size="small" @click="store.clearSelection()">清空</el-button>
+      <el-button type="primary" size="small" @click="store.batchAddToSelection()">批量加入选品</el-button>
+      <el-button size="small" @click="store.exportSelectedExcel()">导出Excel</el-button>
+    </div>
+
+    <!-- 商品详情弹窗 -->
+    <ProductDetailDialog v-model:visible="detailVisible" :product="detailProduct" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Menu } from '@element-plus/icons-vue'
+import { Menu, FolderOpened } from '@element-plus/icons-vue'
 import { useProductLineSelectionStore } from './store'
 import ProductLineTree from './components/ProductLineTree.vue'
-import ProductLineModel from './components/ProductLineModel.vue'
-import CompetitorResultTable from './components/CompetitorResultTable.vue'
+import ModelSummaryBar from './components/ModelSummaryBar.vue'
+import CompetitorCardGrid from './components/CompetitorCardGrid.vue'
+import ProductDetailDialog from '@/components/ProductDetailDialog/index.vue'
 
 const store = useProductLineSelectionStore()
 const mobileTreeOpen = ref(false)
+const detailVisible = ref(false)
+const detailProduct = ref<any>(null)
 
-function handleBatchSelect(rows: any[]) {
-  // TODO: 弹出选择目标列表弹窗
-  ElMessage.success(`已选中 ${rows.length} 个竞品，请选择目标选品列表`)
+// 月份动态生成：当前日期往前推12个月
+const monthOptions = computed(() => {
+  const now = new Date()
+  const months: string[] = []
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    months.push(val)
+  }
+  return months
+})
+
+// 拖拽分隔线
+const treeWidth = ref(280)
+const resizing = ref(false)
+
+function startResize(e: MouseEvent) {
+  resizing.value = true
+  const startX = e.clientX
+  const startWidth = treeWidth.value
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+
+  const onMove = (ev: MouseEvent) => {
+    const delta = ev.clientX - startX
+    treeWidth.value = Math.max(200, Math.min(400, startWidth + delta))
+    document.documentElement.style.setProperty('--tree-width', treeWidth.value + 'px')
+  }
+  const onUp = () => {
+    resizing.value = false
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+  }
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
 }
 
-function handleViewDetail(row: any) {
-  // TODO: 打开竞品详情面板
-  ElMessage.info(`查看详情: ${row.title}`)
+function openDetail(product: any) {
+  detailProduct.value = product
+  detailVisible.value = true
 }
+
+onMounted(() => {
+  store.initData()
+})
+
+watch([() => store.marketplace, () => store.month], () => {
+  // 切换市场/月份时重置选中状态，避免选中不存在的类目
+  store.selectedBsrId = ''
+  store.selectedNodeId = ''
+  store.initData()
+})
+
+watch(() => store.selectedBatchId, (newId) => {
+  if (!newId) return
+  if (store.selectedNodeId) {
+    store.selectSubCategory(
+      Number(store.selectedNodeId), store.selectedNodeName,
+      store.selectedBsrId, store.selectedNodeHealth
+    )
+  } else if (store.selectedBsrId) {
+    store.selectCategory(store.selectedBsrId, store.selectedBsrName)
+  }
+})
 </script>
 
 <script lang="ts">
@@ -150,6 +300,13 @@ export default { name: 'ProductLineSelection' }
   white-space: nowrap;
 }
 
+.batch-meta {
+  font-size: 11px;
+  color: $text-tertiary;
+  font-family: $font-family-mono;
+  white-space: nowrap;
+}
+
 .mobile-tree-btn {
   display: none;
   padding: 6px 12px;
@@ -171,6 +328,12 @@ export default { name: 'ProductLineSelection' }
   min-height: 0;
 }
 
+// 品线树宽度由 CSS 变量控制
+:deep(.tree-panel) {
+  width: var(--tree-width, 280px);
+  flex-shrink: 0;
+}
+
 .tree-resize {
   width: 4px;
   background: transparent;
@@ -183,12 +346,30 @@ export default { name: 'ProductLineSelection' }
   @media (max-width: 900px) { display: none; }
 }
 
-.model-wrapper {
+.content-area {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  overflow: auto;
 }
+
+// ---- 类目导航条 ----
+.category-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 20px;
+  border-bottom: 1px solid $border-color;
+  font-size: 14px; font-weight: 600;
+  background: $bg-color;
+}
+.cat-l1 {
+  color: $text-secondary;
+  &.active { color: $primary-color; }
+  &.clickable { cursor: pointer; &:hover { color: $primary-color; text-decoration: underline; } }
+}
+.cat-sep { color: $text-tertiary; }
+.cat-l2 { color: $text-secondary; }
+.cat-l2.active { color: $primary-color; }
 
 // ---- 操作栏 ----
 .action-bar {
@@ -224,10 +405,104 @@ export default { name: 'ProductLineSelection' }
   }
 }
 
+// ---- 底部操作栏 ----
+.bottom-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px;
+  background: $bg-color;
+  border-top: 1px solid $border-color;
+  font-size: 13px;
+  color: $text-secondary;
+  z-index: 10;
+}
+
 // ---- 响应式 ----
 @media (max-width: 900px) {
   .mobile-tree-btn { display: inline-flex; align-items: center; gap: 4px; }
 
   .tb-select { display: none; }
+
+  .bottom-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px;
+  }
+}
+
+// ---- 空白状态引导 ----
+.empty-guide {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 60px 20px;
+  text-align: center;
+  user-select: none;
+}
+
+.empty-guide-icon {
+  font-size: 48px;
+  color: $text-tertiary;
+  opacity: 0.5;
+}
+
+.empty-guide-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: $text-primary;
+  margin: 0;
+}
+
+.empty-guide-desc {
+  font-size: 14px;
+  color: $text-tertiary;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.empty-guide-steps {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: $text-secondary;
+  padding: 8px 16px;
+  background: $bg-color;
+  border: 1px solid $border-color;
+  border-radius: $radius-lg;
+}
+
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: $primary-color;
+  color: white;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.step-arrow {
+  color: $text-tertiary;
+  font-size: 16px;
 }
 </style>

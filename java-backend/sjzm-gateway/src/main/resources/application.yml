@@ -47,7 +47,11 @@ spring:
             - id: selection-agent
               uri: http://selection-agent-v2:8011
               predicates:
-                - Path=/api/v1/product-line/model/**
+                - Path=/api/v1/product-line/model/**,/api/v1/product-line/elements,/api/v1/product-line/batches
+            - id: product-line-java
+              uri: http://java-product:8002
+              predicates:
+                - Path=/api/v1/product-line/aggregated-data,/api/v1/product-line/analysis-results,/api/v1/product-line/guidance
 
 jwt:
   secret: ${JWT_SECRET:sjzm-default-secret-key-must-change-in-production-2024}
