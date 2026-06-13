@@ -1,5 +1,8 @@
 <template>
-  <div class="asin-import">
+  <template v-if="loading && !hasLoaded">
+    <SkeletonWrapper variant="table" :rows="8" />
+  </template>
+  <div v-else v-loading="refreshing" class="asin-import">
     <div class="page-header">
       <h2>ASIN 导入</h2>
       <span class="page-desc">从八爪鱼数据导入 → 筛选 → 调卖家精灵 API 获取竞品数据</span>
@@ -359,10 +362,14 @@ import { UploadFilled, Document, User, InfoFilled, CircleCheckFilled } from '@el
 import { asinImportApi, type UploadPreview, type TaskProgress } from '@/api/asinImport'
 import HistorySidebar from './HistorySidebar.vue'
 import FilterConfigPanel from '@/components/FilterConfigPanel/index.vue'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import { competitorApi } from '@/api/competitor'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+const loading = ref(true)
+const hasLoaded = ref(false)
+const refreshing = computed(() => loading.value && hasLoaded.value)
 const historyVisible = ref(false)
 
 // API 配额
@@ -418,8 +425,12 @@ const loadInitialFilterConfig = async () => {
   } catch (e) { /* 静默失败，用默认值 */ }
 }
 
-onMounted(() => {
-  loadInitialFilterConfig()
+onMounted(async () => {
+  loading.value = true
+  await loadInitialFilterConfig()
+  await loadQuota()
+  loading.value = false
+  hasLoaded.value = true
 })
 
 // 市场货币符号
@@ -905,6 +916,96 @@ watch(currentStep, (step) => {
 
 .upload-progress {
   margin-top: 24px; padding: 20px 40px; background: #f5f7fa; border-radius: 8px;
+}
+
+// ---- Dark Mode Overrides ----
+:deep(html.dark) {
+  .asin-import {
+    background: var(--el-bg-color);
+  }
+
+  .page-header h2 {
+    color: var(--el-text-color-primary);
+  }
+
+  .page-desc {
+    color: var(--el-text-color-secondary);
+  }
+
+  .step-card {
+    background: var(--el-bg-color);
+    border-color: var(--el-border-color);
+  }
+
+  .mode-card {
+    background: var(--el-bg-color);
+    border-color: var(--el-border-color-lighter);
+
+    &.active {
+      background: var(--el-fill-color-lighter);
+      border-color: var(--el-color-primary);
+    }
+
+    h3 {
+      color: var(--el-text-color-primary);
+    }
+
+    p {
+      color: var(--el-text-color-secondary);
+    }
+  }
+
+  .db-stats {
+    background: var(--el-fill-color-lighter);
+  }
+
+  .api-params {
+    background: var(--el-fill-color-lighter);
+  }
+
+  .param-label {
+    color: var(--el-text-color-primary);
+  }
+
+  .param-hint {
+    color: var(--el-text-color-secondary);
+  }
+
+  .filter-summary {
+    color: var(--el-text-color-regular);
+  }
+
+  .preview-table {
+    background: var(--el-bg-color);
+  }
+
+  .batch-summary {
+    background: var(--el-fill-color-lighter);
+  }
+
+  .batch-line {
+    color: var(--el-text-color-primary);
+  }
+
+  .rate-title {
+    color: var(--el-text-color-primary);
+  }
+
+  .rate-row {
+    color: var(--el-text-color-regular);
+  }
+
+  .progress-label {
+    color: var(--el-text-color-secondary);
+  }
+
+  .quota-editor {
+    background: var(--el-fill-color-lighter);
+  }
+
+  .upload-progress {
+    background: var(--el-fill-color-lighter);
+  }
 }
 </style>
 910

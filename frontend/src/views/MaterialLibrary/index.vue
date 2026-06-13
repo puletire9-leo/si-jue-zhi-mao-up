@@ -1743,17 +1743,81 @@ onMounted(() => {
 /* 文件命名对话框样式 */
 .file-name-dialog {
   padding: 10px 0;
-  
+
   .el-form-item {
     margin-bottom: 20px;
   }
-  
+
   .el-input {
     width: 100%;
   }
-  
+
   .el-checkbox {
     margin-top: 10px;
+  }
+}
+
+/* 暗黑模式适配 */
+:deep(html.dark) {
+  .batch-item {
+    border-color: var(--el-border-color);
+
+    &:hover {
+      border-color: var(--el-color-primary);
+      background-color: var(--el-fill-color-light);
+    }
+
+    &.selected {
+      border-color: var(--el-color-primary);
+      background-color: var(--el-color-primary-light-9);
+    }
+
+    .batch-name {
+      color: var(--el-text-color-primary);
+    }
+
+    .image-count {
+      color: var(--el-text-color-secondary);
+    }
+
+    .check-icon {
+      color: var(--el-color-primary);
+    }
+  }
+
+  .card-header {
+    .header-title {
+      color: var(--el-text-color-primary);
+    }
+  }
+
+  .advanced-search-icon-btn {
+    background: var(--el-fill-color-light);
+    color: var(--el-text-color-regular);
+
+    &:hover {
+      background: var(--el-color-primary-light-9);
+      color: var(--el-color-primary);
+    }
+  }
+
+  .filter-section h4 {
+    color: var(--el-text-color-primary);
+  }
+
+  .filter-dialog {
+    .el-collapse-item__header {
+      color: var(--el-text-color-primary);
+    }
+  }
+
+  .search-type-label {
+    color: var(--el-text-color-regular);
+  }
+
+  .el-pagination {
+    background: var(--el-bg-color);
+    border-top-color: var(--el-border-color);
   }
 }
 </style>

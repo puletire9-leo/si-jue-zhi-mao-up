@@ -1789,4 +1789,40 @@ onUnmounted(() => {
     }
   }
 }
+
+// ========== 暗黑模式适配 ==========
+:deep(html.dark) {
+  .products-grid {
+    background: var(--el-bg-color);
+  }
+  .page-header {
+    background: var(--el-bg-color);
+    border-color: var(--el-border-color);
+  }
+  .table-container {
+    background: var(--el-bg-color);
+  }
+  .filter-section {
+    background: var(--el-bg-color);
+    border-color: var(--el-border-color);
+  }
+  .section-title {
+    color: var(--el-text-color-primary);
+    border-bottom-color: var(--el-border-color);
+
+    h3 {
+      color: var(--el-text-color-primary);
+    }
+    .product-count {
+      color: var(--el-text-color-secondary);
+    }
+  }
+  .empty-state {
+    color: var(--el-text-color-secondary);
+  }
+  .el-pagination {
+    background: var(--el-bg-color);
+    border-color: var(--el-border-color);
+  }
+}
 </style>
