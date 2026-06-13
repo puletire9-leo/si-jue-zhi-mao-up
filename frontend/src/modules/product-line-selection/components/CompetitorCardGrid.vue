@@ -50,7 +50,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import UniversalCard from '@/components/UniversalCard/index.vue'
 import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import { ElEmpty, ElPagination, ElSelect, ElOption, ElButton } from 'element-plus'
@@ -82,6 +82,11 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const sortBy = ref(props.sortBy || '')
+
+// 同步外部 prop 变化（如 store.sortBy 被重置时）
+watch(() => props.sortBy, (val) => {
+  sortBy.value = val || ''
+})
 
 function selectAllCurrent() {
   if (allSelectedOnPage.value) {

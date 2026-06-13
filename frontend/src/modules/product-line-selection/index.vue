@@ -414,7 +414,7 @@ export default { name: 'ProductLineSelection' }
 .cat-hint {
   margin-left: auto;
   font-size: 11px;
-  color: var(--el-text-color-secondary, #9ca3af);
+  color: $text-tertiary;
 }
 
 // ---- 操作栏 ----
