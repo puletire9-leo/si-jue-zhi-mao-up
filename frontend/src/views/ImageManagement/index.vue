@@ -62,10 +62,8 @@
         </el-form-item>
       </el-form>
 
-      <div
-        v-loading="loading"
-        class="image-grid"
-      >
+      <SkeletonWrapper :loading="loading" variant="card-grid" :count="12">
+        <div class="image-grid">
         <div
           v-for="image in imageList"
           :key="image.id"
@@ -116,6 +114,7 @@
           :image-size="200"
         />
       </div>
+      </SkeletonWrapper>
 
       <el-pagination
         :current-page="pagination.page"
@@ -158,6 +157,7 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { Upload, Search, Refresh, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import ImageUpload from '@/components/ImageUpload/index.vue'
 import { imageApi } from '@/api/image'
 
@@ -187,6 +187,8 @@ const previewUrl = ref('')
 const uploadVisible = ref(false)
 const uploadImages = ref([])
 const loading = ref(false)
+const hasLoaded = ref(false)
+const refreshing = computed(() => loading.value && hasLoaded.value)
 
 const pagination = reactive({
   page: 1,
@@ -205,6 +207,7 @@ const loadImages = async () => {
     const response = await imageApi.getList(params)
     imageList.value = response.data?.list || []
     pagination.total = response.data?.total || 0
+    hasLoaded.value = true
   } catch (error) {
     ElMessage.error('加载图片列表失败')
   } finally {

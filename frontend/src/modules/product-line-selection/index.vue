@@ -425,7 +425,26 @@ export default { name: 'ProductLineSelection' }
 @media (max-width: 900px) {
   .mobile-tree-btn { display: inline-flex; align-items: center; gap: 4px; }
 
-  .tb-select { display: none; }
+  .tb-select {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .tb-select .el-select {
+    min-width: 60px;
+    width: auto !important;
+  }
+  .tb-select .el-select__wrapper {
+    min-width: 54px;
+  }
+  .tb-select:nth-child(3) .el-select {
+    min-width: 120px;
+  }
+
+  .batch-meta { display: none; }
+
+  .topbar .el-input { width: 140px !important; }
+  .topbar { flex-wrap: wrap; gap: 8px; }
 
   .bottom-bar {
     flex-wrap: wrap;

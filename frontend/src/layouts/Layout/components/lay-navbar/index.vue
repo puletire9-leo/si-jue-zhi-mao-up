@@ -13,6 +13,7 @@ import {
   FullScreen,
   Refresh
 } from '@element-plus/icons-vue'
+import GlobalSearch from '@/components/GlobalSearch/index.vue'
 import { emitter } from '@/utils/emitter'
 
 const emit = defineEmits<{
@@ -100,6 +101,7 @@ const openSettingPanel = () => {
       <el-tooltip content="刷新页面" placement="bottom">
         <el-button :icon="Refresh" circle @click="handleRefresh" class="icon-btn" />
       </el-tooltip>
+      <GlobalSearch />
       <el-tooltip content="全屏" placement="bottom">
         <el-button :icon="FullScreen" circle @click="handleFullScreen" class="icon-btn" />
       </el-tooltip>

@@ -149,7 +149,10 @@
         />
       </div>
 
-      <div v-loading="loading" class="products-grid">
+      <template v-if="loading && !hasLoaded">
+        <SkeletonWrapper variant="card-grid" :count="12" />
+      </template>
+      <div v-else v-loading="refreshing" class="products-grid">
         <UniversalCard
           v-for="product in sortedProductList"
           :key="product.id"
@@ -164,7 +167,7 @@
           @view="handleView"
           @delete="handleDelete"
         />
-        
+
         <el-empty
           v-if="!loading && productList.length === 0"
           description="暂无选品数据"
@@ -523,6 +526,7 @@ import {
 } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules, UploadFile } from 'element-plus'
 import UniversalCard from '@/components/UniversalCard/index.vue'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import ProductDetailDialog from '@/components/ProductDetailDialog/index.vue'
 import SelectionQueryForm from '@/components/SelectionQueryForm/index.vue'
 import ScoringConfigPanel from './ScoringConfigPanel.vue'
@@ -628,6 +632,10 @@ const searchByImageDialogVisible = ref(false)
 const importing = ref(false)
 const searching = ref(false)
 const exporting = ref(false)
+
+/** 首屏是否已完成首次加载（用于骨架屏/loading切换） */
+const hasLoaded = ref(false)
+const refreshing = computed(() => loading.value && hasLoaded.value)
 
 // 卖家管理弹窗
 const sellerDialogVisible = ref(false)
@@ -785,6 +793,7 @@ const loadProducts = async (params?: SelectionQueryParams) => {
     ElMessage.error('加载选品列表失败')
   } finally {
     loading.value = false
+    hasLoaded.value = true
   }
 }
 

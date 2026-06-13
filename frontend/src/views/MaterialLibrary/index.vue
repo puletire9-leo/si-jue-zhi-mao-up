@@ -215,7 +215,8 @@
       </el-dialog>
 
       <!-- 素材网格 -->
-      <div v-loading="loading" class="drafts-grid">
+      <SkeletonWrapper :loading="loading && !hasLoaded" variant="card-grid">
+        <div class="drafts-grid">
         <!-- 素材卡片组件 -->
         <DraftCard
           v-for="draft in draftList"
@@ -237,6 +238,7 @@
           :image-size="200"
         />
       </div>
+      </SkeletonWrapper>
 
       <!-- 分页 -->
       <el-pagination
@@ -441,6 +443,7 @@ import { systemConfigApi } from '@/api/systemConfig'
 import { downloadFile, batchDownloadFiles, getFileExtension, formatFilename, downloadImagesAsZip } from '@/utils/download'
 import { ImageUrlUtil } from '@/utils/imageUrlUtil'
 import { useUserStore } from '@/stores/user'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 
 // 类型定义
 interface Draft {
@@ -477,6 +480,8 @@ const userStore = useUserStore()
 
 // 响应式数据
 const loading = ref(false)
+const hasLoaded = ref(false)
+const refreshing = computed(() => loading.value && hasLoaded.value)
 const dialogVisible = ref(false)
 const batchDialogVisible = ref(false)
 const batchImportDialogVisible = ref(false)
@@ -645,6 +650,9 @@ const loadDrafts = async (): Promise<void> => {
             size: pagination.size,
             listLength: processedList.length
         })
+
+        // 标记首次加载完成
+        hasLoaded.value = true
       
     } else {
       // API调用失败，确保draftList为空数组
