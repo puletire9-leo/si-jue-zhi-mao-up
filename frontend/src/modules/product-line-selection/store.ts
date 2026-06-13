@@ -32,6 +32,9 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
   const treeLoading = ref(false)
   const competitorLoading = ref(false)
 
+  const batchLoading = ref(false)
+  const exportLoading = ref(false)
+
   const modelData = ref<ProductLineModelData | null>(null)
   const elementsData = ref<unknown[] | null>(null)
   const competitorResults = ref<CompetitorProductRaw[]>([])
@@ -122,6 +125,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
 
   function removeFilter(id: string) {
     activeFilters.value = activeFilters.value.filter(f => f.id !== id)
+    if (selectedNodeId.value || selectedBsrId.value) searchCompetitors()
   }
 
   function removeFilterByLabel(label: string) {
@@ -176,7 +180,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
       competitorResults.value = (res?.data?.list ?? []) as CompetitorProductRaw[]
       competitorTotal.value = res?.data?.total ?? 0
     } catch (err) {
-      console.warn('[Store]', err)
+      ElMessage.error('商品数据加载失败，请重试')
     } finally {
       competitorLoading.value = false
     }
@@ -274,6 +278,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     else if (selectedBsrId.value) filter.bsrId = selectedBsrId.value
     else return
     await loadProducts(filter)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   function openResults() { resultsVisible.value = true }
@@ -328,8 +333,10 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
    * 批量加入选品
    */
   async function batchAddToSelection() {
+    if (batchLoading.value) return
+    batchLoading.value = true
     const products = Array.from(selectedProducts.value)
-    if (products.length === 0) return
+    if (products.length === 0) { batchLoading.value = false; return }
 
     try {
       await selectionApi.create({
@@ -343,6 +350,8 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
       ElMessage.success(`已加入 ${products.length} 件商品到选品库`)
     } catch (err) {
       ElMessage.error('批量加入选品失败，请重试')
+    } finally {
+      batchLoading.value = false
     }
   }
 
@@ -357,8 +366,10 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
    * 导出选中 ASIN 列表到 Excel
    */
   async function exportSelectedExcel() {
+    if (exportLoading.value) return
+    exportLoading.value = true
     const products = Array.from(selectedProducts.value)
-    if (products.length === 0) return
+    if (products.length === 0) { exportLoading.value = false; return }
 
     try {
       const blob = await selectionApi.exportSelectedAsins(products)
@@ -371,6 +382,8 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
       ElMessage.success(`已导出 ${products.length} 条 ASIN`)
     } catch (err) {
       ElMessage.error('导出 Excel 失败，请重试')
+    } finally {
+      exportLoading.value = false
     }
   }
 
@@ -387,6 +400,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     resultsVisible, modelLoading, treeLoading, competitorLoading,
     modelData, elementsData, treeData, batches,
     competitorResults, competitorTotal, competitorPage, competitorPageSize, goToPage,
+    batchLoading, exportLoading,
     addFilter, removeFilter, removeFilterByLabel, clearFilters,
     selectCategory, selectSubCategory, fetchElements, openResults, closeResults,
     searchCompetitors, initData, fetchTree, fetchBatchesList, loadProducts,

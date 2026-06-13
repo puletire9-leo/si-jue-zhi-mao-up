@@ -13,43 +13,49 @@
 
     <!-- 树列表 -->
     <div class="tree-list">
-      <div v-for="group in filteredGroups" :key="group.id" class="tree-group">
-        <!-- L1: 大类 -->
-        <div
-          class="tree-l1"
-          :class="{ active: group.id === store.selectedBsrId && !store.selectedNodeId }"
-          @click="handleL1Click(group)"
-        >
-          <span
-            class="arrow"
-            :class="{ expanded: group.expanded }"
-            @click.stop="group.expanded = !group.expanded"
+      <div v-if="store.treeLoading" class="tree-loading">
+        <el-icon class="is-loading"><Loading /></el-icon>
+        <span>加载品线数据…</span>
+      </div>
+      <template v-else>
+        <div v-for="group in filteredGroups" :key="group.id" class="tree-group">
+          <!-- L1: 大类 -->
+          <div
+            class="tree-l1"
+            :class="{ active: group.id === store.selectedBsrId && !store.selectedNodeId }"
+            @click="handleL1Click(group)"
           >
-            <el-icon><ArrowRight /></el-icon>
-          </span>
-          <span class="icon">{{ group.icon }}</span>
-          {{ group.name }}
-          <span class="count">{{ group.children.length }} 子类</span>
+            <span
+              class="arrow"
+              :class="{ expanded: group.expanded }"
+              @click.stop="group.expanded = !group.expanded"
+            >
+              <el-icon><ArrowRight /></el-icon>
+            </span>
+            <span class="icon">{{ group.icon }}</span>
+            {{ group.name }}
+            <span class="count">{{ group.children.length }} 子类</span>
+          </div>
+
+          <!-- L2: 小类 -->
+          <div
+            v-for="node in group.children"
+            v-show="group.expanded"
+            :key="node.id"
+            class="tree-l2"
+            :class="{ active: String(node.nodeId) === store.selectedNodeId }"
+            @click="handleNodeClick(node, group.id)"
+          >
+            <span class="dot" :class="node.status" />
+            {{ node.name }}
+            <span class="count">{{ node.productCount?.toLocaleString() }}</span>
+          </div>
         </div>
 
-        <!-- L2: 小类 -->
-        <div
-          v-for="node in group.children"
-          v-show="group.expanded"
-          :key="node.id"
-          class="tree-l2"
-          :class="{ active: String(node.nodeId) === store.selectedNodeId }"
-          @click="handleNodeClick(node, group.id)"
-        >
-          <span class="dot" :class="node.status" />
-          {{ node.name }}
-          <span class="count">{{ node.productCount?.toLocaleString() }}</span>
+        <div v-if="filteredGroups.length === 0" class="tree-empty">
+          无匹配结果
         </div>
-      </div>
-
-      <div v-if="filteredGroups.length === 0" class="tree-empty">
-        无匹配结果
-      </div>
+      </template>
     </div>
 
     <!-- 移动端关闭按钮 -->
@@ -61,7 +67,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Search, ArrowRight, Close } from '@element-plus/icons-vue'
+import { Search, ArrowRight, Close, Loading } from '@element-plus/icons-vue'
 import { useProductLineSelectionStore } from '../store'
 import type { TreeNode } from '@/types/productLine'
 
@@ -136,6 +142,16 @@ function handleNodeClick(node: TreeNode, parentBsrId: string) {
   flex: 1;
   overflow-y: auto;
   padding: 8px 0;
+}
+
+.tree-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 20px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
 }
 
 .tree-empty {
