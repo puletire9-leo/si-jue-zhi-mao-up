@@ -159,6 +159,7 @@ export interface SelectionProduct {
   thumbPath?: string
   storeName?: string
   storeUrl?: string
+  mainCategoryName?: string
   category?: string
   tags?: string[]
   notes?: string

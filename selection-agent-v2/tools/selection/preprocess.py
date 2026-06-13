@@ -192,26 +192,6 @@ class SubCategoryAnalysis:
             "listing_days_median": sorted([p.listing_days for p in products])[len(products) // 2] if products else 0,
         }
 
-        # ── 预计算：载体统计 ──
-        carrier_groups: dict[str, list] = {}
-        for p in products:
-            for c in getattr(p, "carriers", []) or ["unknown"]:
-                carrier_groups.setdefault(c, []).append(p)
-        carrier_stats = {}
-        for name, group in carrier_groups.items():
-            cp = [p.price for p in group if p.price > 0]
-            cw = [_parse_weight_grams(p.pkg_weight) for p in group if p.pkg_weight]
-            cf = [p.fba_fee for p in group if p.fba_fee > 0]
-            cv = [p.variations for p in group]
-            carrier_stats[name] = {
-                "count": len(group),
-                "avg_price": round(sum(cp) / len(cp), 2) if cp else 0,
-                "avg_weight_g": round(sum(cw) / len(cw), 1) if cw else 0,
-                "avg_fba": round(sum(cf) / len(cf), 2) if cf else 0,
-                "avg_variants": round(sum(cv) / len(cv), 1) if cv else 0,
-                "sample_asins": [p.asin for p in group[:3]],
-            }
-
         # ── 预计算：评论壁垒 ──
         review_moats = [
             {"asin": p.asin, "ratings": p.ratings,
@@ -236,7 +216,6 @@ class SubCategoryAnalysis:
             # 脚本预计算数据 — AI 直接引用，不要重新计算
             "priceBand": price_band,
             "qualityBenchmark": quality_benchmark,
-            "carrierStats": carrier_stats,
             "reviewMoats": review_moats,
             "sellerStats": {"count": seller_count, "nations": seller_nations},
             # 商品列表
@@ -480,8 +459,7 @@ def preprocess_sub_category(
     sampled = sample_products(deduped)
 
     # 4. 信号标签
-    tag_signals(deduped)  # 全量打标
-    tag_signals(sampled)   # 取样也打标
+    tag_signals(deduped)  # FIXED: MED-3 sampled objects are from deduped, no second call needed
 
     # 5. 统计
     stats = compute_stats(deduped, len(raw))

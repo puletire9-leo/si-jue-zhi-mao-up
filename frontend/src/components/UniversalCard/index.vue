@@ -42,11 +42,15 @@
         {{ timeTag }}
       </div>
       
-      <!-- 一键打开按钮 -->
-      <div v-if="productLink || similarProductsLink" class="card-link-buttons">
-        <div class="card-link-button open-all-link" @click.stop="handleOpenAll" title="一键打开：商品链接 + 相似图片 + 德国相似图片">
+      <!-- 链接按钮组 -->
+      <div v-if="productLink || computedSimilarLinks.length > 0" class="card-link-buttons">
+        <div v-if="productLink" class="card-link-button open-link" @click.stop="handleOpenProductLink" title="打开商品链接">
           <el-icon><Promotion /></el-icon>
-          <span class="link-text">一键打开</span>
+          <span class="link-text">商品链接</span>
+        </div>
+        <div v-for="(link, index) in computedSimilarLinks" :key="index" class="card-link-button open-link" @click.stop="handleOpenLink(link)" :title="link">
+          <el-icon><Picture /></el-icon>
+          <span class="link-text">相似{{ index + 1 }}</span>
         </div>
       </div>
       
@@ -143,6 +147,7 @@
 import { ref, watch, computed } from 'vue'
 import { Picture, Money, Shop, Folder, View, Delete, TrendCharts, Select, Promotion } from '@element-plus/icons-vue'
 import { trackClick } from '@/api/clickLog'
+import { getProductType } from '@/api/competitor'
 
 interface Props {
   product: Record<string, any>
@@ -218,18 +223,13 @@ const titleText = computed(() => {
 const showMeta = computed(() => modeConfig.value.showMeta)
 const price = computed(() => props.product.price)
 const storeName = computed(() => props.product.storeName || props.product.sellerName || '')
-const category = computed(() => props.product.category)
+const category = computed(() => props.product.mainCategoryName || props.product.category)
 const showTags = computed(() => modeConfig.value.showTags)
 const tags = computed(() => props.product.tags)
 const productType = computed(() => {
   const raw = props.product[modeConfig.value.typeField]
   if (raw) return raw
-  // 从 source 字段推断
-  const src = props.product.source || ''
-  if (src.includes('新品')) return 'new'
-  if (src.includes('竞品')) return 'reference'
-  if (src.includes('郑总')) return 'zheng'
-  return ''
+  return getProductType(props.product.source || '')
 })
 const typeBadgeText = computed(() => {
   if (props.mode === 'selection') {
@@ -246,9 +246,13 @@ const createTime = computed(() => props.product.createdAt || props.product.creat
 const showViewButton = computed(() => modeConfig.value.showViewButton)
 const showSalesVolume = computed(() => modeConfig.value.showSalesVolume)
 const salesVolume = computed(() => props.product.salesVolume || props.product.units || 0)
-const showProductLink = computed(() => modeConfig.value.showProductLink)
 const productLink = computed(() => props.product.productLink || props.product.productUrl || '')
 const similarProductsLink = computed(() => props.product.similarProducts || props.product.similarUrl || '')
+const computedSimilarLinks = computed<string[]>(() => {
+  const raw = similarProductsLink.value
+  if (!raw) return []
+  return raw.split(',').map(l => l.trim()).filter(Boolean)
+})
 
 const visibleTags = computed(() => (props.product.tags || []).slice(0, 3))
 const extraTagsCount = computed(() => Math.max(0, (props.product.tags || []).length - 3))
@@ -292,7 +296,7 @@ const timeTag = computed(() => {
   const created = new Date(createdAt)
 
   // 调试信息（开发时使用）
-  // console.log('时效标签调试:', { createdAt, created: created.toISOString(), now: now.toISOString() })
+  // FIXED: MED-9 — 删除遗留 console.log
 
   // 计算本周一（ISO 周，周一开始）
   const dayOfWeek = now.getDay() || 7 // 周日=7
@@ -437,27 +441,14 @@ const handleDelete = (): void => {
   emit('delete', props.product)
 }
 
-const handleOpenAll = (): void => {
-  // 1. 打开商品链接
+const handleOpenProductLink = (): void => {
   if (productLink.value) {
     window.open(productLink.value, '_blank')
   }
+}
 
-  // 2. 打开相似图片链接（similarProducts 可能是逗号分隔的多个链接）
-  const raw = similarProductsLink.value
-  if (raw) {
-    const links = raw.split(',').map(l => l.trim()).filter(Boolean)
-    links.forEach(link => window.open(link, '_blank'))
-
-    // 3. 打开对方国家的相似图片（英国↔德国互转）
-    links.forEach(link => {
-      if (link.includes('amazon.co.uk')) {
-        window.open(link.replace('amazon.co.uk', 'amazon.de'), '_blank')
-      } else if (link.includes('amazon.de')) {
-        window.open(link.replace('amazon.de', 'amazon.co.uk'), '_blank')
-      }
-    })
-  }
+const handleOpenLink = (url: string): void => {
+  window.open(url, '_blank')
 }
 </script>
 
@@ -653,7 +644,7 @@ const handleOpenAll = (): void => {
     }
 
     // 一键打开按钮样式
-    &.open-all-link {
+    &.open-link {
       background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
       box-shadow: 0 4px 12px rgba(240, 147, 251, 0.4);
 

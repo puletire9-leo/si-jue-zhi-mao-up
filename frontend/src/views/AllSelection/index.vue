@@ -8,6 +8,7 @@
         <div class="card-header">
           <span>{{ getSectionTitle() }}</span>
           <div class="header-actions">
+            <!-- 高频操作 — 常驻 -->
             <el-button type="primary" :icon="Plus" @click="handleAdd">
               添加选品
             </el-button>
@@ -26,37 +27,27 @@
             >
               一键计算评级
             </el-button>
-            <el-button
-              type="info"
-              :icon="Download"
-              @click="handleDownloadTemplate"
-            >
-              下载模板
-            </el-button>
-            <el-button
-              type="warning"
-              :icon="Refresh"
-              @click="handleRecycleBin"
-            >
-              回收站
-            </el-button>
-            <el-button
-              type="danger"
-              :icon="Delete"
-              :disabled="selectedIds.length === 0"
-              @click="handleBatchDelete"
-            >
-              批量删除 ({{ selectedIds.length }})
-            </el-button>
-            <el-button
-              type="success"
-              :icon="Download"
-              :disabled="selectedIds.length === 0"
-              :loading="exporting"
-              @click="handleExportAsins"
-            >
-              导出选中ASIN ({{ selectedIds.length }})
-            </el-button>
+
+            <!-- 选中后出现的批量操作 -->
+            <template v-if="selectedIds.length > 0">
+              <el-button
+                type="danger"
+                :icon="Delete"
+                @click="handleBatchDelete"
+              >
+                批量删除 ({{ selectedIds.length }})
+              </el-button>
+              <el-button
+                type="success"
+                :icon="Download"
+                :loading="exporting"
+                @click="handleExportAsins"
+              >
+                导出选中ASIN ({{ selectedIds.length }})
+              </el-button>
+            </template>
+
+            <!-- 全选（带下拉） -->
             <el-dropdown @command="handleSelectAll">
               <el-button type="primary" :icon="Select">
                 全选
@@ -69,6 +60,7 @@
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
+
             <el-switch
               v-model="groupByParent"
               active-text="合并变体"
@@ -76,14 +68,20 @@
               @change="handleGroupByParentChange"
               class="group-by-parent-switch"
             />
-            <el-button
-              type="danger"
-              plain
-              @click="handleClearAll"
-              v-if="false"
-            >
-              清空数据
-            </el-button>
+
+            <!-- 低频操作 → 更多菜单 -->
+            <el-dropdown @command="handleMoreCommand">
+              <el-button type="default" :icon="MoreFilled">
+                更多
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="downloadTemplate" :icon="Download">下载模板</el-dropdown-item>
+                  <el-dropdown-item command="recycleBin" :icon="Refresh">回收站</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+
             <el-button
               v-if="activeTab === 'zheng'"
               type="primary"
@@ -520,7 +518,8 @@ import {
   Star,
   Trophy,
   Top,
-  Bottom
+  Bottom,
+  MoreFilled
 } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules, UploadFile } from 'element-plus'
 import UniversalCard from '@/components/UniversalCard/index.vue'
@@ -1386,6 +1385,15 @@ const handleSearchByImageSubmit = async () => {
     ElMessage.error('搜索失败')
   } finally {
     searching.value = false
+  }
+}
+
+// 更多菜单命令
+const handleMoreCommand = (command: string) => {
+  if (command === 'downloadTemplate') {
+    handleDownloadTemplate()
+  } else if (command === 'recycleBin') {
+    handleRecycleBin()
   }
 }
 

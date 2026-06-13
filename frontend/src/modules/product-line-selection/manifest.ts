@@ -5,7 +5,7 @@ export default {
   id: 'product-line-selection',
   name: '品线选品',
   icon: 'Search',
-  menuGroup: '选品中心',
+  menuGroup: '品线分析',
   menuOrder: 20,
   permissions: [],
   route: {

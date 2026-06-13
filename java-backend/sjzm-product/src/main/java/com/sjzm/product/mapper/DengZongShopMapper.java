@@ -24,6 +24,8 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "  <if test='sellerName != null'> AND ds.seller_name LIKE CONCAT('%',#{sellerName},'%')</if>" +
         "  <if test='title != null'> AND ds.title LIKE CONCAT('%',#{title},'%')</if>" +
         "  <if test='category != null'> AND SUBSTRING_INDEX(ds.node_label_path, ':', 1) = #{category}</if>" +
+        "  <if test='bsrId != null'> AND ds.bsr_id = #{bsrId}</if>" +
+        "  <if test='nodeId != null'> AND ds.node_id = #{nodeId}</if>" +
         ") t WHERE t.rn = 1" +
         "<if test='sortBy != null and sortOrder != null'>" +
         "  ORDER BY " +
@@ -33,10 +35,14 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "    <when test='sortBy == \"price\"'>t.price</when>" +
         "    <otherwise>t.bsr</otherwise>" +
         "  </choose>" +
-        "  ${sortOrder}" +
+        "  <choose>" + // FIXED: CRIT-3 SQL注入白名单
+        "    <when test='sortOrder != null and sortOrder.toString().toLowerCase() == \"asc\"'>ASC</when>" +
+        "    <when test='sortOrder != null and sortOrder.toString().toLowerCase() == \"desc\"'>DESC</when>" +
+        "    <otherwise>ASC</otherwise>" +
+        "  </choose>" +
         "</if>" +
         "<if test='sortBy == null'> ORDER BY t.bsr ASC</if>" +
-        " LIMIT #{offset}, #{size}" +
+        " LIMIT #{size} OFFSET #{offset}" + // FIXED: HIGH-7 MySQL分页语法
         "</script>")
     List<DengZongShop> selectGroupedByParent(
             @Param("marketplace") String marketplace,
@@ -45,6 +51,8 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
             @Param("sellerName") String sellerName,
             @Param("title") String title,
             @Param("category") String category,
+            @Param("bsrId") String bsrId,
+            @Param("nodeId") Long nodeId,
             @Param("sortBy") String sortBy,
             @Param("sortOrder") String sortOrder,
             @Param("offset") int offset,
@@ -60,6 +68,8 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "  <if test='sellerName != null'> AND ds.seller_name LIKE CONCAT('%',#{sellerName},'%')</if>" +
         "  <if test='title != null'> AND ds.title LIKE CONCAT('%',#{title},'%')</if>" +
         "  <if test='category != null'> AND SUBSTRING_INDEX(ds.node_label_path, ':', 1) = #{category}</if>" +
+        "  <if test='bsrId != null'> AND ds.bsr_id = #{bsrId}</if>" +
+        "  <if test='nodeId != null'> AND ds.node_id = #{nodeId}</if>" +
         "  GROUP BY COALESCE(NULLIF(ds.parent_asin,''), ds.asin)" +
         ") g" +
         "</script>")
@@ -69,7 +79,9 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
             @Param("brand") String brand,
             @Param("sellerName") String sellerName,
             @Param("title") String title,
-            @Param("category") String category);
+            @Param("category") String category,
+            @Param("bsrId") String bsrId,
+            @Param("nodeId") Long nodeId);
 
     @Select("<script>" +
         "SELECT ds.seller_name as sellerName, ds.marketplace," +
