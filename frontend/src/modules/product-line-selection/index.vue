@@ -87,7 +87,6 @@
         :mobile-open="mobileTreeOpen"
         @close-mobile="mobileTreeOpen = false"
         @select-l1="(bsrId, name) => store.selectCategory(bsrId, name)"
-        @select-l2="(nodeId, name, bsrId) => store.selectSubCategory(nodeId, name, bsrId)"
       />
 
       <!-- 拖拽分隔线 (桌面端) -->
@@ -111,6 +110,32 @@
           <span v-else class="cat-hint">AI 模型分析筛选</span>
         </div>
 
+        <!-- L2 子类面板：选中 L1 后显示 -->
+        <div v-if="store.selectedBsrId && store.currentSubCategories.length" class="l2-panel">
+          <div class="l2-search">
+            <el-input
+              v-model="subCategorySearch"
+              placeholder="搜索子类…"
+              :prefix-icon="Search"
+              clearable
+              size="small"
+            />
+            <span class="l2-count">{{ displaySubCategories.length }} / {{ store.currentSubCategories.length }} 子类</span>
+          </div>
+          <div class="l2-list">
+            <div
+              v-for="cat in displaySubCategories"
+              :key="cat.id"
+              class="l2-item"
+              :class="{ active: String(cat.nodeId) === store.selectedNodeId }"
+              @click="handleL2ItemClick(cat)"
+            >
+              <span class="l2-item-name">{{ cat.name }}</span>
+              <span class="l2-item-count">{{ cat.productCount?.toLocaleString() || '—' }}</span>
+            </div>
+          </div>
+        </div>
+
         <!-- 品线模型摘要条 -->
         <ModelSummaryBar
           v-if="store.selectedNodeId"
@@ -123,10 +148,10 @@
           <div class="empty-guide-icon">
             <el-icon><FolderOpened /></el-icon>
           </div>
-          <h3 class="empty-guide-title">从左侧选择类目开始</h3>
+          <h3 class="empty-guide-title">从左侧选择品线开始</h3>
           <p class="empty-guide-desc">
-            点击左侧品线树中的大类查看该品类所有商品，<br>
-            或展开大类后点击子类加载 AI 品线模型与精准筛选。
+            点击左侧品线大类查看该品类全部商品，<br>
+            再在右侧面板中选择子类加载 AI 品线模型与精准筛选。
           </p>
           <div class="empty-guide-steps">
             <div class="step">
@@ -136,12 +161,12 @@
             <div class="step-arrow">→</div>
             <div class="step">
               <span class="step-num">2</span>
-              <span>点击左侧类目</span>
+              <span>点击左侧品线</span>
             </div>
             <div class="step-arrow">→</div>
             <div class="step">
               <span class="step-num">3</span>
-              <span>浏览竞品数据</span>
+              <span>浏览或筛选子类商品</span>
             </div>
           </div>
         </div>
@@ -255,7 +280,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Menu, FolderOpened } from '@element-plus/icons-vue'
+import { Menu, FolderOpened, Search } from '@element-plus/icons-vue'
 import { useProductLineSelectionStore } from './store'
 import ProductLineTree from './components/ProductLineTree.vue'
 import ModelSummaryBar from './components/ModelSummaryBar.vue'
@@ -267,6 +292,31 @@ const store = useProductLineSelectionStore()
 const mobileTreeOpen = ref(false)
 const detailVisible = ref(false)
 const detailProduct = ref<any>(null)
+
+// L2 子类面板
+const subCategorySearch = ref('')
+const displaySubCategories = computed(() => {
+  const q = subCategorySearch.value.toLowerCase().trim()
+  if (!q) return store.currentSubCategories
+  return store.currentSubCategories.filter(c =>
+    c.name.toLowerCase().includes(q)
+  )
+})
+
+function handleL2ItemClick(cat: any) {
+  if (String(cat.nodeId) === store.selectedNodeId) {
+    // 已选中 → 回到 L1 视图
+    store.selectCategory(store.selectedBsrId, store.selectedBsrName)
+  } else {
+    // 切换到 L2
+    store.selectSubCategory(cat.nodeId, cat.name, store.selectedBsrId)
+  }
+}
+
+// 切换 L1 时清空 L2 搜索词
+watch(() => store.selectedBsrId, () => {
+  subCategorySearch.value = ''
+})
 
 // 月份动态生成：当前日期往前推12个月
 const monthOptions = computed(() => {
@@ -501,6 +551,82 @@ export default { name: 'ProductLineSelection' }
   margin-left: auto;
   font-size: 11px;
   color: $text-tertiary;
+}
+
+// ---- L2 子类面板 ----
+.l2-panel {
+  background: $bg-color;
+  border-bottom: 1px solid $border-color;
+}
+
+.l2-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 20px;
+  border-bottom: 1px solid $border-color;
+}
+
+.l2-count {
+  font-size: 11px;
+  color: $text-tertiary;
+  white-space: nowrap;
+  font-family: $font-family-mono;
+}
+
+.l2-list {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.l2-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  border-left: 3px solid transparent;
+
+  &:hover {
+    background: $bg-hover;
+  }
+
+  &.active {
+    color: $primary-color;
+    background: rgba($primary-color, 0.04);
+    border-left-color: $primary-color;
+  }
+}
+
+.l2-item-name {
+  flex: 1;
+  font-size: 13px;
+  color: $text-secondary;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  .l2-item.active & {
+    color: $primary-color;
+    font-weight: 600;
+  }
+}
+
+.l2-item-count {
+  font-size: 11px;
+  color: $text-tertiary;
+  white-space: nowrap;
+  font-family: $font-family-mono;
+  flex-shrink: 0;
+}
+
+// 移动端: L2 搜索框和列表可触摸滚动
+@media (max-width: 900px) {
+  .l2-list {
+    max-height: 200px;
+  }
 }
 
 // ---- 操作栏 ----
