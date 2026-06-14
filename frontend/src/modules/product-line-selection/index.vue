@@ -72,6 +72,8 @@
         clearable
         style="width:240px"
         size="small"
+        @keyup.enter="store.searchByKeyword(store.searchKeyword)"
+        @clear="store.searchByKeyword('')"
       />
 
       <button class="mobile-tree-btn" @click="mobileTreeOpen = true">
@@ -291,11 +293,19 @@ watch([() => store.marketplace, () => store.month], (newVals, oldVals) => {
     ).then(() => {
       store.selectedBsrId = ''
       store.selectedNodeId = ''
+      store.searchKeyword = ''
+      store.modelData = null
+      store.competitorResults = []
+      store.selectedProducts = new Set()
       store.initData()
     }).catch(() => {})
   } else {
     store.selectedBsrId = ''
     store.selectedNodeId = ''
+    store.searchKeyword = ''
+    store.modelData = null
+    store.competitorResults = []
+    store.selectedProducts = new Set()
     store.initData()
   }
 })
