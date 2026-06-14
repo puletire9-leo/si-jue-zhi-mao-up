@@ -4,56 +4,35 @@
     <div class="tree-search">
       <el-input
         v-model="searchText"
-        placeholder="搜索品线或小类…"
+        placeholder="搜索品线…"
         :prefix-icon="Search"
         clearable
         size="default"
       />
     </div>
 
-    <!-- 树列表 -->
+    <!-- L1 列表 -->
     <div class="tree-list">
       <div v-if="store.treeLoading" class="tree-loading">
         <el-icon class="is-loading"><Loading /></el-icon>
         <span>加载品线数据…</span>
       </div>
       <template v-else>
-        <div v-for="group in filteredGroups" :key="group.id" class="tree-group">
-          <!-- L1: 大类 -->
-          <div
-            class="tree-l1"
-            :class="{ active: group.id === store.selectedBsrId && !store.selectedNodeId }"
-            @click="handleL1Click(group)"
-          >
-            <span
-              class="arrow"
-              :class="{ expanded: group.expanded }"
-              @click.stop="group.expanded = !group.expanded"
-            >
-              <el-icon><ArrowRight /></el-icon>
-            </span>
-            <span class="icon">{{ group.icon }}</span>
-            {{ group.name }}
-            <span class="count">{{ group.children.length }} 子类</span>
-          </div>
-
-          <!-- L2: 小类 -->
-          <div
-            v-for="node in group.children"
-            v-show="group.expanded"
-            :key="node.id"
-            class="tree-l2"
-            :class="{ active: String(node.nodeId) === store.selectedNodeId }"
-            @click="handleNodeClick(node, group.id)"
-          >
-            <span class="dot" :class="node.status" />
-            {{ node.name }}
-            <span class="count">{{ node.productCount?.toLocaleString() }}</span>
-          </div>
+        <div
+          v-for="group in filteredGroups"
+          :key="group.id"
+          class="tree-l1"
+          :class="{ active: group.id === store.selectedBsrId }"
+          @click="$emit('selectL1', group.id, group.name)"
+        >
+          <span class="l1-icon">{{ group.icon }}</span>
+          <span class="l1-name">{{ group.name }}</span>
+          <span class="l1-badge">{{ group.children.length }} 子类</span>
         </div>
 
         <div v-if="filteredGroups.length === 0" class="tree-empty">
-          无匹配结果
+          <span v-if="searchText">无匹配品线</span>
+          <span v-else>暂无品线数据</span>
         </div>
       </template>
     </div>
@@ -67,49 +46,26 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Search, ArrowRight, Close, Loading } from '@element-plus/icons-vue'
+import { Search, Close, Loading } from '@element-plus/icons-vue'
 import { useProductLineSelectionStore } from '../store'
-import type { TreeNode } from '@/types/productLine'
 
 defineProps<{ mobileOpen?: boolean }>()
 const emit = defineEmits<{
   closeMobile: []
   selectL1: [bsrId: string, bsrName: string]
-  selectL2: [nodeId: number, nodeName: string, bsrId: string]
 }>()
 
 const store = useProductLineSelectionStore()
 const searchText = ref('')
 
-// ---- 搜索过滤 ----
+// 按 L1 名称过滤
 const filteredGroups = computed(() => {
   const q = searchText.value.toLowerCase().trim()
   if (!q) return store.treeData
-  return store.treeData
-    .map(g => {
-      const l1Match = g.name.toLowerCase().includes(q)
-      const filteredChildren = g.children.filter(c =>
-        c.name.toLowerCase().includes(q)
-      )
-      return {
-        ...g,
-        children: l1Match ? g.children : filteredChildren,
-        expanded: true
-      }
-    })
-    .filter(g => g.children.length > 0 || g.name.toLowerCase().includes(q))
+  return store.treeData.filter(g =>
+    g.name.toLowerCase().includes(q)
+  )
 })
-
-// ---- 节点点击 ----
-function handleL1Click(group: any) {
-  group.expanded = true
-  emit('selectL1', group.id, group.name)
-}
-
-function handleNodeClick(node: TreeNode, parentBsrId: string) {
-  if (node.nodeId == null) return
-  emit('selectL2', node.nodeId, node.name, parentBsrId)
-}
 </script>
 
 <style lang="scss" scoped>
@@ -161,96 +117,48 @@ function handleNodeClick(node: TreeNode, parentBsrId: string) {
   font-size: 13px;
 }
 
-.tree-group {
-  margin-bottom: 2px;
-}
-
 .tree-l1 {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  color: $text-secondary;
+  gap: 8px;
+  padding: 10px 16px;
   cursor: pointer;
   transition: all $transition-fast;
-  letter-spacing: 0.02em;
 
   &:hover {
-    color: $text-primary;
     background: $bg-hover;
   }
 
   &.active {
     color: $primary-color;
     background: rgba($primary-color, 0.06);
-    font-weight: 700;
-  }
-
-  .arrow {
-    width: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    color: $text-tertiary;
-    transition: transform $transition-fast;
-
-    &.expanded {
-      transform: rotate(90deg);
-    }
-  }
-
-  .icon { font-size: 14px; }
-  .count {
-    margin-left: auto;
-    font-size: 11px;
-    color: $text-tertiary;
-    font-weight: 400;
   }
 }
 
-.tree-l2 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 16px 7px 40px;
+.l1-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.l1-name {
   font-size: 13px;
+  font-weight: 600;
   color: $text-secondary;
-  cursor: pointer;
-  transition: all $transition-fast;
-  border-left: 3px solid transparent;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 
-  &:hover {
-    color: $text-primary;
-    background: $bg-hover;
-  }
-
-  &.active {
+  .tree-l1.active & {
     color: $primary-color;
-    background: rgba($primary-color, 0.04);
-    border-left-color: $primary-color;
-    font-weight: 600;
   }
+}
 
-  .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    flex-shrink: 0;
-
-    &.analyzed { background: $success-color; }
-    &.pending { background: $text-tertiary; }
-  }
-
-  .count {
-    margin-left: auto;
-    font-size: 11px;
-    color: $text-tertiary;
-    font-weight: 400;
-    font-family: $font-family-mono;
-  }
+.l1-badge {
+  font-size: 11px;
+  color: $text-tertiary;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .mobile-close {
