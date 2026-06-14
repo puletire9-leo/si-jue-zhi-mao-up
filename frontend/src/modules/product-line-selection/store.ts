@@ -146,7 +146,12 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
         month: month.value.replace('-', ''),  // FIXED: MED-8 — 'YYYY-MM' → 'YYYYMM' 匹配数据库格式
         page: competitorPage.value,
         size: competitorPageSize.value,
-        sortBy: sortBy.value || undefined,
+      }
+      // BUG-1 FIX: 拆分排序值 "bsr_asc" → sortBy="bsr" + sortOrder="asc"
+      if (sortBy.value) {
+        const [sortField, sortDir] = sortBy.value.split('_')
+        if (sortField) params.sortBy = sortField
+        if (sortDir) params.sortOrder = sortDir
       }
       if (filter.bsrId) params.bsrId = filter.bsrId
       if (filter.nodeId) params.nodeId = filter.nodeId
