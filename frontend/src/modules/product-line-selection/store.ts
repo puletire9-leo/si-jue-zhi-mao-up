@@ -64,6 +64,13 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
   const selectedProductList = computed(() => Array.from(selectedProducts.value))
   const selectedCount = computed(() => selectedProducts.value.size)
 
+  // 当前选中 L1 的子类列表（供右侧 L2 面板使用）
+  const currentSubCategories = computed(() => {
+    if (!selectedBsrId.value) return []
+    const group = treeData.value.find(g => g.id === selectedBsrId.value)
+    return group?.children ?? []
+  })
+
   // ---- 数据初始化 ----
   async function initData() {
     await Promise.all([fetchTree(), fetchBatchesList()])
@@ -81,12 +88,10 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
       treeData.value = raw.map((g: ProductLineGroup, idx: number) => {
         // bsrName 可能缺失，从第一个子类的 nodeFullPath 提取 L1 名称
         const l1Name = g.bsrName || (g.subCategories?.[0]?.nodeFullPath?.split(':')[0]) || g.bsrId
-        const existing = treeData.value.find(t => t.id === g.bsrId)
         return {
           id: g.bsrId,
           name: l1Name,
           icon: '📦',
-          expanded: existing?.expanded ?? idx === 0,
           children: (g.subCategories || []).map((sc: SubCategoryItem) => ({
             id: `${g.bsrId}_${sc.nodeId}`,
             name: sc.nodeName,
@@ -172,10 +177,10 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
       if (searchPriceMin.value != null) params.priceMin = searchPriceMin.value
       if (searchPriceMax.value != null) params.priceMax = searchPriceMax.value
 
-      // 模型筛选条件（仅 L2 时有 modelData）
+      // 模型筛选条件（仅 L2 时有 modelData，仅在用户未手动输入时作为默认值）
       const model = modelData.value
-      if (model?.priceBand?.sweet_spot_min != null) params.priceMin = model.priceBand.sweet_spot_min
-      if (model?.priceBand?.sweet_spot_max != null) params.priceMax = model.priceBand.sweet_spot_max
+      if (model?.priceBand?.sweet_spot_min != null && searchPriceMin.value == null) params.priceMin = model.priceBand.sweet_spot_min
+      if (model?.priceBand?.sweet_spot_max != null && searchPriceMax.value == null) params.priceMax = model.priceBand.sweet_spot_max
       if (model?.qualityBenchmark?.bsr_p90 != null) params.bsrMax = model.qualityBenchmark.bsr_p90
       if (model?.qualityBenchmark?.rating_min != null) params.ratingMin = model.qualityBenchmark.rating_min
       if (model?.qualityBenchmark?.weight_g_max != null) params.weightMax = model.qualityBenchmark.weight_g_max
@@ -432,7 +437,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     selectedBatchId, selectedBatchInfo,
     activeFilters, filterCount, hasFilters,
     resultsVisible, modelLoading, treeLoading, competitorLoading,
-    modelData, elementsData, treeData, batches,
+    modelData, elementsData, treeData, batches, currentSubCategories,
     competitorResults, competitorTotal, competitorPage, competitorPageSize, goToPage,
     batchLoading, exportLoading,
     addFilter, removeFilter, removeFilterByLabel, clearFilters,
