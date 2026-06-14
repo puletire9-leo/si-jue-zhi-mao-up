@@ -146,9 +146,10 @@
           </div>
         </div>
 
-        <!-- 筛选操作栏 -->
-        <div v-if="store.selectedNodeId" class="action-bar">
-          <div class="filter-tags">
+        <!-- 筛选操作栏 — L1: 基础字段筛选 / L2: 模型元素+基础筛选 -->
+        <div v-if="store.selectedBsrId" class="action-bar">
+          <!-- L2 模式：模型元素/载体筛选标签 -->
+          <div v-if="store.selectedNodeId" class="filter-tags">
             <span
               v-for="f in store.activeFilters"
               :key="f.id"
@@ -160,14 +161,60 @@
             <span v-if="!store.hasFilters" class="filter-hint">
               点击模型中的元素或载体加入筛选
             </span>
+            <el-button
+              v-if="store.hasFilters"
+              size="small"
+              @click="store.clearFilters(); store.searchCompetitors()"
+            >
+              清除筛选
+            </el-button>
           </div>
-          <el-button
-            v-if="store.hasFilters"
-            size="small"
-            @click="store.clearFilters(); store.searchCompetitors()"
-          >
-            清除筛选
-          </el-button>
+
+          <!-- 基础字段筛选（L1/L2 通用） -->
+          <div class="basic-filters">
+            <el-input
+              v-model="store.searchSellerName"
+              placeholder="卖家名"
+              clearable
+              size="small"
+              style="width:160px"
+              @keyup.enter="store.applyBasicFilters()"
+              @clear="store.applyBasicFilters()"
+            />
+            <el-input
+              v-model="store.searchBrand"
+              placeholder="品牌"
+              clearable
+              size="small"
+              style="width:140px"
+              @keyup.enter="store.applyBasicFilters()"
+              @clear="store.applyBasicFilters()"
+            />
+            <el-input
+              v-model.number="store.searchPriceMin"
+              placeholder="最低价"
+              type="number"
+              size="small"
+              style="width:110px"
+              @change="store.applyBasicFilters()"
+            />
+            <span class="price-sep">—</span>
+            <el-input
+              v-model.number="store.searchPriceMax"
+              placeholder="最高价"
+              type="number"
+              size="small"
+              style="width:110px"
+              @change="store.applyBasicFilters()"
+            />
+            <el-button
+              size="small"
+              :disabled="!store.searchSellerName && !store.searchBrand && store.searchPriceMin == null && store.searchPriceMax == null"
+              @click="store.clearBasicFilters(); store.applyBasicFilters()"
+            >
+              清除
+            </el-button>
+          </div>
         </div>
 
         <!-- 商品卡片网格 -->
@@ -487,6 +534,18 @@ export default { name: 'ProductLineSelection' }
     font-size: 12px;
     color: $text-tertiary;
     font-style: italic;
+  }
+
+  .basic-filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+
+    .price-sep {
+      color: $text-tertiary;
+      font-size: 13px;
+    }
   }
 }
 

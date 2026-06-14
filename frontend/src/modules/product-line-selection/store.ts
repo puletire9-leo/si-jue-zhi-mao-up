@@ -45,8 +45,12 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
   const treeData = ref<TreeGroup[]>([])
   const batches = ref<BatchInfo[]>([])
 
-  // ---- 新增状态 ----
+  // ---- 基础筛选状态（L1/L2 通用） ----
   const searchKeyword = ref('')
+  const searchSellerName = ref('')
+  const searchBrand = ref('')
+  const searchPriceMin = ref<number | null>(null)
+  const searchPriceMax = ref<number | null>(null)
   const selectedProducts = ref(new Set<string>())
   const sortBy = ref('')
 
@@ -136,6 +140,13 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     activeFilters.value = []
   }
 
+  function clearBasicFilters() {
+    searchSellerName.value = ''
+    searchBrand.value = ''
+    searchPriceMin.value = null
+    searchPriceMax.value = null
+  }
+
   // ---- 通用商品加载 ----
   async function loadProducts(filter: { bsrId?: string; nodeId?: number }) {
     competitorLoading.value = true
@@ -156,6 +167,10 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
       if (filter.bsrId) params.bsrId = filter.bsrId
       if (filter.nodeId) params.nodeId = filter.nodeId
       if (searchKeyword.value) params.title = searchKeyword.value
+      if (searchSellerName.value) params.sellerName = searchSellerName.value
+      if (searchBrand.value) params.brand = searchBrand.value
+      if (searchPriceMin.value != null) params.priceMin = searchPriceMin.value
+      if (searchPriceMax.value != null) params.priceMax = searchPriceMax.value
 
       // 模型筛选条件（仅 L2 时有 modelData）
       const model = modelData.value
@@ -199,6 +214,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     selectedBsrId.value = bsrId
     selectedBsrName.value = name
     clearFilters()
+    clearBasicFilters()
     closeResults()
     competitorPage.value = 1
     sortBy.value = ''
@@ -220,6 +236,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     selectedNodeName.value = name
     selectedNodeHealth.value = health || 'healthy'
     clearFilters()
+    clearBasicFilters()
     closeResults()
     competitorPage.value = 1
     sortBy.value = ''
@@ -372,6 +389,14 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
   }
 
   /**
+   * 应用基础筛选（卖家/品牌/价格）并重新搜索
+   */
+  async function applyBasicFilters() {
+    competitorPage.value = 1
+    await searchCompetitors()
+  }
+
+  /**
    * 导出选中 ASIN 列表到 Excel
    */
   async function exportSelectedExcel() {
@@ -416,6 +441,10 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     setMarketplace, setMonth, setVersion,
     // ---- 新增状态 ----
     searchKeyword,
+    searchSellerName,
+    searchBrand,
+    searchPriceMin,
+    searchPriceMax,
     selectedProducts,
     selectedProductList,
     selectedCount,
@@ -428,5 +457,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     batchAddToSelection,
     searchByKeyword,
     exportSelectedExcel,
+    clearBasicFilters,
+    applyBasicFilters,
   }
 })
