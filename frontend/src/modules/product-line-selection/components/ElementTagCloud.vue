@@ -73,4 +73,14 @@ function toggle(e: { name: string }) {
 
   .count { font-size: 11px; color: $text-tertiary; font-family: $font-family-mono; }
 }
+
+@media (max-width: 768px) {
+  .elem-tag {
+    font-size: 12px;
+    padding: 4px 10px;
+  }
+  .tag-row {
+    gap: 4px;
+  }
+}
 </style>

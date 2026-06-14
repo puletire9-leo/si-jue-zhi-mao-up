@@ -1,11 +1,10 @@
 <template>
-  <el-dialog
+  <component
+    :is="useDrawer ? 'el-drawer' : 'el-dialog'"
     v-model="dialogVisible"
     :title="dialogTitle"
-    width="80%"
-    :close-on-click-modal="true"
-    :close-on-press-escape="true"
-    class="product-detail-dialog"
+    :class="useDrawer ? 'product-detail-drawer' : 'product-detail-dialog'"
+    v-bind="useDrawer ? { size: '65%', direction: 'rtl', destroyOnClose: true } : { width: '80%', closeOnClickModal: true, closeOnPressEscape: true }"
     @close="handleClose"
   >
     <SkeletonWrapper :loading="loading" variant="list">
@@ -462,7 +461,7 @@
       <el-empty v-else description="暂无详细信息" />
     </div>
     </SkeletonWrapper>
-  </el-dialog>
+  </component>
 </template>
 
 <script setup>
@@ -486,6 +485,10 @@ const props = defineProps({
   mode: {
     type: String,
     default: 'product'
+  },
+  useDrawer: {
+    type: Boolean,
+    default: false
   },
   showEditButton: {
     type: Boolean,
@@ -670,6 +673,13 @@ watch(() => props.visible, (newVal) => {
 <style scoped lang="scss">
 .product-detail-dialog {
   :deep(.el-dialog__body) {
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+}
+
+.product-detail-drawer {
+  :deep(.el-drawer__body) {
     max-height: 70vh;
     overflow-y: auto;
   }

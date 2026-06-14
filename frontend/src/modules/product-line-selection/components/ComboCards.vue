@@ -16,13 +16,17 @@
           </div>
           <div class="combo-detail" v-if="combo.reason">{{ combo.reason }}</div>
         </div>
-        <button class="combo-btn" @click.stop="applyCombo(combo)">一键应用</button>
+        <div class="combo-actions">
+          <button class="combo-btn" @click.stop="applyCombo(combo)">一键应用</button>
+          <button v-if="isComboApplied(combo)" class="combo-undo" @click.stop="undoCombo(combo)">撤销</button>
+        </div>
       </div>
     </div>
   </ModelCard>
 </template>
 
 <script setup lang="ts">
+import { ElMessage } from 'element-plus'
 import { useProductLineSelectionStore } from '../store'
 import ModelCard from './ModelCard.vue'
 
@@ -48,15 +52,40 @@ function topKeywords(combo: ComboItem): string[] {
 }
 
 function applyCombo(combo: ComboItem) {
-  (combo.elements || []).forEach(el => {
-    if (!store.activeFilters.find(f => f.value === el && f.type === 'element'))
+  const added: string[] = []
+  ;(combo.elements || []).forEach(el => {
+    if (!store.activeFilters.find(f => f.value === el && f.type === 'element')) {
       store.addFilter('element', store.FILTER_LABEL.element(el), el, '推荐组合')
+      added.push(el)
+    }
   })
   ;(combo.carriers || []).forEach(c => {
-    if (!store.activeFilters.find(f => f.value === c && f.type === 'carrier'))
+    if (!store.activeFilters.find(f => f.value === c && f.type === 'carrier')) {
       store.addFilter('carrier', store.FILTER_LABEL.carrier(c), c, '推荐组合')
+      added.push(c)
+    }
+  })
+  if (added.length > 0) {
+    ElMessage.success(`已应用 ${added.length} 个筛选条件: ${added.join(', ')}`)
+  }
+  store.searchCompetitors()
+}
+
+function isComboApplied(combo: ComboItem): boolean {
+  const targets = [...(combo.elements || []), ...(combo.carriers || [])]
+  return targets.some(val =>
+    store.activeFilters.find(f => f.value === val && f.source === '推荐组合')
+  )
+}
+
+function undoCombo(combo: ComboItem) {
+  const targets = [...(combo.elements || []), ...(combo.carriers || [])]
+  targets.forEach(val => {
+    const idx = store.activeFilters.findIndex(f => f.value === val && f.source === '推荐组合')
+    if (idx !== -1) store.activeFilters.splice(idx, 1)
   })
   store.searchCompetitors()
+  ElMessage.info('已撤销推荐组合筛选')
 }
 </script>
 
@@ -91,6 +120,13 @@ function applyCombo(combo: ComboItem) {
   color: $text-secondary;
 }
 
+.combo-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 .combo-btn {
   padding: 5px 14px;
   background: $primary-color;
@@ -103,5 +139,22 @@ function applyCombo(combo: ComboItem) {
   transition: background $transition-fast;
 
   &:hover { background: $primary-dark; }
+}
+
+.combo-undo {
+  padding: 5px 14px;
+  background: transparent;
+  color: $text-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  font-size: 12px; font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all $transition-fast;
+
+  &:hover {
+    color: $danger-color;
+    border-color: $danger-color;
+  }
 }
 </style>
