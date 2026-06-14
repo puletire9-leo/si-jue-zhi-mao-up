@@ -26,6 +26,11 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "  <if test='category != null'> AND SUBSTRING_INDEX(ds.node_label_path, ':', 1) = #{category}</if>" +
         "  <if test='bsrId != null'> AND ds.bsr_id = #{bsrId}</if>" +
         "  <if test='nodeId != null'> AND ds.node_id = #{nodeId}</if>" +
+        "  <if test='priceMin != null'> AND ds.price &gt;= #{priceMin}</if>" +
+        "  <if test='priceMax != null'> AND ds.price &lt;= #{priceMax}</if>" +
+        "  <if test='bsrMax != null'> AND ds.bsr &lt;= #{bsrMax}</if>" +
+        "  <if test='ratingMin != null'> AND ds.rating &gt;= #{ratingMin}</if>" +
+        "  <if test='weightMax != null'> AND ds.weight &lt;= #{weightMax}</if>" +
         ") t WHERE t.rn = 1" +
         "<if test='sortBy != null and sortOrder != null'>" +
         "  ORDER BY " +
@@ -53,6 +58,11 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
             @Param("category") String category,
             @Param("bsrId") String bsrId,
             @Param("nodeId") Long nodeId,
+            @Param("priceMin") java.math.BigDecimal priceMin,
+            @Param("priceMax") java.math.BigDecimal priceMax,
+            @Param("bsrMax") Integer bsrMax,
+            @Param("ratingMin") java.math.BigDecimal ratingMin,
+            @Param("weightMax") String weightMax,
             @Param("sortBy") String sortBy,
             @Param("sortOrder") String sortOrder,
             @Param("offset") int offset,
@@ -70,6 +80,11 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "  <if test='category != null'> AND SUBSTRING_INDEX(ds.node_label_path, ':', 1) = #{category}</if>" +
         "  <if test='bsrId != null'> AND ds.bsr_id = #{bsrId}</if>" +
         "  <if test='nodeId != null'> AND ds.node_id = #{nodeId}</if>" +
+        "  <if test='priceMin != null'> AND ds.price &gt;= #{priceMin}</if>" +
+        "  <if test='priceMax != null'> AND ds.price &lt;= #{priceMax}</if>" +
+        "  <if test='bsrMax != null'> AND ds.bsr &lt;= #{bsrMax}</if>" +
+        "  <if test='ratingMin != null'> AND ds.rating &gt;= #{ratingMin}</if>" +
+        "  <if test='weightMax != null'> AND ds.weight &lt;= #{weightMax}</if>" +
         "  GROUP BY COALESCE(NULLIF(ds.parent_asin,''), ds.asin)" +
         ") g" +
         "</script>")
@@ -81,7 +96,12 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
             @Param("title") String title,
             @Param("category") String category,
             @Param("bsrId") String bsrId,
-            @Param("nodeId") Long nodeId);
+            @Param("nodeId") Long nodeId,
+            @Param("priceMin") java.math.BigDecimal priceMin,
+            @Param("priceMax") java.math.BigDecimal priceMax,
+            @Param("bsrMax") Integer bsrMax,
+            @Param("ratingMin") java.math.BigDecimal ratingMin,
+            @Param("weightMax") String weightMax);
 
     @Select("<script>" +
         "SELECT ds.seller_name as sellerName, ds.marketplace," +

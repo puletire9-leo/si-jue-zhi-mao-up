@@ -201,6 +201,8 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     clearFilters()
     closeResults()
     competitorPage.value = 1
+    sortBy.value = ''
+    searchKeyword.value = ''
     selectedProducts.value = new Set()
     modelData.value = null
     modelLoading.value = false
@@ -220,6 +222,8 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     clearFilters()
     closeResults()
     competitorPage.value = 1
+    sortBy.value = ''
+    searchKeyword.value = ''
     selectedProducts.value = new Set()
 
     // 模型后台异步加载，不阻塞竞品展示

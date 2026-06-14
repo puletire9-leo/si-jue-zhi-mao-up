@@ -201,7 +201,7 @@
     </div>
 
     <!-- 商品详情弹窗 -->
-    <ProductDetailDialog v-model:visible="detailVisible" :product="detailProduct" />
+    <ProductDetailDialog v-model:visible="detailVisible" :product="detailProduct" mode="selection" />
   </div>
 </template>
 
