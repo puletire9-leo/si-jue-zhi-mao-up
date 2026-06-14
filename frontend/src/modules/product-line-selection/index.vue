@@ -143,6 +143,11 @@
           :loading="store.modelLoading"
         />
 
+        <!-- 模型加载失败降级提示 -->
+        <div v-if="store.modelLoadFailed" class="degrade-notice">
+          <el-alert title="模型数据不可用" description="当前显示全部商品，AI 筛选暂不可用" type="warning" show-icon :closable="false" />
+        </div>
+
         <!-- 空白状态引导 -->
         <div v-else-if="!store.selectedBsrId" class="empty-guide">
           <div class="empty-guide-icon">
@@ -272,8 +277,8 @@
       <el-button size="small" :loading="store.exportLoading" @click="store.exportSelectedExcel()">导出Excel</el-button>
     </div>
 
-    <!-- 商品详情弹窗 -->
-    <ProductDetailDialog v-model:visible="detailVisible" :product="detailProduct" mode="selection" />
+    <!-- 商品详情弹窗（侧边抽屉） -->
+    <ProductDetailDialog v-model:visible="detailVisible" :product="detailProduct" mode="selection" use-drawer />
   </div>
 </template>
 
@@ -733,6 +738,12 @@ export default { name: 'ProductLineSelection' }
     gap: 8px;
     padding: 10px;
   }
+}
+
+// ---- 模型降级提示 ----
+.degrade-notice {
+  flex-shrink: 0;
+  margin: 12px 20px 0;
 }
 
 // ---- 空白状态引导 ----

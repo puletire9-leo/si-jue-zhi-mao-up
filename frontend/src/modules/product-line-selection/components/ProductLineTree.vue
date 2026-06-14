@@ -86,6 +86,14 @@ const filteredGroups = computed(() => {
     z-index: 100;
     width: 100% !important;
     max-width: 100% !important;
+
+    &::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: -1;
+    }
   }
 }
 

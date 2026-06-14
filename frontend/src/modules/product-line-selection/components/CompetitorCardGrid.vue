@@ -4,6 +4,15 @@
       <span class="grid-count">共 {{ total }} 件</span>
       <span v-if="selectedCount && selectedCount > 0" class="grid-selected">已选 {{ selectedCount }} 件</span>
       <span class="grid-spacer" style="flex:1" />
+      <el-pagination
+        v-if="total > pageSize"
+        :total="total"
+        :current-page="currentPage"
+        :page-size="pageSize"
+        layout="prev, pager, next"
+        small
+        @current-change="$emit('pageChange', $event)"
+      />
       <el-select :model-value="props.sortBy" size="small" style="width:130px" @change="(val: string) => $emit('sortChange', val)">
         <el-option label="默认排序" value="" />
         <el-option label="BSR ↑" value="bsr_asc" />

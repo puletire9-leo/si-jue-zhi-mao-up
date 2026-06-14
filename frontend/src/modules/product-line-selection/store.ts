@@ -29,6 +29,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
   const activeFilters = ref<FilterCondition[]>([])
   const resultsVisible = ref(false)
   const modelLoading = ref(false)
+  const modelLoadFailed = ref(false)
   const treeLoading = ref(false)
   const competitorLoading = ref(false)
 
@@ -264,15 +265,22 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     const reqId = String(Date.now()) + String(Math.random()).slice(2) // FIXED: HIGH-4 — safe fallback for non-secure contexts
     _modelReqId = reqId
     modelLoading.value = true
+    modelLoadFailed.value = false
     modelData.value = null
     getProductLineModel(nodeId, marketplace.value, selectedBatchId.value)
       .then(res => {
-        if (reqId === _modelReqId) modelData.value = res?.data ?? null
+        if (reqId === _modelReqId) {
+          modelData.value = res?.data ?? null
+          modelLoadFailed.value = false
+        }
       })
       .catch(() => {
         // FIXED: HIGH-1
         ElMessage.error(`品线模型加载失败`)
-        if (reqId === _modelReqId) modelData.value = null
+        if (reqId === _modelReqId) {
+          modelData.value = null
+          modelLoadFailed.value = true
+        }
       })
       .finally(() => {
         if (reqId === _modelReqId) modelLoading.value = false
@@ -448,7 +456,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     selectedBsrId, selectedBsrName,
     selectedBatchId, selectedBatchInfo,
     activeFilters, filterCount, hasFilters,
-    resultsVisible, modelLoading, treeLoading, competitorLoading,
+    resultsVisible, modelLoading, modelLoadFailed, treeLoading, competitorLoading,
     modelData, elementsData, treeData, batches, currentSubCategories,
     competitorResults, competitorTotal, competitorPage, competitorPageSize, goToPage,
     batchLoading, exportLoading,

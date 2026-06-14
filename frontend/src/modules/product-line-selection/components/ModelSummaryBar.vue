@@ -571,4 +571,14 @@ async function openMdReport() {
 .mono { font-family: $font-family-mono; font-size: 12px; }
 .tags { color: $text-secondary; font-size: 12px; }
 .empty-text { font-size: 12px; color: $text-tertiary; padding: 12px 0; text-align: center; }
+
+@media (max-width: 768px) {
+  .metric-item {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+  }
+  .metrics-row {
+    gap: 8px;
+  }
+}
 </style>
