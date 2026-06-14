@@ -180,14 +180,20 @@ public class DengZongShopService {
 
     // ===== MED-6: 委托方法 — Controller 不再直接注入 Mapper =====
     public long countGroupedByParent(String marketplace, String month, String brand,
-            String sellerName, String title, String category, String bsrId, Long nodeId) {
-        return mapper.countGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId);
+            String sellerName, String title, String category, String bsrId, Long nodeId,
+            java.math.BigDecimal priceMin, java.math.BigDecimal priceMax, Integer bsrMax,
+            java.math.BigDecimal ratingMin, String weightMax) {
+        return mapper.countGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId,
+                priceMin, priceMax, bsrMax, ratingMin, weightMax);
     }
 
     public List<DengZongShop> selectGroupedByParent(String marketplace, String month, String brand,
             String sellerName, String title, String category, String bsrId, Long nodeId,
+            java.math.BigDecimal priceMin, java.math.BigDecimal priceMax, Integer bsrMax,
+            java.math.BigDecimal ratingMin, String weightMax,
             String sortBy, String sortOrder, int offset, int size) {
-        return mapper.selectGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId, sortBy, sortOrder, offset, size);
+        return mapper.selectGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId,
+                priceMin, priceMax, bsrMax, ratingMin, weightMax, sortBy, sortOrder, offset, size);
     }
 
     public List<DengZongShop> shopSelectList(LambdaQueryWrapper<DengZongShop> qw) {

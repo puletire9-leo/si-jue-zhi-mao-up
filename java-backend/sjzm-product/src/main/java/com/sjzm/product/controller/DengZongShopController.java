@@ -36,6 +36,11 @@ public class DengZongShopController {
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String bsrId,
             @RequestParam(required = false) Long nodeId,
+            @RequestParam(required = false) java.math.BigDecimal priceMin,
+            @RequestParam(required = false) java.math.BigDecimal priceMax,
+            @RequestParam(required = false) Integer bsrMax,
+            @RequestParam(required = false) java.math.BigDecimal ratingMin,
+            @RequestParam(required = false) String weightMax,
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String sortOrder,
             @RequestParam(defaultValue = "1") Integer page,
@@ -45,9 +50,9 @@ public class DengZongShopController {
         int offset = (safePage - 1) * size;
         // 验证 sortOrder 防止 SQL 注入
         String safeSortOrder = "asc".equalsIgnoreCase(sortOrder) ? "ASC" : "DESC";
-        long total = dengZongShopService.countGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId);
+        long total = dengZongShopService.countGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId, priceMin, priceMax, bsrMax, ratingMin, weightMax);
         List<DengZongShop> list = dengZongShopService.selectGroupedByParent(
-                marketplace, month, brand, sellerName, title, category, bsrId, nodeId, sortBy, safeSortOrder, offset, size);
+                marketplace, month, brand, sellerName, title, category, bsrId, nodeId, priceMin, priceMax, bsrMax, ratingMin, weightMax, sortBy, safeSortOrder, offset, size);
 
         List<Map<String, Object>> items = list.stream().map(this::toResponse).collect(Collectors.toList());
 
