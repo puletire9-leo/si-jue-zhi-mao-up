@@ -50,11 +50,11 @@ function topKeywords(combo: ComboItem): string[] {
 function applyCombo(combo: ComboItem) {
   (combo.elements || []).forEach(el => {
     if (!store.activeFilters.find(f => f.value === el && f.type === 'element'))
-      store.addFilter('element', el, el, '推荐组合')
+      store.addFilter('element', store.FILTER_LABEL.element(el), el, '推荐组合')
   })
   ;(combo.carriers || []).forEach(c => {
     if (!store.activeFilters.find(f => f.value === c && f.type === 'carrier'))
-      store.addFilter('carrier', `载体:${c}`, c, '推荐组合')
+      store.addFilter('carrier', store.FILTER_LABEL.carrier(c), c, '推荐组合')
   })
   store.searchCompetitors()
 }

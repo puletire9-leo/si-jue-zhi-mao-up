@@ -4,7 +4,7 @@
       <span class="grid-count">共 {{ total }} 件</span>
       <span v-if="selectedCount && selectedCount > 0" class="grid-selected">已选 {{ selectedCount }} 件</span>
       <span class="grid-spacer" style="flex:1" />
-      <el-select v-model="sortBy" size="small" style="width:130px" @change="$emit('sortChange', sortBy)">
+      <el-select :model-value="props.sortBy" size="small" style="width:130px" @change="(val: string) => $emit('sortChange', val)">
         <el-option label="默认排序" value="" />
         <el-option label="BSR ↑" value="bsr_asc" />
         <el-option label="BSR ↓" value="bsr_desc" />
@@ -50,7 +50,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { computed } from 'vue'
 import UniversalCard from '@/components/UniversalCard/index.vue'
 import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import { ElEmpty, ElPagination, ElSelect, ElOption, ElButton } from 'element-plus'
@@ -80,13 +80,6 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
-
-const sortBy = ref(props.sortBy || '')
-
-// 同步外部 prop 变化（如 store.sortBy 被重置时）
-watch(() => props.sortBy, (val) => {
-  sortBy.value = val || ''
-})
 
 function selectAllCurrent() {
   if (allSelectedOnPage.value) {

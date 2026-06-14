@@ -50,7 +50,7 @@ function isSelected(c: { name: string }) {
 }
 
 function toggle(c: { name: string }) {
-  const label = `载体:${c.name}`
+  const label = store.FILTER_LABEL.carrier(c.name)
   if (isSelected(c)) {
     store.removeFilterByLabel(label)
   } else {

@@ -381,7 +381,7 @@ onMounted(() => {
   store.initData()
 })
 
-watch([() => store.marketplace, () => store.month], (newVals, oldVals) => {
+watch([() => store.marketplace, () => store.month], ([newMkp, newMonth], [oldMkp, oldMonth]) => {
   if (store.selectedCount > 0 || store.hasFilters) {
     ElMessageBox.confirm(
       '切换市场或月份将清空当前筛选和选中，是否继续？',
@@ -395,7 +395,11 @@ watch([() => store.marketplace, () => store.month], (newVals, oldVals) => {
       store.competitorResults = []
       store.selectedProducts = new Set()
       store.initData()
-    }).catch(() => {})
+    }).catch(() => {
+      // 用户取消 — 回滚市场/月份到旧值
+      store.marketplace = oldMkp
+      store.month = oldMonth
+    })
   } else {
     store.selectedBsrId = ''
     store.selectedNodeId = ''

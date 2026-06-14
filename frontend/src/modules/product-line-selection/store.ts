@@ -125,8 +125,9 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
 
   // ---- 筛选方法 ----
   let _filterSeq = 0
+  let _productsReqId = 0 // R3.2: loadProducts 请求去重
   function addFilter(type: FilterType, label: string, value: string, source: string) {
-    const exists = activeFilters.value.find(f => f.value === value && f.type === type)
+    const exists = activeFilters.value.find(f => f.value === value && f.type === type && f.source === source)
     if (exists) return
     activeFilters.value.push({ id: `f-${++_filterSeq}`, type, label, value, source })
     searchCompetitors()
@@ -139,10 +140,18 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
 
   function removeFilterByLabel(label: string) {
     activeFilters.value = activeFilters.value.filter(f => !f.label.startsWith(label))
+    if (selectedNodeId.value || selectedBsrId.value) searchCompetitors()
   }
 
   function clearFilters() {
     activeFilters.value = []
+  }
+
+  // ---- 筛选标签常量（R6.3: 去魔法字符串）----
+  const FILTER_LABEL = {
+    carrier: (name: string) => `载体:${name}`,
+    element: (name: string) => name,
+    comboItem: (name: string) => `组合:${name}`,
   }
 
   function clearBasicFilters() {
@@ -154,6 +163,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
 
   // ---- 通用商品加载 ----
   async function loadProducts(filter: { bsrId?: string; nodeId?: number }) {
+    const reqId = ++_productsReqId // R3.2: 请求去重
     competitorLoading.value = true
     resultsVisible.value = true
     try {
@@ -202,12 +212,14 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
 
       // 使用正确的 API: getDengZongShopList (调 /api/v1/deng-zong-shop/products)
       const res = await competitorApi.getDengZongShopList(params)
+      if (reqId !== _productsReqId) return // R3.2: 过时请求丢弃
       competitorResults.value = (res?.data?.list ?? []) as CompetitorProductRaw[]
       competitorTotal.value = res?.data?.total ?? 0
     } catch (err) {
+      if (reqId !== _productsReqId) return // R3.2: 过时请求不弹错
       ElMessage.error('商品数据加载失败，请重试')
     } finally {
-      competitorLoading.value = false
+      if (reqId === _productsReqId) competitorLoading.value = false // R3.2: 仅最新请求控制 loading
     }
   }
 
@@ -234,7 +246,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
   }
 
   // ---- L2 小类点击（取代 selectNode） ----
-  let _modelReqId: string | null = null // FIXED: HIGH-4 — request dedup ID (counter-based, non-secure)
+  let _modelReqId: string | null = null // FIXED: HIGH-4 — request dedup ID (counter-based, non-secure
   async function selectSubCategory(nodeId: number, name: string, bsrId: string, health?: string) {
     selectedBsrId.value = bsrId
     selectedNodeId.value = String(nodeId)
@@ -443,6 +455,7 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     addFilter, removeFilter, removeFilterByLabel, clearFilters,
     selectCategory, selectSubCategory, fetchElements, openResults, closeResults,
     searchCompetitors, initData, fetchTree, fetchBatchesList, loadProducts,
+    FILTER_LABEL,
     setMarketplace, setMonth, setVersion,
     // ---- 新增状态 ----
     searchKeyword,
