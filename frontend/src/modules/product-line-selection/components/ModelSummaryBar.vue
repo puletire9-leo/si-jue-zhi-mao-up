@@ -141,7 +141,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'  // FIXED: HIGH-3
 import { useProductLineSelectionStore } from '../store'
@@ -161,7 +161,12 @@ const props = defineProps<{
 }>()
 
 const store = useProductLineSelectionStore()
-const expanded = ref(false)
+const expanded = ref(true)
+
+// R2.2: 首次加载模型数据时自动展开
+watch(() => props.modelData, (data) => {
+  if (data && !expanded.value) expanded.value = true
+})
 
 // ---- 健康度映射（FIXED: MED-1 — 使用 composable）----
 
