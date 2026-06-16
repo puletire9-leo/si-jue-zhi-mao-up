@@ -78,6 +78,8 @@ public class DengZongShop {
     private String similarUrl;
     private String source;
 
+    private String batchDate;
+
     @TableField(exist = false)
     private Integer variantCount;
 

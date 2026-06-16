@@ -18,7 +18,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -164,7 +166,8 @@ public class DengZongShopService {
         if (item.path("availableDate").isNumber()) {
             e.setAvailableDate(item.path("availableDate").longValue());
         }
-        
+
+        e.setBatchDate(LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")));
         e.setUpdatedAt(LocalDateTime.now());
         return e;
     }
@@ -182,18 +185,18 @@ public class DengZongShopService {
     public long countGroupedByParent(String marketplace, String month, String brand,
             String sellerName, String title, String category, String bsrId, Long nodeId,
             java.math.BigDecimal priceMin, java.math.BigDecimal priceMax, Integer bsrMax,
-            java.math.BigDecimal ratingMin, String weightMax) {
+            java.math.BigDecimal ratingMin, String weightMax, String batchDate) {
         return mapper.countGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId,
-                priceMin, priceMax, bsrMax, ratingMin, weightMax);
+                priceMin, priceMax, bsrMax, ratingMin, weightMax, batchDate);
     }
 
     public List<DengZongShop> selectGroupedByParent(String marketplace, String month, String brand,
             String sellerName, String title, String category, String bsrId, Long nodeId,
             java.math.BigDecimal priceMin, java.math.BigDecimal priceMax, Integer bsrMax,
-            java.math.BigDecimal ratingMin, String weightMax,
+            java.math.BigDecimal ratingMin, String weightMax, String batchDate,
             String sortBy, String sortOrder, int offset, int size) {
         return mapper.selectGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId,
-                priceMin, priceMax, bsrMax, ratingMin, weightMax, sortBy, sortOrder, offset, size);
+                priceMin, priceMax, bsrMax, ratingMin, weightMax, batchDate, sortBy, sortOrder, offset, size);
     }
 
     public List<DengZongShop> shopSelectList(LambdaQueryWrapper<DengZongShop> qw) {
@@ -204,8 +207,8 @@ public class DengZongShopService {
         return mapper.selectCount(qw);
     }
 
-    public List<Map<String, Object>> selectSellerSummary(String marketplace) {
-        return mapper.selectSellerSummary(marketplace);
+    public List<Map<String, Object>> selectSellerSummary(String marketplace, String batchDate) {
+        return mapper.selectSellerSummary(marketplace, batchDate);
     }
 
     public List<DengZongShopSeller> sellerSelectList(LambdaQueryWrapper<DengZongShopSeller> qw) {
@@ -233,5 +236,9 @@ public class DengZongShopService {
 
     public String getMaxMonth(String marketplace) {
         return mapper.selectMaxMonth(marketplace);
+    }
+
+    public String getMaxBatchDate(String marketplace) {
+        return mapper.selectMaxBatchDate(marketplace);
     }
 }

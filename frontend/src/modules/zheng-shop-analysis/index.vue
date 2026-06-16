@@ -218,7 +218,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
-import { competitorApi } from '@/api/competitor'
+import { competitorApi, getDengZongMaxBatchDate } from '@/api/competitor'
 import { selectionApi } from '@/api/selection'
 import { asinImportApi } from '@/api/asinImport'
 import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
@@ -252,6 +252,8 @@ interface UnifiedStore {
   sellerId?: number
   notes?: string
   latestMonth?: string
+  lastSyncedAt?: string
+  latestBatchDate?: string
   ratingScore?: number | null
   ratingGrade?: string | null
   ratingBestMatch?: string | null
@@ -449,6 +451,19 @@ const loadZhengShops = async (): Promise<UnifiedStore[]> => {
   try {
     const params: Record<string, string> = {}
     if (marketplace.value) params.marketplace = marketplace.value
+
+    // 获取 latestBatchDate（全局最新批次日期）
+    let latestBatchDate = ''
+    try {
+      const batchRes = await getDengZongMaxBatchDate(marketplace.value || 'UK')
+      if (batchRes?.data) {
+        latestBatchDate = batchRes.data
+        params.batchDate = latestBatchDate
+      }
+    } catch {
+      // 批次日期非必须，失败不阻塞
+    }
+
     const res = await competitorApi.getDengZongShopSellerSummary(params)
     return (res.data || []).map((s: any) => ({
       storeName: s.sellerName,
@@ -463,6 +478,8 @@ const loadZhengShops = async (): Promise<UnifiedStore[]> => {
       sellerId: s.sellerId,
       notes: s.notes,
       latestMonth: s.latestMonth,
+      lastSyncedAt: s.lastSyncedAt,
+      latestBatchDate: latestBatchDate || s.latestBatchDate,
     }))
   } catch {
     ElMessage.error('加载郑总店铺失败')
