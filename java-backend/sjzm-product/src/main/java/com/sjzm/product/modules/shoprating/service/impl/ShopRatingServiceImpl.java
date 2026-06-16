@@ -7,6 +7,7 @@ import com.sjzm.product.mapper.DengZongShopMapper;
 import com.sjzm.product.mapper.StoreRatingMapper;
 import com.sjzm.product.modules.shoprating.dto.ShopRatingResult;
 import com.sjzm.product.modules.shoprating.service.ShopRatingService;
+import com.sjzm.product.service.DengZongShopService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
@@ -30,6 +31,7 @@ public class ShopRatingServiceImpl implements ShopRatingService {
     private final StoreRatingMapper storeRatingMapper;
     private final StringRedisTemplate redisTemplate;
     private final ApplicationContext applicationContext;
+    private final DengZongShopService dengZongShopService;
 
     // 候选店铺的数据来源表
     private static final String SOURCE_TABLE = "competitor_products";
@@ -86,8 +88,9 @@ public class ShopRatingServiceImpl implements ShopRatingService {
                 .collect(Collectors.toList());
 
         // 2. 批量检查哪些已获取数据
+        String batchDate = dengZongShopService.getMaxBatchDate(marketplace);
         Set<String> fetchedSet = new HashSet<>(
-                dengZongShopMapper.selectFetchedSellerNames(marketplace, sellerNames));
+                dengZongShopMapper.selectFetchedSellerNames(marketplace, sellerNames, batchDate));
 
         // 3. 组装结果
         List<ShopRatingResult.CandidateShop> result = new ArrayList<>();
@@ -245,7 +248,8 @@ public class ShopRatingServiceImpl implements ShopRatingService {
     // ========== 基准构建 ==========
 
     private Benchmark buildBenchmark(String marketplace) {
-        List<Map<String, Object>> rows = dengZongShopMapper.selectRatingData(marketplace);
+        String batchDate = dengZongShopService.getMaxBatchDate(marketplace);
+        List<Map<String, Object>> rows = dengZongShopMapper.selectRatingData(marketplace, batchDate);
 
         Benchmark bench = new Benchmark();
         bench.nodeIdCount = new HashMap<>();

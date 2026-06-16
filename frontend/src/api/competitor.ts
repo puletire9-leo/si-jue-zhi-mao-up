@@ -85,6 +85,9 @@ export interface CompetitorProductRaw {
     rank: number
     label: string
   }>
+
+  // 批次日期
+  batchDate?: string
 }
 
 export interface CompetitorListParams {
@@ -236,7 +239,7 @@ export const competitorApi = {
   getDengZongShopSellers(params?: { marketplace?: string }): Promise<any> {
     return request({ url: '/api/v1/deng-zong-shop/sellers', method: 'get', params })
   },
-  getDengZongShopSellerSummary(params?: { marketplace?: string }): Promise<any> {
+  getDengZongShopSellerSummary(params?: { marketplace?: string; batchDate?: string }): Promise<any> {
     return request({ url: '/api/v1/deng-zong-shop/seller-summary', method: 'get', params })
   },
   createDengZongShopSeller(data: Record<string, any>): Promise<any> {
@@ -265,3 +268,6 @@ export const competitorApi = {
   },
 }
 
+export function getDengZongMaxBatchDate(marketplace: string) {
+  return request.get('/api/v1/deng-zong-shop/max-batch-date', { params: { marketplace } })
+}

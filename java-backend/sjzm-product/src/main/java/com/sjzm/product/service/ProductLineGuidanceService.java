@@ -42,26 +42,26 @@ public class ProductLineGuidanceService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * 从 deng_zong_shop 按 marketplace+month 两级聚合品线数据。
+     * 从 deng_zong_shop 按 marketplace+batchDate 两级聚合品线数据。
      *
      * L1: bsr_id（亚马逊大类，如 beauty/sports）
      * L2: node_id（小类节点，如 Nail Tips）
      *
      * @param marketplace 站点 UK/DE
-     * @param month       数据月份 如 202605
+     * @param batchDate   批次日期 如 20260616
      * @return {"batchId": "...", "productLines": [{bsrId, subCategories: [...]}, ...]}
      */
-    public Map<String, Object> aggregateData(String marketplace, String month) {
-        log.info("品线聚合: marketplace={}, month={}", marketplace, month);
+    public Map<String, Object> aggregateData(String marketplace, String batchDate) {
+        log.info("品线聚合: marketplace={}, batchDate={}", marketplace, batchDate);
 
         // 从 deng_zong_shop 查询
         LambdaQueryWrapper<DengZongShop> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DengZongShop::getMarketplace, marketplace)
-               .eq(DengZongShop::getMonth, month);
+               .eq(DengZongShop::getBatchDate, batchDate);
         List<DengZongShop> all = dengZongShopMapper.selectList(wrapper);
 
         if (all.isEmpty()) {
-            log.warn("deng_zong_shop 无数据: marketplace={}, month={}", marketplace, month);
+            log.warn("deng_zong_shop 无数据: marketplace={}, batchDate={}", marketplace, batchDate);
             return Map.of("productLines", List.of(), "batchId", "");
         }
 
@@ -139,7 +139,7 @@ public class ProductLineGuidanceService {
                 ((Integer) b.get("productCount")) - ((Integer) a.get("productCount")));
 
         // 生成 batch_id
-        String batchId = marketplace + "_" + month + "_"
+        String batchId = marketplace + "_" + batchDate + "_"
                 + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
 
         log.info("品线聚合完成: {} L1品线, {} 总商品, batchId={}",
@@ -147,7 +147,7 @@ public class ProductLineGuidanceService {
         return Map.of(
                 "batchId", batchId,
                 "marketplace", marketplace,
-                "month", month,
+                "batchDate", batchDate,
                 "totalProducts", all.size(),
                 "sourceTable", "deng_zong_shop",
                 "productLines", productLines
