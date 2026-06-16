@@ -78,6 +78,7 @@ const filterDialogVisible = ref(false)
 
 // 国家选项（值必须与数据库中存储的值一致）
 const countryOptions = [
+  { label: '美国', value: 'US' },
   { label: '英国', value: 'UK' },
   { label: '德国', value: 'DE' }
 ]
