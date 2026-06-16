@@ -34,7 +34,7 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "  <if test='bsrMax != null'> AND ds.bsr &lt;= #{bsrMax}</if>" +
         "  <if test='ratingMin != null'> AND ds.rating &gt;= #{ratingMin}</if>" +
         "  <if test='weightMax != null'> AND ds.weight &lt;= #{weightMax}</if>" +
-        "  <if test='batchDate != null'> AND ds.batch_date = #{batchDate}</if>" +
+        "  <if test='batchDate != null'> AND (ds.batch_date = #{batchDate} OR ds.batch_date IS NULL)</if>" +
         ") t WHERE t.rn = 1" +
         "<if test='sortBy != null and sortOrder != null'>" +
         "  ORDER BY " +
@@ -90,7 +90,7 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "  <if test='bsrMax != null'> AND ds.bsr &lt;= #{bsrMax}</if>" +
         "  <if test='ratingMin != null'> AND ds.rating &gt;= #{ratingMin}</if>" +
         "  <if test='weightMax != null'> AND ds.weight &lt;= #{weightMax}</if>" +
-        "  <if test='batchDate != null'> AND ds.batch_date = #{batchDate}</if>" +
+        "  <if test='batchDate != null'> AND (ds.batch_date = #{batchDate} OR ds.batch_date IS NULL)</if>" +
         "  GROUP BY COALESCE(NULLIF(ds.parent_asin,''), ds.asin)" +
         ") g" +
         "</script>")
@@ -120,7 +120,7 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "  MAX(ds.batch_date) as latestBatchDate" +
         " FROM deng_zong_shop ds WHERE ds.title IS NOT NULL" +
         " <if test='marketplace != null'> AND ds.marketplace = #{marketplace}</if>" +
-        " <if test='batchDate != null'> AND ds.batch_date = #{batchDate}</if>" +
+        " <if test='batchDate != null'> AND (ds.batch_date = #{batchDate} OR ds.batch_date IS NULL)</if>" +
         " GROUP BY ds.seller_name, ds.marketplace" +
         " ORDER BY totalRevenue DESC" +
         "</script>")
@@ -132,7 +132,7 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
     @Select("<script>" +
         "SELECT DISTINCT seller_name FROM deng_zong_shop WHERE title IS NOT NULL" +
         " <if test='marketplace != null'> AND marketplace = #{marketplace}</if>" +
-        " <if test='batchDate != null'> AND batch_date = #{batchDate}</if>" +
+        " <if test='batchDate != null'> AND (batch_date = #{batchDate} OR batch_date IS NULL)</if>" +
         " <if test='sellerNames != null and sellerNames.size > 0'>" +
         "   AND seller_name IN " +
         "   <foreach collection='sellerNames' item='name' open='(' separator=',' close=')'>#{name}</foreach>" +
@@ -147,7 +147,7 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
     @Select("<script>" +
         "SELECT seller_name, node_id, bsr_id, price FROM deng_zong_shop WHERE title IS NOT NULL" +
         " <if test='marketplace != null'> AND marketplace = #{marketplace}</if>" +
-        " <if test='batchDate != null'> AND batch_date = #{batchDate}</if>" +
+        " <if test='batchDate != null'> AND (batch_date = #{batchDate} OR batch_date IS NULL)</if>" +
         "</script>")
     List<java.util.Map<String, Object>> selectRatingData(
             @Param("marketplace") String marketplace,
@@ -157,7 +157,7 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
             "SELECT CONCAT(bsr_id, '_', node_id) AS composite_key, COUNT(*) AS product_count " +
             "FROM deng_zong_shop " +
             "WHERE marketplace = #{marketplace} AND month = #{month} " +
-            "<if test='batchDate != null'> AND batch_date = #{batchDate}</if> " +
+            "<if test='batchDate != null'> AND (batch_date = #{batchDate} OR batch_date IS NULL)</if> " +
             "AND bsr_id IS NOT NULL AND node_id IS NOT NULL " +
             "GROUP BY bsr_id, node_id" +
             "</script>")
@@ -168,7 +168,7 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
             "SELECT bsr_id AS bsrId, COUNT(*) AS productCount " +
             "FROM deng_zong_shop " +
             "WHERE marketplace = #{marketplace} AND month = #{month} " +
-            "<if test='batchDate != null'> AND batch_date = #{batchDate}</if> " +
+            "<if test='batchDate != null'> AND (batch_date = #{batchDate} OR batch_date IS NULL)</if> " +
             "AND bsr_id IS NOT NULL " +
             "GROUP BY bsr_id ORDER BY productCount DESC" +
             "</script>")
