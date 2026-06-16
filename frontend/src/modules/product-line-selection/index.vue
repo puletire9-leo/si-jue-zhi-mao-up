@@ -9,6 +9,16 @@
       </el-breadcrumb>
       <div class="tb-spacer" />
 
+      <el-radio-group
+        :model-value="store.dataSource"
+        size="small"
+        style="margin-left: 8px"
+        @change="(val: any) => store.setDataSource(val)"
+      >
+        <el-radio-button value="zheng">郑总</el-radio-button>
+        <el-radio-button value="selection">选品</el-radio-button>
+      </el-radio-group>
+
       <label class="tb-select desktop-only">
         站点
         <el-select v-model="store.marketplace" size="small" style="width:80px">
@@ -30,7 +40,7 @@
         </el-select>
       </label>
 
-      <label class="tb-select desktop-only">
+      <label v-if="store.dataSource === 'zheng'" class="tb-select desktop-only">
         版本
         <el-select v-model="store.selectedBatchId" size="small" style="width:180px">
           <el-option
@@ -81,16 +91,60 @@
       </button>
     </div>
 
+    <!-- 全局筛选栏 -->
+    <div class="global-filterbar">
+      <el-select
+        v-model="store.selectedWeekTags"
+        multiple collapse-tags collapse-tags-tooltip
+        placeholder="入库周次"
+        size="small"
+        style="width:150px"
+        @change="store.searchCompetitors()"
+      >
+        <el-option v-for="w in store.availableWeekOptions" :key="w" :label="w" :value="w" />
+      </el-select>
+      <el-input
+        v-model="store.searchSellerName" placeholder="卖家名" clearable size="small"
+        style="width:140px"
+        @keyup.enter="store.applyBasicFilters()"
+        @clear="store.applyBasicFilters()"
+      />
+      <el-input
+        v-model="store.searchBrand" placeholder="品牌" clearable size="small"
+        style="width:120px"
+        @keyup.enter="store.applyBasicFilters()"
+        @clear="store.applyBasicFilters()"
+      />
+      <el-input
+        v-model.number="store.searchPriceMin" placeholder="最低价" type="number" size="small"
+        style="width:100px"
+        @change="store.applyBasicFilters()"
+      />
+      <span class="gf-price-sep">—</span>
+      <el-input
+        v-model.number="store.searchPriceMax" placeholder="最高价" type="number" size="small"
+        style="width:100px"
+        @change="store.applyBasicFilters()"
+      />
+      <el-button size="small" @click="store.clearBasicFilters(); store.applyBasicFilters()">清除</el-button>
+    </div>
+
     <!-- 工作区 -->
     <div class="workspace">
-      <ProductLineTree
-        :mobile-open="mobileTreeOpen"
-        @close-mobile="mobileTreeOpen = false"
-        @select-l1="(bsrId, name) => store.selectCategory(bsrId, name)"
-      />
+      <div class="tree-wrapper" :class="{ collapsed: treeCollapsed }">
+        <ProductLineTree
+          :mobile-open="mobileTreeOpen"
+          @close-mobile="mobileTreeOpen = false"
+          @select-l1="(bsrId, name) => store.selectCategory(bsrId, name)"
+        />
 
-      <!-- 拖拽分隔线 (桌面端) -->
-      <div class="tree-resize" @mousedown="startResize" />
+      <!-- 树折叠/展开按钮 -->
+      <button class="tree-fold-btn" @click="treeCollapsed = !treeCollapsed" :title="treeCollapsed ? '展开品线树' : '收起品线树'">
+        <el-icon><component :is="treeCollapsed ? DArrowRight : DArrowLeft" /></el-icon>
+      </button>
+      </div>
+
+      <div class="tree-resize" v-show="!treeCollapsed" @mousedown="startResize" />
 
       <div class="content-area">
         <!-- 类目导航条 -->
@@ -108,10 +162,13 @@
           </template>
           <span v-if="!store.selectedNodeId" class="cat-hint">显示大类全部商品</span>
           <span v-else class="cat-hint">AI 模型分析筛选</span>
+          <button class="l2-fold-btn" @click="l2Collapsed = !l2Collapsed" :title="l2Collapsed ? '展开子类' : '折叠子类'">
+            <el-icon><component :is="l2Collapsed ? CaretBottom : CaretTop" /></el-icon>
+          </button>
         </div>
 
         <!-- L2 子类面板：选中 L1 后显示 -->
-        <div v-if="store.selectedBsrId && store.currentSubCategories.length" class="l2-panel">
+        <div v-if="store.selectedBsrId && store.currentSubCategories.length" class="l2-panel" :class="{ collapsed: l2Collapsed }">
           <div class="l2-search">
             <el-input
               v-model="subCategorySearch"
@@ -131,14 +188,15 @@
               @click="handleL2ItemClick(cat)"
             >
               <span class="l2-item-name">{{ cat.name }}</span>
+              <span v-if="cat.isZheng && store.dataSource === 'selection'" class="l2-zheng-tag">郑总</span>
               <span class="l2-item-count">{{ cat.productCount?.toLocaleString() || '—' }}</span>
             </div>
           </div>
         </div>
 
-        <!-- 品线模型摘要条 -->
+        <!-- 品线模型摘要条（仅郑总模式） -->
         <ModelSummaryBar
-          v-if="store.selectedNodeId"
+          v-if="store.selectedNodeId && store.dataSource === 'zheng'"
           :model-data="store.modelData"
           :loading="store.modelLoading"
         />
@@ -176,10 +234,9 @@
           </div>
         </div>
 
-        <!-- 筛选操作栏 — L1: 基础字段筛选 / L2: 模型元素+基础筛选 -->
-        <div v-if="store.selectedBsrId" class="action-bar">
-          <!-- L2 模式：模型元素/载体筛选标签 -->
-          <div v-if="store.selectedNodeId" class="filter-tags">
+        <!-- 筛选操作栏 —— 仅模型元素/载体筛选标签 -->
+        <div v-if="store.selectedBsrId && store.selectedNodeId" class="action-bar">
+          <div class="filter-tags">
             <span
               v-for="f in store.activeFilters"
               :key="f.id"
@@ -197,52 +254,6 @@
               @click="store.clearFilters(); store.searchCompetitors()"
             >
               清除筛选
-            </el-button>
-          </div>
-
-          <!-- 基础字段筛选（L1/L2 通用） -->
-          <div class="basic-filters">
-            <el-input
-              v-model="store.searchSellerName"
-              placeholder="卖家名"
-              clearable
-              size="small"
-              style="width:160px"
-              @keyup.enter="store.applyBasicFilters()"
-              @clear="store.applyBasicFilters()"
-            />
-            <el-input
-              v-model="store.searchBrand"
-              placeholder="品牌"
-              clearable
-              size="small"
-              style="width:140px"
-              @keyup.enter="store.applyBasicFilters()"
-              @clear="store.applyBasicFilters()"
-            />
-            <el-input
-              v-model.number="store.searchPriceMin"
-              placeholder="最低价"
-              type="number"
-              size="small"
-              style="width:110px"
-              @change="store.applyBasicFilters()"
-            />
-            <span class="price-sep">—</span>
-            <el-input
-              v-model.number="store.searchPriceMax"
-              placeholder="最高价"
-              type="number"
-              size="small"
-              style="width:110px"
-              @change="store.applyBasicFilters()"
-            />
-            <el-button
-              size="small"
-              :disabled="!store.searchSellerName && !store.searchBrand && store.searchPriceMin == null && store.searchPriceMax == null"
-              @click="store.clearBasicFilters(); store.applyBasicFilters()"
-            >
-              清除
             </el-button>
           </div>
         </div>
@@ -278,14 +289,14 @@
     </div>
 
     <!-- 商品详情弹窗（侧边抽屉） -->
-    <ProductDetailDialog v-model:visible="detailVisible" :product="detailProduct" mode="selection" use-drawer />
+    <ProductDetailDialog v-model:visible="detailVisible" :product="detailProduct" mode="selection" use-drawer :data-source="store.dataSource" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Menu, FolderOpened, Search } from '@element-plus/icons-vue'
+import { Menu, FolderOpened, Search, DArrowLeft, DArrowRight, CaretTop, CaretBottom } from '@element-plus/icons-vue'
 import { useProductLineSelectionStore } from './store'
 import ProductLineTree from './components/ProductLineTree.vue'
 import ModelSummaryBar from './components/ModelSummaryBar.vue'
@@ -297,6 +308,10 @@ const store = useProductLineSelectionStore()
 const mobileTreeOpen = ref(false)
 const detailVisible = ref(false)
 const detailProduct = ref<any>(null)
+
+// 折叠状态
+const treeCollapsed = ref(false)
+const l2Collapsed = ref(false)
 
 // L2 子类面板
 const subCategorySearch = ref('')
@@ -469,7 +484,8 @@ export default { name: 'ProductLineSelection' }
 }
 
 .tb-select {
-  display: flex; align-items: center; gap: 6px;
+  display: flex;
+  position: relative; align-items: center; gap: 6px;
   font-size: 12px;
   color: $text-secondary;
   white-space: nowrap;
@@ -494,6 +510,104 @@ export default { name: 'ProductLineSelection' }
   font-family: inherit;
 
   &:hover { color: $text-primary; border-color: $primary-color; }
+}
+
+// ---- 树折叠相关 ----
+.tree-wrapper {
+  display: flex;
+  position: relative;
+  flex-shrink: 0;
+  transition: width 0.2s ease;
+  min-width: 0;
+
+  &.collapsed {
+    width: 0 !important;
+    > * { display: none; }
+    > .tree-fold-btn { display: flex; }
+  }
+}
+
+.tree-fold-btn {
+  position: absolute;
+  right: -14px;
+  top: 20px;
+  z-index: 10;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid $border-color;
+  background: $bg-color;
+  box-shadow: $shadow-sm;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $text-secondary;
+  font-size: 13px;
+  transition: all $transition-fast;
+  padding: 0;
+
+  &:hover {
+    background: $bg-hover;
+    color: $primary-color;
+    border-color: $primary-color;
+    box-shadow: $shadow-md;
+  }
+}
+
+.l2-fold-btn.l2-fold-btn {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $text-tertiary;
+  font-size: 16px;
+  border-radius: $radius-sm;
+  flex-shrink: 0;
+
+  &:hover {
+    background: $bg-hover;
+    color: $text-primary;
+  }
+}
+
+.l2-panel {
+  overflow: hidden;
+  min-height: min-content;
+  transition: max-height 0.25s ease, opacity 0.2s ease;
+  max-height: 2000px;
+  opacity: 1;
+  min-height: min-content;  // 防止 flex item 被 overflow:hidden 压缩到 0
+}
+.l2-panel.collapsed {
+  max-height: 0 !important;
+  min-height: 0 !important;
+  min-height: 0 !important;  // 折叠时必须允许压缩到 0
+  opacity: 0;
+  padding: 0;
+  border-bottom: none;
+}
+
+// ---- 全局筛选栏 ----
+.global-filterbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: $bg-color;
+  border-bottom: 1px solid $border-color;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+
+  .gf-price-sep {
+    color: $text-tertiary;
+    font-size: 13px;
+  }
 }
 
 // ---- 工作区 ----
@@ -531,7 +645,8 @@ export default { name: 'ProductLineSelection' }
 
 // ---- 类目导航条 ----
 .category-header {
-  display: flex; align-items: center; gap: 6px;
+  display: flex;
+  position: relative; align-items: center; gap: 6px;
   padding: 10px 20px;
   border-bottom: 1px solid $border-color;
   font-size: 14px; font-weight: 600;
@@ -631,6 +746,18 @@ export default { name: 'ProductLineSelection' }
   flex-shrink: 0;
 }
 
+.l2-zheng-tag {
+  font-size: 10px;
+  background: #e6f7ff;
+  color: #1890ff;
+  border: 1px solid #91d5ff;
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-left: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 // 移动端: L2 搜索框和列表可触摸滚动
 @media (max-width: 900px) {
   .l2-list {
@@ -640,14 +767,16 @@ export default { name: 'ProductLineSelection' }
 
 // ---- 操作栏 ----
 .action-bar {
-  display: flex; gap: 12px; align-items: center;
+  display: flex;
+  position: relative; gap: 12px; align-items: center;
   padding: 12px 20px;
   background: $bg-color;
   border-top: 1px solid $border-color;
 
   .filter-tags {
     flex: 1;
-    display: flex; flex-wrap: wrap; gap: 6px;
+    display: flex;
+  position: relative; flex-wrap: wrap; gap: 6px;
   }
 
   .filter-tag {
@@ -669,18 +798,6 @@ export default { name: 'ProductLineSelection' }
     font-size: 12px;
     color: $text-tertiary;
     font-style: italic;
-  }
-
-  .basic-filters {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-
-    .price-sep {
-      color: $text-tertiary;
-      font-size: 13px;
-    }
   }
 }
 

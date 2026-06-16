@@ -2215,7 +2215,7 @@ nav ul li a:hover::after {
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
-// ---- Dark Mode Overrides ----
+/* ---- Dark Mode Overrides ---- */
 html.dark {
   .report-dashboard {
     background: var(--el-bg-color-page);

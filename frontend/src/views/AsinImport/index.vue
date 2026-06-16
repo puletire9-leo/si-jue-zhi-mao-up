@@ -6,6 +6,14 @@
     <div class="page-header">
       <h2>ASIN 导入</h2>
       <span class="page-desc">从八爪鱼数据导入 → 筛选 → 调卖家精灵 API 获取竞品数据</span>
+      <div class="header-marketplace">
+        <span class="param-label">市场：</span>
+        <el-select v-model="marketplace" size="small" style="width:130px">
+          <el-option label="🇺🇸 美国 (US)" value="US" />
+          <el-option label="🇬🇧 英国 (UK)" value="UK" />
+          <el-option label="🇩🇪 德国 (DE)" value="DE" />
+        </el-select>
+      </div>
       <el-button type="primary" plain size="small" style="margin-left: auto;" @click="historyVisible = true">导入历史</el-button>
     </div>
 
@@ -70,7 +78,7 @@
       </div>
 
       <!-- 精筛配置 -->
-      <FilterConfigPanel />
+      <FilterConfigPanel :marketplace="marketplace" />
 
       <div style="text-align: center; margin-top: 24px">
         <el-button type="primary" :disabled="importMode !== 'asin' && importMode !== 'seller'" @click="handleNextFromMode">
@@ -106,13 +114,7 @@
       </div>
 
       <div v-else style="text-align: center; margin-top: 20px">
-        <div class="marketplace-select-row">
-          <span class="param-label">目标市场：</span>
-          <el-select v-model="marketplace" style="width: 140px">
-            <el-option label="英国 (UK)" value="UK" />
-            <el-option label="德国 (DE)" value="DE" />
-          </el-select>
-        </div>
+
         <div style="margin-top: 14px">
           <el-button @click="currentStep = 0">返回</el-button>
           <el-button type="primary" :disabled="importFiles.length === 0" @click="handleUpload">
@@ -126,12 +128,7 @@
     <el-card v-show="currentStep === 1 && importMode === 'seller'" class="step-card">
       <h3 style="margin: 0 0 16px">输入卖家名称</h3>
       <el-form label-width="100px">
-        <el-form-item label="目标市场">
-          <el-select v-model="marketplace" style="width: 140px">
-            <el-option label="英国 (UK)" value="UK" />
-            <el-option label="德国 (DE)" value="DE" />
-          </el-select>
-        </el-form-item>
+
         <el-form-item label="卖家名称">
           <el-input
             v-model="sellerNamesText"
@@ -178,13 +175,7 @@
 
       <!-- API 调用参数 -->
       <div class="api-params">
-        <div class="param-row">
-          <span class="param-label">目标市场：</span>
-          <el-select v-model="marketplace" style="width: 140px">
-            <el-option label="英国 (UK)" value="UK" />
-            <el-option label="德国 (DE)" value="DE" />
-          </el-select>
-        </div>
+
         <div class="param-row">
           <span class="param-label">数据月份：</span>
           <el-tag type="primary">{{ currentMonth }}</el-tag>
@@ -416,7 +407,7 @@ const BATCH_SIZE = 40
 // 加载初筛配置
 const loadInitialFilterConfig = async () => {
   try {
-    const res = await competitorApi.getInitialFilterConfig()
+    const res = await competitorApi.getInitialFilterConfig(marketplace.value)
     if (res.code === 200 && res.data) {
       PRICE_MIN.value = res.data.priceMin
       PRICE_MAX.value = res.data.priceMax
@@ -434,7 +425,10 @@ onMounted(async () => {
 })
 
 // 市场货币符号
-const currencySymbol = computed(() => marketplace.value === 'DE' ? '€' : '£')
+const currencySymbol = computed(() => {
+  const symbols: Record<string, string> = { UK: '£', US: '$', DE: '€' }
+  return symbols[marketplace.value] || '£'
+})
 
 // 自动计算最新月份：yyyyMM
 const currentMonth = computed(() => {
@@ -742,7 +736,7 @@ async function handleResume() {
   if (!previewData.value) return
   const taskId = previewData.value.taskId
   try {
-    const data: any = await asinImportApi.execute(taskId, month.value)
+    const data: any = await asinImportApi.execute(taskId, month.value, marketplace.value)
     const task = data.data || data
     Object.assign(progress, task, { taskStatus: 'RUNNING', statusText: '调用中' })
     startPolling(taskId)
@@ -812,6 +806,8 @@ async function fetchDbStats() {
 }
 
 // 进入步骤 2/3 时加载配额
+watch(marketplace, () => { loadInitialFilterConfig() })
+
 watch(currentStep, (step) => {
   if (step === 0) {
     loadQuota()
@@ -828,11 +824,16 @@ watch(currentStep, (step) => {
 
 <style scoped>
 .asin-import { max-width: 900px; margin: 0 auto; padding: 20px; }
-.page-header { margin-bottom: 20px; }
+.page-header { margin-bottom: 20px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .page-header h2 { margin: 0; font-size: 20px; }
 .page-desc { color: #909399; font-size: 13px; }
 .steps-bar { margin-bottom: 24px; }
 .step-card { min-height: 320px; }
+
+.header-marketplace {
+  display: flex; align-items: center; gap: 6px; margin-left: 16px;
+  .param-label { font-size: 12px; color: #909399; white-space: nowrap; }
+}
 
 /* 模式选择 */
 .mode-selection { display: flex; gap: 24px; justify-content: center; margin-top: 16px; }
@@ -918,7 +919,7 @@ watch(currentStep, (step) => {
   margin-top: 24px; padding: 20px 40px; background: #f5f7fa; border-radius: 8px;
 }
 
-// ---- Dark Mode Overrides ----
+/* Dark Mode Overrides */
 :deep(html.dark) {
   .asin-import {
     background: var(--el-bg-color);

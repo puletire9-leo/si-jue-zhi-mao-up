@@ -9,412 +9,1016 @@
     "sampled": 40
   },
   "overallHealth": "healthy",
-  "healthReason": "品类信号分布以SWEET_SPOT(69)和RISING(65)为主，BURST(9)和VARIANT(6)活跃，DECLINING(50)和DEAD(58)占比较高但属于自然淘汰。质量基准平均4.46星，卖家活跃度27家，价格带集中在£2.49-£18.99，平均£6.67处于甜蜜点。整体健康，但需注意DECLINING和DEAD品占比高，需持续创新。",
+  "healthReason": "品类信号分布健康：BURST和RISING占比高（共73/217=33.6%），SWEET_SPOT密集（31.8%），平均价格£6.67在甜点区中心，平均评分4.46良好，新品率21.2%表明持续创新，没有严重衰退迹象。",
   "qualityBenchmark": {
     "bsr_p50": 79071,
-    "bsr_p90": 193549,
+    "bsr_p90": 201658,
     "rating_min": 4.4,
     "ratings_min": 10,
-    "weight_g_median": 134.0,
+    "weight_g_median": 130.0,
     "weight_g_max": 250.0,
     "fba_median": 1.76,
     "fba_max": 2.46,
-    "listing_days_median": 269
+    "listing_days_median": 274
   },
   "priceBand": {
     "min": 2.99,
     "max": 16.99,
-    "avg": 6.83,
+    "avg": 6.81,
     "sweet_spot_min": 5.99,
     "sweet_spot_max": 8.99,
     "sweet_spot_ratio": 0.65
   },
   "carrierDetail": [
     {
-      "name": "Metal Signs",
-      "count": 18,
-      "avg_price": 6.59,
-      "avg_weight_g": 120.8,
-      "avg_fba": 1.76,
-      "avg_variants": 0.1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "平均重量120.8g，FBA£1.76，低于轻小件阈值£2.5"
-    },
-    {
-      "name": "Metal Tin Sign",
-      "count": 8,
-      "avg_price": 6.99,
-      "avg_weight_g": 130.0,
-      "avg_fba": 1.76,
-      "avg_variants": 0.1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "平均重量130g，FBA£1.76"
-    },
-    {
-      "name": "Ceramic Plaque / Keepsake",
-      "count": 4,
-      "avg_price": 5.24,
-      "avg_weight_g": 45.0,
-      "avg_fba": 1.53,
-      "avg_variants": 0.1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "极轻，平均45g，FBA£1.53，轻小件最优"
-    },
-    {
-      "name": "Wooden Sign / Plaque",
-      "count": 4,
-      "avg_price": 10.89,
-      "avg_weight_g": 240.0,
-      "avg_fba": 2.14,
-      "avg_variants": 0.1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": false,
-      "lightweight_reason": "平均重量240g，FBA£2.14，接近轻小件上限"
-    },
-    {
       "name": "Acrylic Heart Plaque",
       "count": 1,
       "avg_price": 4.99,
       "avg_weight_g": 60.0,
       "avg_fba": 1.52,
-      "avg_variants": 0.1,
+      "avg_variants": 1,
       "variant_strategy": "低变体(1-3)",
       "lightweight": true,
-      "lightweight_reason": "60g，FBA£1.52"
+      "lightweight_reason": "中位重量60g，符合轻小件"
     },
     {
-      "name": "Garden Yard Signs with Stakes",
+      "name": "Acrylic Ornament",
+      "count": 1,
+      "avg_price": 5.99,
+      "avg_weight_g": 80.0,
+      "avg_fba": 1.7,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量80g，符合轻小件"
+    },
+    {
+      "name": "Aluminium Wall Art Plaque",
+      "count": 1,
+      "avg_price": 7.99,
+      "avg_weight_g": 100.0,
+      "avg_fba": 1.73,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量100g，符合轻小件"
+    },
+    {
+      "name": "Aluminum Sign",
+      "count": 1,
+      "avg_price": 6.99,
+      "avg_weight_g": 140.0,
+      "avg_fba": 1.76,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量140g，符合轻小件"
+    },
+    {
+      "name": "Aluminum Wall Decor",
+      "count": 1,
+      "avg_price": 6.99,
+      "avg_weight_g": 140.0,
+      "avg_fba": 1.76,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量140g，符合轻小件"
+    },
+    {
+      "name": "Ceramic Heart",
+      "count": 2,
+      "avg_price": 5.49,
+      "avg_weight_g": 50.0,
+      "avg_fba": 1.54,
+      "avg_variants": 3.0,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量50g，符合轻小件"
+    },
+    {
+      "name": "Ceramic Heart Ornament",
+      "count": 1,
+      "avg_price": 5.99,
+      "avg_weight_g": 50.0,
+      "avg_fba": 1.54,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量50g，符合轻小件"
+    },
+    {
+      "name": "Ceramic Ornament",
+      "count": 1,
+      "avg_price": 4.99,
+      "avg_weight_g": 50.0,
+      "avg_fba": 1.54,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量50g，符合轻小件"
+    },
+    {
+      "name": "Ceramic Plaque",
+      "count": 1,
+      "avg_price": 4.99,
+      "avg_weight_g": 40.0,
+      "avg_fba": 1.52,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量40g，符合轻小件"
+    },
+    {
+      "name": "Garden Ornament",
+      "count": 1,
+      "avg_price": 9.99,
+      "avg_weight_g": 250.0,
+      "avg_fba": 1.9,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量250g，符合轻小件"
+    },
+    {
+      "name": "Garden Sign",
+      "count": 2,
+      "avg_price": 6.99,
+      "avg_weight_g": 135.0,
+      "avg_fba": 2.98,
+      "avg_variants": 7.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量135g，符合轻小件"
+    },
+    {
+      "name": "Garden Yard Sign",
       "count": 1,
       "avg_price": 8.29,
       "avg_weight_g": 230.0,
       "avg_fba": 1.9,
-      "avg_variants": 0.1,
+      "avg_variants": 1,
       "variant_strategy": "低变体(1-3)",
-      "lightweight": false,
-      "lightweight_reason": "230g，FBA£1.9，接近轻小件上限"
+      "lightweight": true,
+      "lightweight_reason": "中位重量230g，符合轻小件"
+    },
+    {
+      "name": "Hanging Iron Painting",
+      "count": 1,
+      "avg_price": 5.99,
+      "avg_weight_g": 135.0,
+      "avg_fba": 1.76,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量135g，符合轻小件"
+    },
+    {
+      "name": "Hanging Ornament",
+      "count": 1,
+      "avg_price": 9.99,
+      "avg_weight_g": 250.0,
+      "avg_fba": 1.9,
+      "avg_variants": 5.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量250g，符合轻小件"
+    },
+    {
+      "name": "Hanging Pendant",
+      "count": 1,
+      "avg_price": 5.99,
+      "avg_weight_g": 50.0,
+      "avg_fba": 1.54,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量50g，符合轻小件"
+    },
+    {
+      "name": "Hanging Plaque",
+      "count": 1,
+      "avg_price": 5.99,
+      "avg_weight_g": 40.0,
+      "avg_fba": 1.52,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量40g，符合轻小件"
+    },
+    {
+      "name": "Heart Keepsake",
+      "count": 1,
+      "avg_price": 5.99,
+      "avg_weight_g": 40.0,
+      "avg_fba": 1.52,
+      "avg_variants": 4.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量40g，符合轻小件"
+    },
+    {
+      "name": "Keepsake",
+      "count": 0,
+      "avg_price": 0,
+      "avg_weight_g": 0,
+      "avg_fba": 0,
+      "avg_variants": 0,
+      "variant_strategy": "未知",
+      "lightweight": "?",
+      "lightweight_reason": "无对应好品数据"
+    },
+    {
+      "name": "Keepsake Heart",
+      "count": 1,
+      "avg_price": 4.99,
+      "avg_weight_g": 50.0,
+      "avg_fba": 1.54,
+      "avg_variants": 3.0,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量50g，符合轻小件"
+    },
+    {
+      "name": "Keepsake Pendant",
+      "count": 1,
+      "avg_price": 4.99,
+      "avg_weight_g": 50.0,
+      "avg_fba": 1.54,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量50g，符合轻小件"
+    },
+    {
+      "name": "Metal Bar Sign",
+      "count": 1,
+      "avg_price": 5.99,
+      "avg_weight_g": 140.0,
+      "avg_fba": 1.76,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量140g，符合轻小件"
+    },
+    {
+      "name": "Metal Plaque",
+      "count": 1,
+      "avg_price": 5.99,
+      "avg_weight_g": 135.0,
+      "avg_fba": 1.76,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量135g，符合轻小件"
+    },
+    {
+      "name": "Metal Poster",
+      "count": 3,
+      "avg_price": 6.89,
+      "avg_weight_g": 100.0,
+      "avg_fba": 1.76,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量100g，符合轻小件"
+    },
+    {
+      "name": "Metal Sign",
+      "count": 15,
+      "avg_price": 6.54,
+      "avg_weight_g": 140.0,
+      "avg_fba": 1.76,
+      "avg_variants": 6.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量140g，符合轻小件"
+    },
+    {
+      "name": "Metal Tin Sign",
+      "count": 6,
+      "avg_price": 6.76,
+      "avg_weight_g": 134.0,
+      "avg_fba": 1.76,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量134g，符合轻小件"
+    },
+    {
+      "name": "Metal Wall Art",
+      "count": 2,
+      "avg_price": 5.04,
+      "avg_weight_g": 80.0,
+      "avg_fba": 1.76,
+      "avg_variants": 6.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量80g，符合轻小件"
+    },
+    {
+      "name": "Picture",
+      "count": 1,
+      "avg_price": 6.59,
+      "avg_weight_g": 160.0,
+      "avg_fba": 1.76,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量160g，符合轻小件"
+    },
+    {
+      "name": "Plaque",
+      "count": 5,
+      "avg_price": 6.91,
+      "avg_weight_g": 130.0,
+      "avg_fba": 1.76,
+      "avg_variants": 5.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量130g，符合轻小件"
+    },
+    {
+      "name": "Plaque Sign",
+      "count": 1,
+      "avg_price": 9.99,
+      "avg_weight_g": 250.0,
+      "avg_fba": 1.9,
+      "avg_variants": 5.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量250g，符合轻小件"
+    },
+    {
+      "name": "Poster",
+      "count": 4,
+      "avg_price": 5.87,
+      "avg_weight_g": 130.0,
+      "avg_fba": 1.76,
+      "avg_variants": 5.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量130g，符合轻小件"
+    },
+    {
+      "name": "Street Sign",
+      "count": 3,
+      "avg_price": 7.59,
+      "avg_weight_g": 100.0,
+      "avg_fba": 2.11,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量100g，符合轻小件"
+    },
+    {
+      "name": "Tiered Tray Decor",
+      "count": 1,
+      "avg_price": 16.99,
+      "avg_weight_g": 250.0,
+      "avg_fba": 2.46,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量250g，符合轻小件"
+    },
+    {
+      "name": "Tin Sign",
+      "count": 3,
+      "avg_price": 7.26,
+      "avg_weight_g": 135.0,
+      "avg_fba": 2.11,
+      "avg_variants": 7.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量135g，符合轻小件"
+    },
+    {
+      "name": "Tinplate Wall Sign",
+      "count": 1,
+      "avg_price": 3.89,
+      "avg_weight_g": 140.0,
+      "avg_fba": 2.71,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量140g，符合轻小件"
+    },
+    {
+      "name": "Tracker",
+      "count": 1,
+      "avg_price": 9.99,
+      "avg_weight_g": 90.0,
+      "avg_fba": 1.72,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量90g，符合轻小件"
+    },
+    {
+      "name": "Wall Art",
+      "count": 1,
+      "avg_price": 5.99,
+      "avg_weight_g": 330.0,
+      "avg_fba": 2.46,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量330g，符合轻小件"
+    },
+    {
+      "name": "Wood Hanging Sign",
+      "count": 1,
+      "avg_price": 9.59,
+      "avg_weight_g": 310.0,
+      "avg_fba": 2.46,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量310g，符合轻小件"
+    },
+    {
+      "name": "Wood Plaque",
+      "count": 1,
+      "avg_price": 4.99,
+      "avg_weight_g": 70.0,
+      "avg_fba": 0,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": "unknown",
+      "lightweight_reason": "中位重量70g，符合轻小件"
+    },
+    {
+      "name": "Wooden Sign",
+      "count": 4,
+      "avg_price": 9.99,
+      "avg_weight_g": 250.0,
+      "avg_fba": 2.46,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量250g，符合轻小件"
     }
   ],
   "provenElements": [
     {
-      "name": "Highland Cow",
-      "frequency": 3,
-      "carriers": [
-        "Metal Tin Sign",
-        "Wooden Inspirational Sign"
-      ],
-      "signalTags": [
-        "DECLINING",
-        "RISING",
-        "SWEET_SPOT"
-      ],
-      "insight": "高地牛元素在金属牌和木牌上均有成功，覆盖浴室、卧室、花园场景，已验证可跨载体复用"
-    },
-    {
       "name": "Funny",
-      "frequency": 8,
+      "frequency": 12,
       "carriers": [
-        "Metal Signs",
-        "Metal Tin Sign",
+        "Metal Sign",
+        "Tin Sign",
+        "Plaque",
+        "Garden Sign",
         "Wood Plaque"
       ],
       "signalTags": [
         "BURST",
         "RISING",
-        "STABLE",
-        "SWEET_SPOT"
+        "VARIANT",
+        "SWEET_SPOT",
+        "DECLINING"
       ],
-      "insight": "搞笑元素是核心驱动力，覆盖酒吧、浴室、花园、游戏室，BURST和RISING信号强"
+      "insight": "搞笑元素是标牌类目的核心驱动，适用于几乎所有场景，尤其酒吧、浴室、花园，且价格敏感度低。"
     },
     {
-      "name": "Vintage",
-      "frequency": 7,
+      "name": "Heart",
+      "frequency": 6,
       "carriers": [
-        "Metal Signs",
-        "Metal Tin Sign",
-        "Tin Sign"
-      ],
-      "signalTags": [
-        "BURST",
-        "RISING",
-        "DECLINING",
-        "SWEET_SPOT"
-      ],
-      "insight": "复古风格是金属牌品类的基础元素，跨场景通用，但需搭配具体主题避免同质化"
-    },
-    {
-      "name": "Football Club",
-      "frequency": 3,
-      "carriers": [
-        "Metal Poster",
-        "Street Sign",
-        "Tin Sign"
-      ],
-      "signalTags": [
-        "RISING",
-        "DECLINING",
-        "STABLE",
-        "SWEET_SPOT"
-      ],
-      "insight": "足球俱乐部主题（利兹联、阿森纳、曼城）持续有需求，但需注意版权风险"
-    },
-    {
-      "name": "Sympathy / Bereavement",
-      "frequency": 2,
-      "carriers": [
-        "Heart Keepsake",
-        "Acrylic Heart Plaque"
+        "Ceramic Heart",
+        "Acrylic Heart Plaque",
+        "Keepsake",
+        "Hanging Ornament"
       ],
       "signalTags": [
         "BURST",
         "RISING",
         "SWEET_SPOT"
       ],
-      "insight": "情感类（慰问、纪念）是BURST爆款，轻小件高利润，可扩展更多载体"
-    },
-    {
-      "name": "Thank You",
-      "frequency": 2,
-      "carriers": [
-        "Ceramic Plaque",
-        "Ceramic Keepsake Heart"
-      ],
-      "signalTags": [
-        "RISING",
-        "VARIANT"
-      ],
-      "insight": "感谢主题稳定出单，变体策略有效，可结合彩虹、心形等视觉元素"
+      "insight": "心形符号在情感礼品（感谢、慰问、友谊）中表现强劲，BURST标签表明高需求，适合陶瓷/亚克力材质。"
     },
     {
       "name": "Cat",
       "frequency": 3,
       "carriers": [
-        "Metal Signs",
+        "Metal Sign",
         "Wood Plaque",
-        "Acrylic Ornaments"
+        "Acrylic Ornament"
       ],
       "signalTags": [
         "RISING",
         "DECLINING"
       ],
-      "insight": "猫元素在浴室、家居场景有需求，但DECLINING信号多，需创新设计"
+      "insight": "猫元素在浴室、书架、居家场景受欢迎，但部分产品显示DECLINING，需创新设计或结合热门IP。"
     },
     {
-      "name": "Garden / Plants",
-      "frequency": 3,
-      "carriers": [
-        "Metal Plaques",
-        "Metal Signs & Plaques"
-      ],
-      "signalTags": [
-        "BURST",
-        "RISING",
-        "SWEET_SPOT"
-      ],
-      "insight": "花园和植物主题BURST信号强，结合幽默文案效果更佳"
-    },
-    {
-      "name": "Bar / Beer",
-      "frequency": 4,
-      "carriers": [
-        "Metal Tin Sign",
-        "Metal Bar Sign"
-      ],
-      "signalTags": [
-        "BURST",
-        "RISING",
-        "SWEET_SPOT"
-      ],
-      "insight": "酒吧/啤酒主题是经典爆款，BURST信号多，适合变体裂变"
-    },
-    {
-      "name": "Music",
+      "name": "Highland Cow",
       "frequency": 2,
       "carriers": [
-        "Metal Tin Signs",
-        "Metal Signs"
+        "Metal Sign",
+        "Wooden Sign"
+      ],
+      "signalTags": [
+        "DECLINING",
+        "RISING",
+        "SWEET_SPOT"
+      ],
+      "insight": "高地牛主题在英国家居装饰中具有文化共鸣，尽管有DECLINING，但RISING信号表明新设计仍有市场。"
+    },
+    {
+      "name": "Leeds United",
+      "frequency": 2,
+      "carriers": [
+        "Metal Sign",
+        "Street Sign"
       ],
       "signalTags": [
         "RISING",
         "SWEET_SPOT"
       ],
-      "insight": "音乐主题（吉他、乐队）RISING信号，可结合复古风格"
+      "insight": "足球俱乐部纪念品针对特定球迷群体，需求稳定，且SWEET_SPOT价格带利于出单。"
     }
   ],
   "elementSaturation": [
     {
       "element": "Funny",
-      "frequency": 8,
+      "frequency": 12,
       "saturation": "high",
-      "insight": "搞笑元素高度饱和，需结合具体主题（如动物、职业）差异化"
+      "insight": "已跨5种载体验证，可优先投入"
     },
     {
-      "element": "Vintage",
-      "frequency": 7,
+      "element": "Heart",
+      "frequency": 6,
       "saturation": "high",
-      "insight": "复古风格饱和，需搭配特定载体或场景避免同质化"
-    },
-    {
-      "element": "Highland Cow",
-      "frequency": 3,
-      "saturation": "medium",
-      "insight": "高地牛中等饱和，仍有空间扩展新载体（如木牌、陶瓷）"
+      "insight": "已跨4种载体验证，可优先投入"
     },
     {
       "element": "Cat",
       "frequency": 3,
       "saturation": "medium",
-      "insight": "猫元素中等饱和，但DECLINING信号多，需创新设计"
+      "insight": "出现在3个商品中，值得持续观察"
     },
     {
-      "element": "Football Club",
-      "frequency": 3,
-      "saturation": "medium",
-      "insight": "足球俱乐部中等饱和，注意版权风险，可聚焦小众球队"
-    },
-    {
-      "element": "Garden / Plants",
-      "frequency": 3,
-      "saturation": "medium",
-      "insight": "花园植物中等饱和，BURST信号强，可结合幽默文案"
-    },
-    {
-      "element": "Bar / Beer",
-      "frequency": 4,
-      "saturation": "medium",
-      "insight": "酒吧啤酒中等饱和，BURST信号多，适合变体裂变"
-    },
-    {
-      "element": "Sympathy / Bereavement",
+      "element": "Highland Cow",
       "frequency": 2,
-      "saturation": "low",
-      "insight": "情感类低饱和，BURST爆款潜力大，可扩展载体"
+      "saturation": "medium",
+      "insight": "出现在2个商品中，值得持续观察"
     },
     {
-      "element": "Thank You",
+      "element": "Leeds United",
       "frequency": 2,
-      "saturation": "low",
-      "insight": "感谢主题低饱和，稳定出单，可结合节日做变体"
-    },
-    {
-      "element": "Music",
-      "frequency": 2,
-      "saturation": "low",
-      "insight": "音乐主题低饱和，RISING信号，可结合复古风格"
-    },
-    {
-      "element": "Skull",
-      "frequency": 1,
-      "saturation": "low",
-      "insight": "骷髅元素低饱和，DECLINING信号，需谨慎"
-    },
-    {
-      "element": "Books Read Tracker",
-      "frequency": 1,
-      "saturation": "low",
-      "insight": "阅读追踪器低饱和，BURST信号，新兴机会"
-    },
-    {
-      "element": "Motorbike",
-      "frequency": 1,
-      "saturation": "low",
-      "insight": "摩托车低饱和，BURST信号，可扩展"
-    },
-    {
-      "element": "Racing Car",
-      "frequency": 1,
-      "saturation": "low",
-      "insight": "赛车低饱和，BURST信号，可结合赛历"
+      "saturation": "medium",
+      "insight": "出现在2个商品中，值得持续观察"
     }
   ],
   "emergingElements": [
     {
-      "element": "Books Read This Year Counter",
-      "asin": "B0GT84NW4Y",
+      "element": "Happy Place",
+      "asin": "B0FXLD28S6",
       "signal": "BURST",
-      "opportunity": "阅读追踪器是新兴需求，上架48天BURST，可扩展为书虫礼物系列"
+      "opportunity": "积极乐观的情绪消费，可通过金属牌、木牌等载体快速裂变不同场景。"
     },
     {
-      "element": "Peeking Squirrel",
-      "asin": "B0GJSRP7CX",
-      "signal": "RISING",
-      "opportunity": "搞笑动物花园装饰，RISING信号，可结合更多动物（狐狸、刺猬）"
+      "element": "Sympathy/Heart",
+      "asin": "B0FX9H8LGT",
+      "signal": "BURST",
+      "opportunity": "情感礼品市场爆发，结合个性化文字和陶瓷/亚克力材质，可扩展至多种纪念日。"
     },
     {
-      "element": "YOU CAN'T BUY HAPPINESS BUT YOU CAN BUY PLANTS",
-      "asin": "B0GSHQXPWC",
+      "element": "Chicken Coop",
+      "asin": "B0FWJKLYBM",
       "signal": "BURST",
-      "opportunity": "植物爱好者幽默文案，BURST信号，可扩展为植物系列"
+      "opportunity": "农舍幽默主题，结合鸡舍场景，在花园装饰中独特，可拓展至其他农场动物。"
     },
     {
-      "element": "Motorbike / Motorcycle",
-      "asin": "B0G8TKH5ZC",
+      "element": "Bar Open",
+      "asin": "B0G25K69FG",
       "signal": "BURST",
-      "opportunity": "摩托车主题BURST，上架99天，可结合复古风格做变体"
-    },
-    {
-      "element": "Racing Car / F1",
-      "asin": "B0GCHX62MZ",
-      "signal": "BURST",
-      "opportunity": "赛车主题BURST，5变体，可结合2026赛历做季节性"
+      "opportunity": "酒吧招牌需求，结合个性化文字，可覆盖家庭酒吧、户外烧烤等场景。"
     }
   ],
   "recommendedCombos": [
     {
       "elements": [
         "Funny",
-        "Highland Cow",
+        "Cat",
         "Bathroom"
       ],
       "carriers": [
-        "Metal Tin Sign"
+        "Metal Sign",
+        "Wood Plaque"
       ],
       "scenes": [
-        "Bathroom Toilet Decor",
-        "Highland Cow Fans"
+        "Bathroom",
+        "Toilet"
       ],
       "keywordsEn": [
-        "funny highland cow bathroom sign",
-        "highland cow toilet decor",
-        "vintage highland cow metal sign"
+        "funny cat bathroom sign",
+        "cat toilet decor"
       ],
       "keywordsCn": [
-        "搞笑高地牛浴室标志",
-        "高地牛厕所装饰"
+        "搞笑猫浴室标牌",
+        "猫厕所装饰"
       ],
       "heat": "已验证",
-      "reason": "B0GL7SZN3R RISING信号，结合搞笑+高地牛已验证"
+      "reason": "B0FSSB8LFB和B0FW4RRTPZ均表现良好，RISING信号"
+    },
+    {
+      "elements": [
+        "Highland Cow",
+        "Inspirational"
+      ],
+      "carriers": [
+        "Wooden Sign",
+        "Metal Sign"
+      ],
+      "scenes": [
+        "Living Room",
+        "Bedroom"
+      ],
+      "keywordsEn": [
+        "highland cow inspirational sign",
+        "scottish cow wall art"
+      ],
+      "keywordsCn": [
+        "高地牛励志标牌",
+        "苏格兰牛装饰"
+      ],
+      "heat": "已验证",
+      "reason": "双品验证，SWEET_SPOT价格"
     },
     {
       "elements": [
         "Sympathy",
-        "Memorial Heart",
-        "Loss of Loved One"
+        "Heart",
+        "Thinking of You"
       ],
       "carriers": [
-        "Ceramic Heart Keepsake"
+        "Ceramic Heart",
+        "Acrylic Heart"
       ],
       "scenes": [
-        "Bereavement Gift",
-        "Grave Decoration"
+        "Grief",
+        "Loss"
       ],
       "keywordsEn": [
-        "sympathy heart keepsake ceramic",
-        "memorial gift for loss of loved one",
-        "bereavement plaque heart"
+        "sympathy gift ceramic heart",
+        "thinking of you keepsake"
       ],
       "keywordsCn": [
-        "慰问心形陶瓷纪念品",
-        "丧亲礼物"
+        "慰问礼物陶瓷心",
+        "思念礼物"
       ],
       "heat": "已验证",
-      "reason": "B0FX9H8LGT BURST+SWEET_SPOT，情感类爆款"
+      "reason": "BURST+SWEET_SPOT"
+    },
+    {
+      "elements": [
+        "Leeds United",
+        "Football"
+      ],
+      "carriers": [
+        "Metal Sign",
+        "Street Sign"
+      ],
+      "scenes": [
+        "Home Bar",
+        "Man Cave"
+      ],
+      "keywordsEn": [
+        "leeds united home bar sign",
+        "leeds united man cave"
+      ],
+      "keywordsCn": [
+        "利兹联酒吧标牌",
+        "利兹联男人窝"
+      ],
+      "heat": "已验证",
+      "reason": "两品验证，RISING"
     },
     {
       "elements": [
         "Funny",
+        "Garden",
+        "Plants"
+      ],
+      "carriers": [
+        "Metal Sign",
+        "Garden Stake"
+      ],
+      "scenes": [
+        "Garden",
+        "Greenhouse"
+      ],
+      "keywordsEn": [
+        "funny plant sign for garden",
+        "gardening humor sign"
+      ],
+      "keywordsCn": [
+        "搞笑植物花园标牌",
+        "园艺幽默标牌"
+      ],
+      "heat": "已验证",
+      "reason": "B0GSHQXPWC显示RISING+SWEET_SPOT"
+    },
+    {
+      "elements": [
+        "Motorcycle",
+        "Vintage"
+      ],
+      "carriers": [
+        "Metal Sign",
+        "Plaque"
+      ],
+      "scenes": [
+        "Garage",
+        "Man Cave",
+        "Living Room"
+      ],
+      "keywordsEn": [
+        "vintage motorcycle metal sign",
+        "motorcycle wall art retro"
+      ],
+      "keywordsCn": [
+        "复古摩托车金属标牌",
+        "摩托车复古墙饰"
+      ],
+      "heat": "已验证",
+      "reason": "B0G8TKH5ZC和B0FGCLXDJG都含摩托车元素"
+    },
+    {
+      "elements": [
+        "Thank You",
+        "Rainbow"
+      ],
+      "carriers": [
+        "Ceramic Heart",
+        "Plaque"
+      ],
+      "scenes": [
+        "Teacher",
+        "Mentor"
+      ],
+      "keywordsEn": [
+        "rainbow thank you ceramic plaque",
+        "teacher appreciation gift"
+      ],
+      "keywordsCn": [
+        "彩虹感谢陶瓷牌",
+        "教师感激礼物"
+      ],
+      "heat": "已验证",
+      "reason": "B0FCS348R6 RISING"
+    },
+    {
+      "elements": [
+        "Bar",
+        "Funny",
+        "Would drink here again"
+      ],
+      "carriers": [
+        "Metal Sign",
+        "Tin Sign"
+      ],
+      "scenes": [
+        "Home Bar",
+        "Man Cave",
+        "Pub"
+      ],
+      "keywordsEn": [
+        "funny bar sign would drink here again",
+        "bar decor metal"
+      ],
+      "keywordsCn": [
+        "搞笑酒吧标牌我会再光顾",
+        "酒吧金属装饰"
+      ],
+      "heat": "已验证",
+      "reason": "B0F28SHNC5 RISING+SWEET_SPOT"
+    },
+    {
+      "elements": [
+        "Reading",
+        "Book Tracker"
+      ],
+      "carriers": [
+        "Wooden Sign",
+        "Counter"
+      ],
+      "scenes": [
+        "Bookshelf",
+        "Home Office"
+      ],
+      "keywordsEn": [
+        "books read this year wooden tracker",
+        "reading log sign"
+      ],
+      "keywordsCn": [
+        "今年读书木制计数器",
+        "阅读记录标牌"
+      ],
+      "heat": "已验证",
+      "reason": "B0GT84NW4Y RISING+SWEET_SPOT"
+    },
+    {
+      "elements": [
+        "Wedding Anniversary",
+        "Family Tree"
+      ],
+      "carriers": [
+        "Ceramic Heart",
+        "Hanging Plaque"
+      ],
+      "scenes": [
+        "Anniversary Gift",
+        "Parents"
+      ],
+      "keywordsEn": [
+        "55th wedding anniversary family tree plaque",
+        "anniversary keepsake heart"
+      ],
+      "keywordsCn": [
+        "55周年结婚纪念家庭树标牌",
+        "结婚纪念心形饰"
+      ],
+      "heat": "已验证",
+      "reason": "B0FR4V577S RISING+SWEET_SPOT"
+    },
+    {
+      "elements": [
+        "Gaming",
+        "Neon",
+        "Game Room"
+      ],
+      "carriers": [
+        "Metal Sign",
+        "Poster"
+      ],
+      "scenes": [
+        "Bedroom",
+        "Man Cave"
+      ],
+      "keywordsEn": [
+        "neon game room metal sign",
+        "gaming wall art neon"
+      ],
+      "keywordsCn": [
+        "霓虹游戏室金属标牌",
+        "游戏室霓虹装饰"
+      ],
+      "heat": "已验证",
+      "reason": "B0FLDKP41R STABLE+SWEET_SPOT"
+    },
+    {
+      "elements": [
+        "Cat",
+        "Whimsical",
+        "Black Cat"
+      ],
+      "carriers": [
+        "Acrylic Ornament"
+      ],
+      "scenes": [
+        "Shelf",
+        "Desk",
+        "Living Room"
+      ],
+      "keywordsEn": [
+        "black cat acrylic shelf ornament",
+        "whimsical cat decor"
+      ],
+      "keywordsCn": [
+        "黑猫亚克力书架装饰",
+        "奇幻猫装饰"
+      ],
+      "heat": "已验证",
+      "reason": "B0GV43RZK2虽DECLINING但仍有需求，可迭代"
+    },
+    {
+      "elements": [
+        "Football",
+        "Arsenal",
+        "I SUPPORT"
+      ],
+      "carriers": [
+        "Street Sign",
+        "Metal Poster"
+      ],
+      "scenes": [
+        "Fan Room",
+        "Office"
+      ],
+      "keywordsEn": [
+        "arsenal street sign i support",
+        "arsenal fan room decor"
+      ],
+      "keywordsCn": [
+        "阿森纳街道标牌我支持",
+        "阿森纳粉丝房间装饰"
+      ],
+      "heat": "已验证",
+      "reason": "B0DSFPNYS5 DECLINING但SWEET_SPOT，球迷忠诚度高"
+    },
+    {
+      "elements": [
+        "Inspirational",
+        "Pink",
+        "Girl"
+      ],
+      "carriers": [
+        "Wood Hanging Sign"
+      ],
+      "scenes": [
+        "Bedroom",
+        "Dorm"
+      ],
+      "keywordsEn": [
+        "pink inspirational sign for girl bedroom",
+        "positive phrase wall decor for girls"
+      ],
+      "keywordsCn": [
+        "粉色励志标牌女孩卧室",
+        "女孩积极话语墙饰"
+      ],
+      "heat": "已验证",
+      "reason": "B0DXP64PV4 DECLINING但SWEET_SPOT，可迭代设计"
+    },
+    {
+      "elements": [
+        "Hamilton Musical",
+        "Vintage"
+      ],
+      "carriers": [
+        "Metal Sign",
+        "Aluminum Sign"
+      ],
+      "scenes": [
+        "Theater",
+        "Bar",
+        "Living Room"
+      ],
+      "keywordsEn": [
+        "hamilton musical metal wall art",
+        "hamilton sign vintage"
+      ],
+      "keywordsCn": [
+        "汉密尔顿音乐剧金属墙饰",
+        "汉密尔顿复古标牌"
+      ],
+      "heat": "待观察",
+      "reason": "B0FYDMK9W1 DECLINING，但粉丝群体稳定，可结合新剧目"
+    },
+    {
+      "elements": [
+        "Chicken Coop",
+        "Farmhouse",
+        "Funny"
+      ],
+      "carriers": [
+        "Metal Sign",
+        "Tin Sign"
+      ],
+      "scenes": [
+        "Garden",
+        "Kitchen"
+      ],
+      "keywordsEn": [
+        "funny chicken coop metal sign farmhouse",
+        "farmhouse garden sign"
+      ],
+      "keywordsCn": [
+        "搞笑鸡舍金属标牌农舍",
+        "农场花园标牌"
+      ],
+      "heat": "已验证",
+      "reason": "BURST品B0FWJKLYBM"
+    },
+    {
+      "elements": [
+        "Happy Place",
+        "Funny Quote"
+      ],
+      "carriers": [
+        "Metal Wall Art",
+        "Plaque"
+      ],
+      "scenes": [
+        "Kitchen",
+        "Bar",
+        "Bedroom"
+      ],
+      "keywordsEn": [
+        "happy place metal wall art",
+        "funny quote home decor"
+      ],
+      "keywordsCn": [
+        "快乐之地金属墙饰",
+        "搞笑语录家居装饰"
+      ],
+      "heat": "已验证",
+      "reason": "BURST品B0FXLD28S6"
+    },
+    {
+      "elements": [
         "Bar Open",
         "Proudly Serving"
       ],
@@ -423,550 +1027,101 @@
       ],
       "scenes": [
         "Home Bar",
-        "Man Cave",
-        "Garden Bar"
+        "Cafe"
       ],
       "keywordsEn": [
-        "funny bar open sign",
-        "proudly serving whatever you bring",
-        "man cave bar metal sign"
+        "bar open sign proudly serving",
+        "home bar accessories metal"
       ],
       "keywordsCn": [
-        "搞笑酒吧营业牌",
-        "男人洞穴酒吧装饰"
+        "酒吧营业标牌自豪服务",
+        "家庭酒吧金属配件"
       ],
       "heat": "已验证",
-      "reason": "B0G25K69FG BURST+SWEET_SPOT"
-    },
-    {
-      "elements": [
-        "Vintage",
-        "Chicken Coop",
-        "Farmhouse"
-      ],
-      "carriers": [
-        "Metal Signs"
-      ],
-      "scenes": [
-        "Farmhouse Kitchen",
-        "Garden Decor"
-      ],
-      "keywordsEn": [
-        "vintage chicken coop metal sign",
-        "farmhouse tin sign chicken",
-        "rustic garden decor chicken"
-      ],
-      "keywordsCn": [
-        "复古鸡舍金属牌",
-        "农舍花园装饰"
-      ],
-      "heat": "已验证",
-      "reason": "B0FWJKLYBM BURST+SWEET_SPOT，7变体"
-    },
-    {
-      "elements": [
-        "Thank You",
-        "Rainbow",
-        "Ceramic Heart"
-      ],
-      "carriers": [
-        "Ceramic Keepsake Heart"
-      ],
-      "scenes": [
-        "Thank You Gift for Women",
-        "Appreciation Gift"
-      ],
-      "keywordsEn": [
-        "rainbow thank you heart ceramic",
-        "appreciation gift for women",
-        "thank you keepsake with box"
-      ],
-      "keywordsCn": [
-        "彩虹感谢心形陶瓷",
-        "女性感谢礼物"
-      ],
-      "heat": "已验证",
-      "reason": "B0FCS348R6 RISING+VARIANT"
-    },
-    {
-      "elements": [
-        "Funny",
-        "Cat",
-        "Bathroom"
-      ],
-      "carriers": [
-        "Metal Signs"
-      ],
-      "scenes": [
-        "Bathroom Wall Decor",
-        "Cat Lover Gift"
-      ],
-      "keywordsEn": [
-        "funny cat bathroom metal sign",
-        "cat toilet decor",
-        "vintage cat bathroom sign"
-      ],
-      "keywordsCn": [
-        "搞笑猫浴室金属牌",
-        "猫厕所装饰"
-      ],
-      "heat": "已验证",
-      "reason": "B0FSSB8LFB RISING信号，£2.99低价引流"
-    },
-    {
-      "elements": [
-        "Football Club",
-        "Leeds United",
-        "Street Sign"
-      ],
-      "carriers": [
-        "Metal Poster"
-      ],
-      "scenes": [
-        "Football Fan Gift",
-        "Home Office Decor"
-      ],
-      "keywordsEn": [
-        "leeds united street sign metal",
-        "elland road poster",
-        "football fan gift leeds"
-      ],
-      "keywordsCn": [
-        "利兹联街牌金属",
-        "足球粉丝礼物"
-      ],
-      "heat": "已验证",
-      "reason": "B0F8QPDYNY RISING+SWEET_SPOT"
-    },
-    {
-      "elements": [
-        "Garden",
-        "Plants",
-        "Funny Quote"
-      ],
-      "carriers": [
-        "Metal Signs & Plaques"
-      ],
-      "scenes": [
-        "Garden Decor",
-        "Greenhouse",
-        "Plant Lover Gift"
-      ],
-      "keywordsEn": [
-        "funny plant sign metal",
-        "garden quote plaque",
-        "you can't buy happiness plants sign"
-      ],
-      "keywordsCn": [
-        "搞笑植物金属牌",
-        "花园名言牌"
-      ],
-      "heat": "已验证",
-      "reason": "B0GSHQXPWC BURST+SWEET_SPOT"
-    },
-    {
-      "elements": [
-        "Books Read",
-        "Reading Tracker",
-        "Book Lover"
-      ],
-      "carriers": [
-        "Wooden Reading Tracker"
-      ],
-      "scenes": [
-        "Bookshelf Decor",
-        "Gift for Readers"
-      ],
-      "keywordsEn": [
-        "books read this year wooden tracker",
-        "reading counter gift",
-        "book lover bookshelf decor"
-      ],
-      "keywordsCn": [
-        "年度阅读木质追踪器",
-        "爱书人书架装饰"
-      ],
-      "heat": "新兴",
-      "reason": "B0GT84NW4Y BURST，上架48天"
-    },
-    {
-      "elements": [
-        "Motorbike",
-        "Vintage",
-        "Man Cave"
-      ],
-      "carriers": [
-        "Metal Signs Plaques"
-      ],
-      "scenes": [
-        "Motorcycle Lover Gift",
-        "Garage Decor"
-      ],
-      "keywordsEn": [
-        "vintage motorbike metal sign",
-        "motorcycle wall art man cave",
-        "biker gift metal plaque"
-      ],
-      "keywordsCn": [
-        "复古摩托车金属牌",
-        "摩托车爱好者礼物"
-      ],
-      "heat": "新兴",
-      "reason": "B0G8TKH5ZC BURST信号"
-    },
-    {
-      "elements": [
-        "Racing Car",
-        "F1",
-        "2026 Calendar"
-      ],
-      "carriers": [
-        "Metal Signs"
-      ],
-      "scenes": [
-        "Man Cave",
-        "Garage",
-        "Game Room"
-      ],
-      "keywordsEn": [
-        "f1 racing metal sign",
-        "2026 calendar track layout",
-        "car enthusiast wall art"
-      ],
-      "keywordsCn": [
-        "F1赛车金属牌",
-        "2026赛历墙饰"
-      ],
-      "heat": "新兴",
-      "reason": "B0GCHX62MZ BURST+VARIANT"
-    },
-    {
-      "elements": [
-        "Peeking Squirrel",
-        "Funny Animal",
-        "Garden"
-      ],
-      "carriers": [
-        "Metal Garden Ornaments"
-      ],
-      "scenes": [
-        "Yard Art",
-        "Wildlife Gift"
-      ],
-      "keywordsEn": [
-        "peeking squirrel garden metal",
-        "funny animal yard ornament",
-        "squirrel garden gift"
-      ],
-      "keywordsCn": [
-        "偷看松鼠花园金属装饰",
-        "搞笑动物庭院艺术"
-      ],
-      "heat": "新兴",
-      "reason": "B0GJSRP7CX RISING+SWEET_SPOT"
-    },
-    {
-      "elements": [
-        "Friendship",
-        "Ceramic Heart",
-        "Best Friend"
-      ],
-      "carriers": [
-        "Ceramic Keepsake"
-      ],
-      "scenes": [
-        "Birthday Gift for Bestie",
-        "Friendship Gift"
-      ],
-      "keywordsEn": [
-        "friendship ceramic heart gift",
-        "best friend keepsake ornament",
-        "birthday gift for bestie heart"
-      ],
-      "keywordsCn": [
-        "友谊陶瓷心礼物",
-        "闺蜜生日礼物"
-      ],
-      "heat": "已验证",
-      "reason": "B0GRV7V13S RISING+SWEET_SPOT"
-    },
-    {
-      "elements": [
-        "Vintage",
-        "Music",
-        "Guitar"
-      ],
-      "carriers": [
-        "Metal Signs"
-      ],
-      "scenes": [
-        "Music Room",
-        "Bar",
-        "Guitar Gift"
-      ],
-      "keywordsEn": [
-        "vintage guitar metal sign",
-        "music wall art retro",
-        "guitarist gift metal plaque"
-      ],
-      "keywordsCn": [
-        "复古吉他金属牌",
-        "音乐墙饰"
-      ],
-      "heat": "已验证",
-      "reason": "B0GDY1D9BV RISING+SWEET_SPOT"
-    },
-    {
-      "elements": [
-        "Funny",
-        "Bathroom",
-        "I Hate My Job"
-      ],
-      "carriers": [
-        "Metal Tin Sign"
-      ],
-      "scenes": [
-        "Bathroom Decor",
-        "Office Humor"
-      ],
-      "keywordsEn": [
-        "i hate my job bathroom sign",
-        "funny toilet humor metal",
-        "office bathroom decor funny"
-      ],
-      "keywordsCn": [
-        "我恨工作浴室牌",
-        "搞笑厕所幽默"
-      ],
-      "heat": "已验证",
-      "reason": "B0DYNRR11Q RISING+SWEET_SPOT"
-    },
-    {
-      "elements": [
-        "Welcome",
-        "Farmhouse",
-        "Sweet Home"
-      ],
-      "carriers": [
-        "Wooden Tiered Tray Decor"
-      ],
-      "scenes": [
-        "Entryway",
-        "Mantel",
-        "Housewarming Gift"
-      ],
-      "keywordsEn": [
-        "sweet home farmhouse sign",
-        "wooden tiered tray decor",
-        "welcome home wooden craft"
-      ],
-      "keywordsCn": [
-        "甜蜜之家农舍木牌",
-        "乔迁礼物"
-      ],
-      "heat": "已验证",
-      "reason": "B0GHY4HX66 BURST+SWEET_SPOT"
-    },
-    {
-      "elements": [
-        "WW2 Aircraft",
-        "Vintage Aviation",
-        "Military"
-      ],
-      "carriers": [
-        "Metal Sign"
-      ],
-      "scenes": [
-        "Man Cave",
-        "Military Gift"
-      ],
-      "keywordsEn": [
-        "ww2 aircraft metal wall art",
-        "vintage aviation plaque",
-        "military gift for men sign"
-      ],
-      "keywordsCn": [
-        "二战飞机金属墙饰",
-        "军事礼物"
-      ],
-      "heat": "已验证",
-      "reason": "B0GF1GVK96 RISING+SWEET_SPOT"
-    },
-    {
-      "elements": [
-        "Skull",
-        "Motorcycle",
-        "Gentleman"
-      ],
-      "carriers": [
-        "Metal Signs"
-      ],
-      "scenes": [
-        "Man Cave",
-        "Garage",
-        "Bar"
-      ],
-      "keywordsEn": [
-        "motorcycle skull metal sign",
-        "gentleman skull wall art",
-        "biker skull decor"
-      ],
-      "keywordsCn": [
-        "摩托车骷髅金属牌",
-        "绅士骷髅装饰"
-      ],
-      "heat": "已验证",
-      "reason": "B0FGCLXDJG SWEET_SPOT"
-    },
-    {
-      "elements": [
-        "No Dog Fouling",
-        "Please Clean Up",
-        "Outdoor"
-      ],
-      "carriers": [
-        "Garden Yard Signs with Stakes"
-      ],
-      "scenes": [
-        "Garden",
-        "Courtyard",
-        "Dog Reminder"
-      ],
-      "keywordsEn": [
-        "no dog fouling sign garden",
-        "please clean up after your dog",
-        "outdoor dog reminder stake"
-      ],
-      "keywordsCn": [
-        "禁止狗便便花园牌",
-        "清理狗便提醒"
-      ],
-      "heat": "已验证",
-      "reason": "B0FPR4852L SWEET_SPOT"
-    },
-    {
-      "elements": [
-        "Game Room",
-        "Neon Gaming",
-        "Gamer"
-      ],
-      "carriers": [
-        "Metal Tin Sign"
-      ],
-      "scenes": [
-        "Teen Bedroom",
-        "Gaming Setup"
-      ],
-      "keywordsEn": [
-        "game room metal sign neon",
-        "gamer wall art for teens",
-        "gaming room decor metal"
-      ],
-      "keywordsCn": [
-        "游戏室金属牌霓虹",
-        "游戏玩家装饰"
-      ],
-      "heat": "已验证",
-      "reason": "B0FLDKP41R STABLE+SWEET_SPOT"
+      "reason": "BURST品B0G25K69FG"
     }
   ],
   "searchKeywords": {
     "en": [
-      "metal wall art signs",
-      "funny kitchen signs",
-      "vintage tin signs",
-      "bathroom metal signs",
-      "man cave decor signs",
-      "sympathy gift keepsake",
-      "highland cow wall decor",
-      "football club street sign",
-      "garden metal plaques",
-      "bar sign funny",
-      "ceramic thank you gift",
-      "motorbike gift for men",
-      "books read tracker",
+      "metal wall decor",
+      "funny sign",
+      "sympathy gift",
+      "farmhouse sign",
       "cat bathroom sign",
-      "farmhouse kitchen decor",
-      "game room wall art",
-      "bereavement memorial gift",
-      "friendship heart ornament",
-      "retro music wall art",
-      "welcome sign front door"
+      "football club sign",
+      "garden metal sign",
+      "inspirational plaque",
+      "ceramic heart keepsake",
+      "man cave sign",
+      "bar sign metal",
+      "highland cow decor",
+      "reading tracker",
+      "wedding anniversary plaque",
+      "game room sign",
+      "motorcycle wall art",
+      "guitar metal sign",
+      "welcome sign front door",
+      "dog fouling sign",
+      "thank you plaque"
     ],
     "cn": [
-      "金属墙饰标志",
-      "搞笑厨房牌",
-      "复古锡牌",
-      "浴室金属装饰",
-      "男人洞穴装饰",
-      "慰问纪念礼物",
-      "高地牛墙饰",
-      "足球俱乐部街牌",
+      "金属墙饰",
+      "搞笑标牌",
+      "慰问礼物",
+      "农场标牌",
+      "猫浴室装饰",
+      "足球俱乐部标牌",
       "花园金属牌",
-      "酒吧搞笑标志",
-      "陶瓷感谢礼物",
-      "摩托车礼物男性",
-      "阅读追踪器",
-      "猫浴室标志",
-      "农舍厨房装饰",
-      "游戏室墙饰",
-      "丧亲纪念礼物",
-      "友谊心形挂饰",
-      "复古音乐墙饰",
-      "前门欢迎牌"
+      "励志牌",
+      "陶瓷心纪念品",
+      "男人窝标牌",
+      "酒吧金属标牌",
+      "高地牛装饰",
+      "读书追踪器",
+      "结婚纪念牌",
+      "游戏室标牌"
     ]
   },
   "priceGaps": [
     {
-      "range": "£2.49 - £3.59",
-      "opportunity": "低价引流区，现有B0FSSB8LFB(£2.99)和B0FXLD28S6(£3.59)，可增加变体覆盖£2.49-£3.49"
+      "range": "£3.00 - £5.00",
+      "opportunity": "甜点区以下有少量品（如£2.99, £3.59, £3.89），可布局低价引流品，搭配高价值组合"
     },
     {
-      "range": "£4.99 - £5.99",
-      "opportunity": "甜蜜点密集区，大量品集中，竞争激烈但需求大，需差异化"
-    },
-    {
-      "range": "£6.59 - £7.99",
-      "opportunity": "中等价格带，BURST品多，可做变体裂变"
-    },
-    {
-      "range": "£8.99 - £9.99",
-      "opportunity": "高价区，现有品少但SWEET_SPOT信号存在，可做木质或大尺寸"
-    },
-    {
-      "range": "£10.00 - £12.99",
-      "opportunity": "价格空白，可尝试高端木质或套装组合"
+      "range": "£10.00 - £15.00",
+      "opportunity": "目前仅少数木牌在£9.99-16.99之间，金属牌多低于£9.99，可推出£10-15的高品质金属/木质签名款，提升利润"
     }
   ],
-  "lightweightSummary": "品类平均重量120.8g，FBA£1.85，金属牌和陶瓷牌均符合轻小件标准（<250g，FBA<£2.5），木质牌较重（240g+）接近上限，建议优先选择金属和陶瓷载体以控制物流成本",
+  "lightweightSummary": "多数金属/亚克力/木质标牌平均重量120.8g，FBA费用£1.85，属于轻小件，适合低成本FBA试品和快速迭代。",
   "goodProducts": [
     {
       "asin": "B0FXLD28S6",
       "elements": [
-        "Welcome to My Happy Place",
+        "Happy Place",
+        "Funny Quote",
         "Retro",
-        "Funny Quote"
+        "Vintage",
+        "Rustic"
       ],
       "carriers": [
-        "Metal Signs",
-        "Iron Metal Wall Art"
+        "Metal Wall Art",
+        "Metal Sign"
       ],
       "scenes": [
         "Kitchen",
         "Bar",
         "Bedroom",
-        "Vintage Decor"
+        "Men's Room"
       ],
       "keywordsEn": [
-        "retro metal wall art",
-        "funny kitchen sign",
-        "vintage metal sign for men",
-        "iron wall decor 12x8"
+        "happy place metal wall art",
+        "retro funny quote sign",
+        "rustic home decor for men"
       ],
       "keywordsCn": [
-        "复古金属墙饰",
-        "搞笑厨房标志",
-        "男士复古装饰"
+        "快乐之地金属墙饰",
+        "复古搞笑语录标牌",
+        "男性乡村风格装饰"
       ],
       "lightweight": "True"
     },
@@ -974,59 +1129,62 @@
       "asin": "B0FX9H8LGT",
       "elements": [
         "Sympathy",
-        "Memorial Heart Keepsake",
+        "Memorial",
+        "Heart",
         "Thinking of You",
-        "Grieving",
-        "Loss of Loved One"
-      ],
-      "carriers": [
-        "Heart Keepsake",
-        "Ceramic Plaque"
-      ],
-      "scenes": [
-        "Sympathy Gift",
-        "Bereavement",
+        "Grief",
         "Remembrance"
       ],
+      "carriers": [
+        "Heart Keepsake"
+      ],
+      "scenes": [
+        "Sympathy",
+        "Grieving",
+        "Loss of Loved One",
+        "Bereavement"
+      ],
       "keywordsEn": [
-        "sympathy gift for loss of loved one",
-        "memorial heart keepsake",
-        "thinking of you gift",
-        "grieving gift for friend"
+        "sympathy gift memorial heart",
+        "thinking of you gifts for friend",
+        "bereavement keepsake"
       ],
       "keywordsCn": [
-        "慰问礼物",
-        "纪念心形饰品",
-        "思念礼物"
+        "慰问礼物心形纪念品",
+        "思念礼物",
+        "失去亲人礼物"
       ],
       "lightweight": "True"
     },
     {
       "asin": "B0FWJKLYBM",
       "elements": [
-        "Vintage Chicken Coop",
-        "Colorful Farmhouse",
+        "Vintage",
+        "Chicken Coop",
+        "Farmhouse",
+        "Rustic",
         "Funny"
       ],
       "carriers": [
-        "Metal Signs",
-        "Tin Sign"
+        "Metal Sign",
+        "Tin Sign",
+        "Garden Sign"
       ],
       "scenes": [
-        "Farmhouse",
         "Garden",
-        "Kitchen Wall Decor"
+        "Kitchen",
+        "Farmhouse",
+        "Chicken Coop"
       ],
       "keywordsEn": [
-        "vintage chicken coop sign",
-        "farmhouse tin sign",
-        "funny garden decor",
-        "chicken coop accessories"
+        "vintage chicken coop metal sign",
+        "farmhouse garden decor",
+        "funny chicken sign"
       ],
       "keywordsCn": [
-        "复古鸡舍标志",
-        "农舍锡牌",
-        "搞笑花园装饰"
+        "复古鸡舍金属标牌",
+        "农舍花园装饰",
+        "搞笑鸡舍标牌"
       ],
       "lightweight": "True"
     },
@@ -1034,62 +1192,67 @@
       "asin": "B0FCFCHM9G",
       "elements": [
         "Thank You",
-        "A Little Heart to Say A Big Thank You"
+        "Heart",
+        "Appreciation"
       ],
       "carriers": [
         "Ceramic Plaque"
       ],
       "scenes": [
-        "Thank You Gift for Women",
-        "Appreciation Gift for Friend Teacher Colleague Mom"
+        "Teacher",
+        "Colleague",
+        "Mom",
+        "Friend"
       ],
       "keywordsEn": [
-        "thank you gift for women",
-        "ceramic plaque appreciation",
-        "thank you plaque for teacher",
-        "heart thank you gift"
+        "ceramic thank you plaque",
+        "appreciation gift for teacher",
+        "thank you gift for women"
       ],
       "keywordsCn": [
-        "感谢礼物女性",
-        "陶瓷感谢牌",
-        "感恩礼物"
+        "感谢陶瓷奖牌",
+        "送给老师的礼物",
+        "感激礼品"
       ],
-      "lightweight": "True"
+      "lightweight": "False"
     },
     {
       "asin": "B0F3C9MSSM",
       "elements": [
-        "Darts Scoreboard",
+        "Darts",
+        "Scoreboard",
         "Checkout Chart"
       ],
       "carriers": [
-        "Metal Wall Art"
+        "Metal Wall Art",
+        "Poster"
       ],
       "scenes": [
         "Man Cave",
         "Home Bar",
-        "Bars and Clubs",
+        "Bars",
+        "Clubs",
         "Game Room"
       ],
       "keywordsEn": [
-        "darts scoreboard wall art",
-        "metal checkout chart",
-        "man cave darts decor",
-        "home bar game room sign"
+        "darts scoreboard metal wall art",
+        "checkout chart poster",
+        "man cave decor"
       ],
       "keywordsCn": [
-        "飞镖计分板墙饰",
-        "金属飞镖图表",
-        "游戏室装饰"
+        "飞镖记分板金属墙饰",
+        "游戏室装饰",
+        "男人窝"
       ],
       "lightweight": "True"
     },
     {
       "asin": "B0FD3F5SBL",
       "elements": [
-        "Inspirational Quotes",
+        "Inspirational",
+        "Motivational",
         "Rainbow",
-        "Motivational"
+        "Preppy"
       ],
       "carriers": [
         "Plaque Sign",
@@ -1097,78 +1260,80 @@
       ],
       "scenes": [
         "Boys Bedroom",
-        "Preppy Room Decor",
         "Nursery",
-        "Playroom"
+        "Playroom",
+        "Game Room"
       ],
       "keywordsEn": [
-        "inspirational wall art for boys",
+        "inspirational quotes wall art boys",
         "rainbow plaque sign",
-        "motivational bedroom decor",
-        "preppy room accessories"
+        "motivational bedroom decor"
       ],
       "keywordsCn": [
         "励志墙饰男孩",
-        "彩虹挂牌",
-        "卧室装饰"
+        "彩虹标牌",
+        "游戏室装饰"
       ],
-      "lightweight": "False"
+      "lightweight": "True"
     },
     {
       "asin": "B0FSSB8LFB",
       "elements": [
-        "Vintage Black & White Cat",
+        "Cat",
+        "Vintage",
+        "Black & White",
         "Funny",
-        "Welcome To The Bathroom A Cat Will Be With You Shortly"
+        "Welcome"
       ],
       "carriers": [
-        "Metal Signs"
+        "Metal Sign"
       ],
       "scenes": [
         "Bathroom",
-        "Home Washroom",
+        "Washroom",
         "Restroom",
         "Toilet"
       ],
       "keywordsEn": [
-        "funny cat bathroom sign",
-        "vintage black white cat decor",
-        "bathroom metal sign cat",
-        "retro toilet wall art"
+        "vintage cat bathroom sign",
+        "funny bathroom metal sign",
+        "cat wall decor"
       ],
       "keywordsCn": [
-        "搞笑猫浴室标志",
-        "复古黑白猫装饰",
-        "厕所墙饰"
+        "复古猫浴室标牌",
+        "搞笑浴室装饰",
+        "猫墙饰"
       ],
       "lightweight": "True"
     },
     {
       "asin": "B0F2FQM74K",
       "elements": [
-        "Funny Vintage",
-        "Retro Tiki",
-        "Drink on Days Starting with T"
+        "Funny",
+        "Vintage",
+        "Retro",
+        "Tiki",
+        "Drink"
       ],
       "carriers": [
-        "Metal Tin Signs"
+        "Metal Tin Sign"
       ],
       "scenes": [
         "Home Bar",
         "Man Cave",
-        "Garden Bars",
-        "Outdoor Spaces"
+        "Pub",
+        "Garden",
+        "Outdoor"
       ],
       "keywordsEn": [
         "funny vintage bar sign",
-        "retro tiki decor",
-        "metal tin sign for man cave",
-        "drink sign for home pub"
+        "retro tiki metal sign",
+        "man cave pub accessories"
       ],
       "keywordsCn": [
-        "复古酒吧标志",
+        "搞笑复古酒吧标牌",
         "提基装饰",
-        "男人洞穴金属牌"
+        "户外酒吧"
       ],
       "lightweight": "True"
     },
@@ -1176,8 +1341,8 @@
       "asin": "B0G25K69FG",
       "elements": [
         "Bar Open",
-        "Proudly Serving Whatever You Bring",
-        "Funny"
+        "Funny",
+        "Proudly Serving"
       ],
       "carriers": [
         "Metal Tin Sign"
@@ -1185,21 +1350,20 @@
       "scenes": [
         "Home Pub",
         "Man Cave",
-        "Outdoor Garden",
+        "Garden",
         "Cafe",
         "Apartment",
         "Club"
       ],
       "keywordsEn": [
-        "bar open sign funny",
-        "proudly serving whatever you bring sign",
-        "metal tin sign for home bar",
-        "man cave bar accessories"
+        "bar open sign metal",
+        "funny bar accessories",
+        "proudly serving sign"
       ],
       "keywordsCn": [
-        "酒吧营业标志",
-        "搞笑酒吧牌",
-        "家庭酒吧装饰"
+        "酒吧开门金属标牌",
+        "搞笑酒吧装饰",
+        "男窟"
       ],
       "lightweight": "True"
     },
@@ -1211,24 +1375,24 @@
         "Gardening"
       ],
       "carriers": [
-        "Metal Plaques",
-        "Iron Painting"
+        "Metal Plaque",
+        "Hanging Iron Painting",
+        "Garden Sign"
       ],
       "scenes": [
         "Garden",
-        "Yard Outdoor Decor",
-        "Gardening Gifts"
+        "Yard",
+        "Outdoor"
       ],
       "keywordsEn": [
-        "welcome to my garden sign",
-        "metal plaque for outside",
-        "vintage garden wall art",
+        "welcome to my garden metal sign",
+        "vintage garden plaque",
         "gardening gifts for lovers"
       ],
       "keywordsCn": [
-        "花园欢迎牌",
-        "复古花园金属牌",
-        "园艺礼物"
+        "欢迎来我花园金属标牌",
+        "园艺礼物",
+        "户外装饰"
       ],
       "lightweight": "True"
     },
@@ -1237,27 +1401,27 @@
       "elements": [
         "Sweet Home",
         "Farmhouse",
-        "Charming Neutral"
+        "Charming",
+        "Neutral"
       ],
       "carriers": [
-        "Wooden Tiered Tray Decor",
-        "Wooden Craft"
+        "Wooden Sign",
+        "Tiered Tray Decor"
       ],
       "scenes": [
         "Mantel",
         "Shelf",
-        "Entryway Table",
-        "Housewarming Gift"
+        "Entryway",
+        "Housewarming"
       ],
       "keywordsEn": [
-        "sweet home sign wooden",
-        "farmhouse tiered tray decor",
-        "neutral home accent",
-        "housewarming gift wooden craft"
+        "sweet home wooden sign",
+        "farmhouse shelf decor",
+        "housewarming gift"
       ],
       "keywordsCn": [
-        "甜蜜之家木牌",
-        "农舍托盘装饰",
+        "甜蜜家园木牌",
+        "农场风格装饰",
         "乔迁礼物"
       ],
       "lightweight": "False"
@@ -1265,57 +1429,58 @@
     {
       "asin": "B0FCS348R6",
       "elements": [
-        "Rainbow Ceramic Keepsake Heart",
-        "Sometimes You Forget You Are Awesome",
-        "Thank You"
+        "Thank You",
+        "Rainbow",
+        "Awesome",
+        "Sentimental"
       ],
       "carriers": [
-        "Ceramic Keepsake Heart"
+        "Ceramic Heart",
+        "Keepsake Heart"
       ],
       "scenes": [
-        "Thank You Gift",
-        "Sentimental Gifts",
-        "For Mentor Friend Family Colleague"
+        "Mentor",
+        "Friend",
+        "Family",
+        "Colleague"
       ],
       "keywordsEn": [
-        "rainbow ceramic heart gift",
-        "sometimes you forget you are awesome",
-        "thank you keepsake with box",
-        "sentimental gift for colleague"
+        "ceramic thank you heart",
+        "rainbow keepsake gift",
+        "you are awesome gift"
       ],
       "keywordsCn": [
-        "彩虹陶瓷心礼物",
-        "感谢纪念品",
-        "感性礼物"
+        "彩虹陶瓷心感谢礼物",
+        "你太棒了礼物",
+        "纪念品"
       ],
-      "lightweight": "True"
+      "lightweight": "False"
     },
     {
       "asin": "B0DXKH8LYT",
       "elements": [
         "Bereavement",
         "Sympathy",
-        "Memorial",
-        "Those we love don't go away"
+        "Remembrance",
+        "Heart",
+        "In Memoriam"
       ],
       "carriers": [
         "Acrylic Heart Plaque"
       ],
       "scenes": [
-        "Grave Decorations",
-        "In Memoriam",
-        "Sorry for Your Loss Gifts"
+        "Grave",
+        "Loss of Loved One"
       ],
       "keywordsEn": [
         "bereavement gift acrylic heart",
-        "sympathy memorial plaque",
-        "sorry for your loss gifts",
-        "grave decoration heart"
+        "sympathy plaque memorial",
+        "sorry for your loss gifts"
       ],
       "keywordsCn": [
-        "丧亲礼物",
-        "纪念亚克力心牌",
-        "慰问礼品"
+        "哀悼礼物亚克力心",
+        "纪念牌",
+        "失去亲人礼物"
       ],
       "lightweight": "True"
     },
@@ -1323,83 +1488,86 @@
       "asin": "B0F8QPDYNY",
       "elements": [
         "Leeds United",
-        "Elland Road Street Sign",
-        "Football"
+        "Football",
+        "Elland Road"
       ],
       "carriers": [
         "Metal Poster",
-        "Street Sign"
+        "Street Sign",
+        "Metal Sign"
       ],
       "scenes": [
-        "Leeds United Gifts for Men Boys",
-        "Football Merchandise"
+        "Football Fan",
+        "Men Boys",
+        "Club"
       ],
       "keywordsEn": [
         "leeds united street sign",
-        "elland road metal poster",
-        "leeds united gifts for men",
-        "football merchandise sign"
+        "football metal poster",
+        "elland road sign"
       ],
       "keywordsCn": [
-        "利兹联街牌",
-        "埃兰路金属海报",
-        "足球礼物"
+        "利兹联街道标牌",
+        "足球金属海报",
+        "俱乐部纪念品"
       ],
       "lightweight": "True"
     },
     {
       "asin": "B0G8TKH5ZC",
       "elements": [
-        "Motorbike",
         "Motorcycle",
+        "Motorbike",
         "Vintage"
       ],
       "carriers": [
-        "Metal Signs Plaques"
+        "Metal Sign",
+        "Plaque"
       ],
       "scenes": [
-        "Man Cave Gift for Motorcycle Lovers",
+        "Man Cave",
+        "Living Room",
         "Teenagers",
-        "Living Room Decor"
+        "Motorcycle Lovers"
       ],
       "keywordsEn": [
-        "motorbike gifts for men",
-        "motorcycle metal sign",
-        "vintage wall art motorcycle",
-        "man cave motorcycle decor"
+        "motorcycle metal sign vintage",
+        "man cave gifts for men",
+        "motorbike wall art"
       ],
       "keywordsCn": [
-        "摩托车金属牌",
-        "复古摩托车墙饰",
-        "男人洞穴装饰"
+        "摩托车金属标牌",
+        "男人窝礼物",
+        "复古墙饰"
       ],
       "lightweight": "True"
     },
     {
       "asin": "B0GSHQXPWC",
       "elements": [
-        "YOU CAN'T BUY HAPPINESS BUT YOU CAN BUY PLANTS",
+        "You Can't Buy Happiness But You Can Buy Plants",
         "Funny",
-        "Vintage"
+        "Vintage",
+        "Gardening"
       ],
       "carriers": [
-        "Metal Signs & Plaques"
+        "Metal Sign",
+        "Plaque"
       ],
       "scenes": [
         "Garden",
-        "Home Greenhouse",
+        "Greenhouse",
         "Yard",
         "Gardening"
       ],
       "keywordsEn": [
-        "you can't buy happiness but you can buy plants sign",
-        "funny garden metal sign",
-        "vintage plant wall art",
-        "greenhouse decor sign"
+        "funny gardening sign",
+        "plants metal sign",
+        "garden decor vintage"
       ],
       "keywordsCn": [
-        "植物快乐金属牌",
-        "搞笑花园标志",
+        "有趣园艺标牌",
+        "植物金属牌",
         "温室装饰"
       ],
       "lightweight": "True"
@@ -1407,41 +1575,45 @@
     {
       "asin": "B0GT84NW4Y",
       "elements": [
-        "Books Read This Year Counter",
+        "Books Read",
         "Reading Tracker",
         "Book Lovers"
       ],
       "carriers": [
-        "Wooden Books Read This Year Reading Tracker"
+        "Wooden Sign",
+        "Tracker"
       ],
       "scenes": [
-        "Bookshelf Decor for Readers",
+        "Bookshelf",
+        "Readers",
         "Teachers",
         "Writers",
         "Librarians"
       ],
       "keywordsEn": [
-        "books read this year tracker",
-        "wooden reading counter",
-        "book lover gift",
-        "bookshelf decor for readers"
+        "books read this year counter",
+        "wooden reading tracker",
+        "book lover gift"
       ],
       "keywordsCn": [
-        "年度阅读计数器",
-        "木质阅读追踪器",
+        "今年读书计数木牌",
+        "阅读追踪器",
         "爱书人礼物"
       ],
-      "lightweight": "True"
+      "lightweight": "False"
     },
     {
       "asin": "B0GCHX62MZ",
       "elements": [
         "Racing Car",
         "Cool",
-        "2026 Calendar International Locations Track Layouts"
+        "Calendar",
+        "Track Layouts"
       ],
       "carriers": [
-        "Metal Signs Cool Wall Art Decor Car Posters Tin Plaques"
+        "Metal Sign",
+        "Poster",
+        "Plaque"
       ],
       "scenes": [
         "Man Cave",
@@ -1452,72 +1624,77 @@
       ],
       "keywordsEn": [
         "racing car metal sign",
-        "f1 wall art",
-        "2026 calendar track layout poster",
-        "car merchandise gift for men"
+        "cool wall art car",
+        "race merchandise 2026 calendar"
       ],
       "keywordsCn": [
-        "赛车金属牌",
-        "F1墙饰",
-        "汽车礼物"
+        "赛车金属标牌",
+        "酷车装饰",
+        "赛道布局海报"
       ],
       "lightweight": "True"
     },
     {
       "asin": "B0FW4J4NN3",
       "elements": [
-        "Vintage Metal Tin",
-        "Band Wall Decor",
-        "Funny Retro Music"
+        "Band",
+        "Music",
+        "Funny",
+        "Retro",
+        "Colorful"
       ],
       "carriers": [
-        "Metal Tin Signs",
-        "Colorful Plaque"
+        "Metal Tin Sign",
+        "Street Sign",
+        "Plaque"
       ],
       "scenes": [
-        "Music Lover",
         "Music Room",
-        "Bar Wall",
-        "Home Decor"
+        "Bar",
+        "Home",
+        "Music Lover"
       ],
       "keywordsEn": [
-        "vintage band sign",
-        "retro music wall art",
-        "funny music plaque",
-        "metal tin sign for music room"
+        "band wall decor street sign",
+        "retro music metal plaque",
+        "music lover gifts"
       ],
       "keywordsCn": [
-        "复古乐队标志",
-        "音乐墙饰",
-        "金属音乐牌"
+        "乐队墙饰街道标牌",
+        "复古音乐金属牌",
+        "音乐爱好者装饰"
       ],
       "lightweight": "True"
     },
     {
       "asin": "B0FLDKP41R",
       "elements": [
-        "Welcome to the Game Room",
-        "Cool Neon Gaming",
+        "Game Room",
+        "Neon",
+        "Gaming",
+        "Vintage",
+        "Colourful",
         "Gamer"
       ],
       "carriers": [
-        "Metal Tin Sign"
+        "Metal Tin Sign",
+        "Poster"
       ],
       "scenes": [
-        "Boys & Teens Bedroom",
-        "Gaming Room",
-        "Man Cave"
+        "Game Room",
+        "Bedroom",
+        "Man Cave",
+        "Boys & Teens"
       ],
       "keywordsEn": [
-        "game room sign metal",
+        "game room metal sign",
         "neon gaming poster",
-        "gamer wall art for teens",
-        "man cave gaming decor"
+        "gamer wall art man cave"
       ],
       "keywordsCn": [
-        "游戏室金属牌",
+        "游戏室金属标牌",
         "霓虹游戏海报",
-        "游戏玩家装饰"
+        "青少年卧室装饰"
       ],
       "lightweight": "True"
     }

@@ -1,0 +1,9 @@
+schema_version: 1
+module_path: python_ai
+title: AI向量搜索与图像识别服务
+scope:
+    - python-ai/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend/file_and_image_services

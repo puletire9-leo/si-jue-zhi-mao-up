@@ -7,6 +7,8 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Mapper
 public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
@@ -138,4 +140,24 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "</script>")
     List<java.util.Map<String, Object>> selectRatingData(
             @Param("marketplace") String marketplace);
+
+    @Select("SELECT CONCAT(bsr_id, '_', node_id) AS composite_key, COUNT(*) AS product_count " +
+            "FROM deng_zong_shop " +
+            "WHERE marketplace = #{marketplace} AND month = #{month} " +
+            "AND bsr_id IS NOT NULL AND node_id IS NOT NULL " +
+            "GROUP BY bsr_id, node_id")
+    List<Map<String, Object>> selectZhengNodeCounts(@Param("marketplace") String marketplace, @Param("month") String month);
+
+    /** 郑总 bsr_id 按数量降序排列（保持郑总店铺当前的榜单顺序） */
+    @Select("SELECT bsr_id AS bsrId, COUNT(*) AS productCount " +
+            "FROM deng_zong_shop " +
+            "WHERE marketplace = #{marketplace} AND month = #{month} " +
+            "AND bsr_id IS NOT NULL " +
+            "GROUP BY bsr_id ORDER BY productCount DESC")
+    List<Map<String, Object>> selectZhengBsrIdsOrdered(
+            @Param("marketplace") String marketplace,
+            @Param("month") String month);
+
+    @Select("SELECT MAX(month) FROM deng_zong_shop WHERE marketplace = #{marketplace}")
+    String selectMaxMonth(@Param("marketplace") String marketplace);
 }

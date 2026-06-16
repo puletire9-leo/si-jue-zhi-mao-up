@@ -20,6 +20,14 @@ export function getAggregatedData(marketplace: string, month: string) {
   return request.get(`${MODEL_BASE}/aggregated-data`, { params: { marketplace, month } })
 }
 
+export function getAllCategories(marketplace: string, month: string) {
+  return request({
+    url: '/api/v1/product-line/all-categories',
+    method: 'get',
+    params: { marketplace, month }
+  })
+}
+
 export function getModelMd(nodeId: number, marketplace: string) {
   return request.get(`${MODEL_BASE}/model/${nodeId}/md`, { params: { marketplace } })
 }

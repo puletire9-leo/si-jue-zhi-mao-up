@@ -205,26 +205,26 @@ export const competitorApi = {
   },
 
   // 精筛配置
-  getFilterConfig(): Promise<any> {
-    return request({ url: '/api/v1/filter-config', method: 'get' })
+  getFilterConfig(marketplace = 'UK'): Promise<any> {
+    return request({ url: '/api/v1/filter-config', method: 'get', params: { marketplace } })
   },
 
-  updateFilterConfig(data: Record<string, number>, marketplace = 'UK', dataMonth?: string): Promise<any> {
+  updateFilterConfig(data: Record<string, number>, marketplace = 'UK', dataMonth?: string, reapply = false): Promise<any> {
     // 如果未传 dataMonth，使用当前年月
     if (!dataMonth) {
       const now = new Date()
       dataMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`
     }
-    return request({ url: '/api/v1/filter-config', method: 'put', params: { marketplace, dataMonth }, data })
+    return request({ url: '/api/v1/filter-config', method: 'put', params: { marketplace, dataMonth, reapply }, data })
   },
 
   // 初筛配置
-  getInitialFilterConfig(): Promise<any> {
-    return request({ url: '/api/v1/filter-config/initial', method: 'get' })
+  getInitialFilterConfig(marketplace = 'UK'): Promise<any> {
+    return request({ url: '/api/v1/filter-config/initial', method: 'get', params: { marketplace } })
   },
 
-  updateInitialFilterConfig(data: Record<string, number>): Promise<any> {
-    return request({ url: '/api/v1/filter-config/initial', method: 'put', data })
+  updateInitialFilterConfig(data: Record<string, number>, marketplace = 'UK'): Promise<any> {
+    return request({ url: '/api/v1/filter-config/initial', method: 'put', params: { marketplace }, data })
   },
 
   // 邓总店铺
@@ -253,6 +253,15 @@ export const competitorApi = {
   },
   getDengZongVariants(marketplace: string, parentAsin: string): Promise<any> {
     return request({ url: '/api/v1/deng-zong-shop/variants', method: 'get', params: { marketplace, parentAsin } })
+  },
+
+  // 手动重新筛选（不改配置，仅重新跑筛选逻辑）
+  reapplyFilter(marketplace: string, dataMonth?: string): Promise<ApiResponse<any>> {
+    return request({
+      url: '/api/v1/filter-config/reapply',
+      method: 'post',
+      params: { marketplace, dataMonth }
+    })
   },
 }
 

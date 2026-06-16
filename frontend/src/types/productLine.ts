@@ -8,6 +8,7 @@ export interface SubCategoryNode {
   nodeName: string
   nodeFullPath: string
   productCount: number
+  isZheng?: boolean
 }
 
 /** 品线分组（API aggregated-data 中的 L1 品线） */
@@ -17,6 +18,7 @@ export interface ProductLineGroup {
   subCategoryCount: number
   totalProducts: number
   subCategories: SubCategoryNode[]
+  isZheng?: boolean
 }
 
 /** 品线树聚合数据 API 响应 */
@@ -150,6 +152,7 @@ export interface TreeNode {
   nodeId: number | null
   status: NodeStatus
   productCount: number
+  isZheng?: boolean
 }
 
 /** 品线树 UI 分组 */
@@ -158,6 +161,7 @@ export interface TreeGroup {
   name: string
   icon: string
   expanded: boolean
+  isZheng?: boolean
   children: TreeNode[]
 }
 

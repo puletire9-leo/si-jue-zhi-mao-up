@@ -57,7 +57,7 @@ DB_CONFIG = {
     "password": os.environ["MYSQL_PASSWORD"],
     "database": os.environ.get("MYSQL_DATABASE", "sijuelishi_dev"),
 }
-DEFAULT_CONCURRENCY = 3
+DEFAULT_CONCURRENCY = 500
 DEFAULT_BASE_DIR = "/app/zheng_model_v1"
 
 
@@ -111,7 +111,7 @@ def _analyze_and_save(
 
     try:
         # 1. AI 分析 (DeepSeek, 60-130s)
-        ai_result = ai_analyze(analysis)
+        ai_result = ai_analyze(analysis, batch_id=batch_id)
         if not ai_result or not ai_result.good_products:
             result["status"] = "failed"
             result["error"] = "AI returned no results"
@@ -163,7 +163,7 @@ def run_batch(
     Args:
         marketplace: UK/DE
         month: 202605
-        concurrency: DeepSeek 并发数 (1-5, 默认3)
+        concurrency: DeepSeek 并发数 (默认 500, 实际受小类数上限约束)
         base_dir: MD 输出根目录
         dry_run: 仅预处理，不调用 AI
         limit: 限制分析小类数 (0=全部)
@@ -256,13 +256,16 @@ def run_batch(
         }
 
     logger.info(f"[Phase 4] 并行AI分析 ({len(analyses)} 小类, {concurrency} 并发)...")
-    logger.info(f"  预计耗时: ~{len(analyses) / concurrency * 90 / 60:.0f} 分钟")
+
+    actual_concurrency = min(concurrency, len(analyses))
+    logger.info(f"  实际并发: {actual_concurrency} (请求:{concurrency}, 小类:{len(analyses)})")
+    logger.info(f"  预计耗时: ~{len(analyses) / actual_concurrency * 90 / 60:.0f} 分钟")
 
     results: list[dict] = []
     completed = 0
     failed = 0
 
-    with ThreadPoolExecutor(max_workers=concurrency) as executor:
+    with ThreadPoolExecutor(max_workers=actual_concurrency) as executor:
         futures = {
             executor.submit(
                 _analyze_and_save,

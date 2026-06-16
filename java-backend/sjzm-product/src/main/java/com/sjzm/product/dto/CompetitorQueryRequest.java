@@ -63,4 +63,11 @@ public class CompetitorQueryRequest {
     private BigDecimal weightMax;
     /** 多词搜索（逗号分隔，所有词需同时匹配标题） */
     private String keywords;
+
+    private String bsrId;
+    private Long nodeId;
+
+    // ---- 入库时间范围筛选 ----
+    private String createdAtStart;
+    private String createdAtEnd;
 }

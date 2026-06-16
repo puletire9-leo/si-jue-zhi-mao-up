@@ -76,7 +76,11 @@ const menuItems = computed<MenuItem[]>(() => {
     }))
     .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
 
-  return [...topLevel, ...groupMenus]
+  // 按 menuOrder 拆分：重要项（<100）放前面，系统管理项（>=100）放最后
+  const importantTop = topLevel.filter(i => (i.order ?? 99) < 100)
+  const adminTop = topLevel.filter(i => (i.order ?? 99) >= 100)
+
+  return [...importantTop, ...groupMenus, ...adminTop]
 })
 
 const activeIndex = computed(() => route.path)

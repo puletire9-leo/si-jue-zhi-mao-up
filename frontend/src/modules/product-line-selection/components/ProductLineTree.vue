@@ -11,6 +11,9 @@
       />
     </div>
 
+    <!-- 品类概览 -->
+    <CategorySummary />
+
     <!-- L1 列表 -->
     <div class="tree-list">
       <div v-if="store.treeLoading" class="tree-loading">
@@ -27,6 +30,7 @@
         >
           <span class="l1-icon">{{ group.icon }}</span>
           <span class="l1-name">{{ group.name }}</span>
+          <span v-if="group.isZheng && store.dataSource === 'selection'" class="zheng-badge">郑总店铺</span>
           <span class="l1-badge">{{ group.children.length }} 子类</span>
         </div>
 
@@ -48,6 +52,7 @@
 import { ref, computed } from 'vue'
 import { Search, Close, Loading } from '@element-plus/icons-vue'
 import { useProductLineSelectionStore } from '../store'
+import CategorySummary from './CategorySummary.vue'
 
 defineProps<{ mobileOpen?: boolean }>()
 const emit = defineEmits<{
@@ -165,6 +170,18 @@ const filteredGroups = computed(() => {
 .l1-badge {
   font-size: 11px;
   color: $text-tertiary;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.zheng-badge {
+  font-size: 10px;
+  background: #e6f7ff;
+  color: #1890ff;
+  border: 1px solid #91d5ff;
+  border-radius: 3px;
+  padding: 0 5px;
+  margin-left: 4px;
   white-space: nowrap;
   flex-shrink: 0;
 }

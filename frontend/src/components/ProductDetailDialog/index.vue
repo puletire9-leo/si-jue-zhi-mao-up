@@ -354,6 +354,13 @@
 
             <div class="action-buttons">
               <el-button
+                type="primary"
+                :icon="Promotion"
+                @click="handleOpenProductLink"
+              >
+                一键打开
+              </el-button>
+              <el-button
                 v-if="showEditButton"
                 type="primary"
                 :icon="Edit"
@@ -466,7 +473,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { Picture, Edit, Delete } from '@element-plus/icons-vue'
+import { Picture, Edit, Delete, Promotion } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { productApi } from '@/api/product'
 import { selectionApi } from '@/api/selection'
@@ -485,6 +492,10 @@ const props = defineProps({
   mode: {
     type: String,
     default: 'product'
+  },
+  dataSource: {
+    type: String,
+    default: 'zheng'
   },
   useDrawer: {
     type: Boolean,
@@ -514,6 +525,9 @@ const variants = ref([])
 const dialogTitle = computed(() => {
   if (!props.product) return '产品详情'
   if (props.mode === 'selection') {
+    if (props.dataSource === 'zheng') {
+      return `郑总产品详情 - ${props.product.asin}`
+    }
     return `选品详情 - ${props.product.asin}`
   }
   return `产品详情 - ${props.product.sku}`
@@ -611,7 +625,9 @@ const loadVariants = async () => {
   if (!parentAsin || !marketplace) return
 
   try {
-    const res = await competitorApi.getVariants(marketplace, parentAsin)
+    const res = props.dataSource === 'selection'
+      ? await competitorApi.getVariants(marketplace, parentAsin)
+      : await competitorApi.getDengZongVariants(marketplace, parentAsin)
     variants.value = (res.data || [])
   } catch (e) {
     console.error('加载变体失败:', e)
@@ -651,6 +667,28 @@ const handleDelete = async () => {
 
 const selectVariant = (v) => {
   emit('select-product', v)
+}
+
+const getAmazonUrl = () => {
+  if (!props.product) return ''
+  const raw = props.product.productLink || props.product.productUrl || ''
+  if (raw) return raw
+  const asin = props.product.parentAsin || props.product.asin
+  const mkp = props.product.marketplace
+  if (asin && mkp) {
+    const domains = {
+      US: 'www.amazon.com', UK: 'www.amazon.co.uk', DE: 'www.amazon.de',
+      CA: 'www.amazon.ca', JP: 'www.amazon.co.jp', FR: 'www.amazon.fr',
+      IT: 'www.amazon.it', ES: 'www.amazon.es',
+    }
+    return `https://${domains[mkp] || 'www.amazon.com'}/dp/${asin}`
+  }
+  return ''
+}
+
+const handleOpenProductLink = () => {
+  const url = getAmazonUrl()
+  if (url) window.open(url, '_blank')
 }
 
 const viewSubProduct = (subProduct) => {

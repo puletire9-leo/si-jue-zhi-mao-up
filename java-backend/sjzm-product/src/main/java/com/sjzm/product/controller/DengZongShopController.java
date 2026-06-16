@@ -88,6 +88,12 @@ public class DengZongShopController {
         return Result.success(stats);
     }
 
+    @GetMapping("/max-month")
+    @Operation(summary = "邓总店铺最新数据月份")
+    public Result<String> maxMonth(@RequestParam(defaultValue = "UK") String marketplace) {
+        return Result.success(dengZongShopService.getMaxMonth(marketplace));
+    }
+
     // ========== 卖家 CRUD ==========
 
     @GetMapping("/seller-summary")

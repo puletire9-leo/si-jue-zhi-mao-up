@@ -230,4 +230,8 @@ public class DengZongShopService {
         JsonNode v = p.path(field);
         return v.isMissingNode() ? null : v.asText(null);
     }
+
+    public String getMaxMonth(String marketplace) {
+        return mapper.selectMaxMonth(marketplace);
+    }
 }

@@ -149,7 +149,7 @@ public class AsinImportService {
         taskMapper.insert(task);
 
         // 5. 保存明细
-        saveResults(task.getId(), filterResult);
+        saveResults(task.getId(), filterResult, marketplace);
 
         // 6. 返回预览
         Map<String, Object> preview = new HashMap<>();
@@ -942,7 +942,7 @@ public class AsinImportService {
                 price = extractNumeric(priceStr);
             }
             if (rowIdx <= 3) log.info("  ASIN={} priceIdx[3]='{}' extractNumeric={}", asin, getByIndex(row, 3), price);
-            if (price != null && (price < initialFilterConfig.getPriceMin().doubleValue() || price > initialFilterConfig.getPriceMax().doubleValue())) {
+            if (price != null && (price < initialFilterConfig.getPriceMin(marketplace).doubleValue() || price > initialFilterConfig.getPriceMax(marketplace).doubleValue())) {
                 Map<String, String> fail = new LinkedHashMap<>(row);
                 fail.put("asin", asin);
                 fail.put("_price", String.valueOf(price));
@@ -958,7 +958,7 @@ public class AsinImportService {
                 try { reviews = Integer.parseInt(reviewStr.replaceAll("[^0-9]", "")); } catch (Exception ignored) {}
             }
             if (rowIdx <= 3) log.info("  ASIN={} reviewIdx[4]='{}' parseReview={}", asin, getByIndex(row, 4), reviews);
-            if (reviews != null && reviews > initialFilterConfig.getReviewMax()) {
+            if (reviews != null && reviews > initialFilterConfig.getReviewMax(marketplace)) {
                 Map<String, String> fail = new LinkedHashMap<>(row);
                 fail.put("asin", asin);
                 fail.put("_reviews", String.valueOf(reviews));
@@ -976,7 +976,7 @@ public class AsinImportService {
         return result;
     }
 
-    private void saveResults(Long taskId, Map<String, List<Map<String, String>>> filterResult) {
+    private void saveResults(Long taskId, Map<String, List<Map<String, String>>> filterResult, String marketplace) {
         List<AsinImportResult> batch = new ArrayList<>(DB_BATCH_SIZE);
         for (Map.Entry<String, List<Map<String, String>>> entry : filterResult.entrySet()) {
             String status = entry.getKey();
@@ -987,8 +987,8 @@ public class AsinImportService {
                 result.setTitle(row.get("标题"));
                 result.setStatus(status);
                 switch (status) {
-                    case "PRICE_FAIL" -> result.setDetail("价格 " + row.get("_price") + " 不在范围 " + initialFilterConfig.getPriceMin() + "-" + initialFilterConfig.getPriceMax());
-                    case "REVIEW_FAIL" -> result.setDetail("评论数 " + row.get("_reviews") + " > " + initialFilterConfig.getReviewMax());
+                    case "PRICE_FAIL" -> result.setDetail("价格 " + row.get("_price") + " 不在范围 " + initialFilterConfig.getPriceMin(marketplace) + "-" + initialFilterConfig.getPriceMax(marketplace));
+                    case "REVIEW_FAIL" -> result.setDetail("评论数 " + row.get("_reviews") + " > " + initialFilterConfig.getReviewMax(marketplace));
                     case "DUPLICATE" -> result.setDetail("文件内重复");
                     case "SKIP_BLACKLIST" -> result.setDetail("硬性淘汰黑名单");
                     case "SKIP_MAIN" -> result.setDetail("主表已有数据");
@@ -1050,12 +1050,12 @@ public class AsinImportService {
         // 收集所有需要跳过的 ASIN
         for (Map<String, String> row : filterResult.getOrDefault("PRICE_FAIL", List.of())) {
             String priceInfo = row.get("_price");
-            row.put("_detail", "初筛: 价格" + (priceInfo != null ? priceInfo : "?") + " 不在 " + initialFilterConfig.getPriceMin() + "~" + initialFilterConfig.getPriceMax() + " 范围");
+            row.put("_detail", "初筛: 价格" + (priceInfo != null ? priceInfo : "?") + " 不在 " + initialFilterConfig.getPriceMin(marketplace) + "~" + initialFilterConfig.getPriceMax(marketplace) + " 范围");
             collectSkipAsinFromRow(row, marketplace, allSkips);
         }
         for (Map<String, String> row : filterResult.getOrDefault("REVIEW_FAIL", List.of())) {
             String reviewInfo = row.get("_reviews");
-            row.put("_detail", "初筛: 评论数" + (reviewInfo != null ? reviewInfo : "?") + " > " + initialFilterConfig.getReviewMax());
+            row.put("_detail", "初筛: 评论数" + (reviewInfo != null ? reviewInfo : "?") + " > " + initialFilterConfig.getReviewMax(marketplace));
             collectSkipAsinFromRow(row, marketplace, allSkips);
         }
         for (Map<String, String> row : filterResult.getOrDefault("SKIP_MAIN", List.of())) {
