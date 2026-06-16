@@ -95,7 +95,6 @@ services:
     volumes:
       - prod-logs:/app/logs
       - prod-models:/app/model_cache
-      - ./领星:/app/领星
       - prod-download-cache:/app/下载缓存
     depends_on:
       mysql:
@@ -230,6 +229,30 @@ services:
       java-product:
         condition: service_started
       nacos:
+        condition: service_started
+    restart: unless-stopped
+
+  # ============================================
+  # 选品分析 Agent v2 (API 服务)
+  # ============================================
+
+  selection-agent-v2:
+    build:
+      context: ./selection-agent-v2
+      dockerfile: Dockerfile
+    image: prod-selection-agent-v2
+    container_name: prod-selection-agent-v2
+    environment:
+      - JAVA_BASE_URL=http://java-product:8002
+      - PYTHONPATH=/app
+      - HERMES_HOME=/root/.hermes
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=sijue
+      - MYSQL_PASSWORD=sijue123456
+      - MYSQL_DATABASE=sijuelishi
+    depends_on:
+      java-product:
         condition: service_started
     restart: unless-stopped
 

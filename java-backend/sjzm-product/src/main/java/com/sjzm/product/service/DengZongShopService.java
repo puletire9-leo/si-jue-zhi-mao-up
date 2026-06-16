@@ -58,8 +58,8 @@ public class DengZongShopService {
             for (JsonNode item : items) {
                 try {
                     DengZongShop entity = mapToEntity(item, marketplace);
-                    mapper.insert(entity);
-                    inserted++;
+                    int affected = mapper.upsert(entity);
+                    if (affected > 0) inserted++;
                 } catch (Exception e) {
                     log.warn("插入失败: asin={}, error={}", item.path("asin").asText(), e.getMessage());
                 }
