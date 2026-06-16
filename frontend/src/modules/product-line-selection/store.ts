@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getProductLineModel, getProductLineElements, getBatches, getAggregatedData } from '@/api/product-line'
+import { getProductLineModel, getProductLineElements, getBatches, getAggregatedData, getAllCategories } from '@/api/product-line'
 import { competitorApi } from '@/api/competitor'
 import { selectionApi } from '@/api/selection'
 import type { ProductLineGroup, BatchInfo, FilterCondition, FilterType, TreeGroup, TreeNode, ProductLineModelData } from '@/types/productLine'
@@ -17,7 +17,8 @@ interface SubCategoryItem {
 export const useProductLineSelectionStore = defineStore('productLineSelection', () => {
   // ---- 状态 ----
   const marketplace = ref('UK')
-  const month = ref('2026-05')
+  const now = new Date()
+  const month = ref(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
   const batchVersion = ref('v3')
   const selectedBatchId = ref('')
   const selectedNodeId = ref('')
@@ -54,6 +55,43 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
   const searchPriceMax = ref<number | null>(null)
   const selectedProducts = ref(new Set<string>())
   const sortBy = ref('')
+  type DataSource = 'zheng' | 'selection'
+  const dataSource = ref<DataSource>('selection')
+
+  // ---- 入库时间按周筛选 ----
+  function weekToDateRange(w: string): { start: string; end: string } {
+    const [y, wk] = w.split('-W')
+    const jan1 = new Date(parseInt(y), 0, 1)
+    const start = new Date(jan1.getTime() + (parseInt(wk) - 1) * 7 * 86400000)
+    const dow = start.getDay() || 7
+    start.setDate(start.getDate() - dow + 1)
+    const end = new Date(start.getTime() + 6 * 86400000)
+    return {
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0],
+    }
+  }
+
+  const selectedWeekTags = ref<string[]>([])
+  const availableWeekOptions = ref<string[]>([])
+  // 郑总树实际使用的最新月份（与 month 选择器解耦）
+  const zhengMonth = ref('')
+
+  async function fetchAvailableWeeks() {
+    try {
+      const { default: request } = await import('@/utils/request')
+      const res = await request.get('/api/v1/competitor/created-weeks', {
+        params: { marketplace: marketplace.value, month: month.value.replace('-', '') }
+      })
+      availableWeekOptions.value = res?.data ?? []
+      // 默认选中最新周
+      if (availableWeekOptions.value.length > 0 && selectedWeekTags.value.length === 0) {
+        selectedWeekTags.value = [availableWeekOptions.value[0]]
+      }
+    } catch {
+      availableWeekOptions.value = []
+    }
+  }
 
   // ---- 计算 ----
   const filterCount = computed(() => activeFilters.value.length)
@@ -74,15 +112,34 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
 
   // ---- 数据初始化 ----
   async function initData() {
-    await Promise.all([fetchTree(), fetchBatchesList()])
+    await Promise.all([fetchTree(), fetchBatchesList(), fetchAvailableWeeks()])
+
+    // 选品模式：默认加载第一个大类的商品
+    if (dataSource.value === 'selection' && treeData.value.length > 0 && !selectedBsrId.value) {
+      const first = treeData.value[0]
+      selectCategory(first.id, first.name)
+    }
   }
 
   async function fetchTree() {
     treeLoading.value = true
     try {
       const mkp = marketplace.value
-      const mo = month.value.replace('-', '')
-      const res = await getAggregatedData(mkp, mo)
+      let mo = month.value.replace('-', '')
+      let res
+      if (dataSource.value === 'zheng') {
+        // 郑总树数据不受月份限制：查 deng_zong_shop 最新有数据的月份
+        const { default: request } = await import('@/utils/request')
+        const maxRes = await request.get('/api/v1/deng-zong-shop/max-month', { params: { marketplace: mkp } })
+        const latestMonth = maxRes?.data
+        if (latestMonth) {
+          mo = latestMonth
+          zhengMonth.value = mo
+        }
+        res = await getAggregatedData(mkp, mo)
+      } else {
+        res = await getAllCategories(mkp, mo)
+      }
       const raw = res?.data?.productLines as ProductLineGroup[] | undefined
       if (!raw) { treeData.value = []; return }
 
@@ -93,12 +150,14 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
           id: g.bsrId,
           name: l1Name,
           icon: '📦',
+          isZheng: g.isZheng,
           children: (g.subCategories || []).map((sc: SubCategoryItem) => ({
             id: `${g.bsrId}_${sc.nodeId}`,
             name: sc.nodeName,
             nodeId: Number(sc.nodeId),
             status: 'analyzed' as const,
             productCount: sc.productCount,
+            isZheng: sc.isZheng,
           }))
         }
       })
@@ -160,6 +219,23 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     searchBrand.value = ''
     searchPriceMin.value = null
     searchPriceMax.value = null
+    selectedWeekTags.value = []
+  }
+
+  function setDataSource(source: DataSource) {
+    dataSource.value = source
+    clearFilters()
+    clearBasicFilters()
+    selectedProducts.value = new Set()
+    competitorPage.value = 1
+    searchKeyword.value = ''
+    selectedBsrId.value = ''
+    selectedBsrName.value = ''
+    selectedNodeId.value = ''
+    selectedNodeName.value = ''
+    competitorResults.value = []
+    modelData.value = null
+    initData()
   }
 
   // ---- 通用商品加载 ----
@@ -170,7 +246,9 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     try {
       const params: Record<string, any> = {
         marketplace: marketplace.value,
-        month: month.value.replace('-', ''),  // FIXED: MED-8 — 'YYYY-MM' → 'YYYYMM' 匹配数据库格式
+        month: dataSource.value === 'zheng' && zhengMonth.value
+          ? zhengMonth.value
+          : month.value.replace('-', ''),  // 郑总用最新月份，选品用选择器月份
         page: competitorPage.value,
         size: competitorPageSize.value,
       }
@@ -187,6 +265,15 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
       if (searchBrand.value) params.brand = searchBrand.value
       if (searchPriceMin.value != null) params.priceMin = searchPriceMin.value
       if (searchPriceMax.value != null) params.priceMax = searchPriceMax.value
+      if (selectedWeekTags.value.length > 0) {
+        params.weekTag = selectedWeekTags.value.join(',')
+        // 按最早选的周的开始和最晚选的周的结束传日期范围
+        const sorted = [...selectedWeekTags.value].sort()
+        const rangeStart = weekToDateRange(sorted[0])
+        const rangeEnd = weekToDateRange(sorted[sorted.length - 1])
+        params.createdAtStart = rangeStart.start
+        params.createdAtEnd = rangeEnd.end
+      }
 
       // 模型筛选条件（仅 L2 时有 modelData，仅在用户未手动输入时作为默认值）
       const model = modelData.value
@@ -211,8 +298,10 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
       if (comboFilters.length > 0) kw = kw ? `${kw} ${comboFilters.map(f => f.value).join(' ')}` : comboFilters.map(f => f.value).join(' ')
       if (kw) params.keywords = kw
 
-      // 使用正确的 API: getDengZongShopList (调 /api/v1/deng-zong-shop/products)
-      const res = await competitorApi.getDengZongShopList(params)
+      // 使用正确的 API
+      const res = dataSource.value === 'zheng'
+        ? await competitorApi.getDengZongShopList(params)
+        : await competitorApi.getList({ ...params, groupByParent: true, filterMode: 'MODE1' })
       if (reqId !== _productsReqId) return // R3.2: 过时请求丢弃
       competitorResults.value = (res?.data?.list ?? []) as CompetitorProductRaw[]
       competitorTotal.value = res?.data?.total ?? 0
@@ -261,30 +350,34 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     searchKeyword.value = ''
     selectedProducts.value = new Set()
 
-    // 模型后台异步加载，不阻塞竞品展示
-    const reqId = String(Date.now()) + String(Math.random()).slice(2) // FIXED: HIGH-4 — safe fallback for non-secure contexts
-    _modelReqId = reqId
-    modelLoading.value = true
-    modelLoadFailed.value = false
-    modelData.value = null
-    getProductLineModel(nodeId, marketplace.value, selectedBatchId.value)
-      .then(res => {
-        if (reqId === _modelReqId) {
-          modelData.value = res?.data ?? null
-          modelLoadFailed.value = false
-        }
-      })
-      .catch(() => {
-        // FIXED: HIGH-1
-        ElMessage.error(`品线模型加载失败`)
-        if (reqId === _modelReqId) {
-          modelData.value = null
-          modelLoadFailed.value = true
-        }
-      })
-      .finally(() => {
-        if (reqId === _modelReqId) modelLoading.value = false
-      })
+    // 模型后台异步加载（仅郑总模式）
+    if (dataSource.value === 'zheng') {
+      const reqId = String(Date.now()) + String(Math.random()).slice(2)
+      _modelReqId = reqId
+      modelLoading.value = true
+      modelLoadFailed.value = false
+      modelData.value = null
+      getProductLineModel(nodeId, marketplace.value, selectedBatchId.value)
+        .then(res => {
+          if (reqId === _modelReqId) {
+            modelData.value = res?.data ?? null
+            modelLoadFailed.value = false
+          }
+        })
+        .catch(() => {
+          if (reqId === _modelReqId) {
+            modelData.value = null
+            modelLoadFailed.value = true
+          }
+        })
+        .finally(() => {
+          if (reqId === _modelReqId) modelLoading.value = false
+        })
+    } else {
+      modelData.value = null
+      modelLoading.value = false
+      modelLoadFailed.value = false
+    }
 
     await loadProducts({ nodeId })
   }
@@ -476,6 +569,8 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     selectedCount,
     sortBy,
     setSortBy,
+    dataSource,
+    setDataSource,
     // ---- 新增方法 ----
     toggleProductSelection,
     selectAllOnPage,
@@ -485,5 +580,9 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     exportSelectedExcel,
     clearBasicFilters,
     applyBasicFilters,
+    fetchAvailableWeeks,
+    selectedWeekTags,
+    availableWeekOptions,
+    zhengMonth,
   }
 })
