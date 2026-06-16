@@ -35,6 +35,9 @@ ENV HERMES_HOME=/root/.hermes
 
 RUN mkdir -p /root/.hermes/memory /root/.hermes/sessions /root/.hermes/skills
 
+# 复制源码（dev 用 volume 覆盖，prod 直接打包）
+COPY . /app
+
 EXPOSE 8011
 
 # 默认启动 API 服务（品线模型数据 + 健康检查）

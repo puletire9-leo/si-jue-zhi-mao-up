@@ -748,7 +748,7 @@ const handleBatchImport = async () => {
       const previewRes = await asinImportApi.sellerPreview(taskInfo.names, taskInfo.marketplace, taskInfo.target)
       const preview = (previewRes as any).data || previewRes
 
-      await asinImportApi.sellerExecute(preview.taskId)
+      await asinImportApi.sellerExecute(preview.taskId, undefined, taskInfo.target)
 
       await new Promise<void>((resolve, reject) => {
         batchProgress.status = 'RUNNING'

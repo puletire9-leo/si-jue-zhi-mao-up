@@ -10,6 +10,7 @@ import com.sjzm.product.dto.CompetitorLookupRequest;
 import com.sjzm.product.entity.AsinImportResult;
 import com.sjzm.product.entity.AsinImportTask;
 import com.sjzm.product.entity.CompetitorProduct;
+import com.sjzm.product.entity.DengZongShop;
 import com.sjzm.product.entity.DengZongShopSeller;
 import com.sjzm.product.entity.SkipAsin;
 import com.sjzm.product.mapper.AsinImportResultMapper;
@@ -58,6 +59,7 @@ public class AsinImportService {
     private final CompetitorProductMapper competitorProductMapper;
     private final SkipAsinMapper skipAsinMapper;
     private final DengZongShopSellerMapper sellerMapper;
+    private final DengZongShopService dengZongShopService;
     private final ApiRateLimitService rateLimitService;
     private final InitialFilterConfigService initialFilterConfig;
     private final SellerspriteConfig sellerspriteConfig;
@@ -524,13 +526,13 @@ public class AsinImportService {
     /**
      * 卖家名批量导入 - 预览
      */
-    public Map<String, Object> sellerPreview(List<String> sellerNames, String marketplace) {
+    public Map<String, Object> sellerPreview(List<String> sellerNames, String marketplace, String target) {
         List<String> cleaned = sellerNames.stream()
                 .map(String::trim)
                 .filter(name -> !name.isEmpty())
                 .distinct()
                 .collect(java.util.stream.Collectors.toList());
-        
+
         if (cleaned.isEmpty()) {
             throw new RuntimeException("没有有效的卖家名");
         }
@@ -542,7 +544,7 @@ public class AsinImportService {
 
         AsinImportTask task = new AsinImportTask();
         task.setMarketplace(marketplace);
-        task.setImportType("SELLER");
+        task.setImportType("SELLER_" + target.toUpperCase());
         task.setTaskStatus("READY");
         task.setTotalCount(cleaned.size());
         task.setPassCount(cleaned.size());
@@ -579,7 +581,7 @@ public class AsinImportService {
      * 卖家名批量导入 - 执行（异步）
      */
     @Async("sellerImportExecutor")
-    public void sellerExecute(Long taskId, String month) {
+    public void sellerExecute(Long taskId, String month, String target) {
         AsinImportTask task = taskMapper.selectById(taskId);
         if (task == null) {
             log.error("卖家导入任务不存在: {}", taskId);
@@ -588,7 +590,7 @@ public class AsinImportService {
 
         Long activeCount = taskMapper.selectCount(
                 new LambdaQueryWrapper<AsinImportTask>()
-                        .eq(AsinImportTask::getImportType, "SELLER")
+                        .eq(AsinImportTask::getImportType, "SELLER_" + target.toUpperCase())
                         .eq(AsinImportTask::getMarketplace, task.getMarketplace())
                         .in(AsinImportTask::getTaskStatus, List.of("RUNNING", "PAUSED")));
         if (activeCount != null && activeCount > 0) {
@@ -612,9 +614,11 @@ public class AsinImportService {
             int totalProducts = 0;
             StringBuilder logBuf = new StringBuilder();
 
+            boolean isDengZong = "deng_zong_shop".equals(target);
+
             for (int i = 0; i < results.size(); i++) {
                 AsinImportResult r = results.get(i);
-                
+
                 if (i % STATUS_CHECK_INTERVAL == 0) {
                     task = taskMapper.selectById(taskId);
                     if ("PAUSED".equals(task.getTaskStatus()) || "CANCELLED".equals(task.getTaskStatus())) {
@@ -630,7 +634,13 @@ public class AsinImportService {
                         currentSeller, totalSellers, sellerName));
 
                 try {
-                    int count = syncProductsBySeller(sellerName, task.getMarketplace(), month);
+                    int count;
+                    if (isDengZong) {
+                        Map<String, Object> syncResult = dengZongShopService.syncBySellerName(sellerName, task.getMarketplace());
+                        count = ((Number) syncResult.getOrDefault("inserted", 0)).intValue();
+                    } else {
+                        count = syncProductsBySeller(sellerName, task.getMarketplace(), month);
+                    }
                     totalProducts += count;
                     appendLog(logBuf, String.format("[%d/%d] %s: 获取 %d 个产品",
                             currentSeller, totalSellers, sellerName, count));
