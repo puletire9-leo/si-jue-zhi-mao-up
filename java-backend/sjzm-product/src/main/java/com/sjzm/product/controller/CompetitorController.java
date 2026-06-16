@@ -68,6 +68,14 @@ public class CompetitorController {
         return Result.success(competitorService.getVariants(marketplace, parentAsin));
     }
 
+    @GetMapping("/created-weeks")
+    @Operation(summary = "获取商品入库周次列表（选品模式筛选用）")
+    public Result<List<String>> createdWeeks(
+            @RequestParam(defaultValue = "UK") String marketplace,
+            @RequestParam String month) {
+        return Result.success(competitorService.getCreatedWeeks(marketplace, month));
+    }
+
     @GetMapping("/stats")
     @Operation(summary = "数据库统计概览")
     public Result<Map<String, Object>> stats() {

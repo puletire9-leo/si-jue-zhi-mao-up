@@ -412,6 +412,14 @@ def save_product_line_elements(
 
     # 构建参数列表
     params_list = []
+
+    # Aggregate keywords from recommended_combos as fallback
+    all_kw_en = set()
+    all_kw_cn = set()
+    for rc in ai_result.recommended_combos:
+        all_kw_en.update(rc.keywords_en)
+        all_kw_cn.update(rc.keywords_cn)
+
     for gp in ai_result.good_products:
         if not gp.is_good:
             continue
@@ -439,7 +447,7 @@ def save_product_line_elements(
             json.dumps(gp.carriers, ensure_ascii=False),
             json.dumps(gp.scenes, ensure_ascii=False),
             1,  # is_winner
-            json.dumps({"en": gp.keywords_en, "cn": gp.keywords_cn}, ensure_ascii=False),
+            json.dumps({"en": gp.keywords_en or sorted(all_kw_en)[:5], "cn": gp.keywords_cn or sorted(all_kw_cn)[:3]}, ensure_ascii=False),
             batch_id,
         ))
 
@@ -668,6 +676,78 @@ def bump_data_version(
 
 
 # ══════════════════════════════════════════════════════════════════
+# 3a/b. 后处理函数 — 元素饱和度 + 载体明细
+# ══════════════════════════════════════════════════════════════════
+
+def compute_element_saturation(ai_result) -> list[dict]:
+    """从 proven_elements 生成 element_saturation（脚本后处理）"""
+    result = []
+    for e in ai_result.proven_elements:
+        freq = e.frequency
+        sat = "high" if freq >= 5 else "medium" if freq >= 2 else "low"
+        insight = (
+            f"已跨{len(e.carriers)}种载体验证，可优先投入" if sat == "high"
+            else f"出现在{freq}个商品中，值得持续观察" if sat == "medium"
+            else f"仅{freq}次出现，待更多数据验证"
+        )
+        result.append({
+            "element": e.name, "frequency": freq,
+            "saturation": sat, "insight": insight
+        })
+    return result
+
+
+def compute_carrier_detail(ai_result, analysis) -> list[dict]:
+    """从 AI carrier_summary + good_products.carriers + proven_elements.carriers 生成完整 carrier_detail"""
+    from collections import defaultdict
+    from .preprocess import _parse_weight_grams
+    product_map = {p.asin: p for p in analysis.sampled_products}
+    carrier_names = set()
+    for gp in ai_result.good_products:
+        carrier_names.update(gp.carriers)
+    for pe in ai_result.proven_elements:
+        carrier_names.update(pe.carriers)
+    carrier_map = defaultdict(list)
+    for gp in ai_result.good_products:
+        for name in gp.carriers:
+            p = product_map.get(gp.asin)
+            if p:
+                carrier_map[name].append(p)
+    result = []
+    for name in sorted(carrier_names):
+        products = carrier_map.get(name, [])
+        if not products:
+            result.append({"name": name, "count": 0, "avg_price": 0, "avg_weight_g": 0, "avg_fba": 0, "avg_variants": 0, "variant_strategy": "未知", "lightweight": "?", "lightweight_reason": "无对应好品数据"})
+            continue
+        prices = [p.price for p in products if p.price and p.price > 0]
+        weights = [_parse_weight_grams(p.pkg_weight) for p in products if p.pkg_weight]
+        fbas = [p.fba_fee for p in products if p.fba_fee and p.fba_fee > 0]
+        variants = [p.variations for p in products if p.variations]
+        avg_var = sum(variants) / len(variants) if variants else 1
+        strategy = "高变体裂变(10+)" if avg_var >= 10 else "中等(4-9)" if avg_var >= 4 else "低变体(1-3)"
+        avg_w = sorted(weights)[len(weights)//2] if weights else 0
+        is_light = avg_w < 500 and (sorted(fbas)[len(fbas)//2] if fbas else 0) < 3.5
+        if not fbas:
+            is_light = "unknown"
+            lw_reason = f"中位重量{round(avg_w)}g，无FBA数据，无法判断轻小件"
+        else:
+            median_fba = sorted(fbas)[len(fbas)//2]
+            is_light = avg_w < 500 and median_fba < 3.5
+            lw_reason = f"中位重量{round(avg_w)}g" + (f"，中位FBA £{median_fba}" if fbas else "") + ("，符合轻小件" if is_light else "，超出轻小件")
+        result.append({
+            "name": name, "count": len(products),
+            "avg_price": round(sum(prices)/len(prices), 2) if prices else 0,
+            "avg_weight_g": round(avg_w, 1),
+            "avg_fba": round(sorted(fbas)[len(fbas)//2], 2) if fbas else 0,
+            "avg_variants": round(avg_var, 1),
+            "variant_strategy": strategy,
+            "lightweight": is_light,
+            "lightweight_reason": f"中位重量{round(avg_w)}g" + ("，符合轻小件" if is_light else "，超出轻小件"),
+        })
+    return result
+
+
+# ══════════════════════════════════════════════════════════════════
 # 4. 主入口 — 单小类完整保存
 # ══════════════════════════════════════════════════════════════════
 
@@ -712,6 +792,12 @@ def save_sub_category_results(
         "md_size": 0,
         "db_rows": 0,
     }
+
+    # 后处理: 填充派生字段
+    if ai_result:
+        ai_result.element_saturation = compute_element_saturation(ai_result)
+        if analysis:
+            ai_result.carrier_detail = compute_carrier_detail(ai_result, analysis)
 
     # 1. MD 报告 + JSON 模型
     if write_files:

@@ -10,6 +10,8 @@ import org.apache.ibatis.annotations.Select;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Mapper
 public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
@@ -54,15 +56,19 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
         "  <if test='sellerName != null'> AND cp.seller_name LIKE CONCAT('%',#{sellerName},'%')</if>" +
         "  <if test='title != null'> AND cp.title LIKE CONCAT('%',#{title},'%')</if>" +
         "  <if test='grade != null'> AND FIND_IN_SET(cp.grade, #{grade})</if>" +
-        "  <if test='weekTag != null'> AND cp.week_tag = #{weekTag}</if>" +
+        "  <if test='weekTag != null'> AND FIND_IN_SET(cp.week_tag, #{weekTag})</if>" +
         "  <if test='isCurrent != null'> AND cp.is_current = #{isCurrent}</if>" +
         "  <if test='maxVariantCount != null'> AND cp.variations &lt;= #{maxVariantCount}</if>" +
+        "  <if test='bsrId != null'> AND cp.bsr_id = #{bsrId}</if>" +
+        "  <if test='nodeId != null'> AND cp.node_id = #{nodeId}</if>" +
         "  <if test='category != null'> AND FIND_IN_SET(SUBSTRING_INDEX(cp.node_label_path, ':', 1), #{category})</if>" +
         "  <if test='priceMin != null'> AND cp.price &gt;= #{priceMin}</if>" +
         "  <if test='priceMax != null'> AND cp.price &lt;= #{priceMax}</if>" +
         "  <if test='bsrMax != null'> AND cp.bsr &lt;= #{bsrMax}</if>" +
         "  <if test='ratingMin != null'> AND cp.rating &gt;= #{ratingMin}</if>" +
         "  <if test='weightMax != null'> AND cp.weight_g &lt;= #{weightMax}</if>" +
+        "  <if test='createdAtStart != null'> AND cp.created_at &gt;= #{createdAtStart}</if>" +
+        "  <if test='createdAtEnd != null'> AND cp.created_at &lt;= #{createdAtEnd}</if>" +
         "  <if test='keywordList != null and keywordList.size() > 0'>" +
         "    <foreach collection='keywordList' item='word' open='' separator='' close=''>" +
         "      AND cp.title LIKE CONCAT('%', #{word}, '%')" +
@@ -99,6 +105,10 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
             @Param("weekTag") String weekTag,
             @Param("isCurrent") Integer isCurrent,
             @Param("maxVariantCount") Integer maxVariantCount,
+            @Param("bsrId") String bsrId,
+            @Param("nodeId") Long nodeId,
+            @Param("createdAtStart") String createdAtStart,
+            @Param("createdAtEnd") String createdAtEnd,
             @Param("category") String category,
             @Param("priceMin") BigDecimal priceMin,
             @Param("priceMax") BigDecimal priceMax,
@@ -152,14 +162,18 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
         "    <if test='sellerName != null'> AND cp.seller_name LIKE CONCAT('%',#{sellerName},'%')</if>" +
         "    <if test='title != null'> AND cp.title LIKE CONCAT('%',#{title},'%')</if>" +
         "    <if test='grade != null'> AND FIND_IN_SET(cp.grade, #{grade})</if>" +
-        "    <if test='weekTag != null'> AND cp.week_tag = #{weekTag}</if>" +
+        "    <if test='weekTag != null'> AND FIND_IN_SET(cp.week_tag, #{weekTag})</if>" +
         "    <if test='isCurrent != null'> AND cp.is_current = #{isCurrent}</if>" +
+        "    <if test='bsrId != null'> AND cp.bsr_id = #{bsrId}</if>" +
+        "    <if test='nodeId != null'> AND cp.node_id = #{nodeId}</if>" +
         "    <if test='category != null'> AND FIND_IN_SET(SUBSTRING_INDEX(cp.node_label_path, ':', 1), #{category})</if>" +
         "    <if test='priceMin != null'> AND cp.price &gt;= #{priceMin}</if>" +
         "    <if test='priceMax != null'> AND cp.price &lt;= #{priceMax}</if>" +
         "    <if test='bsrMax != null'> AND cp.bsr &lt;= #{bsrMax}</if>" +
         "    <if test='ratingMin != null'> AND cp.rating &gt;= #{ratingMin}</if>" +
         "    <if test='weightMax != null'> AND cp.weight_g &lt;= #{weightMax}</if>" +
+        "    <if test='createdAtStart != null'> AND cp.created_at &gt;= #{createdAtStart}</if>" +
+        "    <if test='createdAtEnd != null'> AND cp.created_at &lt;= #{createdAtEnd}</if>" +
         "    <if test='keywordList != null and keywordList.size() > 0'>" +
         "      <foreach collection='keywordList' item='word' open='' separator='' close=''>" +
         "        AND cp.title LIKE CONCAT('%', #{word}, '%')" +
@@ -182,6 +196,10 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
             @Param("weekTag") String weekTag,
             @Param("isCurrent") Integer isCurrent,
             @Param("maxVariantCount") Integer maxVariantCount,
+            @Param("bsrId") String bsrId,
+            @Param("nodeId") Long nodeId,
+            @Param("createdAtStart") String createdAtStart,
+            @Param("createdAtEnd") String createdAtEnd,
             @Param("category") String category,
             @Param("priceMin") BigDecimal priceMin,
             @Param("priceMax") BigDecimal priceMax,
@@ -189,4 +207,32 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
             @Param("ratingMin") BigDecimal ratingMin,
             @Param("weightMax") BigDecimal weightMax,
             @Param("keywordList") List<String> keywordList);
+
+    @Select("SELECT bsr_id AS bsrId, COUNT(*) AS productCount" +
+            " FROM competitor_products" +
+            " WHERE marketplace = #{marketplace} AND month = #{month}" +
+            " GROUP BY bsr_id" +
+            " ORDER BY productCount DESC")
+    List<Map<String, Object>> countByBsrId(@Param("marketplace") String marketplace, @Param("month") String month);
+
+    @Select("SELECT bsr_id AS bsrId, node_id AS nodeId," +
+            " MAX(node_label_path) AS nodeFullPath," +
+            " SUBSTRING_INDEX(MAX(node_label_path), ':', -1) AS nodeName," +
+            " COUNT(*) AS productCount" +
+            " FROM competitor_products" +
+            " WHERE marketplace = #{marketplace} AND month = #{month}" +
+            " AND filter_mode = 'MODE1'" +
+            " GROUP BY bsr_id, node_id" +
+            " ORDER BY bsr_id, productCount DESC")
+    List<Map<String, Object>> countByNodeId(@Param("marketplace") String marketplace, @Param("month") String month);
+
+    @Select("SELECT DISTINCT bsr_id FROM competitor_products WHERE marketplace = #{marketplace}")
+    Set<String> selectDistinctBsrIdByMarketplace(@Param("marketplace") String marketplace);
+
+    @Select("SELECT DISTINCT DATE_FORMAT(created_at, '%x-W%v') AS week " +
+            "FROM competitor_products " +
+            "WHERE marketplace = #{marketplace} AND month = #{month} " +
+            "AND created_at IS NOT NULL AND filter_mode = 'MODE1' " +
+            "ORDER BY week DESC")
+    List<String> selectDistinctCreatedWeeks(@Param("marketplace") String marketplace, @Param("month") String month);
 }

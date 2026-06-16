@@ -42,15 +42,11 @@
         {{ timeTag }}
       </div>
       
-      <!-- 链接按钮组 -->
-      <div v-if="productLink || computedSimilarLinks.length > 0" class="card-link-buttons">
-        <div v-if="productLink" class="card-link-button open-link" @click.stop="handleOpenProductLink" title="打开商品链接">
+      <!-- 一键打开按钮 -->
+      <div v-if="props.product.asin" class="card-link-buttons">
+        <div class="card-link-button open-link" @click.stop="handleOpenProductLink" title="一键打开">
           <el-icon><Promotion /></el-icon>
-          <span class="link-text">商品链接</span>
-        </div>
-        <div v-for="(link, index) in computedSimilarLinks" :key="index" class="card-link-button open-link" @click.stop="handleOpenLink(link)" :title="link">
-          <el-icon><Picture /></el-icon>
-          <span class="link-text">相似{{ index + 1 }}</span>
+          <span class="link-text">一键打开</span>
         </div>
       </div>
       
@@ -234,7 +230,9 @@ const productType = computed(() => {
 const typeBadgeText = computed(() => {
   if (props.mode === 'selection') {
     const pt = productType.value || props.product.productType
-    return pt === 'new' ? '新品' : '竞品'
+    if (pt === 'new') return '新品'
+    if (pt === 'zheng') return '郑总'
+    return '竞品'
   }
   return ''
 })
@@ -246,13 +244,24 @@ const createTime = computed(() => props.product.createdAt || props.product.creat
 const showViewButton = computed(() => modeConfig.value.showViewButton)
 const showSalesVolume = computed(() => modeConfig.value.showSalesVolume)
 const salesVolume = computed(() => props.product.salesVolume || props.product.units || 0)
-const productLink = computed(() => props.product.productLink || props.product.productUrl || '')
-const similarProductsLink = computed(() => props.product.similarProducts || props.product.similarUrl || '')
-const computedSimilarLinks = computed<string[]>(() => {
-  const raw = similarProductsLink.value
-  if (!raw) return []
-  return raw.split(',').map(l => l.trim()).filter(Boolean)
+const productLink = computed(() => {
+  const raw = props.product.productLink || props.product.productUrl || ''
+  if (raw) return raw
+  // 从 ASIN + 站点生成 Amazon 链接
+  const asin = props.product.asin
+  const mkp = props.product.marketplace
+  if (asin && mkp) {
+    const domains: Record<string, string> = {
+      US: 'www.amazon.com', UK: 'www.amazon.co.uk', DE: 'www.amazon.de',
+      CA: 'www.amazon.ca', JP: 'www.amazon.co.jp', FR: 'www.amazon.fr',
+      IT: 'www.amazon.it', ES: 'www.amazon.es',
+    }
+    return `https://${domains[mkp] || 'www.amazon.com'}/dp/${asin}`
+  }
+  return ''
 })
+
+const similarProductsLink = computed(() => props.product.similarProducts || props.product.similarUrl || '')
 
 const visibleTags = computed(() => (props.product.tags || []).slice(0, 3))
 const extraTagsCount = computed(() => Math.max(0, (props.product.tags || []).length - 3))
@@ -442,13 +451,17 @@ const handleDelete = (): void => {
 }
 
 const handleOpenProductLink = (): void => {
+  // 打开商品链接
   if (productLink.value) {
     window.open(productLink.value, '_blank')
   }
-}
-
-const handleOpenLink = (url: string): void => {
-  window.open(url, '_blank')
+  // 同时打开所有相似链接
+  const raw = similarProductsLink.value
+  if (raw) {
+    raw.split(',').map(l => l.trim()).filter(Boolean).forEach(url => {
+      window.open(url, '_blank')
+    })
+  }
 }
 </script>
 
@@ -527,6 +540,10 @@ const handleOpenLink = (url: string): void => {
 
     &.new {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    &.zheng {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
     }
 
     &.reference {

@@ -345,18 +345,23 @@ public class CompetitorService {
                 request.getMarketplace(), request.getMonth(), request.getSource(),
                 request.getFilterMode(), request.getBrand(), request.getSellerName(),
                 request.getTitle(), request.getGrade(), request.getWeekTag(),
-                request.getIsCurrent(), request.getMaxVariantCount(), request.getCategory(),
+                request.getIsCurrent(), request.getMaxVariantCount(),
+                request.getBsrId(), request.getNodeId(),
+                request.getCreatedAtStart(), request.getCreatedAtEnd(), request.getCategory(),
                 request.getPriceMin(), request.getPriceMax(), request.getBsrMax(),
-                request.getRatingMin(), request.getWeightMax(), keywordList,
+                request.getRatingMin(), request.getWeightMax(),
+                keywordList,
                 request.getSortBy(), sortOrder, offset, request.getSize());
 
         long total = productMapper.countGroupedByParent(
                 request.getMarketplace(), request.getMonth(), request.getSource(), request.getFilterMode(),
                 request.getBrand(), request.getSellerName(), request.getTitle(),
                 request.getGrade(), request.getWeekTag(), request.getIsCurrent(),
-                request.getMaxVariantCount(), request.getCategory(),
+                request.getMaxVariantCount(), request.getBsrId(), request.getNodeId(),
+                request.getCreatedAtStart(), request.getCreatedAtEnd(), request.getCategory(),
                 request.getPriceMin(), request.getPriceMax(), request.getBsrMax(),
-                request.getRatingMin(), request.getWeightMax(), keywordList);
+                request.getRatingMin(), request.getWeightMax(),
+                keywordList);
 
         // 批量查子类目，避免 N+1
         List<Long> productIds = records.stream().map(CompetitorProduct::getId).collect(Collectors.toList());
@@ -405,6 +410,12 @@ public class CompetitorService {
         if (StringUtils.hasText(request.getFilterMode())) {
             wrapper.eq(CompetitorProduct::getFilterMode, request.getFilterMode());
         }
+        if (StringUtils.hasText(request.getBsrId())) {
+            wrapper.eq(CompetitorProduct::getBsrId, request.getBsrId());
+        }
+        if (request.getNodeId() != null) {
+            wrapper.eq(CompetitorProduct::getNodeId, request.getNodeId());
+        }
         if (StringUtils.hasText(request.getBrand())) {
             wrapper.like(CompetitorProduct::getBrand, request.getBrand());
         }
@@ -423,7 +434,13 @@ public class CompetitorService {
             }
         }
         if (StringUtils.hasText(request.getWeekTag())) {
-            wrapper.eq(CompetitorProduct::getWeekTag, request.getWeekTag());
+            wrapper.apply("FIND_IN_SET(week_tag, {0})", request.getWeekTag());
+        }
+        if (StringUtils.hasText(request.getCreatedAtStart())) {
+            wrapper.apply("created_at >= {0}", request.getCreatedAtStart());
+        }
+        if (StringUtils.hasText(request.getCreatedAtEnd())) {
+            wrapper.apply("created_at <= {0}", request.getCreatedAtEnd() + " 23:59:59");
         }
         if (request.getIsCurrent() != null) {
             wrapper.eq(CompetitorProduct::getIsCurrent, request.getIsCurrent());
@@ -541,6 +558,7 @@ public class CompetitorService {
                 .weekTag(p.getWeekTag())
                 .isCurrent(p.getIsCurrent())
                 .sellerId(p.getSellerId())
+                .createdAt(p.getCreatedAt() != null ? p.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : null)
                 .shopLink(buildShopLink(p.getSellerId(), p.getMarketplace()))
                 .subcategories(subs)
                 .build();
@@ -564,6 +582,10 @@ public class CompetitorService {
     public long getProductCount() { return productMapper.selectCount(null); }
     public long getSkipAsinCount() { return skipAsinMapper.selectCount(null); }
     public long getShopCount() { return shopMapper.selectCount(null); }
+
+    public List<String> getCreatedWeeks(String marketplace, String month) {
+        return productMapper.selectDistinctCreatedWeeks(marketplace, month);
+    }
 
     private String buildShopLink(String sellerId, String marketplace) {
         if (sellerId == null || sellerId.isEmpty()) return null;

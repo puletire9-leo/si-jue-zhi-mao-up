@@ -14,9 +14,11 @@ import logging
 import os
 import sys
 import threading
+import time as _time
 from dataclasses import dataclass, field
 from typing import Any
 
+import httpx
 from openai import OpenAI
 
 from .preprocess import SubCategoryAnalysis
@@ -39,6 +41,7 @@ def _get_client() -> OpenAI:
                 _client = OpenAI(
                     api_key=os.environ["DEEPSEEK_API_KEY"],  # FIXED: CRIT-6
                     base_url="https://api.deepseek.com",
+                    http_client=httpx.Client(limits=httpx.Limits(max_connections=200, max_keepalive_connections=50)),
                 )
     return _client
 
@@ -104,13 +107,12 @@ class AIResult:
 SYSTEM_PROMPT = """你是亚马逊选品分析专家。你的任务是从郑总店铺已验证的商品数据中，提取可复用的选品模型。
 
 ## 核心原则
-**脚本已经算好了数值（价格带、质量基准、载体统计、评论壁垒、卖家分布），你不需要重新计算。**
+**脚本已预计算数值（priceBand/qualityBenchmark/reviewMoats/sellerStats），直接引用这些聚合数据，不要逐品重新计算。**
 你的价值在于脚本做不到的事：从标题中提取元素/载体/场景、推断语义、发现跨品模式、生成搜索词、做出策略判断。
 
 ## 数据说明
 - 数据源: deng_zong_shop（郑总28家英国亚马逊店铺），已验证样本
-- 字段: asin, title, price, units, bsr, rating, ratings, listingDays, weightG(克), fba(£), variations, signals[]
-- 上下文已附带脚本预计算的数据: priceBand, qualityBenchmark, reviewMoats, sellerStats — 直接引用，不要重算
+- 字段: asin, title, price, signals[]
 
 信号标签: BURST(需求热点) / RISING(增长新品) / STABLE(长期爆款) / DECLINING(已衰退) / DEAD(已失效) / VARIANT(裂变) / SWEET_SPOT(理想价格£5.99-8.99)
 
@@ -128,9 +130,9 @@ SYSTEM_PROMPT = """你是亚马逊选品分析专家。你的任务是从郑总�
 跨商品聚合。发现同一元素在多个载体上成功 = 元素本身验证通过，概念可复用。
 每个: name, frequency, carriers[], signal_tags[], insight(一句话发现)
 
-### 4. carrier_detail
-基于商品列表中的 pkg_weight 和 fba 字段，做出你的载体判断、轻小件判断和变体策略命名。
-每个: name, count, avg_price, avg_weight_g, avg_fba, avg_variants, variant_strategy("高变体裂变(10+)" / "中等(4-9)" / "低变体(1-3)"), lightweight, lightweight_reason
+### 4. carrier_summary (注意：不再是 carrier_detail)
+仅输出载体名称列表，数值统计由脚本后处理。
+格式: ["Poster", "Shelf Sign", "Wall Art"]
 
 ### 5. emerging_elements
 BURST标签或上架<30天的新元素，有先发优势也有风险。
@@ -167,7 +169,11 @@ keywords_en 用于亚马逊搜索，keywords_cn 用于理解买家意图
 def build_analysis_prompt(analysis: SubCategoryAnalysis) -> str:
     """构建单小类的分析 prompt."""
     ctx = analysis.to_ai_context()
-    products_json = json.dumps(ctx["products"], ensure_ascii=False, indent=2)
+    products_compact = [
+        {"asin": p["asin"], "title": p["title"], "price": p["price"], "signals": p["signals"]}
+        for p in ctx["products"]
+    ]
+    products_json = json.dumps(products_compact, ensure_ascii=False, indent=2)
     stats_json = json.dumps(ctx["stats"], ensure_ascii=False, indent=2)
     signals_json = json.dumps(ctx["signalDistribution"], ensure_ascii=False, indent=2)
 
@@ -211,7 +217,7 @@ def parse_ai_response(raw: str) -> AIResult:
         data = json.loads(text)
     except json.JSONDecodeError:
         logger.error(f"AI JSON 解析失败，原始返回: {raw[:500]}")
-        return AIResult(raw_response=raw)
+        raise ValueError("AI response is not valid JSON")
 
     # ── 归一化：如果AI返回字符串而非对象，转为最小dict ──
     raw_carrier = data.get("carrier_detail", [])
@@ -322,21 +328,17 @@ def parse_ai_response(raw: str) -> AIResult:
     return result
 
 
-# FIXED: MED-10 env-controlled thinking disable
-def should_disable_thinking() -> bool:
-    """Check env DEEPSEEK_DISABLE_THINKING; default enabled (1)."""
-    return os.environ.get("DEEPSEEK_DISABLE_THINKING", "1").lower() in ("1", "true", "yes")
-
-
 # ── 主入口 ───────────────────────────────────────────────────
 
-def ai_analyze(analysis: SubCategoryAnalysis, model: str = "deepseek-v4-flash") -> AIResult | None:
+def ai_analyze(analysis: SubCategoryAnalysis, model: str = "deepseek-v4-flash", batch_id: str = "", max_retries: int = 3) -> AIResult | None:
     """
     对单个小类执行 AI 分析.
 
     Args:
         analysis: 预处理后的子品类数据
         model: DeepSeek 模型名
+        batch_id: 批次标识(用于AI侧追踪)
+        max_retries: 最大重试次数
 
     Returns:
         AIResult or None on failure
@@ -346,25 +348,34 @@ def ai_analyze(analysis: SubCategoryAnalysis, model: str = "deepseek-v4-flash") 
 
     logger.info(f"  AI分析: {analysis.node_name} ({len(analysis.sampled_products)} products)")
 
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.3,
-            max_tokens=32768,
-            extra_body=({"thinking": {"type": "disabled"}} if should_disable_thinking() else None),  # FIXED: MED-10
-        )
-        raw = response.choices[0].message.content or ""
-        logger.info(f"  AI返回: {len(raw)} chars, {response.usage.total_tokens if response.usage else '?'} tokens")
+    for attempt in range(max_retries + 1):  # +1 for initial call, then retries
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=32768,
+                reasoning_effort="medium",
+                extra_body={
+                    "thinking": {"type": "enabled"},
+                    "user_id": batch_id.replace("/", "_") if batch_id else "",
+                },
+            )
+            raw = response.choices[0].message.content or ""
+            logger.info(f"  AI返回: {len(raw)} chars, {response.usage.total_tokens if response.usage else '?'} tokens")
 
-        result = parse_ai_response(raw)
-        result.sub_category = analysis.node_name
-        result.bsr_id = analysis.bsr_id
-        return result
+            result = parse_ai_response(raw)
+            result.sub_category = analysis.node_name
+            result.bsr_id = analysis.bsr_id
+            return result
 
-    except Exception as e:
-        logger.error(f"  AI分析失败 [{analysis.node_name}]: {e}")
-        return None
+        except Exception as e:
+            if attempt == max_retries:  # last attempt
+                logger.error(f"  AI分析失败(已重试{max_retries}次) [{analysis.node_name}]: {e}")
+                return None
+            wait = min(2 ** (attempt + 1), 30)
+            logger.warning(f"  AI调用失败(第{attempt+1}次)，{wait}s后重试 [{analysis.node_name}]: {e}")
+            _time.sleep(wait)
+    return None

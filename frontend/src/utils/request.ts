@@ -23,6 +23,10 @@ const endpointConfigs = {
   '/api/v1/final-drafts/download-zip': {
     timeout: 300000, // 5分钟超时，用于大文件下载
     maxRetries: 3
+  },
+  '/api/v1/filter-config': {
+    timeout: 120000, // 精筛保存+重新筛选，处理大量商品需更长时间
+    maxRetries: 1
   }
 }
 

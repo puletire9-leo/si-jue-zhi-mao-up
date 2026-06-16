@@ -1,357 +1,351 @@
 # Posters & Prints — 品线模型
 
 > **品线**: kitchen | **站点**: UK | **路径**: Home & Kitchen:Artwork:Posters & Prints
-> **分析时间**: 2026-06-10 09:34
+> **分析时间**: 2026-06-15 04:07
 > **数据**: 202品 → 去重155品 → 采样40品
 
 ---
 
-## 1. 品类健康度: healthy
+## 1. 品类健康度: stable
 
-品类信号分布健康，BURST(9)和RISING(41)合计占比32%，STABLE(31)和SWEET_SPOT(44)占比48%，DECLINING(29)和DEAD(45)占比47%，但DEAD多为老品自然淘汰。新卖家活跃(24个品牌)，平均价格£7.42在甜区，轻小件特征明显(平均重量92g，FBA£1.87)，适合低成本快速测款。
+RISING(45)和STABLE(32)占比高，SWEET_SPOT(44)显示定价合理，但DECLINING(31)和DEAD(46)也较多，表明竞争激烈且淘汰快，需快速迭代爆款元素。平均重量92.3g、FBA费£1.87，轻小件优势明显。
 
 ## 2. 质量基准
 
 | 指标 | 值 | 说明 |
 |------|-----|------|
 | BSR 中位数 | 127,328 | 50%好品在此之下 |
-| BSR P90 | 212,124 | 90%好品在此之下 |
-| 评分下限 | 3.7 | 好品最低评分 |
+| BSR P90 | 198,142 | 90%好品在此之下 |
+| 评分下限 | 3.8 | 好品最低评分 |
 | 重量中位数 | 70.0g | 轻小件基准 |
 | 重量上限 | 150.0g | 超过不推荐 |
 | FBA 中位数 | £1.76 | FBA成本基准 |
-| 上架天数中位数 | 258天 | 参考上架时长 |
+| 上架天数中位数 | 263天 | 参考上架时长 |
 
 ## 3. 价格带
 
 - 范围: £3.99 - £13.99
-- 均价: £7.17
-- 甜点区: £5.99-£8.99 (55%产品在此区间)
+- 均价: £7.08
+- 甜点区: £5.99-£8.99 (57%产品在此区间)
 
 ## 4. 载体画像
 
 | 载体 | 数量 | 均价 | 重量 | FBA | 变体 | 策略 | 轻小件 |
 |------|------|------|------|-----|------|------|--------|
-| Poster | 18 | £7.12 | 70.0g | £1.82 | 1.8 | 低变体(1-3) | True |
-| Canvas Wall Art | 12 | £7.49 | 95.0g | £1.85 | 2.5 | 低变体(1-3) | True |
-| Canvas Print | 5 | £5.72 | 50.0g | £2.12 | 0.6 | 低变体(1-3) | True |
-| Wall Art Print | 3 | £7.26 | 73.0g | £1.66 | 1.3 | 低变体(1-3) | True |
+| Art Print | 1 | £12.99 | 150.0g | £3.01 | 1 | 低变体(1-3) | True |
+| Canvas Art | 1 | £5.59 | 50.0g | £1.54 | 1 | 低变体(1-3) | True |
+| Canvas Painting Print | 1 | £5.99 | 60.0g | £1.54 | 1 | 低变体(1-3) | True |
+| Canvas Poster | 4 | £5.74 | 30.0g | £1.9 | 3.0 | 低变体(1-3) | True |
+| Canvas Print | 4 | £6.79 | 100.0g | £2.46 | 3.0 | 低变体(1-3) | True |
+| Canvas Prints | 1 | £6.59 | 90.0g | £3.11 | 1 | 低变体(1-3) | True |
+| Canvas Wall Art | 14 | £6.86 | 80.0g | £1.76 | 5.0 | 中等(4-9) | True |
+| Chart Poster | 1 | £3.99 | 70.0g | £0 | 1 | 低变体(1-3) | unknown |
+| Framed Artwork | 1 | £8.35 | 195.0g | £1.76 | 1 | 低变体(1-3) | True |
+| Hanger | 1 | £7.99 | 100.0g | £0 | 1 | 低变体(1-3) | unknown |
+| Hanger Frame | 1 | £6.99 | 100.0g | £0 | 1 | 低变体(1-3) | unknown |
+| Poster | 22 | £7.31 | 60.0g | £1.76 | 4.4 | 中等(4-9) | True |
+| Poster Set | 5 | £7.27 | 70.0g | £1.54 | 4.0 | 中等(4-9) | True |
+| Print | 3 | £5.92 | 37.0g | £1.7 | 1 | 低变体(1-3) | True |
+| Print Painting | 1 | £7.49 | 100.0g | £1.73 | 3.0 | 低变体(1-3) | True |
+| Unframed Prints | 1 | £6.99 | 120.0g | £1.76 | 5.0 | 中等(4-9) | True |
+| Wall Art | 12 | £6.58 | 50.0g | £2.42 | 3.8 | 低变体(1-3) | True |
+| Wall Art Print | 1 | £13.99 | 180.0g | £1.75 | 5.0 | 中等(4-9) | True |
+| Wall Art Prints | 1 | £8.19 | 70.0g | £1.7 | 1 | 低变体(1-3) | True |
+| Wall Posters | 1 | £12.99 | 150.0g | £3.01 | 1 | 低变体(1-3) | True |
+| Wooden Canvas Poster | 1 | £7.99 | 100.0g | £0 | 1 | 低变体(1-3) | unknown |
 | Wooden Sign | 1 | £7.99 | 80.0g | £2.98 | 4.0 | 中等(4-9) | True |
-| Canvas Poster | 2 | £5.49 | 40.0g | £2.21 | 0.0 | 低变体(1-3) | True |
-| Wooden Wall Art | 1 | £6.99 | 100.0g | £0.0 | 0.0 | 低变体(1-3) | False |
-| Framed Artwork | 1 | £8.35 | 195.0g | £1.76 | 0.0 | 低变体(1-3) | False |
-| Wall Decor | 1 | £12.99 | 150.0g | £3.01 | 0.0 | 低变体(1-3) | False |
+| Wooden Wall Art | 1 | £6.99 | 100.0g | £0 | 1 | 低变体(1-3) | unknown |
 
-## 5. 已验证元素 (10)
+## 5. 已验证元素 (8)
 
-### Car (×7)
-> 汽车/赛车主题是已验证的爆款元素，覆盖跑车、超级跑车、经典赛车等子主题，可跨载体复用
+### Car / Racing / Supercar (×10)
+> 汽车和赛车元素在所有载体上均表现强劲，尤其受男性/男孩市场欢迎，是验证最充分的元素类别
 
-- 载体: Poster, Canvas Wall Art, Wall Art Print, Wall Decor
-- 信号: BURST, VARIANT, STABLE, SWEET_SPOT, RISING
+- 载体: Poster, Canvas Wall Art, Wall Art Print
+- 信号: RISING, STABLE, SWEET_SPOT, VARIANT
 
-### Gaming (×3)
-> 游戏主题持续热销，水彩/霓虹风格差异化明显，适合青少年和游戏室场景
+### Funny / Humorous (×6)
+> 幽默元素（Mona Lisa捏鼻子、动物上厕所）在浴厕场景中稳定吸睛，二次创作空间大
 
-- 载体: Wall Art, Canvas Poster, Canvas Painting
-- 信号: BURST, VARIANT, SWEET_SPOT, RISING
-
-### Pink (×4)
-> 粉色+时尚/美妆/学院风元素组合已验证，目标少女和年轻女性
-
-- 载体: Canvas Wall Art, Poster Set, Wall Art Prints
+- 载体: Canvas Print, Wall Art, Poster
 - 信号: RISING, SWEET_SPOT, DECLINING
 
-### Motivational (×5)
-> 励志语录是常青元素，但需差异化（如报纸风格、木质载体）避免同质化
+### Motivational / Inspirational Quotes (×6)
+> 励志名言类内容广泛适用（办公室、卧室、教室），但竞争激烈，需结合独特设计（如报纸风、木质）
 
-- 载体: Canvas Print, Poster, Wooden Wall Art, Wooden Canvas Poster
-- 信号: BURST, VARIANT, STABLE, DECLINING, SWEET_SPOT
+- 载体: Canvas Print, Wooden Wall Art, Poster
+- 信号: RISING, STABLE, DECLINING, SWEET_SPOT
 
-### Retro (×5)
-> 复古风格（报纸、音乐、鸡尾酒）是强趋势元素，可结合多种主题
+### Gaming / Video Game (×3)
+> 游戏主题稳定，水彩/霓虹风格可差异化，面向青少年男孩
 
-- 载体: Canvas Wall Art, Poster, Canvas Print
-- 信号: BURST, VARIANT, SWEET_SPOT, STABLE, RISING
+- 载体: Poster, Canvas Art
+- 信号: RISING, DECLINING, SWEET_SPOT
 
-### Funny (×3)
-> 幽默元素（动物、名画恶搞）在浴室场景表现好，但需注意版权
+### Pink / Fashion / Vogue (×5)
+> 粉色系和时尚单品（口红、高跟鞋、墨镜）是女性市场核心，结合豹纹或报纸风格可增加高级感
 
-- 载体: Canvas Poster, Canvas Print, Poster
-- 信号: DECLINING, SWEET_SPOT, RISING
+- 载体: Canvas Wall Art, Poster Set
+- 信号: RISING, STABLE, DECLINING
 
-### Boho (×3)
-> 波西米亚风格稳定需求，可结合植物、几何图案
+### Football / Soccer (×2)
+> 足球主题在RISING和SWEET_SPOT中表现积极，适合套装销售
 
-- 载体: Wooden Sign, Canvas Print, Wooden Canvas Poster
-- 信号: STABLE, VARIANT, DECLINING
+- 载体: Canvas Prints, Wall Art
+- 信号: RISING, SWEET_SPOT
 
-### Leopard (×2)
-> 豹纹元素在时尚和动物主题中均验证成功，可跨场景复用
+### Bathroom / Toilet Humor (×4)
+> 浴厕幽默是常青细分，动物和经典画作改编是有效策略
 
-- 载体: Poster, Canvas Wall Art
-- 信号: BURST, VARIANT, STABLE, SWEET_SPOT
+- 载体: Canvas Poster, Wall Art, Print
+- 信号: RISING, DECLINING, SWEET_SPOT
 
-### Football (×2)
-> 足球主题有稳定需求，但需差异化（如球星、球队）
+### Highland Cow / Animal (×3)
+> 高地牛等动物形象在浴室/乡村风中受欢迎，可增加互动场景（如读报纸）
 
-- 载体: Canvas Wall Art, Canvas Print
-- 信号: RISING, SWEET_SPOT, DECLINING
+- 载体: Canvas Print, Wall Art
+- 信号: RISING, DECLINING, SWEET_SPOT
 
-### Black and White (×5)
-> 黑白风格是通用设计语言，可搭配几乎所有主题，降低印刷成本
-
-- 载体: Poster, Canvas Wall Art, Wall Art
-- 信号: BURST, VARIANT, STABLE, SWEET_SPOT, RISING
-
-## 6. 元素饱和度 (12)
+## 6. 元素饱和度 (8)
 
 | 元素 | 频次 | 饱和度 | 策略建议 |
 |------|------|--------|----------|
-| Car | ×7 | high | 汽车主题竞争激烈，需差异化（如特定车型GTR、F1、经典赛车） |
-| Motivational | ×5 | high | 励志品类饱和，需通过载体（报纸、木质）或特定语录差异化 |
-| Retro | ×5 | high | 复古风格普遍，需结合具体主题（音乐、鸡尾酒、报纸） |
-| Black and White | ×5 | high | 黑白风格通用但竞争多，需搭配强主题元素 |
-| Pink | ×4 | medium | 粉色主题中等竞争，可结合美妆/学院风/动物元素 |
-| Gaming | ×3 | medium | 游戏主题中等竞争，霓虹/水彩风格有差异化空间 |
-| Funny | ×3 | medium | 幽默元素中等竞争，动物/名画恶搞是方向 |
-| Boho | ×3 | medium | 波西米亚风格稳定，可结合植物/几何图案 |
-| Leopard | ×2 | low | 豹纹元素低竞争，可拓展其他动物纹 |
-| Football | ×2 | low | 足球主题低竞争，需差异化（球星、球队） |
-| Music | ×2 | low | 音乐主题低竞争，可结合日式/复古风格 |
-| Animal | ×2 | low | 动物主题低竞争，幽默/浴室场景是方向 |
+| Car / Racing / Supercar | ×10 | high | 已跨3种载体验证，可优先投入 |
+| Funny / Humorous | ×6 | high | 已跨3种载体验证，可优先投入 |
+| Motivational / Inspirational Quotes | ×6 | high | 已跨3种载体验证，可优先投入 |
+| Gaming / Video Game | ×3 | medium | 出现在3个商品中，值得持续观察 |
+| Pink / Fashion / Vogue | ×5 | high | 已跨2种载体验证，可优先投入 |
+| Football / Soccer | ×2 | medium | 出现在2个商品中，值得持续观察 |
+| Bathroom / Toilet Humor | ×4 | medium | 出现在4个商品中，值得持续观察 |
+| Highland Cow / Animal | ×3 | medium | 出现在3个商品中，值得持续观察 |
 
-## 7. 新兴元素 (9)
+## 7. 新兴元素 (5)
 
-- **Leopard + Skateboard** [BURST] — 豹纹+滑板潮流组合，6件套变体，月销690，可拓展其他动物+运动元素 (ASIN: B0G1YG2K3C)
-- **Cocktails Retro** [BURST] — 鸡尾酒主题新颖，适合酒吧/厨房场景，可拓展其他饮品主题 (ASIN: B0FQ4YBBNP)
-- **Superhero + Motivational** [BURST] — 超级英雄+励志语录组合，12件套高变体，月销176，注意版权风险 (ASIN: B0GL7H3JXT)
-- **Get 1% Better Everyday** [BURST] — 特定励志语录爆款，£4.99低价，可拓展其他类似语录 (ASIN: B0FYCZDFG9)
-- **F1 Signed Poster** [RISING] — F1精准粉丝市场，£4.59低价，可拓展其他赛车赛事 (ASIN: B0FVDPPWB1)
-- **FODMAP Food List** [RISING] — 功能性饮食海报，£3.99低价，可拓展其他健康饮食主题 (ASIN: B0FWC9Y4FM)
-- **Mental Health Positive Affirmation** [RISING] — 心理健康主题增长，£4.39低价，可拓展咨询室/办公室场景 (ASIN: B0FKBHNMS8)
-- **Stockholm Style Vogue** [RISING] — 斯德哥尔摩风格+豹纹，评分5.0，可拓展其他北欧风格 (ASIN: B0GKNWRXXG)
-- **Japanese Text Music** [RISING] — 日式文字+音乐元素，£6.49，可拓展其他文化融合主题 (ASIN: B0GLG6PVVL)
+- **Leopard** [BURST] — 猎豹元素结合滑板潮流设计，BURST信号显示需求爆发，可拓展至更多衍生品（豹纹、棋盘格） (ASIN: B0G1YG2K3C)
+- **F1 / Formula 1 Signed** [RISING] — F1赛季热度，签名设计增加收藏价值，可开发多车手套装 (ASIN: B0FVDPPWB1)
+- **Mental Health / Positive Affirmation** [RISING] — 心理健康主题成为社交热点，适合开发系列话术海报，可结合日历/卡片 (ASIN: B0FKBHNMS8)
+- **Stockholm Style** [RISING] — 斯德哥尔摩风格+豹纹，北欧混搭潮流，可复制至其他动物纹 (ASIN: B0GKNWRXXG)
+- **Preppy / Bow / Cherry / Puppy** [RISING] — 多种可爱元素混合的预科生风，适合少女卧室，可开发IP联名 (ASIN: B0DT9NT35D)
 
 ## 8. 推荐组合 (20)
 
-### 1. 🔥 [已验证] Car + Racing + Black and White × Poster + Canvas Wall Art
-> BURST+STABLE+SWEET_SPOT，汽车主题已验证，黑白风格降低印刷成本
+### 1. 🔥 [已验证] Leopard + Skateboard + Trendy × Canvas Wall Art + Poster
+> BURST信号，猎豹+滑板新潮组合
 
-- 场景: Bedroom, Man Cave, Garage
-- 英文搜索: `black and white racing posters`, `car wall art set`, `man cave garage decor`
-- 中文搜索: 黑白赛车海报 / 汽车墙画套装 / 车库装饰
+- 场景: Teen Bedroom, Living Room, Dorm
+- 英文搜索: `leopard skateboard wall art`, `trendy animal poster`, `skate decor for teens`
+- 中文搜索: 豹纹滑板墙画 / 潮流动物海报 / 青少年卧室装饰
 
-### 2. 🔥 [已验证] Gaming + Neon + Retro × Canvas Poster + Wall Art
-> BURST+RISING+SWEET_SPOT，游戏主题持续热，霓虹风格差异化
+### 2. 🔥 [已验证] Supercar + F1 + Signed + Racing × Poster + Canvas Print
+> RISING多个品验证，汽车+签名增加收藏价值
 
-- 场景: Gaming Room, Teen Bedroom, Playroom
-- 英文搜索: `neon gaming posters`, `retro video game art`, `gamer room decor`
-- 中文搜索: 霓虹游戏海报 / 复古电子游戏画 / 游戏室装饰
+- 场景: Man Cave, Boys Bedroom, Garage
+- 英文搜索: `f1 signed supercar poster`, `racing wall art set`, `garage decor for men`
+- 中文搜索: F1签名跑车海报 / 赛车墙画套装 / 车库装饰
 
-### 3. 🔥 [已验证] Pink + Preppy + High Heels + Lipstick × Canvas Wall Art + Poster Set
-> RISING+SWEET_SPOT，粉色+美妆元素组合已验证
+### 3. 🔥 [已验证] Mona Lisa + Funny + Vintage + Holding Nose × Canvas Poster + Print
+> 多个品验证（B0GTKHTZ3R, B0GQ9W1DNV），浴厕经典梗
 
-- 场景: Girls Bedroom, Teen Room, Dorm
-- 英文搜索: `preppy pink wall art`, `high heel lipstick poster`, `teen girl room decor`
-- 中文搜索: 学院风粉色墙画 / 高跟鞋口红海报 / 少女房间装饰
+- 场景: Bathroom, Toilet, Home Bar
+- 英文搜索: `mona lisa funny bathroom art`, `vintage toilet humor`, `mona lisa nose print`
+- 中文搜索: 蒙娜丽莎搞笑浴室画 / 复古厕所幽默 / 捏鼻子蒙娜丽莎
 
-### 4. 🔥 [已验证] Motivational + Newspaper Style + Black and White × Canvas Print + Poster
-> BURST+STABLE，报纸风格差异化励志品类
-
-- 场景: Office, Bedroom, Dorm
-- 英文搜索: `newspaper motivational poster`, `black and white quote wall art`, `office inspirational decor`
-- 中文搜索: 报纸风格励志海报 / 黑白名言墙画 / 办公室装饰
-
-### 5. 🔥 [已验证] Funny Animal + Bathroom + Highland Cow × Canvas Print + Poster
-> RISING+SWEET_SPOT，幽默动物+浴室场景已验证
-
-- 场景: Bathroom, Toilet, Restroom
-- 英文搜索: `funny highland cow bathroom art`, `animal toilet poster`, `humor bathroom decor`
-- 中文搜索: 搞笑高地牛浴室画 / 动物厕所海报 / 幽默浴室装饰
-
-### 6. 🔥 [已验证] Boho + Geometric Plant + Sage Green × Canvas Print + Poster
-> STABLE+DECLINING，boho风格稳定，颜色差异化
-
-- 场景: Living Room, Bedroom, Home Office
-- 英文搜索: `boho geometric plant wall art`, `sage green canvas print`, `aesthetic living room decor`
-- 中文搜索: 波西米亚几何植物墙画 / 鼠尾草绿装饰画 / 美学客厅装饰
-
-### 7. 🔥 [已验证] Music + Record Player + Retro × Canvas Wall Art + Poster
-> RISING，音乐+复古组合持续增长
-
-- 场景: Living Room, Bedroom, Music Room
-- 英文搜索: `retro record player wall art`, `music themed canvas`, `vintage music poster`
-- 中文搜索: 复古唱片机墙画 / 音乐主题装饰画 / 复古音乐海报
-
-### 8. ⭐ [新兴] F1 + Formula 1 + Signed × Poster
-> RISING，F1精准粉丝市场，低竞争
-
-- 场景: Boys Bedroom, Man Cave, Sports Room
-- 英文搜索: `F1 signed poster`, `formula 1 wall art`, `racing driver gift`
-- 中文搜索: F1签名海报 / 一级方程式墙画 / 赛车手礼物
-
-### 9. ⭐ [新兴] Mental Health + Positive Affirmation + Self Care × Canvas Print + Poster
-> RISING，心理健康主题增长趋势
+### 4. 🔥 [已验证] Mental Health + Positive Affirmation + Self-Care × Canvas Print + Poster
+> RISING单品B0FKBHNMS8，迎合社会趋势
 
 - 场景: Counseling Office, Bedroom, Home Office
-- 英文搜索: `mental health poster`, `self care wall art`, `positive affirmation canvas`
-- 中文搜索: 心理健康海报 / 自我关爱墙画 / 积极肯定装饰
+- 英文搜索: `mental health positive affirmation poster`, `self care wall art`, `therapy office decor`
+- 中文搜索: 心理健康积极肯定海报 / 自我关怀墙画 / 咨询室装饰
 
-### 10. ⭐ [新兴] FODMAP + Food List + Nutrition × Poster + Canvas Print
-> RISING，功能性海报细分市场
-
-- 场景: Kitchen, Grocery Shopping, Diet Planning
-- 英文搜索: `FODMAP food list poster`, `low FODMAP diet chart`, `digestive health wall art`
-- 中文搜索: FODMAP食物清单海报 / 低FODMAP饮食图 / 消化健康墙画
-
-### 11. ⭐ [新兴] Japanese + Music + Retro × Canvas Wall Art
-> RISING，文化融合主题差异化
-
-- 场景: Living Room, Bedroom, Office
-- 英文搜索: `japanese music wall art`, `retro japanese poster`, `record player japanese art`
-- 中文搜索: 日式音乐墙画 / 复古日式海报 / 唱片机日式艺术
-
-### 12. ⭐ [新兴] Stockholm Style + Leopard + Fashion × Canvas Wall Art + Poster Set
-> RISING+SWEET_SPOT，北欧+时尚组合
+### 5. 🔥 [已验证] Stockholm Style + Leopard Print + Black and White × Poster Set + Canvas Wall Art
+> RISING单品B0GKNWRXXG，风格融合成功
 
 - 场景: Living Room, Bedroom, Dining Room
-- 英文搜索: `stockholm style leopard art`, `fashion vogue poster`, `scandinavian animal print`
-- 中文搜索: 斯德哥尔摩风格豹纹画 / 时尚海报 / 北欧动物纹装饰
+- 英文搜索: `stockholm leopard print wall art`, `black white vogue poster`, `nordic chic decor`
+- 中文搜索: 斯德哥尔摩豹纹墙画 / 黑白时尚海报 / 北欧混搭装饰
 
-### 13. 🔥 [已验证] Darts + Scoreboard + Bar × Canvas Wall Art + Poster
-> DECLINING但细分市场稳定，低竞争
+### 6. 🔥 [已验证] Preppy + Bow + Cherry + Puppy + Pink × Canvas Poster Set + Wall Art Prints
+> RISING单品B0DT9NT35D，多元素混合迎合少女心
 
-- 场景: Man Cave, Home Bar, Game Room
-- 英文搜索: `darts scoreboard poster`, `dart checkout chart`, `bar game room decor`
-- 中文搜索: 飞镖计分板海报 / 飞镖结算图 / 酒吧游戏室装饰
+- 场景: Teen Girl Bedroom, Dorm, Aesthetic Room
+- 英文搜索: `preppy bow cherry poster set`, `pink puppy wall art`, `cute aesthetic room decor`
+- 中文搜索: 预科生蝴蝶结樱桃海报套装 / 粉色小狗墙画 / 可爱风格房间装饰
 
-### 14. 🔥 [已验证] Football + Soccer + Superstar × Canvas Print + Poster
-> RISING+SWEET_SPOT，足球主题稳定需求
+### 7. 🔥 [已验证] Retro + Record Player + Japanese Text + Music × Canvas Print + Poster
+> RISING单品B0GLG6PVVL，日式+音乐小众趋势
 
-- 场景: Boys Bedroom, Sports Room, Fan Cave
-- 英文搜索: `football superstar poster`, `soccer wall art`, `sports fan decor`
-- 中文搜索: 足球球星海报 / 足球墙画 / 球迷装饰
+- 场景: Living Room, Bedroom, Office, Coffee Shop
+- 英文搜索: `japanese retro music poster`, `record player wall art`, `vintage vinyl decor`
+- 中文搜索: 日式复古音乐海报 / 唱片机墙画 / 黑胶装饰
 
-### 15. 🔥 [已验证] Cocktails + Retro + Bar × Canvas Wall Art + Poster
-> BURST+SWEET_SPOT，鸡尾酒主题新颖
+### 8. 🔥 [已验证] Highland Cow + Toilet + Reading Newspaper + Funny × Canvas Print + Wall Art
+> RISING单品B0FK1CQMSL，动物+报纸+厕所组合
 
-- 场景: Kitchen, Bar Cart, Home Bar
-- 英文搜索: `retro cocktail poster`, `bar wall art set`, `kitchen bar decor`
-- 中文搜索: 复古鸡尾酒海报 / 酒吧墙画套装 / 厨房酒吧装饰
+- 场景: Bathroom, Toilet, Farmhouse
+- 英文搜索: `highland cow reading newspaper bathroom art`, `funny cow toilet decor`, `farmhouse bathroom humor`
+- 中文搜索: 高地牛读报纸浴室画 / 搞笑牛厕所装饰 / 乡村浴室幽默
 
-### 16. 🔥 [已验证] Superhero + Motivational + Positive × Canvas + Poster
-> BURST，超级英雄+励志组合，注意版权
+### 9. 🔥 [已验证] Football + Jersey + Superstar + Grid × Canvas Wall Art + Poster
+> DECLINING品B0FN48ZNLN但足球RISING整体，可优化设计
 
-- 场景: Boys Room, Playroom, Bedroom
-- 英文搜索: `superhero motivational poster`, `positive affirmation superhero`, `boys room inspirational art`
-- 中文搜索: 超级英雄励志海报 / 积极肯定超级英雄 / 男孩房间励志画
+- 场景: Boys Bedroom, Sports Room, Gift
+- 英文搜索: `football jersey poster grid`, `superstar soccer wall art`, `team decor for boys`
+- 中文搜索: 足球球衣网格海报 / 球星墙画 / 球队装饰
 
-### 17. 🔥 [已验证] Christian + Bible Verses + Inspirational × Framed Artwork + Canvas Print
-> DECLINING但宗教主题有稳定受众
+### 10. 🔥 [已验证] Newspaper + Inspirational Quote + Vintage Black White + New York × Canvas Poster + Print
+> RISING+STABLE多个品，报纸风百搭
 
-- 场景: Bedroom, Home Decor, Christian Gift
-- 英文搜索: `christian bible verse wall art`, `religious inspirational poster`, `faith based home decor`
-- 中文搜索: 基督教圣经经文墙画 / 信仰励志海报 / 信仰家居装饰
+- 场景: Girls Dorm, Apartment, Living Room
+- 英文搜索: `newspaper inspirational quote wall art`, `vintage new york poster`, `black white quote print`
+- 中文搜索: 报纸名言墙画 / 复古纽约海报 / 黑白名言装饰
 
-### 18. 🔥 [已验证] Bear + Funny + Black and White × Canvas + Poster
-> RISING+SWEET_SPOT，幽默动物持续需求
+### 11. 👀 [待观察] Boho + Sage Green + Geometric Plant + Aesthetic × Canvas Print + Poster
+> DECLINING单品但风格持续流行，需加强视觉层次
+
+- 场景: Living Room, Bedroom, Home Office
+- 英文搜索: `boho sage green geometric plant poster`, `aesthetic boho wall art`, `minimalist plant decor`
+- 中文搜索: 波西米亚鼠尾草绿几何植物海报 / 美学波西米亚墙画 / 简约植物装饰
+
+### 12. 👀 [待观察] Gaming + Neon + Video Game + Watercolor × Poster + Canvas Art
+> RISING但DECLINING也出现，需避免同质化，水彩+霓虹差异
+
+- 场景: Teen Boys Bedroom, Playroom, Game Room
+- 英文搜索: `neon watercolor gaming poster`, `cool video game wall art`, `gaming room decor`
+- 中文搜索: 霓虹水彩游戏海报 / 酷炫游戏墙画 / 游戏房间装饰
+
+### 13. 🔥 [已验证] Church + Scripture + Bible Verses + God × Framed Artwork + Poster
+> DECLINING但稳定需求，可设计更多经文变体
+
+- 场景: Bedroom, Home, Women Gift
+- 英文搜索: `christian bible verse framed wall art`, `god says you are poster`, `religious home decor`
+- 中文搜索: 圣经经文框画 / 神说你是什么海报 / 基督教家庭装饰
+
+### 14. 🔥 [已验证] Funny + Bear + Black and White + Frameless × Canvas Poster
+> RISING+SWEET_SPOT，黑白幽默通用
 
 - 场景: Bathroom, Living Room, Office
-- 英文搜索: `funny bear bathroom art`, `black and white animal poster`, `humor bear wall decor`
-- 中文搜索: 搞笑熊浴室画 / 黑白动物海报 / 幽默熊墙饰
+- 英文搜索: `funny bear black white canvas`, `frameless bear art`, `minimalist animal humor`
+- 中文搜索: 搞笑黑白熊无框画 / 极简动物幽默
 
-### 19. 🔥 [已验证] Love You Bye + Boho + Farmhouse × Wooden Sign + Wall Art
-> STABLE+VARIANT，独特场景定位
+### 15. 👀 [待观察] Darts + Scoreboard + Checkout + Bar × Canvas Wall Art + Poster
+> DECLINING，但极客场景忠诚，可优化设计
 
-- 场景: Hallway, Entryway, Stairs
-- 英文搜索: `love you bye sign`, `above door boho decor`, `farmhouse entryway wall art`
-- 中文搜索: 告别门牌 / 门上方波西米亚装饰 / 农舍入口墙画
+- 场景: Man Cave, Home Bar, Game Room
+- 英文搜索: `darts scoreboard chart poster`, `bar wall decor darts`, `man cave accessories`
+- 中文搜索: 飞镖计分板海报 / 酒吧墙饰 / 游戏室装饰
 
-### 20. 🔥 [已验证] Everything is Figureoutable + Motivational + Wooden × Wooden Wall Art + Hanger Frame
-> DECLINING+SWEET_SPOT，特定语录+木质载体
+### 16. 🔥 [已验证] Fodmap + Food List + Low Diet + Kitchen × Chart Poster + Canvas Print
+> STABLE，功能性装饰持续需求
 
-- 场景: Classroom, Office, Nursery
-- 英文搜索: `everything is figureoutable wall art`, `wooden motivational sign`, `classroom positive decor`
-- 中文搜索: 一切都能解决墙画 / 木质励志牌 / 教室积极装饰
+- 场景: Kitchen, Grocery Shopping, Health Nut
+- 英文搜索: `fodmap diet chart poster`, `low fodmap grocery list`, `kitchen wall art health`
+- 中文搜索: 低FODMAP饮食图表 / 购物清单海报 / 厨房健康装饰
+
+### 17. 🔥 [已验证] Rock Band + Album Cover + Classic Vintage + Signed × Canvas Wall Art + Poster
+> RISING+SWEET_SPOT，怀旧音乐受众稳定
+
+- 场景: Man Cave, Bedroom, Music Room
+- 英文搜索: `rock band album cover poster`, `vintage signed music print`, `music fan wall art`
+- 中文搜索: 摇滚乐队专辑封面海报 / 复古签名音乐画 / 乐迷墙饰
+
+### 18. 🔥 [已验证] Pink + High Heels + Lipstick + Perfume + Vogue × Poster Set + Canvas Wall Art
+> RISING多个品，时尚单品经典
+
+- 场景: Girls Bedroom, Dorm, Apartment
+- 英文搜索: `pink vogue lipstick print`, `high heel perfume poster set`, `girls room fashion decor`
+- 中文搜索: 粉色时尚海报套装 / 高跟鞋香水画 / 女生房间时尚装饰
+
+### 19. 🔥 [已验证] Racing Cars + Street + Vehicle + Cool × Poster + Canvas Print
+> RISING多个品，汽车主题持续
+
+- 场景: Bedroom, Living Room, Office
+- 英文搜索: `street racing car poster`, `cool vehicle wall art`, `modern racing decor`
+- 中文搜索: 街头赛车海报 / 酷炫车辆墙画 / 现代赛车装饰
+
+### 20. 👀 [待观察] Sage Green + Boho + Abstract Plant × Canvas Print + Poster
+> 当前DECLINING，但可结合更大尺寸或金色框提升质感
+
+- 场景: Living Room, Bedroom, Office
+- 英文搜索: `sage green abstract plant wall art`, `boho botanical poster`, `minimalist plant decor`
+- 中文搜索: 鼠尾草绿抽象植物墙画 / 波西米亚植物海报 / 简约植物装饰
 
 ## 9. 搜索关键词
 
 ### Amazon 英文搜索词
 
-- `car posters for bedroom`
-- `racing wall art`
-- `gaming room decor`
-- `funny bathroom wall art`
-- `motivational canvas prints`
-- `boho wall art`
-- `pink aesthetic posters`
-- `retro wall art`
-- `leopard print canvas`
-- `highland cow bathroom decor`
-- `F1 poster gift`
-- `mental health wall art`
-- `FODMAP food list poster`
-- `cocktail bar decor`
-- `superhero motivational poster`
+- `metal wall decor`
+- `funny sign`
+- `memorial gift for loss of loved one`
+- `leopard wall art`
+- `car posters`
+- `gaming wall art`
+- `boho canvas prints`
+- `motivational poster`
+- `bathroom humor`
+- `football wall art`
+- `f1 poster`
+- `positive affirmation print`
+- `preppy room decor`
+- `vintage newspaper poster`
+- `highland cow art`
 
 ### 中文搜索词
 
+- 金属墙饰
+- 慰问礼物
+- 豹纹墙画
 - 汽车海报
-- 赛车墙画
-- 游戏室装饰
-- 搞笑浴室墙画
-- 励志帆布画
-- 波西米亚墙饰
-- 粉色美学海报
-- 复古墙画
-- 豹纹装饰画
-- 高地牛浴室装饰
-- F1海报礼物
-- 心理健康墙画
-- 低FODMAP食物清单
-- 鸡尾酒吧装饰
-- 超级英雄励志海报
-- 圣经经文墙画
-- 报纸风格海报
-- 飞镖计分板
+- 游戏墙饰
+- 波西米亚帆布画
+- 励志海报
+- 浴室幽默画
 - 足球墙画
-- 日式风格墙画
+- F1海报
+- 积极肯定画
+- 预科生房间装饰
+- 复古报纸海报
+- 高地牛画
+- 蒙娜丽莎印刷
+- 跑车艺术画
+- 摇滚乐队海报
+- 鼠尾草绿墙画
+- 低FODMAP图表
 
-## 10. 价格空白 (3)
+## 10. 价格空白 (4)
 
-- **£3.99 - £4.99**: 低价带竞争少，仅5个品在此区间，适合低成本测款和冲动消费
-- **£8.00 - £9.99**: 中等价格带品较少，可做高价值套装（6-9件套）提升客单价
-- **£10.00 - £12.99**: 高价带空白，适合精品/大套装/特殊载体（如木质、带框）
+- **£3.00 - £4.99**: 现有最低价1.99但有DECLINING，3-5区间单品较少（如B0FKBHNMS8 4.39、B0FYCZDFG9 4.99），可以低价冲动购买，适合单件薄利多销
+- **£10.00 - £12.99**: 目前仅有B0FR8NP4RQ(12.99)和B0GL7H3JXT(12.99)，该区间可作为大套装或高端设计（如木质、金属框）的空白带
+- **£13.00 - £15.99**: 最高15.99，但仅有1-2品，可引入精装画册风格或特殊材质（如铝板）产品
+- **£5.99 - £6.99**: SWEET_SPOT核心区，竞争已多，但仍有微创新空间（如增加夜光、3D效果）
 
 ## 11. 轻小件总结
 
-品类以轻小件为主，平均重量92g，FBA£1.87，Poster（70g/£1.82）和Canvas Print（50g/£2.12）最轻便，适合低成本FBA发货。木质载体（100g+）和9件套大套装（150g+）接近轻小件上限，需注意FBA成本。建议优先选择Poster和Canvas Print载体，重量控制在100g以内。
+平均重量仅92.3g，FBA费用低至£1.87，所有商品均为轻小件，适合多件套装销售以降低单位物流成本，且便于客户组合购买（如6件套、9件套）
 
 ## 12. 好品清单 (40)
 
 | ASIN | 元素 | 载体 | 场景 | EN 关键词 | CN 关键词 | 轻小 |
 |------|------|------|------|-----------|-----------|------|
-| B0G1YG2K3C | Leopard, Skateboard, Animal | Poster, Canvas | Living Room, Bedroom | leopard wall art, skateboard canvas poster | 豹纹墙画, 滑板主题海报 | True |
-| B0G1M2V7LZ | Love You Bye, Boho, Farmhouse | Wooden Sign, Wall Art | Hallway, Stairs | love you bye sign, above door sign | 告别门牌, 波西米亚墙饰 | True |
-| B0GFWDY3PL | Car, Racing, Black and White | Poster, Wall Art Print | Bedroom, Boys Room | car posters for bedroom, racing wall art | 汽车海报, 赛车墙画 | True |
-| B0FHPDV6DZ | Car, Super Car, Sports Cars | Canvas Wall Art, Poster | Man Cave, Boys Room | super car poster, canvas wall art car | 超级跑车海报, 赛车墙画 | True |
-| B0FQ4YBBNP | Cocktails, Retro | Canvas Wall Art, Poster | Wedding Gallery, Apartment | cocktail wall art, retro cocktail poster | 鸡尾酒墙画, 复古酒吧海报 | True |
-| B0FVRCSQFN | Sports Car, Racing Cars, Modern Vehicle | Poster, Wall Art | Bedroom, Boys Bedroom | sports car posters, racing car wall art | 跑车海报, 赛车墙画 | True |
-| B0G1S8BF87 | Car, Cool Racing, GTR R35 | Poster | Bedroom Aesthetic, Bedroom | GTR R35 poster, cool racing poster | GTR R35海报, 赛车海报 | True |
-| B0F1NBKQ6W | Gaming, Watercolor Video Game, Retro | Wall Art, Poster | Gaming Room, Teen Bedroom | gaming wall art, video game art prints | 游戏墙画, 电子游戏艺术画 | True |
-| B0GL7H3JXT | Superhero, Hulk, Spiderman | Canvas, Wall Art | Boys Room, Playroom Decor | superhero posters, hulk wall art | 超级英雄海报, 绿巨人墙画 | True |
-| B0GKG6PTFJ | Cheetah, Retro, Black and White | Canvas Wall Art, Poster Set | Living Room, Bedroom | cheetah canvas wall art, retro black and white poster | 猎豹墙画, 复古黑白海报 | True |
-| B0FYCZDFG9 | Get 1% Better Everyday, Inspirational Quote, Black and White | Canvas Print, Poster | Home Office, Bedroom | get 1% better everyday, motivational wall art | 每天进步1%, 励志墙画 | True |
-| B0FYF13FBN | Car, Super Car, Modern | Poster | Bedroom, Dorm | super car poster, modern car wall art | 超级跑车海报, 现代汽车装饰 | True |
-| B0DWWYX35F | Gaming, Neon | Canvas Painting, Poster | Boys Room, Kids Bedroom | gaming posters set, neon gaming wallpaper | 游戏海报套装, 霓虹游戏墙画 | True |
-| B0FWJL2TTF | Sage Green, Boho, Geometric Plant | Canvas Print, Poster | Living Room, Bedroom | sage green wall art, boho canvas prints | 鼠尾草绿墙画, 波西米亚装饰画 | True |
-| B0GJDJ77F9 | Motivational, Retro Newspaper, Black and White | Wall Art, Poster | Bedroom, Home | retro newspaper wall art, vintage inspirational poster | 复古报纸墙画, 黑白励志海报 | True |
-| B0GLG6PVVL | Retro, Music Themed, Record Player | Canvas Wall Art, Canvas Print | Living Room, Bedroom | retro music wall art, record player canvas | 复古音乐墙画, 唱片机装饰画 | True |
-| B0GTKHTZ3R | Funny, Mona Lisa, Humorous | Canvas Poster, Wall Art | Bathroom, Toilet | funny bathroom wall art, mona lisa holding nose | 搞笑浴室墙画, 蒙娜丽莎捏鼻 | True |
-| B0FVWWP6GZ | Newspaper Style, Inspirational Quotes, New York Trends | Canvas Poster, Wall Art | Living Room, Bedroom | newspaper style poster, new york trends wall art | 报纸风格海报, 纽约潮流墙画 | True |
-| B0FYD29B1H | Darts Scoreboard, Darts Checkout Chart, Funny Prints | Canvas Wall Art, Poster | Clubs, Bars | darts scoreboard poster, darts checkout chart | 飞镖计分板海报, 飞镖结算图 | True |
-| B0FKBHNMS8 | Positive Affirmation, Care Mental Health, Inspirational Quotes | Canvas Print, Poster | Psychologists Office, Social Workers Office | mental health poster, positive affirmation canvas | 心理健康海报, 积极肯定墙画 | True |
+| B0G1YG2K3C | Leopard, Trendy Skateboard, Animal | Poster, Canvas Wall Art | Living Room, Bedroom | leopard wall art, skateboard canvas print | 豹纹墙饰, 滑板帆布画 | True |
+| B0G1M2V7LZ | Love You Bye, Wooden, Black Frame | Wooden Sign, Wall Art | Hallway, Stairs | love you bye sign, boho wall decor | 木制墙牌, 波西米亚装饰 | True |
+| B0GFWDY3PL | Car, Racing, Black and White | Poster, Wall Art Print | Bedroom, Boys Room | car posters, black white racing art | 汽车海报, 赛车黑白画 | True |
+| B0FHPDV6DZ | Car, Super Car, Cool | Canvas Wall Art, Poster | Man Cave, Boys Room | car canvas art, super car poster | 赛车帆布画, 经典跑车海报 | True |
+| B0FQ4YBBNP | Cocktails, Retro, Wedding | Canvas Wall Art, Poster | Wedding Gallery, Apartment | cocktail wall art, retro cocktail prints | 鸡尾酒墙画, 复古酒吧装饰 | True |
+| B0FVRCSQFN | Sports Car, Racing Cars, Supercar | Poster, Wall Art | Bedroom, Boys Bedroom | sports car poster, racing wall art | 跑车海报, 赛车壁饰 | True |
+| B0G1S8BF87 | Car, Cool Racing, GTR R35 | Poster | Bedroom, Boys | GTR R35 poster, racing poster | GTR海报, 赛车装饰 | True |
+| B0F1NBKQ6W | Gaming, Retro, Watercolor | Wall Art, Poster | Gaming Room, Teen Bedroom | gaming wall art, retro video game posters | 游戏墙饰, 复古游戏海报 | True |
+| B0GL7H3JXT | Superhero, Motivational, Positive Affirmation | Poster, Canvas Print | Boys Room, Playroom | superhero posters, motivational wall art | 超级英雄海报, 励志墙画 | True |
+| B0GKG6PTFJ | Cheetah, Retro, Black and White | Canvas Wall Art, Poster Set | Living Room, Bedroom | cheetah canvas wall art, retro black white prints | 猎豹帆布画, 黑白复古海报 | True |
+| B0FYCZDFG9 | Motivational, Get 1% Better Everyday, Inspirational Quote | Canvas Print, Canvas Poster | Home Office, Bedroom | motivational wall art, get 1% better everyday | 励志墙画, 每日进步1% | True |
+| B0FYF13FBN | Car, Super Car, Cool Modern | Poster, Wall Art | Bedroom, Dorm | super car poster, cool modern wall art | 超级跑车海报, 现代汽车装饰 | True |
+| B0DWWYX35F | Gaming, Neon, Video Game | Poster, Canvas Painting Print | Boys Room, Kids Bedroom | neon gaming wallpaper, gaming posters | 霓虹游戏海报, 游戏墙纸 | True |
+| B0FWJL2TTF | Sage Green, Boho, Geometric Plant | Wall Art, Poster | Living Room, Bedroom | sage green wall art, boho canvas prints | 鼠尾草绿墙画, 波西米亚几何植物 | True |
+| B0GJDJ77F9 | Motivational, Retro Newspaper, Black and White | Wall Art, Poster | Bedroom, Home | newspaper wall art, vintage inspirational poster | 报纸墙画, 复古励志海报 | True |
+| B0GLG6PVVL | Retro, Music Themed, Record Player | Canvas Wall Art, Print | Living Room, Bedroom | retro music wall art, record player canvas | 复古音乐墙画, 唱片机海报 | True |
+| B0GTKHTZ3R | Funny, Mona Lisa, Vintage | Canvas Poster, Wall Art | Bathroom, Toilet | funny bathroom wall art, mona lisa holding nose | 搞笑浴室画, 蒙娜丽莎捏鼻子 | True |
+| B0FVWWP6GZ | Newspaper Style, Inspirational Quotes, Motivational | Canvas Poster, Wall Art | Living Room, Bedroom | newspaper quote poster, new york trends wall art | 报纸名言海报, 纽约潮流墙画 | True |
+| B0FYD29B1H | Darts, Scoreboard, Checkout Chart | Canvas Wall Art, Poster | Clubs, Bars | darts scoreboard poster, dart checkout chart | 飞镖计分板海报, 飞镖酒吧装饰 | True |
+| B0FKBHNMS8 | Positive Affirmation, Mental Health, Inspirational Quotes | Poster, Canvas Print | Counseling Office, Home Decor | mental health poster, positive affirmation canvas | 心理健康海报, 积极肯定墙画 | True |
 
 ---
 
