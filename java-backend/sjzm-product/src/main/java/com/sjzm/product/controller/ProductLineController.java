@@ -4,6 +4,7 @@ import com.sjzm.common.Result;
 import com.sjzm.product.entity.ProductLineGuidance;
 import com.sjzm.product.mapper.CompetitorProductMapper;
 import com.sjzm.product.mapper.DengZongShopMapper;
+import com.sjzm.product.service.DengZongShopService;
 import com.sjzm.product.service.ProductLineGuidanceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,23 +30,27 @@ public class ProductLineController {
 
     private final ProductLineGuidanceService guidanceService;
 
+    private final DengZongShopService dengZongShopService;
+
     private final CompetitorProductMapper competitorProductMapper;
 
     private final DengZongShopMapper dengZongShopMapper;
 
     /**
-     * 聚合品线数据 — 从 deng_zong_shop 按 marketplace+month 两级聚合。
+     * 聚合品线数据 — 从 deng_zong_shop 按 marketplace+batchDate 两级聚合。
      * 返回 L1品线(bsr_id) → L2小类(node_id) → 样本商品 的树形结构。
      *
      * @param marketplace 站点 UK/DE
-     * @param month       数据月份 如 202605
      */
     @GetMapping("/aggregated-data")
     @Operation(summary = "聚合品线数据", description = "从deng_zong_shop按bsr_id/node_id两级聚合，供Agent分析")
     public Result<Map<String, Object>> getAggregatedData(
-            @RequestParam(defaultValue = "UK") String marketplace,
-            @RequestParam String month) {
-        Map<String, Object> data = guidanceService.aggregateData(marketplace, month);
+            @RequestParam(defaultValue = "UK") String marketplace) {
+        String batchDate = dengZongShopService.getMaxBatchDate(marketplace);
+        if (batchDate == null) {
+            return Result.error("无郑总店铺数据: marketplace=" + marketplace);
+        }
+        Map<String, Object> data = guidanceService.aggregateData(marketplace, batchDate);
         return Result.success(data);
     }
 
@@ -87,19 +92,19 @@ public class ProductLineController {
             @RequestParam(defaultValue = "UK") String marketplace,
             @RequestParam String month) {
         List<Map<String, Object>> l2Rows = competitorProductMapper.countByNodeId(marketplace, month);
-        // 郑总对比数据：用 deng_zong_shop 最新月份，不受选品月份限制
-        String zhengMo = dengZongShopMapper.selectMaxMonth(marketplace);
-        if (zhengMo == null) zhengMo = month;
+        // 郑总对比数据：用 deng_zong_shop 最新批次，不受选品月份限制
+        String batchDate = dengZongShopService.getMaxBatchDate(marketplace);
+        if (batchDate == null) batchDate = month;
         // 郑总各子类的商品数映射：composite_key -> count
         Map<String, Integer> zhengCounts = new HashMap<>();
-        for (Map<String, Object> row : dengZongShopMapper.selectZhengNodeCounts(marketplace, zhengMo)) {
+        for (Map<String, Object> row : dengZongShopMapper.selectZhengNodeCounts(marketplace, batchDate)) {
             String key = (String) row.get("composite_key");
             Integer count = row.get("product_count") instanceof Number
                     ? ((Number) row.get("product_count")).intValue() : 0;
             if (key != null) zhengCounts.put(key, count);
         }
         // 郑总 bsr_id 按数量降序的榜单顺序
-        List<Map<String, Object>> zhengBsrOrder = dengZongShopMapper.selectZhengBsrIdsOrdered(marketplace, zhengMo);
+        List<Map<String, Object>> zhengBsrOrder = dengZongShopMapper.selectZhengBsrIdsOrdered(marketplace, batchDate);
         List<String> zhengBsrIdOrder = zhengBsrOrder.stream()
                 .map(r -> (String) r.get("bsrId"))
                 .collect(Collectors.toList());

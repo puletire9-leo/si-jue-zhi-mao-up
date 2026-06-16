@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getProductLineModel, getProductLineElements, getBatches, getAggregatedData, getAllCategories } from '@/api/product-line'
-import { competitorApi } from '@/api/competitor'
+import { competitorApi, getDengZongMaxBatchDate } from '@/api/competitor'
 import { selectionApi } from '@/api/selection'
 import type { ProductLineGroup, BatchInfo, FilterCondition, FilterType, TreeGroup, TreeNode, ProductLineModelData } from '@/types/productLine'
 import type { CompetitorProductRaw } from '@/api/competitor'
@@ -76,6 +76,8 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
   const availableWeekOptions = ref<string[]>([])
   // 郑总树实际使用的最新月份（与 month 选择器解耦）
   const zhengMonth = ref('')
+  // 郑总树实际使用的最新批次日期
+  const zhengBatchDate = ref('')
 
   async function fetchAvailableWeeks() {
     try {
@@ -135,6 +137,15 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
         if (latestMonth) {
           mo = latestMonth
           zhengMonth.value = mo
+        }
+        // 获取最新批次日期
+        try {
+          const batchRes = await getDengZongMaxBatchDate(mkp)
+          if (batchRes?.data) {
+            zhengBatchDate.value = batchRes.data
+          }
+        } catch {
+          // 批次日期非必须，失败不阻塞
         }
         res = await getAggregatedData(mkp, mo)
       } else {
@@ -251,6 +262,9 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
           : month.value.replace('-', ''),  // 郑总用最新月份，选品用选择器月份
         page: competitorPage.value,
         size: competitorPageSize.value,
+      }
+      if (dataSource.value === 'zheng' && zhengBatchDate.value) {
+        params.batchDate = zhengBatchDate.value
       }
       // BUG-1 FIX: 拆分排序值 "bsr_asc" → sortBy="bsr" + sortOrder="asc"
       if (sortBy.value) {
@@ -584,5 +598,6 @@ export const useProductLineSelectionStore = defineStore('productLineSelection', 
     selectedWeekTags,
     availableWeekOptions,
     zhengMonth,
+    zhengBatchDate,
   }
 })
