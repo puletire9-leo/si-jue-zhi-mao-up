@@ -226,6 +226,9 @@ class DownloadTaskService:
             conditions.append("(name LIKE %s OR id LIKE %s)")
             params.extend([f"%{keyword}%", f"%{keyword}%"])
         
+        # 默认只显示近30天的任务，避免历史数据干扰
+        conditions.append("created_at >= NOW() - INTERVAL 30 DAY")
+
         where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
         
         # 查询总数

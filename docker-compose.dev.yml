@@ -70,14 +70,54 @@ services:
       - ./backend/database/backup:/app/backup
       - dev-thumbnails:/app/images/thumbnails
       - dev-models:/app/model_cache
+      - dev-download-cache:/app/下载缓存
       - ./产品数据:/app/data:ro
-      - ./领星:/app/领星
+      - ./backend/领星:/app/领星
     command: uvicorn app.main:app --host 0.0.0.0 --port 8090 --reload --reload-dir app
     depends_on:
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  # ── Celery 异步任务 Worker ──
+  celery-worker:
+    image: dev-backend
+    container_name: dev-celery-worker
+    env_file:
+      - ./backend/.env
+    environment:
+      - ENVIRONMENT=development
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=sijuelishi_dev
+      - MYSQL_USER=sijue
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-sijue123456}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/uploads:/app/uploads
+      - ./backend/static:/app/static
+      - ./backend/logs:/app/logs
+      - ./backend/database/backup:/app/backup
+      - dev-thumbnails:/app/images/thumbnails
+      - dev-models:/app/model_cache
+      - dev-download-cache:/app/下载缓存
+      - ./产品数据:/app/data:ro
+      - ./backend/领星:/app/领星
+    command: celery -A app.tasks.celery_app worker --loglevel=info -Q download_tasks -n worker@%h --concurrency=2 --max-tasks-per-child=10
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.tasks.celery_app inspect ping -d celery@$$HOSTNAME"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
 
   frontend:
     image: node:20-alpine
@@ -147,6 +187,7 @@ services:
     image: maven:3.9-eclipse-temurin-21
     container_name: dev-gateway
     working_dir: /app
+    restart: unless-stopped
     ports:
       - "9000:9000"
     volumes:
@@ -206,7 +247,7 @@ services:
     image: nacos/nacos-server:v2.3.1
     container_name: dev-nacos
     ports:
-      - "8848:8848"
+      - "8993:8848"
       - "9848:9848"
     environment:
       - MODE=standalone
@@ -248,6 +289,7 @@ volumes:
   java-m2:
   dev-thumbnails:
   dev-models:
+  dev-download-cache:
   dev-node-modules:
   nacos-logs:
   nacos-data:

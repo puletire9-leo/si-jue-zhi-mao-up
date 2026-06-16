@@ -1,8 +1,31 @@
 # ============================================
-# Java 微服务生产镜像（跳过 Maven，直接用预编译 jar）
-# 构建: docker build -t prod-java -f java-backend/Dockerfile.prod .
+# Java 微服务生产镜像（多阶段构建）
+# 构建: docker compose -f docker-compose.prod.yml build
 # ============================================
 
+# ═══ Stage 1: 编译 ═══
+FROM maven:3.9-eclipse-temurin-21 AS builder
+WORKDIR /build
+
+# 先复制依赖配置，利用 Docker 层缓存加速
+COPY java-backend/pom.xml ./java-backend/pom.xml
+COPY java-backend/sjzm-common/pom.xml ./java-backend/sjzm-common/pom.xml
+COPY java-backend/sjzm-gateway/pom.xml ./java-backend/sjzm-gateway/pom.xml
+COPY java-backend/sjzm-user/pom.xml ./java-backend/sjzm-user/pom.xml
+COPY java-backend/sjzm-product/pom.xml ./java-backend/sjzm-product/pom.xml
+
+# 下载依赖（利用缓存，源码不变时不重下）
+RUN mvn -f java-backend/pom.xml dependency:go-offline -T 4 -q 2>/dev/null || true
+
+# 复制源码并编译
+COPY java-backend/sjzm-common/src ./java-backend/sjzm-common/src
+COPY java-backend/sjzm-gateway/src ./java-backend/sjzm-gateway/src
+COPY java-backend/sjzm-user/src ./java-backend/sjzm-user/src
+COPY java-backend/sjzm-product/src ./java-backend/sjzm-product/src
+
+RUN mvn -f java-backend/pom.xml clean package -DskipTests -T 4 -q
+
+# ═══ Stage 2: 运行 ═══
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
@@ -10,9 +33,9 @@ RUN apk add --no-cache curl tzdata && \
     cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
     echo "Asia/Shanghai" > /etc/timezone
 
-COPY java-backend/sjzm-gateway/target/app.jar ./gateway.jar
-COPY java-backend/sjzm-user/target/app.jar ./user.jar
-COPY java-backend/sjzm-product/target/app.jar ./product.jar
+COPY --from=builder /build/java-backend/sjzm-gateway/target/app.jar ./gateway.jar
+COPY --from=builder /build/java-backend/sjzm-user/target/app.jar ./user.jar
+COPY --from=builder /build/java-backend/sjzm-product/target/app.jar ./product.jar
 
 ENV SERVICE_MODULE=gateway
 
