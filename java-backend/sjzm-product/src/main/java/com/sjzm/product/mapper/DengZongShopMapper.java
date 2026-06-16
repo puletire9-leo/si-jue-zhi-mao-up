@@ -34,6 +34,7 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "  <if test='bsrMax != null'> AND ds.bsr &lt;= #{bsrMax}</if>" +
         "  <if test='ratingMin != null'> AND ds.rating &gt;= #{ratingMin}</if>" +
         "  <if test='weightMax != null'> AND ds.weight &lt;= #{weightMax}</if>" +
+        "  <if test='batchDate != null'> AND (ds.batch_date = #{batchDate} OR ds.batch_date IS NULL)</if>" +
         ") t WHERE t.rn = 1" +
         "<if test='sortBy != null and sortOrder != null'>" +
         "  ORDER BY " +
@@ -66,6 +67,7 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
             @Param("bsrMax") Integer bsrMax,
             @Param("ratingMin") java.math.BigDecimal ratingMin,
             @Param("weightMax") String weightMax,
+            @Param("batchDate") String batchDate,
             @Param("sortBy") String sortBy,
             @Param("sortOrder") String sortOrder,
             @Param("offset") int offset,
@@ -88,6 +90,7 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "  <if test='bsrMax != null'> AND ds.bsr &lt;= #{bsrMax}</if>" +
         "  <if test='ratingMin != null'> AND ds.rating &gt;= #{ratingMin}</if>" +
         "  <if test='weightMax != null'> AND ds.weight &lt;= #{weightMax}</if>" +
+        "  <if test='batchDate != null'> AND (ds.batch_date = #{batchDate} OR ds.batch_date IS NULL)</if>" +
         "  GROUP BY COALESCE(NULLIF(ds.parent_asin,''), ds.asin)" +
         ") g" +
         "</script>")
@@ -104,7 +107,8 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
             @Param("priceMax") java.math.BigDecimal priceMax,
             @Param("bsrMax") Integer bsrMax,
             @Param("ratingMin") java.math.BigDecimal ratingMin,
-            @Param("weightMax") String weightMax);
+            @Param("weightMax") String weightMax,
+            @Param("batchDate") String batchDate);
 
     @Select("<script>" +
         "SELECT ds.seller_name as sellerName, ds.marketplace," +
@@ -112,19 +116,23 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "  COALESCE(SUM(ds.revenue), 0) as totalRevenue," +
         "  COALESCE(SUM(ds.units), 0) as totalUnits," +
         "  ROUND(AVG(ds.rating), 1) as avgRating," +
-        "  MAX(ds.month) as latestMonth" +
+        "  MAX(ds.month) as latestMonth," +
+        "  MAX(ds.batch_date) as latestBatchDate" +
         " FROM deng_zong_shop ds WHERE ds.title IS NOT NULL" +
         " <if test='marketplace != null'> AND ds.marketplace = #{marketplace}</if>" +
+        " <if test='batchDate != null'> AND (ds.batch_date = #{batchDate} OR ds.batch_date IS NULL)</if>" +
         " GROUP BY ds.seller_name, ds.marketplace" +
         " ORDER BY totalRevenue DESC" +
         "</script>")
     List<java.util.Map<String, Object>> selectSellerSummary(
-            @Param("marketplace") String marketplace);
+            @Param("marketplace") String marketplace,
+            @Param("batchDate") String batchDate);
 
     /** 查询已抓取数据的卖家名称（去重） */
     @Select("<script>" +
         "SELECT DISTINCT seller_name FROM deng_zong_shop WHERE title IS NOT NULL" +
         " <if test='marketplace != null'> AND marketplace = #{marketplace}</if>" +
+        " <if test='batchDate != null'> AND (batch_date = #{batchDate} OR batch_date IS NULL)</if>" +
         " <if test='sellerNames != null and sellerNames.size > 0'>" +
         "   AND seller_name IN " +
         "   <foreach collection='sellerNames' item='name' open='(' separator=',' close=')'>#{name}</foreach>" +
@@ -132,35 +140,48 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "</script>")
     List<String> selectFetchedSellerNames(
             @Param("marketplace") String marketplace,
-            @Param("sellerNames") List<String> sellerNames);
+            @Param("sellerNames") List<String> sellerNames,
+            @Param("batchDate") String batchDate);
 
     /** 查询评分所需数据（卖家名称、类目、BSR、价格） */
     @Select("<script>" +
         "SELECT seller_name, node_id, bsr_id, price FROM deng_zong_shop WHERE title IS NOT NULL" +
         " <if test='marketplace != null'> AND marketplace = #{marketplace}</if>" +
+        " <if test='batchDate != null'> AND (batch_date = #{batchDate} OR batch_date IS NULL)</if>" +
         "</script>")
     List<java.util.Map<String, Object>> selectRatingData(
-            @Param("marketplace") String marketplace);
+            @Param("marketplace") String marketplace,
+            @Param("batchDate") String batchDate);
 
-    @Select("SELECT CONCAT(bsr_id, '_', node_id) AS composite_key, COUNT(*) AS product_count " +
+    @Select("<script>" +
+            "SELECT CONCAT(bsr_id, '_', node_id) AS composite_key, COUNT(*) AS product_count " +
             "FROM deng_zong_shop " +
             "WHERE marketplace = #{marketplace} AND month = #{month} " +
+            "<if test='batchDate != null'> AND (batch_date = #{batchDate} OR batch_date IS NULL)</if> " +
             "AND bsr_id IS NOT NULL AND node_id IS NOT NULL " +
-            "GROUP BY bsr_id, node_id")
-    List<Map<String, Object>> selectZhengNodeCounts(@Param("marketplace") String marketplace, @Param("month") String month);
+            "GROUP BY bsr_id, node_id" +
+            "</script>")
+    List<Map<String, Object>> selectZhengNodeCounts(@Param("marketplace") String marketplace, @Param("month") String month, @Param("batchDate") String batchDate);
 
     /** 郑总 bsr_id 按数量降序排列（保持郑总店铺当前的榜单顺序） */
-    @Select("SELECT bsr_id AS bsrId, COUNT(*) AS productCount " +
+    @Select("<script>" +
+            "SELECT bsr_id AS bsrId, COUNT(*) AS productCount " +
             "FROM deng_zong_shop " +
             "WHERE marketplace = #{marketplace} AND month = #{month} " +
+            "<if test='batchDate != null'> AND (batch_date = #{batchDate} OR batch_date IS NULL)</if> " +
             "AND bsr_id IS NOT NULL " +
-            "GROUP BY bsr_id ORDER BY productCount DESC")
+            "GROUP BY bsr_id ORDER BY productCount DESC" +
+            "</script>")
     List<Map<String, Object>> selectZhengBsrIdsOrdered(
             @Param("marketplace") String marketplace,
-            @Param("month") String month);
+            @Param("month") String month,
+            @Param("batchDate") String batchDate);
 
     @Select("SELECT MAX(month) FROM deng_zong_shop WHERE marketplace = #{marketplace}")
     String selectMaxMonth(@Param("marketplace") String marketplace);
+
+    @Select("SELECT MAX(batch_date) FROM deng_zong_shop WHERE marketplace = #{marketplace}")
+    String selectMaxBatchDate(@Param("marketplace") String marketplace);
 
     /**
      * 插入或更新（ON DUPLICATE KEY UPDATE），自动更新 updated_at
@@ -172,14 +193,14 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "price, prime_price, profit, fba, delivery_price, seller_name, seller_id, seller_nation, sellers, " +
         "fulfillment, variations, weight, dimension, dimensions_type, pkg_dimensions, pkg_dimension_type, " +
         "pkg_weight, lqs, available_date, best_seller, amazon_choice, new_release, ebc, video, " +
-        "product_url, similar_url, source, created_at, updated_at) VALUES (",
+        "product_url, similar_url, source, batch_date, created_at, updated_at) VALUES (",
         "#{marketplace}, #{asin}, #{month}, #{title}, #{brand}, #{brandUrl}, #{imageUrl}, #{parentAsin}, #{sku}, " +
         "#{nodeId}, #{nodeIdPath}, #{nodeLabelPath}, #{symbol}, #{units}, #{unitsGr}, #{amzUnit}, #{amzSales}, #{amzUnitDate}, " +
         "#{revenue}, #{bsrId}, #{bsr}, #{bsrCr}, #{bsrCv}, #{ratings}, #{rating}, #{ratingsRate}, #{ratingsCv}, #{ratingDelta}, " +
         "#{price}, #{primePrice}, #{profit}, #{fba}, #{deliveryPrice}, #{sellerName}, #{sellerId}, #{sellerNation}, #{sellers}, " +
         "#{fulfillment}, #{variations}, #{weight}, #{dimension}, #{dimensionsType}, #{pkgDimensions}, #{pkgDimensionType}, " +
         "#{pkgWeight}, #{lqs}, #{availableDate}, #{bestSeller}, #{amazonChoice}, #{newRelease}, #{ebc}, #{video}, " +
-        "#{productUrl}, #{similarUrl}, #{source}, NOW(), NOW())",
+        "#{productUrl}, #{similarUrl}, #{source}, #{batchDate}, NOW(), NOW())",
         "ON DUPLICATE KEY UPDATE",
         "title=VALUES(title), brand=VALUES(brand), brand_url=VALUES(brand_url), image_url=VALUES(image_url),",
         "parent_asin=VALUES(parent_asin), sku=VALUES(sku),",
@@ -194,7 +215,7 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "pkg_weight=VALUES(pkg_weight), lqs=VALUES(lqs), available_date=VALUES(available_date),",
         "best_seller=VALUES(best_seller), amazon_choice=VALUES(amazon_choice), new_release=VALUES(new_release),",
         "ebc=VALUES(ebc), video=VALUES(video), product_url=VALUES(product_url), similar_url=VALUES(similar_url),",
-        "source=VALUES(source), updated_at=NOW()",
+        "source=VALUES(source), batch_date=VALUES(batch_date), updated_at=NOW()",
         "</script>"})
     int upsert(DengZongShop entity);
 }
