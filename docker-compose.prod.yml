@@ -1,7 +1,7 @@
 # ============================================
-# 思觉智贸 - 生产环境（完整配置）
-# 启动: docker compose -f docker-compose.prod.yml -p sijuelishi-prod up -d
-# 或:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# 思觉智贸 - 生产环境
+# 启动（基础）: docker compose -f docker-compose.prod.yml -p sijuelishi-prod up -d
+# 启动（全量）: docker compose -f docker-compose.prod.yml -p sijuelishi-prod --profile full up -d
 # ============================================
 
 services:
@@ -16,11 +16,14 @@ services:
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     ports:
       - "3310:3306"
+    env_file:
+      - .env.prod
+      - .env.prod.secrets
     environment:
-      MYSQL_ROOT_PASSWORD: root123456
-      MYSQL_DATABASE: sijuelishi
-      MYSQL_USER: sijue
-      MYSQL_PASSWORD: sijue123456
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - prod-mysql-data:/var/lib/mysql
     healthcheck:
@@ -70,32 +73,17 @@ services:
     image: prod-backend
     container_name: prod-backend
     ports:
-      - "7093:7090"
+      - "7093:8090"
+    env_file:
+      - .env.prod
+      - .env.prod.secrets
     environment:
-      - ENVIRONMENT=production
-      - DEBUG=false
-      - MYSQL_HOST=mysql
-      - MYSQL_PORT=3306
-      - MYSQL_DATABASE=sijuelishi
-      - MYSQL_USER=sijue
-      - MYSQL_PASSWORD=sijue123456
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=1
-      - LOG_LEVEL=INFO
-      - RATE_LIMIT_ENABLED=true
-      - JWT_SECRET=sjzm-dev-jwt-secret-change-in-production
-      - SECRET_KEY=sjzm-dev-jwt-secret-change-in-production
-      - CORS_ORIGINS=["http://localhost"]
-      - COS_ENABLED=true
-      - COS_SECRET_ID=${COS_SECRET_ID}
-      - COS_SECRET_KEY=${COS_SECRET_KEY}
-      - COS_BUCKET=sijuelishi-1328246743
-      - COS_REGION=${COS_REGION}
+      - IMAGE_READ_MODE=cloud
     volumes:
       - prod-logs:/app/logs
       - prod-models:/app/model_cache
       - prod-download-cache:/app/下载缓存
+      - ./领星:/app/领星
     depends_on:
       mysql:
         condition: service_healthy
@@ -107,26 +95,12 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: prod-celery-download
+    image: prod-backend
     container_name: prod-celery-download
     command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=10 -Q download_tasks
-    environment:
-      ENVIRONMENT: production
-      MYSQL_HOST: mysql
-      MYSQL_PORT: "3306"
-      MYSQL_DATABASE: sijuelishi
-      MYSQL_USER: sijue
-      MYSQL_PASSWORD: sijue123456
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-      REDIS_DB: "1"
-      COS_ENABLED: "true"
-      COS_SECRET_ID: ${COS_SECRET_ID}
-      COS_SECRET_KEY: ${COS_SECRET_KEY}
-      COS_BUCKET: sijuelishi-1328246743
-      COS_REGION: ap-guangzhou
-      JWT_SECRET: sjzm-dev-jwt-secret-change-in-production
-      SECRET_KEY: sjzm-dev-jwt-secret-change-in-production
+    env_file:
+      - .env.prod
+      - .env.prod.secrets
     volumes:
       - prod-download-cache:/app/下载缓存
       - prod-logs:/app/logs
@@ -154,20 +128,14 @@ services:
     container_name: prod-java-user
     ports:
       - "8014:8001"
+    env_file:
+      - .env.prod
+      - .env.prod.secrets
     environment:
       SERVICE_MODULE: user
       SPRING_PROFILES_ACTIVE: prod
-      NACOS_ENABLED: "true"
-      NACOS_SERVER_ADDR: nacos:8848
-      MYSQL_HOST: mysql
-      MYSQL_PORT: 3306
-      MYSQL_DATABASE: sijuelishi
-      MYSQL_USERNAME: sijue
-      MYSQL_PASSWORD: sijue123456
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      MYSQL_USERNAME: ${MYSQL_USER}
       REDISSON_ADDRESS: redis://redis:6379
-      JWT_SECRET: sjzm-dev-jwt-secret-change-in-production
     depends_on:
       mysql:
         condition: service_healthy
@@ -185,20 +153,14 @@ services:
     container_name: prod-java-product
     ports:
       - "8025:8002"
+    env_file:
+      - .env.prod
+      - .env.prod.secrets
     environment:
       SERVICE_MODULE: product
       SPRING_PROFILES_ACTIVE: prod
-      NACOS_ENABLED: "true"
-      NACOS_SERVER_ADDR: nacos:8848
-      MYSQL_HOST: mysql
-      MYSQL_PORT: 3306
-      MYSQL_DATABASE: sijuelishi
-      MYSQL_USERNAME: sijue
-      MYSQL_PASSWORD: sijue123456
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      MYSQL_USERNAME: ${MYSQL_USER}
       REDISSON_ADDRESS: redis://redis:6379
-      SELLERSPRITE_SECRET_KEY: d03bb00611a44f9ca30bf58205ac0f00
     depends_on:
       mysql:
         condition: service_healthy
@@ -216,13 +178,13 @@ services:
     container_name: prod-gateway
     ports:
       - "9003:9000"
+    env_file:
+      - .env.prod
+      - .env.prod.secrets
     environment:
       SERVICE_MODULE: gateway
       SPRING_PROFILES_ACTIVE: prod
-      NACOS_ENABLED: "true"
-      NACOS_SERVER_ADDR: nacos:8848
       GATEWAY_AUTH_ENABLED: "true"
-      JWT_SECRET: sjzm-dev-jwt-secret-change-in-production
     depends_on:
       java-user:
         condition: service_started
@@ -233,24 +195,23 @@ services:
     restart: unless-stopped
 
   # ============================================
-  # 选品分析 Agent v2 (API 服务)
+  # 选品分析 Agent v2 (可选，需 --profile full)
   # ============================================
 
   selection-agent-v2:
+    profiles: [full]
     build:
       context: ./selection-agent-v2
       dockerfile: Dockerfile
     image: prod-selection-agent-v2
     container_name: prod-selection-agent-v2
+    env_file:
+      - .env.prod
+      - .env.prod.secrets
     environment:
       - JAVA_BASE_URL=http://java-product:8002
       - PYTHONPATH=/app
       - HERMES_HOME=/root/.hermes
-      - MYSQL_HOST=mysql
-      - MYSQL_PORT=3306
-      - MYSQL_USER=sijue
-      - MYSQL_PASSWORD=sijue123456
-      - MYSQL_DATABASE=sijuelishi
     depends_on:
       java-product:
         condition: service_started

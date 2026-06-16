@@ -16,7 +16,7 @@ static/vue-dist/
 .env
 .env.local
 .env.production
-.env.prod
+.env.prod.secrets
 
 # Data / Uploads / Cache
 data/
