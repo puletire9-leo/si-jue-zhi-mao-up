@@ -6,6 +6,7 @@ import com.sjzm.product.mapper.CompetitorProductMapper;
 import com.sjzm.product.mapper.DengZongShopMapper;
 import com.sjzm.product.service.DengZongShopService;
 import com.sjzm.product.service.ProductLineGuidanceService;
+import com.sjzm.product.service.ProductLineTreeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,8 @@ public class ProductLineController {
     private final CompetitorProductMapper competitorProductMapper;
 
     private final DengZongShopMapper dengZongShopMapper;
+
+    private final ProductLineTreeService productLineTreeService;
 
     /**
      * 聚合品线数据 — 从 deng_zong_shop 按 marketplace+batchDate 两级聚合。
@@ -86,102 +89,34 @@ public class ProductLineController {
         return Result.success(list);
     }
 
-    @GetMapping("/all-categories")
-    @Operation(summary = "获取全部品类（选品模式用）")
-    public Result<Map<String, Object>> getAllCategories(
+    @GetMapping("/tree")
+    @Operation(summary = "品线排序树", description = "竞品全量按郑总盘子排序，禁止类目已排除")
+    public Result<Map<String, Object>> getTree(
             @RequestParam(defaultValue = "UK") String marketplace,
             @RequestParam String month) {
         List<Map<String, Object>> l2Rows = competitorProductMapper.countByNodeId(marketplace, month);
-        // 郑总对比数据：用 deng_zong_shop 最新批次，不受选品月份限制
-        String batchDate = dengZongShopService.getMaxBatchDate(marketplace);
-        if (batchDate == null) batchDate = month;
-        // 郑总各子类的商品数映射：composite_key -> count
+        // 郑总盘子：只按最新 batch_date（铁律#8，与竞品 month 解耦）
+        String zhengBatchDate = dengZongShopService.getMaxBatchDate(marketplace);
+
         Map<String, Integer> zhengCounts = new HashMap<>();
-        for (Map<String, Object> row : dengZongShopMapper.selectZhengNodeCounts(marketplace, batchDate)) {
-            String key = (String) row.get("composite_key");
-            Integer count = row.get("product_count") instanceof Number
-                    ? ((Number) row.get("product_count")).intValue() : 0;
-            if (key != null) zhengCounts.put(key, count);
-        }
-        // 郑总 bsr_id 按数量降序的榜单顺序
-        List<Map<String, Object>> zhengBsrOrder = dengZongShopMapper.selectZhengBsrIdsOrdered(marketplace, batchDate);
-        List<String> zhengBsrIdOrder = zhengBsrOrder.stream()
-                .map(r -> (String) r.get("bsrId"))
-                .collect(Collectors.toList());
-        return Result.success(buildProductLines(l2Rows, zhengCounts, zhengBsrIdOrder));
-    }
-
-    private static final int MIN_ZENG = 3;
-
-    private Map<String, Object> buildProductLines(
-            List<Map<String, Object>> l2Rows,
-            Map<String, Integer> zhengCounts,
-            List<String> zhengBsrIdOrder) {
-        Map<String, List<Map<String, Object>>> grouped = l2Rows.stream()
-                .filter(row -> row.get("bsrId") != null)
-                .collect(Collectors.groupingBy(row -> (String) row.get("bsrId")));
-
-        List<Map<String, Object>> lines = new ArrayList<>();
-        for (Map.Entry<String, List<Map<String, Object>>> entry : grouped.entrySet()) {
-            String bsrId = entry.getKey();
-            List<Map<String, Object>> children = entry.getValue();
-            int totalCount = children.stream()
-                    .mapToInt(c -> ((Number) c.get("productCount")).intValue())
-                    .sum();
-            String bsrName = extractBsrName(children);
-
-            // Sort L2: 郑总商品数降序 → 总商品数降序
-            children.sort((a, b) -> {
-                int aZc = zhengCounts.getOrDefault(bsrId + "_" + a.get("nodeId"), 0);
-                int bZc = zhengCounts.getOrDefault(bsrId + "_" + b.get("nodeId"), 0);
-                if (aZc != bZc) return Integer.compare(bZc, aZc);
-                int countA = ((Number) a.get("productCount")).intValue();
-                int countB = ((Number) b.get("productCount")).intValue();
-                return Integer.compare(countB, countA);
-            });
-
-            children.forEach(child -> {
-                int zc = zhengCounts.getOrDefault(bsrId + "_" + child.get("nodeId"), 0);
-                child.put("isZheng", zc >= MIN_ZENG);
-            });
-
-            Map<String, Object> line = new LinkedHashMap<>();
-            line.put("bsrId", bsrId);
-            line.put("bsrName", bsrName);
-            line.put("productCount", totalCount);
-            line.put("subCategories", children);
-            boolean lineHasZheng = children.stream().anyMatch(c ->
-                    zhengCounts.getOrDefault(bsrId + "_" + c.get("nodeId"), 0) >= MIN_ZENG);
-            line.put("isZheng", lineHasZheng);
-            lines.add(line);
-        }
-
-        // Sort L1: 郑总按榜单顺序 → 其他按数量降序
-        lines.sort((a, b) -> {
-            String aId = (String) a.get("bsrId");
-            String bId = (String) b.get("bsrId");
-            int aIdx = zhengBsrIdOrder.indexOf(aId);
-            int bIdx = zhengBsrIdOrder.indexOf(bId);
-            if (aIdx >= 0 && bIdx >= 0) return Integer.compare(aIdx, bIdx);
-            if (aIdx >= 0) return -1;
-            if (bIdx >= 0) return 1;
-            int countA = ((Number) a.get("productCount")).intValue();
-            int countB = ((Number) b.get("productCount")).intValue();
-            return Integer.compare(countB, countA);
-        });
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("productLines", lines);
-        return result;
-    }
-
-    private String extractBsrName(List<Map<String, Object>> children) {
-        for (Map<String, Object> c : children) {
-            String path = (String) c.get("nodeFullPath");
-            if (path != null && !path.isEmpty()) {
-                return path.split(":")[0];
+        if (zhengBatchDate != null) {
+            for (Map<String, Object> row : dengZongShopMapper.selectZhengNodeCounts(marketplace, zhengBatchDate)) {
+                String key = (String) row.get("composite_key");
+                Integer count = row.get("product_count") instanceof Number
+                        ? ((Number) row.get("product_count")).intValue() : 0;
+                if (key != null) zhengCounts.put(key, count);
             }
         }
-        return "";
+        List<String> zhengBsrIdOrder = new ArrayList<>();
+        if (zhengBatchDate != null) {
+            zhengBsrIdOrder = dengZongShopMapper.selectZhengBsrIdsOrdered(marketplace, zhengBatchDate)
+                    .stream().map(r -> (String) r.get("bsrId")).collect(Collectors.toList());
+        }
+
+        Map<String, Object> tree = productLineTreeService.buildTree(l2Rows, zhengCounts, zhengBsrIdOrder);
+        tree.put("marketplace", marketplace);
+        tree.put("month", month);
+        tree.put("zhengBatchDate", zhengBatchDate);
+        return Result.success(tree);
     }
 }
