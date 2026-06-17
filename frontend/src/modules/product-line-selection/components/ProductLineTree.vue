@@ -30,7 +30,7 @@
         >
           <span class="l1-icon">{{ group.icon }}</span>
           <span class="l1-name">{{ group.name }}</span>
-          <span v-if="group.isZheng && store.dataSource === 'selection'" class="zheng-badge">郑总店铺</span>
+          <span v-if="group.isZheng" class="zheng-badge">郑总店铺</span>
           <span class="l1-badge">{{ group.children.length }} 子类</span>
         </div>
 
@@ -49,32 +49,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { Search, Close, Loading } from '@element-plus/icons-vue'
-import { useProductLineSelectionStore } from '../store'
-import CategorySummary from './CategorySummary.vue'
+import { ref, computed } from "vue";
+import { Search, Close, Loading } from "@element-plus/icons-vue";
+import { useProductLineSelectionStore } from "../store";
+import CategorySummary from "./CategorySummary.vue";
 
-defineProps<{ mobileOpen?: boolean }>()
+defineProps<{ mobileOpen?: boolean }>();
 const emit = defineEmits<{
-  closeMobile: []
-  selectL1: [bsrId: string, bsrName: string]
-}>()
+  closeMobile: [];
+  selectL1: [bsrId: string, bsrName: string];
+}>();
 
-const store = useProductLineSelectionStore()
-const searchText = ref('')
+const store = useProductLineSelectionStore();
+const searchText = ref("");
 
 // 按 L1 名称过滤
 const filteredGroups = computed(() => {
-  const q = searchText.value.toLowerCase().trim()
-  if (!q) return store.treeData
-  return store.treeData.filter(g =>
-    g.name.toLowerCase().includes(q)
-  )
-})
+  const q = searchText.value.toLowerCase().trim();
+  if (!q) return store.treeData;
+  return store.treeData.filter((g) => g.name.toLowerCase().includes(q));
+});
 </script>
 
 <style lang="scss" scoped>
-@use '@/styles/variables.scss' as *;
+@use "@/styles/variables.scss" as *;
 
 .tree-panel {
   min-width: 200px;
@@ -93,7 +91,7 @@ const filteredGroups = computed(() => {
     max-width: 100% !important;
 
     &::before {
-      content: '';
+      content: "";
       position: fixed;
       inset: 0;
       background: rgba(0, 0, 0, 0.4);
@@ -203,6 +201,9 @@ const filteredGroups = computed(() => {
   color: $text-secondary;
   z-index: 101;
 
-  &:hover { color: $text-primary; background: $bg-hover; }
+  &:hover {
+    color: $text-primary;
+    background: $bg-hover;
+  }
 }
 </style>

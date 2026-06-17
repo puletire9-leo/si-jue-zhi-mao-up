@@ -7,7 +7,6 @@ import { selectionApi } from "@/api/selection";
 import type {
   ProductLineGroup,
   BatchInfo,
-  FilterCondition,
   FilterType,
   TreeGroup,
 } from "@/types/productLine";
@@ -18,6 +17,15 @@ interface SubCategoryItem {
   nodeName?: string;
   nodeFullPath?: string;
   productCount?: number;
+  isZheng?: boolean;
+}
+
+interface FilterCondition {
+  id: string;
+  type: FilterType;
+  label: string;
+  value: string;
+  source: string;
 }
 
 export const useProductLineSelectionStore = defineStore(
@@ -164,6 +172,7 @@ export const useProductLineSelectionStore = defineStore(
             id: g.bsrId,
             name: l1Name,
             icon: "📦",
+            expanded: false,
             isZheng: g.isZheng,
             children: (g.subCategories || []).map((sc: SubCategoryItem) => ({
               id: `${g.bsrId}_${sc.nodeId}`,
