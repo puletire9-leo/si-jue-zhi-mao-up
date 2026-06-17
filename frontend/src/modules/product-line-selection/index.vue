@@ -9,19 +9,9 @@
       </el-breadcrumb>
       <div class="tb-spacer" />
 
-      <el-radio-group
-        :model-value="store.dataSource"
-        size="small"
-        style="margin-left: 8px"
-        @change="(val: any) => store.setDataSource(val)"
-      >
-        <el-radio-button value="zheng">郑总</el-radio-button>
-        <el-radio-button value="selection">选品</el-radio-button>
-      </el-radio-group>
-
       <label class="tb-select desktop-only">
         站点
-        <el-select v-model="store.marketplace" size="small" style="width:80px">
+        <el-select v-model="store.marketplace" size="small" style="width: 80px">
           <el-option label="US" value="US" />
           <el-option label="UK" value="UK" />
           <el-option label="DE" value="DE" />
@@ -30,31 +20,9 @@
 
       <label class="tb-select desktop-only">
         月份
-        <el-select v-model="store.month" size="small" style="width:100px">
-          <el-option
-            v-for="m in monthOptions"
-            :key="m"
-            :label="m"
-            :value="m"
-          />
+        <el-select v-model="store.month" size="small" style="width: 100px">
+          <el-option v-for="m in monthOptions" :key="m" :label="m" :value="m" />
         </el-select>
-      </label>
-
-      <label v-if="store.dataSource === 'zheng'" class="tb-select desktop-only">
-        版本
-        <el-select v-model="store.selectedBatchId" size="small" style="width:180px">
-          <el-option
-            v-for="b in store.batches"
-            :key="b.batchId"
-            :label="b.batchId"
-            :value="b.batchId"
-          />
-        </el-select>
-        <span v-if="store.selectedBatchInfo" class="batch-meta">
-          v{{ store.selectedBatchInfo.dataVersion }}
-          · {{ store.selectedBatchInfo.status }}
-          · {{ store.selectedBatchInfo.analyzedAt }}
-        </span>
       </label>
 
       <MobileActionSheet
@@ -69,18 +37,12 @@
         :options="monthActionOptions"
         v-model="store.month"
       />
-      <MobileActionSheet
-        class="mobile-only"
-        title="版本"
-        :options="batchOptions"
-        v-model="store.selectedBatchId"
-      />
 
       <el-input
         v-model="store.searchKeyword"
         placeholder="搜索商品标题..."
         clearable
-        style="width:240px"
+        style="width: 240px"
         size="small"
         @keyup.enter="store.searchByKeyword(store.searchKeyword)"
         @clear="store.searchByKeyword('')"
@@ -95,38 +57,64 @@
     <div class="global-filterbar">
       <el-select
         v-model="store.selectedWeekTags"
-        multiple collapse-tags collapse-tags-tooltip
+        multiple
+        collapse-tags
+        collapse-tags-tooltip
         placeholder="入库周次"
         size="small"
-        style="width:150px"
+        style="width: 150px"
         @change="store.searchCompetitors()"
       >
-        <el-option v-for="w in store.availableWeekOptions" :key="w" :label="w" :value="w" />
+        <el-option
+          v-for="w in store.availableWeekOptions"
+          :key="w"
+          :label="w"
+          :value="w"
+        />
       </el-select>
       <el-input
-        v-model="store.searchSellerName" placeholder="卖家名" clearable size="small"
-        style="width:140px"
+        v-model="store.searchSellerName"
+        placeholder="卖家名"
+        clearable
+        size="small"
+        style="width: 140px"
         @keyup.enter="store.applyBasicFilters()"
         @clear="store.applyBasicFilters()"
       />
       <el-input
-        v-model="store.searchBrand" placeholder="品牌" clearable size="small"
-        style="width:120px"
+        v-model="store.searchBrand"
+        placeholder="品牌"
+        clearable
+        size="small"
+        style="width: 120px"
         @keyup.enter="store.applyBasicFilters()"
         @clear="store.applyBasicFilters()"
       />
       <el-input
-        v-model.number="store.searchPriceMin" placeholder="最低价" type="number" size="small"
-        style="width:100px"
+        v-model.number="store.searchPriceMin"
+        placeholder="最低价"
+        type="number"
+        size="small"
+        style="width: 100px"
         @change="store.applyBasicFilters()"
       />
       <span class="gf-price-sep">—</span>
       <el-input
-        v-model.number="store.searchPriceMax" placeholder="最高价" type="number" size="small"
-        style="width:100px"
+        v-model.number="store.searchPriceMax"
+        placeholder="最高价"
+        type="number"
+        size="small"
+        style="width: 100px"
         @change="store.applyBasicFilters()"
       />
-      <el-button size="small" @click="store.clearBasicFilters(); store.applyBasicFilters()">清除</el-button>
+      <el-button
+        size="small"
+        @click="
+          store.clearBasicFilters();
+          store.applyBasicFilters();
+        "
+        >清除</el-button
+      >
     </div>
 
     <!-- 工作区 -->
@@ -138,21 +126,37 @@
           @select-l1="(bsrId, name) => store.selectCategory(bsrId, name)"
         />
 
-      <!-- 树折叠/展开按钮 -->
-      <button class="tree-fold-btn" @click="treeCollapsed = !treeCollapsed" :title="treeCollapsed ? '展开品线树' : '收起品线树'">
-        <el-icon><component :is="treeCollapsed ? DArrowRight : DArrowLeft" /></el-icon>
-      </button>
+        <!-- 树折叠/展开按钮 -->
+        <button
+          class="tree-fold-btn"
+          @click="treeCollapsed = !treeCollapsed"
+          :title="treeCollapsed ? '展开品线树' : '收起品线树'"
+        >
+          <el-icon
+            ><component :is="treeCollapsed ? DArrowRight : DArrowLeft"
+          /></el-icon>
+        </button>
       </div>
 
-      <div class="tree-resize" v-show="!treeCollapsed" @mousedown="startResize" />
+      <div
+        class="tree-resize"
+        v-show="!treeCollapsed"
+        @mousedown="startResize"
+      />
 
       <div class="content-area">
         <!-- 类目导航条 -->
         <div v-if="store.selectedBsrId" class="category-header">
           <span
             class="cat-l1"
-            :class="{ clickable: !!store.selectedNodeId, active: !store.selectedNodeId }"
-            @click="store.selectedNodeId && store.selectCategory(store.selectedBsrId, store.selectedBsrName)"
+            :class="{
+              clickable: !!store.selectedNodeId,
+              active: !store.selectedNodeId,
+            }"
+            @click="
+              store.selectedNodeId &&
+              store.selectCategory(store.selectedBsrId, store.selectedBsrName)
+            "
           >
             📦 {{ store.selectedBsrName }}
           </span>
@@ -160,15 +164,27 @@
             <span class="cat-sep">/</span>
             <span class="cat-l2 active">{{ store.selectedNodeName }}</span>
           </template>
-          <span v-if="!store.selectedNodeId" class="cat-hint">显示大类全部商品</span>
-          <span v-else class="cat-hint">AI 模型分析筛选</span>
-          <button class="l2-fold-btn" @click="l2Collapsed = !l2Collapsed" :title="l2Collapsed ? '展开子类' : '折叠子类'">
-            <el-icon><component :is="l2Collapsed ? CaretBottom : CaretTop" /></el-icon>
+          <span v-if="!store.selectedNodeId" class="cat-hint"
+            >显示大类全部商品</span
+          >
+          <span v-else class="cat-hint">显示该子类商品</span>
+          <button
+            class="l2-fold-btn"
+            @click="l2Collapsed = !l2Collapsed"
+            :title="l2Collapsed ? '展开子类' : '折叠子类'"
+          >
+            <el-icon
+              ><component :is="l2Collapsed ? CaretBottom : CaretTop"
+            /></el-icon>
           </button>
         </div>
 
         <!-- L2 子类面板：选中 L1 后显示 -->
-        <div v-if="store.selectedBsrId && store.currentSubCategories.length" class="l2-panel" :class="{ collapsed: l2Collapsed }">
+        <div
+          v-if="store.selectedBsrId && store.currentSubCategories.length"
+          class="l2-panel"
+          :class="{ collapsed: l2Collapsed }"
+        >
           <div class="l2-search">
             <el-input
               v-model="subCategorySearch"
@@ -177,7 +193,10 @@
               clearable
               size="small"
             />
-            <span class="l2-count">{{ displaySubCategories.length }} / {{ store.currentSubCategories.length }} 子类</span>
+            <span class="l2-count"
+              >{{ displaySubCategories.length }} /
+              {{ store.currentSubCategories.length }} 子类</span
+            >
           </div>
           <div class="l2-list">
             <div
@@ -188,33 +207,23 @@
               @click="handleL2ItemClick(cat)"
             >
               <span class="l2-item-name">{{ cat.name }}</span>
-              <span v-if="cat.isZheng && store.dataSource === 'selection'" class="l2-zheng-tag">郑总</span>
-              <span class="l2-item-count">{{ cat.productCount?.toLocaleString() || '—' }}</span>
+              <span v-if="cat.isZheng" class="l2-zheng-tag">郑总</span>
+              <span class="l2-item-count">{{
+                cat.productCount?.toLocaleString() || "—"
+              }}</span>
             </div>
           </div>
         </div>
 
-        <!-- 品线模型摘要条（仅郑总模式） -->
-        <ModelSummaryBar
-          v-if="store.selectedNodeId && store.dataSource === 'zheng'"
-          :model-data="store.modelData"
-          :loading="store.modelLoading"
-        />
-
-        <!-- 模型加载失败降级提示 -->
-        <div v-if="store.modelLoadFailed" class="degrade-notice">
-          <el-alert title="模型数据不可用" description="当前显示全部商品，AI 筛选暂不可用" type="warning" show-icon :closable="false" />
-        </div>
-
         <!-- 空白状态引导 -->
-        <div v-else-if="!store.selectedBsrId" class="empty-guide">
+        <div v-if="!store.selectedBsrId" class="empty-guide">
           <div class="empty-guide-icon">
             <el-icon><FolderOpened /></el-icon>
           </div>
           <h3 class="empty-guide-title">从左侧选择品线开始</h3>
           <p class="empty-guide-desc">
-            点击左侧品线大类查看该品类全部商品，<br>
-            再在右侧面板中选择子类加载 AI 品线模型与精准筛选。
+            点击左侧品线大类查看该品类全部商品，<br />
+            再在右侧面板中选择子类查看该子类商品。
           </p>
           <div class="empty-guide-steps">
             <div class="step">
@@ -235,7 +244,10 @@
         </div>
 
         <!-- 筛选操作栏 —— 仅模型元素/载体筛选标签 -->
-        <div v-if="store.selectedBsrId && store.selectedNodeId" class="action-bar">
+        <div
+          v-if="store.selectedBsrId && store.selectedNodeId"
+          class="action-bar"
+        >
           <div class="filter-tags">
             <span
               v-for="f in store.activeFilters"
@@ -243,7 +255,9 @@
               class="filter-tag"
             >
               {{ f.label }}
-              <span class="close" @click="store.removeFilter(f.id)">&times;</span>
+              <span class="close" @click="store.removeFilter(f.id)"
+                >&times;</span
+              >
             </span>
             <span v-if="!store.hasFilters" class="filter-hint">
               点击模型中的元素或载体加入筛选
@@ -251,7 +265,10 @@
             <el-button
               v-if="store.hasFilters"
               size="small"
-              @click="store.clearFilters(); store.searchCompetitors()"
+              @click="
+                store.clearFilters();
+                store.searchCompetitors();
+              "
             >
               清除筛选
             </el-button>
@@ -268,11 +285,22 @@
           :selected-asins="store.selectedProducts"
           :selected-count="store.selectedCount"
           :sort-by="store.sortBy"
-          @toggle-select="(asin: string) => store.toggleProductSelection(asin, !store.selectedProducts.has(asin))"
+          @toggle-select="
+            (asin: string) =>
+              store.toggleProductSelection(
+                asin,
+                !store.selectedProducts.has(asin),
+              )
+          "
           @view-detail="openDetail"
           @card-click="openDetail"
           @page-change="store.goToPage"
-          @size-change="(s) => { store.competitorPageSize = s; store.searchCompetitors() }"
+          @size-change="
+            (s) => {
+              store.competitorPageSize = s;
+              store.searchCompetitors();
+            }
+          "
           @select-all-current="store.selectAllOnPage(store.competitorResults)"
           @deselect-all-current="store.clearSelection()"
           @sort-change="store.setSortBy"
@@ -284,181 +312,205 @@
     <div v-if="store.selectedCount > 0" class="bottom-bar">
       <span>已选 {{ store.selectedCount }} 件</span>
       <el-button size="small" @click="store.clearSelection()">清空</el-button>
-      <el-button type="primary" size="small" :loading="store.batchLoading" @click="store.batchAddToSelection()">批量加入选品</el-button>
-      <el-button size="small" :loading="store.exportLoading" @click="store.exportSelectedExcel()">导出Excel</el-button>
+      <el-button
+        type="primary"
+        size="small"
+        :loading="store.batchLoading"
+        @click="store.batchAddToSelection()"
+        >批量加入选品</el-button
+      >
+      <el-button
+        size="small"
+        :loading="store.exportLoading"
+        @click="store.exportSelectedExcel()"
+        >导出Excel</el-button
+      >
     </div>
 
     <!-- 商品详情弹窗（侧边抽屉） -->
-    <ProductDetailDialog v-model:visible="detailVisible" :product="detailProduct" mode="selection" use-drawer :data-source="store.dataSource" />
+    <ProductDetailDialog
+      v-model:visible="detailVisible"
+      :product="detailProduct"
+      mode="selection"
+      use-drawer
+      data-source="selection"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Menu, FolderOpened, Search, DArrowLeft, DArrowRight, CaretTop, CaretBottom } from '@element-plus/icons-vue'
-import { useProductLineSelectionStore } from './store'
-import ProductLineTree from './components/ProductLineTree.vue'
-import ModelSummaryBar from './components/ModelSummaryBar.vue'
-import CompetitorCardGrid from './components/CompetitorCardGrid.vue'
-import ProductDetailDialog from '@/components/ProductDetailDialog/index.vue'
-import MobileActionSheet from '@/components/MobileActionSheet/index.vue'
+import { ref, computed, onMounted, watch } from "vue";
+import { ElMessage, ElMessageBox } from "element-plus";
+import {
+  Menu,
+  FolderOpened,
+  Search,
+  DArrowLeft,
+  DArrowRight,
+  CaretTop,
+  CaretBottom,
+} from "@element-plus/icons-vue";
+import { useProductLineSelectionStore } from "./store";
+import ProductLineTree from "./components/ProductLineTree.vue";
+import CompetitorCardGrid from "./components/CompetitorCardGrid.vue";
+import ProductDetailDialog from "@/components/ProductDetailDialog/index.vue";
+import MobileActionSheet from "@/components/MobileActionSheet/index.vue";
 
-const store = useProductLineSelectionStore()
-const mobileTreeOpen = ref(false)
-const detailVisible = ref(false)
-const detailProduct = ref<any>(null)
+const store = useProductLineSelectionStore();
+const mobileTreeOpen = ref(false);
+const detailVisible = ref(false);
+const detailProduct = ref<any>(null);
 
 // 折叠状态
-const treeCollapsed = ref(false)
-const l2Collapsed = ref(false)
+const treeCollapsed = ref(false);
+const l2Collapsed = ref(false);
 
 // L2 子类面板
-const subCategorySearch = ref('')
+const subCategorySearch = ref("");
 const displaySubCategories = computed(() => {
-  const q = subCategorySearch.value.toLowerCase().trim()
-  if (!q) return store.currentSubCategories
-  return store.currentSubCategories.filter(c =>
-    c.name.toLowerCase().includes(q)
-  )
-})
+  const q = subCategorySearch.value.toLowerCase().trim();
+  if (!q) return store.currentSubCategories;
+  return store.currentSubCategories.filter((c) =>
+    c.name.toLowerCase().includes(q),
+  );
+});
 
 function handleL2ItemClick(cat: any) {
   if (String(cat.nodeId) === store.selectedNodeId) {
     // 已选中 → 回到 L1 视图
-    store.selectCategory(store.selectedBsrId, store.selectedBsrName)
+    store.selectCategory(store.selectedBsrId, store.selectedBsrName);
   } else {
     // 切换到 L2
-    store.selectSubCategory(cat.nodeId, cat.name, store.selectedBsrId)
+    store.selectSubCategory(cat.nodeId, cat.name, store.selectedBsrId);
   }
 }
 
 // 切换 L1 时清空 L2 搜索词
-watch(() => store.selectedBsrId, () => {
-  subCategorySearch.value = ''
-})
+watch(
+  () => store.selectedBsrId,
+  () => {
+    subCategorySearch.value = "";
+  },
+);
 
 // 月份动态生成：当前日期往前推12个月
 const monthOptions = computed(() => {
-  const now = new Date()
-  const months: string[] = []
+  const now = new Date();
+  const months: string[] = [];
   for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    months.push(val)
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    months.push(val);
   }
-  return months
-})
+  return months;
+});
 
 // MobileActionSheet 选项
 const siteOptions = [
-  { label: 'US', value: 'US' },
-  { label: 'UK', value: 'UK' },
-  { label: 'DE', value: 'DE' },
-]
+  { label: "US", value: "US" },
+  { label: "UK", value: "UK" },
+  { label: "DE", value: "DE" },
+];
 
 const monthActionOptions = computed(() =>
-  monthOptions.value.map(m => ({ label: m, value: m }))
-)
-
-const batchOptions = computed(() =>
-  store.batches.map(b => ({ label: b.batchId, value: b.batchId }))
-)
+  monthOptions.value.map((m) => ({ label: m, value: m })),
+);
 
 // 拖拽分隔线
-const treeWidth = ref(280)
-const resizing = ref(false)
+const treeWidth = ref(280);
+const resizing = ref(false);
 
 function startResize(e: MouseEvent) {
-  resizing.value = true
-  const startX = e.clientX
-  const startWidth = treeWidth.value
-  document.body.style.cursor = 'col-resize'
-  document.body.style.userSelect = 'none'
+  resizing.value = true;
+  const startX = e.clientX;
+  const startWidth = treeWidth.value;
+  document.body.style.cursor = "col-resize";
+  document.body.style.userSelect = "none";
 
   const onMove = (ev: MouseEvent) => {
-    const delta = ev.clientX - startX
-    treeWidth.value = Math.max(200, Math.min(400, startWidth + delta))
-    document.documentElement.style.setProperty('--tree-width', treeWidth.value + 'px')
-  }
+    const delta = ev.clientX - startX;
+    treeWidth.value = Math.max(200, Math.min(400, startWidth + delta));
+    document.documentElement.style.setProperty(
+      "--tree-width",
+      treeWidth.value + "px",
+    );
+  };
   const onUp = () => {
-    resizing.value = false
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-    document.removeEventListener('mousemove', onMove)
-    document.removeEventListener('mouseup', onUp)
-  }
-  document.addEventListener('mousemove', onMove)
-  document.addEventListener('mouseup', onUp)
+    resizing.value = false;
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+  };
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup", onUp);
 }
 
 function openDetail(product: any) {
-  detailProduct.value = product
-  detailVisible.value = true
+  detailProduct.value = product;
+  detailVisible.value = true;
 }
 
 onMounted(() => {
-  store.initData()
-})
+  store.initData();
+});
 
-watch([() => store.marketplace, () => store.month], ([newMkp, newMonth], [oldMkp, oldMonth]) => {
-  if (store.selectedCount > 0 || store.hasFilters) {
-    ElMessageBox.confirm(
-      '切换市场或月份将清空当前筛选和选中，是否继续？',
-      '确认切换',
-      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
-    ).then(() => {
-      store.selectedBsrId = ''
-      store.selectedNodeId = ''
-      store.searchKeyword = ''
-      store.modelData = null
-      store.competitorResults = []
-      store.selectedProducts = new Set()
-      store.initData()
-    }).catch(() => {
-      // 用户取消 — 回滚市场/月份到旧值
-      store.marketplace = oldMkp
-      store.month = oldMonth
-    })
-  } else {
-    store.selectedBsrId = ''
-    store.selectedNodeId = ''
-    store.searchKeyword = ''
-    store.modelData = null
-    store.competitorResults = []
-    store.selectedProducts = new Set()
-    store.initData()
-  }
-})
-
-watch(() => store.selectedBatchId, (newId) => {
-  if (!newId) return
-  if (store.selectedNodeId) {
-    store.selectSubCategory(
-      Number(store.selectedNodeId), store.selectedNodeName,
-      store.selectedBsrId, store.selectedNodeHealth
-    )
-  } else if (store.selectedBsrId) {
-    store.selectCategory(store.selectedBsrId, store.selectedBsrName)
-  }
-})
+watch(
+  [() => store.marketplace, () => store.month],
+  ([newMkp, newMonth], [oldMkp, oldMonth]) => {
+    if (store.selectedCount > 0 || store.hasFilters) {
+      ElMessageBox.confirm(
+        "切换市场或月份将清空当前筛选和选中，是否继续？",
+        "确认切换",
+        {
+          confirmButtonText: "确定",
+          cancelButtonText: "取消",
+          type: "warning",
+        },
+      )
+        .then(() => {
+          store.selectedBsrId = "";
+          store.selectedNodeId = "";
+          store.searchKeyword = "";
+          store.competitorResults = [];
+          store.selectedProducts = new Set();
+          store.initData();
+        })
+        .catch(() => {
+          // 用户取消 — 回滚市场/月份到旧值
+          store.marketplace = oldMkp;
+          store.month = oldMonth;
+        });
+    } else {
+      store.selectedBsrId = "";
+      store.selectedNodeId = "";
+      store.searchKeyword = "";
+      store.competitorResults = [];
+      store.selectedProducts = new Set();
+      store.initData();
+    }
+  },
+);
 
 // 搜索输入 300ms 防抖
-let searchDebounce: ReturnType<typeof setTimeout> | null = null
-watch(() => store.searchKeyword, (val) => {
-  if (searchDebounce) clearTimeout(searchDebounce)
-  searchDebounce = setTimeout(() => {
-    store.searchByKeyword(val)
-  }, 300)
-})
+let searchDebounce: ReturnType<typeof setTimeout> | null = null;
+watch(
+  () => store.searchKeyword,
+  (val) => {
+    if (searchDebounce) clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(() => {
+      store.searchByKeyword(val);
+    }, 300);
+  },
+);
 </script>
 
 <script lang="ts">
-export default { name: 'ProductLineSelection' }
+export default { name: "ProductLineSelection" };
 </script>
 
 <style lang="scss" scoped>
-@use '@/styles/variables.scss' as *;
+@use "@/styles/variables.scss" as *;
 
 .selection-page {
   display: flex;
@@ -478,14 +530,26 @@ export default { name: 'ProductLineSelection' }
   padding: 0 16px;
   gap: 12px;
 
-  .tb-brand { font-size: 13px; font-weight: 600; color: $text-secondary; letter-spacing: 0.02em; white-space: nowrap; }
-  .tb-brand span { color: $text-primary; }
-  .tb-spacer { flex: 1; }
+  .tb-brand {
+    font-size: 13px;
+    font-weight: 600;
+    color: $text-secondary;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .tb-brand span {
+    color: $text-primary;
+  }
+  .tb-spacer {
+    flex: 1;
+  }
 }
 
 .tb-select {
   display: flex;
-  position: relative; align-items: center; gap: 6px;
+  position: relative;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   color: $text-secondary;
   white-space: nowrap;
@@ -509,7 +573,10 @@ export default { name: 'ProductLineSelection' }
   cursor: pointer;
   font-family: inherit;
 
-  &:hover { color: $text-primary; border-color: $primary-color; }
+  &:hover {
+    color: $text-primary;
+    border-color: $primary-color;
+  }
 }
 
 // ---- 树折叠相关 ----
@@ -522,8 +589,12 @@ export default { name: 'ProductLineSelection' }
 
   &.collapsed {
     width: 0 !important;
-    > * { display: none; }
-    > .tree-fold-btn { display: flex; }
+    > * {
+      display: none;
+    }
+    > .tree-fold-btn {
+      display: flex;
+    }
   }
 }
 
@@ -579,15 +650,17 @@ export default { name: 'ProductLineSelection' }
 .l2-panel {
   overflow: hidden;
   min-height: min-content;
-  transition: max-height 0.25s ease, opacity 0.2s ease;
+  transition:
+    max-height 0.25s ease,
+    opacity 0.2s ease;
   max-height: 2000px;
   opacity: 1;
-  min-height: min-content;  // 防止 flex item 被 overflow:hidden 压缩到 0
+  min-height: min-content; // 防止 flex item 被 overflow:hidden 压缩到 0
 }
 .l2-panel.collapsed {
   max-height: 0 !important;
   min-height: 0 !important;
-  min-height: 0 !important;  // 折叠时必须允许压缩到 0
+  min-height: 0 !important; // 折叠时必须允许压缩到 0
   opacity: 0;
   padding: 0;
   border-bottom: none;
@@ -630,9 +703,13 @@ export default { name: 'ProductLineSelection' }
   flex-shrink: 0;
   transition: background $transition-fast;
 
-  &:hover { background: $primary-color; }
+  &:hover {
+    background: $primary-color;
+  }
 
-  @media (max-width: 900px) { display: none; }
+  @media (max-width: 900px) {
+    display: none;
+  }
 }
 
 .content-area {
@@ -646,10 +723,13 @@ export default { name: 'ProductLineSelection' }
 // ---- 类目导航条 ----
 .category-header {
   display: flex;
-  position: relative; align-items: center; gap: 6px;
+  position: relative;
+  align-items: center;
+  gap: 6px;
   padding: 10px 20px;
   border-bottom: 1px solid $border-color;
-  font-size: 14px; font-weight: 600;
+  font-size: 14px;
+  font-weight: 600;
   background: $bg-color;
 }
 .cat-l1 {
@@ -661,10 +741,20 @@ export default { name: 'ProductLineSelection' }
     padding: 4px 10px;
     border-radius: 6px;
   }
-  &.clickable { cursor: pointer; &:hover { color: $primary-color; text-decoration: underline; } }
+  &.clickable {
+    cursor: pointer;
+    &:hover {
+      color: $primary-color;
+      text-decoration: underline;
+    }
+  }
 }
-.cat-sep { color: $text-tertiary; }
-.cat-l2 { color: $text-secondary; }
+.cat-sep {
+  color: $text-tertiary;
+}
+.cat-l2 {
+  color: $text-secondary;
+}
 .cat-l2.active {
   color: $primary-color;
   background: rgba(180, 83, 9, 0.04);
@@ -768,7 +858,9 @@ export default { name: 'ProductLineSelection' }
 // ---- 操作栏 ----
 .action-bar {
   display: flex;
-  position: relative; gap: 12px; align-items: center;
+  position: relative;
+  gap: 12px;
+  align-items: center;
   padding: 12px 20px;
   background: $bg-color;
   border-top: 1px solid $border-color;
@@ -776,22 +868,32 @@ export default { name: 'ProductLineSelection' }
   .filter-tags {
     flex: 1;
     display: flex;
-  position: relative; flex-wrap: wrap; gap: 6px;
+    position: relative;
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
   .filter-tag {
-    display: inline-flex; align-items: center; gap: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     padding: 4px 10px;
     background: rgba($primary-color, 0.08);
     color: $primary-color;
     border-radius: $radius-sm;
-    font-size: 12px; font-weight: 500;
+    font-size: 12px;
+    font-weight: 500;
     border: 1px solid rgba($primary-color, 0.15);
   }
 
   .filter-tag .close {
-    cursor: pointer; font-size: 14px; line-height: 1; opacity: 0.6;
-    &:hover { opacity: 1; }
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    opacity: 0.6;
+    &:hover {
+      opacity: 1;
+    }
   }
 
   .filter-hint {
@@ -819,15 +921,23 @@ export default { name: 'ProductLineSelection' }
 
 // ---- 响应式 ----
 .desktop-only.desktop-only {
-  @media (max-width: 900px) { display: none; }
+  @media (max-width: 900px) {
+    display: none;
+  }
 }
 
 .mobile-only.mobile-only {
-  @media (min-width: 901px) { display: none; }
+  @media (min-width: 901px) {
+    display: none;
+  }
 }
 
 @media (max-width: 900px) {
-  .mobile-tree-btn { display: inline-flex; align-items: center; gap: 4px; }
+  .mobile-tree-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
 
   .tb-select {
     display: inline-flex;
@@ -845,22 +955,23 @@ export default { name: 'ProductLineSelection' }
     min-width: 120px;
   }
 
-  .batch-meta { display: none; }
+  .batch-meta {
+    display: none;
+  }
 
-  .topbar .el-input { width: 140px !important; }
-  .topbar { flex-wrap: wrap; gap: 8px; }
+  .topbar .el-input {
+    width: 140px !important;
+  }
+  .topbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
 
   .bottom-bar {
     flex-wrap: wrap;
     gap: 8px;
     padding: 10px;
   }
-}
-
-// ---- 模型降级提示 ----
-.degrade-notice {
-  flex-shrink: 0;
-  margin: 12px 20px 0;
 }
 
 // ---- 空白状态引导 ----

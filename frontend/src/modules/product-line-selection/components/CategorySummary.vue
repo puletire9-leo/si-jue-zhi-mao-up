@@ -2,8 +2,10 @@
   <div class="category-summary" :class="{ expanded }">
     <!-- 可点击标题行，切换展开/折叠 -->
     <div class="cs-header" @click="expanded = !expanded">
-      <span class="cs-arrow">{{ expanded ? '▾' : '▸' }}</span>
-      <span class="cs-title">📊 {{ store.marketplace }} · {{ store.month }}</span>
+      <span class="cs-arrow">{{ expanded ? "▾" : "▸" }}</span>
+      <span class="cs-title"
+        >📊 {{ store.marketplace }} · {{ store.month }}</span
+      >
     </div>
 
     <!-- 展开区域 -->
@@ -21,63 +23,69 @@
           >
             <span class="cs-l1-name">{{ group.name }}</span>
             <span class="cs-l1-bar">
-              <span class="cs-l1-bar-fill" :style="{ width: pct(group) + '%' }" />
+              <span
+                class="cs-l1-bar-fill"
+                :style="{ width: pct(group) + '%' }"
+              />
             </span>
-            <span class="cs-l1-count">{{ countOf(group).toLocaleString() }}</span>
+            <span class="cs-l1-count">{{
+              countOf(group).toLocaleString()
+            }}</span>
             <span class="cs-l1-pct">{{ pct(group).toFixed(1) }}%</span>
           </div>
         </div>
-        <div class="cs-footer">共 <em>{{ totalCount.toLocaleString() }}</em> 件商品</div>
+        <div class="cs-footer">
+          共 <em>{{ totalCount.toLocaleString() }}</em> 件商品
+        </div>
       </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useProductLineSelectionStore } from '../store'
-import type { TreeGroup } from '@/types/productLine'
+import { ref, computed } from "vue";
+import { useProductLineSelectionStore } from "../store";
+import type { TreeGroup } from "@/types/productLine";
 
-const store = useProductLineSelectionStore()
-const expanded = ref(false)
+const store = useProductLineSelectionStore();
+const expanded = ref(false);
 
 function countOf(g: TreeGroup): number {
-  return g.children.reduce((s, c) => s + (c.productCount || 0), 0)
+  return g.children.reduce((s, c) => s + (c.productCount || 0), 0);
 }
 
 const totalCount = computed(() =>
-  store.treeData.reduce((sum, g) => sum + countOf(g), 0)
-)
+  store.treeData.reduce((sum, g) => sum + countOf(g), 0),
+);
 
 function pct(g: TreeGroup): number {
-  const t = totalCount.value
-  if (t === 0) return 0
-  return (countOf(g) / t) * 100
+  const t = totalCount.value;
+  if (t === 0) return 0;
+  return (countOf(g) / t) * 100;
 }
 
 function handleClick(g: TreeGroup) {
   if (g.id === store.selectedBsrId && store.selectedBsrId) {
     // 取消选中：完整清理状态
-    store.selectedBsrId = ''
-    store.selectedBsrName = ''
-    store.selectedNodeId = ''
-    store.selectedNodeName = ''
-    store.clearFilters()
-    store.clearBasicFilters()
-    store.selectedProducts = new Set()
-    store.competitorResults = []
-    store.modelData = null
-    store.competitorPage = 1
-    store.sortBy = ''
-    store.closeResults()
+    store.selectedBsrId = "";
+    store.selectedBsrName = "";
+    store.selectedNodeId = "";
+    store.selectedNodeName = "";
+    store.clearFilters();
+    store.clearBasicFilters();
+    store.selectedProducts = new Set();
+    store.competitorResults = [];
+    store.competitorPage = 1;
+    store.sortBy = "";
+    store.closeResults();
   } else {
-    store.selectCategory(g.id, g.name)
+    store.selectCategory(g.id, g.name);
   }
 }
 </script>
 
 <style lang="scss" scoped>
-@use '@/styles/variables.scss' as *;
+@use "@/styles/variables.scss" as *;
 
 .category-summary {
   border-bottom: 1px solid $border-color;
