@@ -97,14 +97,14 @@ public class ProductLineController {
         if (batchDate == null) batchDate = month;
         // 郑总各子类的商品数映射：composite_key -> count
         Map<String, Integer> zhengCounts = new HashMap<>();
-        for (Map<String, Object> row : dengZongShopMapper.selectZhengNodeCounts(marketplace, batchDate)) {
+        for (Map<String, Object> row : dengZongShopMapper.selectZhengNodeCounts(marketplace, month, batchDate)) {
             String key = (String) row.get("composite_key");
             Integer count = row.get("product_count") instanceof Number
                     ? ((Number) row.get("product_count")).intValue() : 0;
             if (key != null) zhengCounts.put(key, count);
         }
         // 郑总 bsr_id 按数量降序的榜单顺序
-        List<Map<String, Object>> zhengBsrOrder = dengZongShopMapper.selectZhengBsrIdsOrdered(marketplace, batchDate);
+        List<Map<String, Object>> zhengBsrOrder = dengZongShopMapper.selectZhengBsrIdsOrdered(marketplace, month, batchDate);
         List<String> zhengBsrIdOrder = zhengBsrOrder.stream()
                 .map(r -> (String) r.get("bsrId"))
                 .collect(Collectors.toList());

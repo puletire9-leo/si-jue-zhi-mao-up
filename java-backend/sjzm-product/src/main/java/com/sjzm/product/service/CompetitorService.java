@@ -136,6 +136,7 @@ public class CompetitorService {
                 break;
             }
             page++;
+            try { Thread.sleep(2000); } catch (InterruptedException ignored) {}
         }
 
         // 批量写入子类别：先批量删除，再批量插入
