@@ -75,7 +75,15 @@ export const useProductLineSelectionStore = defineStore(
     const sortBy = ref("");
 
     // ---- 灵活合格规则（取代写死的 MODE1 过滤）----
-    const qualifyRules = ref<QualifyRule[]>([]);
+    // 默认套一条规则：上架≤30天 且 销量>30
+    const qualifyRules = ref<QualifyRule[]>([
+      {
+        conditions: [
+          { field: "listingDays", op: "le", value: 30 },
+          { field: "units", op: "gt", value: 30 },
+        ],
+      },
+    ]);
 
     // ---- 入库时间按周筛选 ----
     function weekToDateRange(w: string): { start: string; end: string } {

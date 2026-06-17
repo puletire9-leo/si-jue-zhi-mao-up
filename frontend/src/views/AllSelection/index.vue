@@ -721,7 +721,12 @@ const activeTab = ref<string>("all");
 
 // 新品榜合格规则（取代写死的 MODE1）。默认：上架≤30天 且 月销>30。
 const NEW_TAB_DEFAULT_RULES: QualifyRule[] = [
-  { listingDaysMax: 30, unitsMin: 30 },
+  {
+    conditions: [
+      { field: "listingDays", op: "le", value: 30 },
+      { field: "units", op: "gt", value: 30 },
+    ],
+  },
 ];
 const newQualifyRules = ref<QualifyRule[]>([...NEW_TAB_DEFAULT_RULES]);
 

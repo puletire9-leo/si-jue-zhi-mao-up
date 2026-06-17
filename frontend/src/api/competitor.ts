@@ -127,14 +127,19 @@ export interface CompetitorListParams {
   qualifyRules?: QualifyRule[];
 }
 
-/** 单条合格规则：三字段各自独立可选（可组合可单独） */
+/** 单条合格规则：内部条件 AND 组合 */
 export interface QualifyRule {
-  /** 上架天数上限：listing_days ≤ X（"X天内"的新品） */
-  listingDaysMax?: number;
-  /** 月销量下限：units > Y（严格大于） */
-  unitsMin?: number;
-  /** BSR 排名上限：bsr ∈ (0, Z] */
-  bsrMax?: number;
+  conditions: RuleCondition[];
+}
+
+/** 规则条件：字段 + 运算符 + 阈值 */
+export interface RuleCondition {
+  /** 字段：上架天数 / 重量(g) / 销量 / BRS排名 */
+  field: "listingDays" | "weightG" | "units" | "bsr";
+  /** 运算符：< ≤ = ≥ > */
+  op: "lt" | "le" | "eq" | "ge" | "gt";
+  /** 阈值 */
+  value: number;
 }
 
 /** 入库批次（按 created_at 实时计算的 ISO 周 + 条数 + 起止日期） */
