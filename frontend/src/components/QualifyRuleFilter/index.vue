@@ -1,265 +1,478 @@
 <script setup lang="ts">
 /**
  * 灵活合格规则筛选器
- * @description 最多 5 条规则，规则之间 OR（满足任一即合格）。
- *   每条规则三字段各自可选：上架天数上限 / 月销量下限(严格大于) / BSR 排名上限。
- *   例：[{上架≤30, 销量>30}, {上架≤60, 销量>120}] = 上架30天内卖过30，或上架60天内卖过120。
- *   取代写死的 MODE1/MODE2 硬分类，由用户在查询期自由配置。
+ * @description 最多 5 条规则，规则之间 OR（满足任一即合格）；规则内多条件 AND。
+ *   每个条件 = 字段(上架天数/重量/销量/BRS排名) + 运算符(≤ < = ≥ >) + 阈值，
+ *   并可单独勾选启用/停用。取代写死的 MODE1/MODE2 硬分类，查询期自由配置。
  */
-import { ref, watch } from "vue";
-import { Plus, Delete, Filter, RefreshLeft } from "@element-plus/icons-vue";
+import { ref, watch, computed } from "vue";
+import { Plus, Delete, Close } from "@element-plus/icons-vue";
 import type { QualifyRule } from "@/api/competitor";
 
-const props = withDefaults(
-  defineProps<{
-    modelValue?: QualifyRule[];
-    maxRules?: number;
-  }>(),
-  {
-    modelValue: () => [],
-    maxRules: 5,
-  },
-);
+type FieldKey = "listingDays" | "weightG" | "units" | "bsr";
+type OpKey = "lt" | "le" | "eq" | "ge" | "gt";
 
+interface ConditionRow {
+  field: FieldKey;
+  op: OpKey;
+  value: number | null;
+  enabled: boolean;
+}
+interface RuleRow {
+  conditions: ConditionRow[];
+}
+
+const FIELDS: {
+  value: FieldKey;
+  label: string;
+  unit?: string;
+  defaultOp: OpKey;
+}[] = [
+  { value: "listingDays", label: "上架天数", unit: "天", defaultOp: "le" },
+  { value: "units", label: "销量", defaultOp: "gt" },
+  { value: "bsr", label: "BRS排名", defaultOp: "le" },
+  { value: "weightG", label: "重量", unit: "g", defaultOp: "le" },
+];
+const OPS: { value: OpKey; label: string }[] = [
+  { value: "le", label: "≤" },
+  { value: "lt", label: "<" },
+  { value: "eq", label: "=" },
+  { value: "ge", label: "≥" },
+  { value: "gt", label: ">" },
+];
+
+const MAX_RULES = 5;
+const MAX_CONDITIONS = 4;
+
+const props = withDefaults(defineProps<{ modelValue?: QualifyRule[] }>(), {
+  modelValue: () => [],
+});
 const emit = defineEmits<{
   (e: "update:modelValue", rules: QualifyRule[]): void;
   (e: "apply", rules: QualifyRule[]): void;
 }>();
 
-interface RuleRow {
-  listingDaysMax: number | null;
-  unitsMin: number | null;
-  bsrMax: number | null;
+function fieldMeta(field: FieldKey) {
+  return FIELDS.find((f) => f.value === field) ?? FIELDS[1];
 }
-
-function emptyRow(): RuleRow {
-  return { listingDaysMax: null, unitsMin: null, bsrMax: null };
+function newCondition(field: FieldKey = "units"): ConditionRow {
+  return { field, op: fieldMeta(field).defaultOp, value: null, enabled: true };
+}
+function newRule(): RuleRow {
+  return { conditions: [newCondition()] };
 }
 
 function toRows(rules: QualifyRule[]): RuleRow[] {
-  if (!rules || rules.length === 0) return [emptyRow()];
+  if (!rules || rules.length === 0) return [newRule()];
   return rules.map((r) => ({
-    listingDaysMax: r.listingDaysMax ?? null,
-    unitsMin: r.unitsMin ?? null,
-    bsrMax: r.bsrMax ?? null,
+    conditions:
+      r.conditions && r.conditions.length
+        ? r.conditions.map((c) => ({
+            field: (c.field as FieldKey) ?? "units",
+            op: (c.op as OpKey) ?? "gt",
+            value: c.value ?? null,
+            enabled: true,
+          }))
+        : [newCondition()],
   }));
 }
 
-/** 清洗：丢弃全空行，只保留有值的字段 */
+/** 清洗：仅保留启用且有值的条件、非空规则 */
 function clean(rs: RuleRow[]): QualifyRule[] {
   return rs
-    .map((r) => {
-      const rule: QualifyRule = {};
-      if (r.listingDaysMax != null) rule.listingDaysMax = r.listingDaysMax;
-      if (r.unitsMin != null) rule.unitsMin = r.unitsMin;
-      if (r.bsrMax != null) rule.bsrMax = r.bsrMax;
-      return rule;
-    })
-    .filter(
-      (r) => r.listingDaysMax != null || r.unitsMin != null || r.bsrMax != null,
-    );
+    .map((r) => ({
+      conditions: r.conditions
+        .filter((c) => c.enabled && c.value != null)
+        .map((c) => ({ field: c.field, op: c.op, value: c.value as number })),
+    }))
+    .filter((r) => r.conditions.length > 0);
 }
 
-const rows = ref<RuleRow[]>(toRows(props.modelValue));
+const rules = ref<RuleRow[]>(toRows(props.modelValue));
 
-// 外部回填（如预设套用）时同步；用清洗结果比对避免回环
 watch(
   () => props.modelValue,
   (v) => {
-    if (JSON.stringify(clean(rows.value)) !== JSON.stringify(v ?? [])) {
-      rows.value = toRows(v ?? []);
+    if (JSON.stringify(clean(rules.value)) !== JSON.stringify(v ?? [])) {
+      rules.value = toRows(v ?? []);
     }
   },
 );
 
-function addRow() {
-  if (rows.value.length >= props.maxRules) return;
-  rows.value.push(emptyRow());
-}
+const activeCount = computed(() => clean(rules.value).length);
 
-function removeRow(i: number) {
-  rows.value.splice(i, 1);
-  if (rows.value.length === 0) rows.value.push(emptyRow());
+function onFieldChange(cond: ConditionRow) {
+  cond.op = fieldMeta(cond.field).defaultOp;
 }
-
+function addCondition(rule: RuleRow) {
+  if (rule.conditions.length >= MAX_CONDITIONS) return;
+  const used = new Set(rule.conditions.map((c) => c.field));
+  const next = FIELDS.find((f) => !used.has(f.value))?.value ?? "units";
+  rule.conditions.push(newCondition(next));
+}
+function removeCondition(rule: RuleRow, i: number) {
+  rule.conditions.splice(i, 1);
+  if (rule.conditions.length === 0) rule.conditions.push(newCondition());
+}
+function addRule() {
+  if (rules.value.length >= MAX_RULES) return;
+  rules.value.push(newRule());
+}
+function removeRule(i: number) {
+  rules.value.splice(i, 1);
+  if (rules.value.length === 0) rules.value.push(newRule());
+}
 function apply() {
-  const cleaned = clean(rows.value);
+  const cleaned = clean(rules.value);
   emit("update:modelValue", cleaned);
   emit("apply", cleaned);
 }
-
 function reset() {
-  rows.value = [emptyRow()];
+  rules.value = [newRule()];
   emit("update:modelValue", []);
   emit("apply", []);
 }
 </script>
 
 <template>
-  <div class="qualify-rule-filter">
-    <div class="qrf-header">
-      <span class="qrf-title">合格规则</span>
-      <span class="qrf-hint">满足任一规则即合格（规则之间 OR）</span>
+  <div class="qrf">
+    <div class="qrf__head">
+      <span class="qrf__title">合格规则</span>
+      <span class="qrf__sub">满足任一规则即合格</span>
+      <span v-if="activeCount" class="qrf__count"
+        >{{ activeCount }} 条生效</span
+      >
     </div>
 
-    <div class="qrf-rows">
-      <div v-for="(row, i) in rows" :key="i" class="qrf-row">
-        <span class="qrf-idx">规则{{ i + 1 }}</span>
+    <div class="qrf__rules">
+      <template v-for="(rule, ri) in rules" :key="ri">
+        <div v-if="ri > 0" class="qrf__or"><span>或</span></div>
 
-        <span class="qrf-field">
-          <span class="qrf-label">上架 ≤</span>
-          <el-input-number
-            v-model="row.listingDaysMax"
-            :min="0"
-            :controls="false"
-            :value-on-clear="null"
-            placeholder="不限"
-            class="qrf-num"
-          />
-          <span class="qrf-unit">天</span>
-        </span>
+        <div class="qrf__rule">
+          <div class="qrf__rule-bar">
+            <span class="qrf__rule-no">规则 {{ ri + 1 }}</span>
+            <button
+              v-if="rules.length > 1"
+              class="qrf__icon-btn qrf__rule-del"
+              title="删除规则"
+              @click="removeRule(ri)"
+            >
+              <el-icon><Close /></el-icon>
+            </button>
+          </div>
 
-        <span class="qrf-and">且</span>
+          <div class="qrf__conds">
+            <div
+              v-for="(cond, ci) in rule.conditions"
+              :key="ci"
+              class="qrf__cond"
+              :class="{ 'is-off': !cond.enabled }"
+            >
+              <span v-if="ci > 0" class="qrf__and">且</span>
+              <el-checkbox
+                v-model="cond.enabled"
+                class="qrf__chk"
+                title="启用 / 停用此条件"
+              />
+              <el-select
+                v-model="cond.field"
+                class="qrf__field"
+                size="small"
+                @change="onFieldChange(cond)"
+              >
+                <el-option
+                  v-for="f in FIELDS"
+                  :key="f.value"
+                  :label="f.label"
+                  :value="f.value"
+                />
+              </el-select>
+              <el-select v-model="cond.op" class="qrf__op" size="small">
+                <el-option
+                  v-for="o in OPS"
+                  :key="o.value"
+                  :label="o.label"
+                  :value="o.value"
+                />
+              </el-select>
+              <el-input-number
+                v-model="cond.value"
+                :min="0"
+                :controls="false"
+                :value-on-clear="null"
+                placeholder="数值"
+                class="qrf__val"
+                size="small"
+              />
+              <span v-if="fieldMeta(cond.field).unit" class="qrf__unit">{{
+                fieldMeta(cond.field).unit
+              }}</span>
+              <button
+                v-if="rule.conditions.length > 1"
+                class="qrf__icon-btn qrf__cond-del"
+                title="删除条件"
+                @click="removeCondition(rule, ci)"
+              >
+                <el-icon><Delete /></el-icon>
+              </button>
+            </div>
 
-        <span class="qrf-field">
-          <span class="qrf-label">销量 &gt;</span>
-          <el-input-number
-            v-model="row.unitsMin"
-            :min="0"
-            :controls="false"
-            :value-on-clear="null"
-            placeholder="不限"
-            class="qrf-num"
-          />
-        </span>
+            <button
+              v-if="rule.conditions.length < MAX_CONDITIONS"
+              class="qrf__add qrf__add-cond"
+              @click="addCondition(rule)"
+            >
+              <el-icon><Plus /></el-icon> 添加条件（且）
+            </button>
+          </div>
+        </div>
+      </template>
+    </div>
 
-        <span class="qrf-and">且</span>
-
-        <span class="qrf-field">
-          <span class="qrf-label">BSR ≤</span>
-          <el-input-number
-            v-model="row.bsrMax"
-            :min="1"
-            :controls="false"
-            :value-on-clear="null"
-            placeholder="不限"
-            class="qrf-num qrf-num-wide"
-          />
-        </span>
-
-        <el-button
-          link
-          type="danger"
-          :icon="Delete"
-          class="qrf-del"
-          @click="removeRow(i)"
-        />
+    <div class="qrf__foot">
+      <button
+        class="qrf__add qrf__add-rule"
+        :disabled="rules.length >= MAX_RULES"
+        @click="addRule"
+      >
+        <el-icon><Plus /></el-icon> 添加规则（或）<span
+          v-if="rules.length >= MAX_RULES"
+          class="qrf__limit"
+          >· 上限 {{ MAX_RULES }}</span
+        >
+      </button>
+      <div class="qrf__foot-actions">
+        <el-button size="small" text @click="reset">重置</el-button>
+        <el-button size="small" type="primary" @click="apply"
+          >应用筛选</el-button
+        >
       </div>
-    </div>
-
-    <div class="qrf-actions">
-      <el-button
-        size="small"
-        :icon="Plus"
-        :disabled="rows.length >= maxRules"
-        @click="addRow"
-      >
-        添加规则{{ rows.length >= maxRules ? `（上限${maxRules}）` : "" }}
-      </el-button>
-      <el-button size="small" :icon="RefreshLeft" @click="reset"
-        >重置</el-button
-      >
-      <el-button size="small" type="primary" :icon="Filter" @click="apply">
-        应用筛选
-      </el-button>
     </div>
   </div>
 </template>
 
 <style scoped lang="scss">
-.qualify-rule-filter {
-  padding: 12px 14px;
-  background: var(--el-fill-color-light, #f5f7fa);
-  border: 1px solid var(--el-border-color-lighter, #ebeef5);
-  border-radius: 8px;
+@use "@/styles/variables.scss" as *;
 
-  .qrf-header {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    margin-bottom: 10px;
+.qrf {
+  background: $bg-body;
+  border: 1px solid $border-color;
+  border-radius: $radius-lg;
+  padding: $space-md $space-lg $space-lg;
+}
 
-    .qrf-title {
-      font-weight: 600;
-      font-size: 14px;
-      color: var(--el-text-color-primary, #303133);
-    }
-    .qrf-hint {
-      font-size: 12px;
-      color: var(--el-text-color-secondary, #909399);
-    }
+.qrf__head {
+  display: flex;
+  align-items: baseline;
+  gap: $space-sm;
+  margin-bottom: $space-md;
+
+  .qrf__title {
+    font-weight: $font-weight-semibold;
+    font-size: $font-size-sm;
+    color: $text-primary;
+    letter-spacing: 0.01em;
   }
-
-  .qrf-rows {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+  .qrf__sub {
+    font-size: $font-size-xs;
+    color: $text-tertiary;
   }
-
-  .qrf-row {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-
-    .qrf-idx {
-      flex: 0 0 auto;
-      font-size: 12px;
-      color: var(--el-text-color-secondary, #909399);
-      min-width: 42px;
-    }
-
-    .qrf-field {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .qrf-label {
-      font-size: 13px;
-      color: var(--el-text-color-regular, #606266);
-      white-space: nowrap;
-    }
-    .qrf-unit {
-      font-size: 13px;
-      color: var(--el-text-color-regular, #606266);
-    }
-    .qrf-and {
-      font-size: 12px;
-      color: var(--el-text-color-secondary, #c0c4cc);
-    }
-
-    .qrf-num {
-      width: 78px;
-    }
-    .qrf-num-wide {
-      width: 96px;
-    }
-
-    .qrf-del {
-      margin-left: auto;
-    }
-  }
-
-  .qrf-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 12px;
+  .qrf__count {
+    margin-left: auto;
+    font-size: $font-size-xs;
+    font-family: $font-family-mono;
+    color: $primary-color;
+    background: rgba($primary-color, 0.08);
+    border: 1px solid rgba($primary-color, 0.18);
+    border-radius: $radius-full;
+    padding: 1px $space-sm;
   }
 }
 
-// 让无 controls 的数字输入框文本左对齐，观感更像普通输入
-:deep(.qrf-num .el-input__inner) {
+.qrf__rules {
+  display: flex;
+  flex-direction: column;
+}
+
+/* OR 连接器：规则之间的关系，签名元素 */
+.qrf__or {
+  display: flex;
+  align-items: center;
+  gap: $space-md;
+  padding: $space-xs 0;
+
+  &::before,
+  &::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      rgba($primary-color, 0.35),
+      transparent
+    );
+  }
+  span {
+    flex: 0 0 auto;
+    font-size: $font-size-xs;
+    font-weight: $font-weight-bold;
+    letter-spacing: 0.14em;
+    color: $primary-color;
+    background: $bg-color;
+    border: 1px solid rgba($primary-color, 0.3);
+    border-radius: $radius-full;
+    padding: 2px $space-md;
+  }
+}
+
+.qrf__rule {
+  background: $bg-color;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  padding: $space-sm $space-md $space-md;
+  transition:
+    border-color $transition-fast,
+    box-shadow $transition-fast;
+
+  &:hover {
+    border-color: $border-hover;
+    box-shadow: $shadow-sm;
+  }
+}
+
+.qrf__rule-bar {
+  display: flex;
+  align-items: center;
+  margin-bottom: $space-sm;
+
+  .qrf__rule-no {
+    font-size: 11px;
+    font-weight: $font-weight-bold;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: $primary-color;
+  }
+  .qrf__rule-del {
+    margin-left: auto;
+  }
+}
+
+.qrf__conds {
+  display: flex;
+  flex-direction: column;
+  gap: $space-sm;
+}
+
+.qrf__cond {
+  display: flex;
+  align-items: center;
+  gap: $space-sm;
+  transition: opacity $transition-fast;
+
+  &.is-off {
+    opacity: 0.42;
+  }
+
+  .qrf__and {
+    flex: 0 0 auto;
+    font-size: 11px;
+    color: $text-tertiary;
+    margin-right: -2px;
+  }
+  .qrf__field {
+    width: 104px;
+  }
+  .qrf__op {
+    width: 60px;
+  }
+  .qrf__val {
+    width: 86px;
+  }
+  .qrf__unit {
+    font-size: $font-size-xs;
+    color: $text-secondary;
+    margin-left: -2px;
+  }
+  .qrf__cond-del {
+    margin-left: auto;
+  }
+}
+
+/* 等宽字体让阈值与运算符更有“数据”质感 */
+:deep(.qrf__val .el-input__inner) {
   text-align: left;
+  font-family: $font-family-mono;
+}
+:deep(.qrf__op .el-select__placeholder),
+:deep(.qrf__op .el-select__selected-item) {
+  font-family: $font-family-mono;
+  font-weight: $font-weight-semibold;
+}
+
+.qrf__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  color: $text-tertiary;
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    color: $danger-color;
+    background: rgba($danger-color, 0.08);
+  }
+}
+
+.qrf__add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  margin-top: $space-xs;
+  padding: 3px $space-sm;
+  font-size: $font-size-xs;
+  color: $primary-color;
+  background: transparent;
+  border: 1px dashed rgba($primary-color, 0.35);
+  border-radius: $radius-sm;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover:not(:disabled) {
+    background: rgba($primary-color, 0.06);
+    border-color: $primary-color;
+  }
+  &:disabled {
+    color: $text-disabled;
+    border-color: $border-color;
+    cursor: not-allowed;
+  }
+  .qrf__limit {
+    color: $text-tertiary;
+  }
+}
+
+.qrf__foot {
+  display: flex;
+  align-items: center;
+  gap: $space-md;
+  margin-top: $space-md;
+  padding-top: $space-md;
+  border-top: 1px solid $border-color;
+
+  .qrf__add-rule {
+    margin-top: 0;
+  }
+  .qrf__foot-actions {
+    margin-left: auto;
+    display: flex;
+    gap: $space-xs;
+  }
 }
 </style>
