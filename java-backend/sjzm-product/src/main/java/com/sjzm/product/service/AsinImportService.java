@@ -47,7 +47,7 @@ public class AsinImportService {
     private static final Pattern PRICE_PATTERN = Pattern.compile("[\\s]*([\\d]+\\.?[\\d]*)");
     private static final Pattern NUMBER_PATTERN = Pattern.compile("[-+]?\\d*\\.?\\d+");
     private static final int BATCH_SIZE = 40;
-
+    private static final long BATCH_API_DELAY_MS = 2000;
     private static final int DB_BATCH_SIZE = 2000; // 每批写入 DB 的行数
     
     private static final long SELLER_API_DELAY_MS = 500;
@@ -303,6 +303,11 @@ public class AsinImportService {
                 task.setApiFail(failCount);
                 task.setProgressLog(logBuf.toString());
                 taskMapper.updateById(task);
+
+                // 批次间隔，避免触发卖家精灵频率限制
+                if (i < totalBatches - 1) {
+                    try { Thread.sleep(BATCH_API_DELAY_MS); } catch (InterruptedException ignored) {}
+                }
             }
 
             task.setTaskStatus("DONE");
