@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { ElMessage } from "element-plus";
 import { getBatches, getTree } from "@/api/product-line";
-import { competitorApi } from "@/api/competitor";
+import { competitorApi, getCreatedWeeks } from "@/api/competitor";
 import { selectionApi } from "@/api/selection";
 import type {
   ProductLineGroup,
@@ -10,7 +10,11 @@ import type {
   FilterType,
   TreeGroup,
 } from "@/types/productLine";
-import type { CompetitorProductRaw } from "@/api/competitor";
+import type {
+  CompetitorProductRaw,
+  BatchWeek,
+  QualifyRule,
+} from "@/api/competitor";
 
 interface SubCategoryItem {
   nodeId: string | number;
@@ -70,6 +74,9 @@ export const useProductLineSelectionStore = defineStore(
     const selectedProducts = ref(new Set<string>());
     const sortBy = ref("");
 
+    // ---- 灵活合格规则（取代写死的 MODE1 过滤）----
+    const qualifyRules = ref<QualifyRule[]>([]);
+
     // ---- 入库时间按周筛选 ----
     function weekToDateRange(w: string): { start: string; end: string } {
       const [y, wk] = w.split("-W");
@@ -87,26 +94,45 @@ export const useProductLineSelectionStore = defineStore(
     }
 
     const selectedWeekTags = ref<string[]>([]);
-    const availableWeekOptions = ref<string[]>([]);
+    const availableWeekOptions = ref<BatchWeek[]>([]);
     // 郑总盘子实际使用的最新批次日期（由 /tree 响应回填，仅展示用）
     const zhengBatchDate = ref("");
 
+    // ---- 郑总店铺数据完整性 ----
+    interface MissingSeller {
+      sellerName: string;
+      storeUrl?: string | null;
+    }
+    const completeness = ref<{
+      totalSellers: number;
+      fetchedSellers: number;
+      missingSellers: MissingSeller[];
+      complete: boolean;
+    } | null>(null);
+
+    async function fetchCompleteness() {
+      try {
+        const res = await competitorApi.getDengZongShopCompleteness(
+          marketplace.value,
+        );
+        completeness.value = res?.data ?? null;
+      } catch {
+        completeness.value = null;
+      }
+    }
+
     async function fetchAvailableWeeks() {
       try {
-        const { default: request } = await import("@/utils/request");
-        const res = await request.get("/api/v1/competitor/created-weeks", {
-          params: {
-            marketplace: marketplace.value,
-            month: month.value.replace("-", ""),
-          },
-        });
-        availableWeekOptions.value = res?.data ?? [];
-        // 默认选中最新周
+        // 品线选品页列表按 MODE1 查询、不限 source（两种 source 都展示），
+        // 故批次也不限 source，保证周次条数与页面展示一致。
+        const res = await getCreatedWeeks(marketplace.value);
+        availableWeekOptions.value = (res?.data ?? []) as BatchWeek[];
+        // 默认选中最新周（列表已按周倒序，第一条即最新批次）
         if (
           availableWeekOptions.value.length > 0 &&
           selectedWeekTags.value.length === 0
         ) {
-          selectedWeekTags.value = [availableWeekOptions.value[0]];
+          selectedWeekTags.value = [availableWeekOptions.value[0].week];
         }
       } catch {
         availableWeekOptions.value = [];
@@ -135,10 +161,13 @@ export const useProductLineSelectionStore = defineStore(
 
     // ---- 数据初始化 ----
     async function initData() {
+      // 切换站点/月份时清空已选周，让 fetchAvailableWeeks 回填为当前站点的最新周
+      selectedWeekTags.value = [];
       await Promise.all([
         fetchTree(),
         fetchBatchesList(),
         fetchAvailableWeeks(),
+        fetchCompleteness(),
       ]);
 
       // 默认加载第一个大类的商品
@@ -268,7 +297,6 @@ export const useProductLineSelectionStore = defineStore(
       try {
         const params: Record<string, any> = {
           marketplace: marketplace.value,
-          month: month.value.replace("-", ""),
           page: competitorPage.value,
           size: competitorPageSize.value,
         };
@@ -287,14 +315,14 @@ export const useProductLineSelectionStore = defineStore(
           params.priceMin = searchPriceMin.value;
         if (searchPriceMax.value != null)
           params.priceMax = searchPriceMax.value;
-        if (selectedWeekTags.value.length > 0) {
-          params.weekTag = selectedWeekTags.value.join(",");
-          // 按最早选的周的开始和最晚选的周的结束传日期范围
+        if (selectedWeekTags.value.length === 1) {
+          // 单周：后端按 created_at 实时算的 ISO 周精确过滤
+          params.createdWeek = selectedWeekTags.value[0];
+        } else if (selectedWeekTags.value.length > 1) {
+          // 多周：退化为日期范围（最早周起 ~ 最晚周止）
           const sorted = [...selectedWeekTags.value].sort();
-          const rangeStart = weekToDateRange(sorted[0]);
-          const rangeEnd = weekToDateRange(sorted[sorted.length - 1]);
-          params.createdAtStart = rangeStart.start;
-          params.createdAtEnd = rangeEnd.end;
+          params.createdAtStart = weekToDateRange(sorted[0]).start;
+          params.createdAtEnd = weekToDateRange(sorted[sorted.length - 1]).end;
         }
 
         // element/carrier/keyword/combo filters
@@ -327,10 +355,13 @@ export const useProductLineSelectionStore = defineStore(
             : comboFilters.map((f) => f.value).join(" ");
         if (kw) params.keywords = kw;
 
+        // 灵活合格规则：非空才下发（空=不按规则过滤，展示整个批次）
+        if (qualifyRules.value.length > 0)
+          params.qualifyRules = qualifyRules.value;
+
         const res = await competitorApi.getList({
           ...params,
           groupByParent: true,
-          filterMode: "MODE1",
         });
         if (reqId !== _productsReqId) return; // R3.2: 过时请求丢弃
         competitorResults.value = (res?.data?.list ??
@@ -515,6 +546,22 @@ export const useProductLineSelectionStore = defineStore(
     }
 
     /**
+     * 应用合格规则并重新搜索当前选中类目
+     */
+    async function applyQualifyRules(rules: QualifyRule[]) {
+      qualifyRules.value = rules;
+      competitorPage.value = 1;
+      if (selectedNodeId.value || selectedBsrId.value) {
+        await loadProducts({
+          nodeId: selectedNodeId.value
+            ? Number(selectedNodeId.value)
+            : undefined,
+          bsrId: selectedBsrId.value || undefined,
+        });
+      }
+    }
+
+    /**
      * 导出选中 ASIN 列表到 Excel
      */
     async function exportSelectedExcel() {
@@ -607,6 +654,9 @@ export const useProductLineSelectionStore = defineStore(
       selectedCount,
       sortBy,
       setSortBy,
+      // ---- 合格规则 ----
+      qualifyRules,
+      applyQualifyRules,
       // ---- 新增方法 ----
       toggleProductSelection,
       selectAllOnPage,
@@ -620,6 +670,8 @@ export const useProductLineSelectionStore = defineStore(
       selectedWeekTags,
       availableWeekOptions,
       zhengBatchDate,
+      completeness,
+      fetchCompleteness,
     };
   },
 );

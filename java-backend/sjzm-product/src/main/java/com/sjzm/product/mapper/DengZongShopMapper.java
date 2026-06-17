@@ -110,18 +110,27 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
             @Param("weightMax") String weightMax,
             @Param("batchDate") String batchDate);
 
+    // 以登记名单(deng_zong_shop_seller)为主表 LEFT JOIN 数据表，
+    // 保证每个登记的「卖家×站点」都出现——没数据的店铺商品数/营收为 0，
+    // 与完整性/登记名单口径一致(全集 55 行而非只有有数据的 35 行)。
+    // 批次过滤和 title IS NOT NULL 放 ON 子句，避免 LEFT JOIN 退化成 INNER JOIN。
     @Select("<script>" +
-        "SELECT ds.seller_name as sellerName, ds.marketplace," +
+        "SELECT s.seller_name as sellerName, s.marketplace," +
         "  COUNT(DISTINCT COALESCE(NULLIF(ds.parent_asin,''), ds.asin)) as productCount," +
         "  COALESCE(SUM(ds.revenue), 0) as totalRevenue," +
         "  COALESCE(SUM(ds.units), 0) as totalUnits," +
         "  ROUND(AVG(ds.rating), 1) as avgRating," +
         "  MAX(ds.month) as latestMonth," +
         "  MAX(ds.batch_date) as latestBatchDate" +
-        " FROM deng_zong_shop ds WHERE ds.title IS NOT NULL" +
-        " <if test='marketplace != null'> AND ds.marketplace = #{marketplace}</if>" +
-        " <if test='batchDate != null'> AND (ds.batch_date = #{batchDate} OR ds.batch_date IS NULL)</if>" +
-        " GROUP BY ds.seller_name, ds.marketplace" +
+        " FROM deng_zong_shop_seller s" +
+        " LEFT JOIN deng_zong_shop ds" +
+        "   ON ds.marketplace = s.marketplace AND ds.seller_name = s.seller_name" +
+        "   AND ds.title IS NOT NULL" +
+        "   <if test='batchDate != null'> AND (ds.batch_date = #{batchDate} OR ds.batch_date IS NULL)</if>" +
+        " <where>" +
+        "   <if test='marketplace != null'> s.marketplace = #{marketplace}</if>" +
+        " </where>" +
+        " GROUP BY s.seller_name, s.marketplace" +
         " ORDER BY totalRevenue DESC" +
         "</script>")
     List<java.util.Map<String, Object>> selectSellerSummary(
@@ -143,6 +152,26 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
             @Param("sellerNames") List<String> sellerNames,
             @Param("batchDate") String batchDate);
 
+    /**
+     * 完整性专用：严格按最新批次判定已抓取卖家，不回退 NULL 批次。
+     * 当 batchDate 非空（如 UK 有真实批次）时，只认 batch_date = 该批次的行——
+     * 历史 NULL 批次的旧数据不算「本周已抓取」。
+     * 当 batchDate 为空（如 DE 无真实批次）时，回退为「有任意数据即算已抓取」。
+     */
+    @Select("<script>" +
+        "SELECT DISTINCT seller_name FROM deng_zong_shop WHERE title IS NOT NULL" +
+        " <if test='marketplace != null'> AND marketplace = #{marketplace}</if>" +
+        " <if test='batchDate != null'> AND batch_date = #{batchDate}</if>" +
+        " <if test='sellerNames != null and sellerNames.size > 0'>" +
+        "   AND seller_name IN " +
+        "   <foreach collection='sellerNames' item='name' open='(' separator=',' close=')'>#{name}</foreach>" +
+        " </if>" +
+        "</script>")
+    List<String> selectFetchedSellerNamesStrict(
+            @Param("marketplace") String marketplace,
+            @Param("sellerNames") List<String> sellerNames,
+            @Param("batchDate") String batchDate);
+
     /** 查询评分所需数据（卖家名称、类目、BSR、价格） */
     @Select("<script>" +
         "SELECT seller_name, node_id, bsr_id, price FROM deng_zong_shop WHERE title IS NOT NULL" +
@@ -155,10 +184,14 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
 
     @Select("<script>" +
             "SELECT CONCAT(bsr_id, '_', node_id) AS composite_key, COUNT(*) AS product_count " +
-            "FROM deng_zong_shop " +
-            "WHERE marketplace = #{marketplace} " +
-            "<if test='batchDate != null'> AND batch_date = #{batchDate}</if> " +
-            "AND bsr_id IS NOT NULL AND node_id IS NOT NULL " +
+            "FROM (" +
+            "  SELECT bsr_id, node_id, " +
+            "    ROW_NUMBER() OVER (PARTITION BY asin ORDER BY created_at DESC, id DESC) AS rn " +
+            "  FROM deng_zong_shop " +
+            "  WHERE marketplace = #{marketplace} " +
+            "  <if test='batchDate != null'> AND batch_date = #{batchDate}</if> " +
+            "  AND bsr_id IS NOT NULL AND node_id IS NOT NULL" +
+            ") t WHERE t.rn = 1 " +
             "GROUP BY bsr_id, node_id" +
             "</script>")
     List<Map<String, Object>> selectZhengNodeCounts(@Param("marketplace") String marketplace, @Param("batchDate") String batchDate);
@@ -166,10 +199,14 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
     /** 郑总 bsr_id 按数量降序排列（保持郑总店铺当前的榜单顺序） */
     @Select("<script>" +
             "SELECT bsr_id AS bsrId, COUNT(*) AS productCount " +
-            "FROM deng_zong_shop " +
-            "WHERE marketplace = #{marketplace} " +
-            "<if test='batchDate != null'> AND batch_date = #{batchDate}</if> " +
-            "AND bsr_id IS NOT NULL " +
+            "FROM (" +
+            "  SELECT bsr_id, " +
+            "    ROW_NUMBER() OVER (PARTITION BY asin ORDER BY created_at DESC, id DESC) AS rn " +
+            "  FROM deng_zong_shop " +
+            "  WHERE marketplace = #{marketplace} " +
+            "  <if test='batchDate != null'> AND batch_date = #{batchDate}</if> " +
+            "  AND bsr_id IS NOT NULL" +
+            ") t WHERE t.rn = 1 " +
             "GROUP BY bsr_id ORDER BY productCount DESC" +
             "</script>")
     List<Map<String, Object>> selectZhengBsrIdsOrdered(

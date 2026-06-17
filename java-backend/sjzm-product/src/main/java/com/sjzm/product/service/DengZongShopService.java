@@ -241,4 +241,42 @@ public class DengZongShopService {
     public String getMaxBatchDate(String marketplace) {
         return mapper.selectMaxBatchDate(marketplace);
     }
+
+    /**
+     * 郑总店铺数据完整性：名单全集 vs 最新批次已抓取，返回缺数据店铺名单。
+     * 缺失判定 = 在 deng_zong_shop_seller 名单中、但最新批次 deng_zong_shop 里没有数据。
+     */
+    public Map<String, Object> getCompleteness(String marketplace) {
+        LambdaQueryWrapper<DengZongShopSeller> qw = new LambdaQueryWrapper<>();
+        qw.eq(DengZongShopSeller::getMarketplace, marketplace);
+        List<DengZongShopSeller> allSellers = sellerMapper.selectList(qw);
+
+        List<String> allNames = allSellers.stream()
+                .map(DengZongShopSeller::getSellerName)
+                .collect(java.util.stream.Collectors.toList());
+
+        String batchDate = getMaxBatchDate(marketplace);
+        java.util.Set<String> fetched = allNames.isEmpty()
+                ? java.util.Collections.emptySet()
+                : new java.util.HashSet<>(mapper.selectFetchedSellerNamesStrict(marketplace, allNames, batchDate));
+
+        List<Map<String, Object>> missing = new java.util.ArrayList<>();
+        for (DengZongShopSeller s : allSellers) {
+            if (!fetched.contains(s.getSellerName())) {
+                Map<String, Object> m = new HashMap<>();
+                m.put("sellerName", s.getSellerName());
+                m.put("storeUrl", s.getStoreUrl());
+                missing.add(m);
+            }
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("marketplace", marketplace);
+        result.put("batchDate", batchDate);
+        result.put("totalSellers", allSellers.size());
+        result.put("fetchedSellers", fetched.size());
+        result.put("missingSellers", missing);
+        result.put("complete", missing.isEmpty() && !allSellers.isEmpty());
+        return result;
+    }
 }

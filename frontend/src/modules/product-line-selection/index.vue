@@ -67,9 +67,9 @@
       >
         <el-option
           v-for="w in store.availableWeekOptions"
-          :key="w"
-          :label="w"
-          :value="w"
+          :key="w.week"
+          :label="`${w.week} (${w.startDate?.slice(5)}~${w.endDate?.slice(5)}, ${w.count}条)`"
+          :value="w.week"
         />
       </el-select>
       <el-input
@@ -115,6 +115,34 @@
         "
         >清除</el-button
       >
+    </div>
+
+    <!-- 合格规则筛选 + 预设 -->
+    <div class="rule-filterbar">
+      <FilterPresetSelector
+        :current-config="presetConfig"
+        @apply="onPresetApply"
+      />
+      <QualifyRuleFilter
+        :model-value="store.qualifyRules"
+        @apply="store.applyQualifyRules"
+      />
+    </div>
+
+    <!-- 郑总店铺数据完整性确认 -->
+    <div
+      v-if="store.completeness && !store.completeness.complete"
+      class="completeness-banner"
+    >
+      <el-icon class="cb-icon"><WarningFilled /></el-icon>
+      <span class="cb-text">
+        本周郑总店铺数据：<b>{{ store.completeness.fetchedSellers }}</b> /
+        {{ store.completeness.totalSellers }} 家有数据，缺失
+        {{ store.completeness.missingSellers.length }} 家
+      </span>
+      <el-button size="small" type="warning" @click="goFillMissing">
+        去补全
+      </el-button>
     </div>
 
     <!-- 工作区 -->
@@ -340,6 +368,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
+import { useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import {
   Menu,
@@ -349,15 +378,39 @@ import {
   DArrowRight,
   CaretTop,
   CaretBottom,
+  WarningFilled,
 } from "@element-plus/icons-vue";
 import { useProductLineSelectionStore } from "./store";
 import ProductLineTree from "./components/ProductLineTree.vue";
 import CompetitorCardGrid from "./components/CompetitorCardGrid.vue";
 import ProductDetailDialog from "@/components/ProductDetailDialog/index.vue";
 import MobileActionSheet from "@/components/MobileActionSheet/index.vue";
+import QualifyRuleFilter from "@/components/QualifyRuleFilter/index.vue";
+import FilterPresetSelector from "@/components/FilterPresetSelector/index.vue";
 
 const store = useProductLineSelectionStore();
+const router = useRouter();
 const mobileTreeOpen = ref(false);
+
+// ---- 合格规则预设 ----
+const presetConfig = () => ({ qualifyRules: store.qualifyRules });
+function onPresetApply(cfg: Record<string, any>) {
+  store.applyQualifyRules(
+    Array.isArray(cfg?.qualifyRules) ? cfg.qualifyRules : [],
+  );
+}
+
+// 补全缺失店铺 → 跳转到店铺总览页自动勾选
+function goFillMissing() {
+  if (!store.completeness?.missingSellers.length) return;
+  const names = store.completeness.missingSellers
+    .map((s: { sellerName: string }) => s.sellerName)
+    .join(",");
+  router.push({
+    path: "/zheng-shop-overview",
+    query: { stores: names, source: "zheng", marketplace: store.marketplace },
+  });
+}
 const detailVisible = ref(false);
 const detailProduct = ref<any>(null);
 
@@ -680,6 +733,41 @@ export default { name: "ProductLineSelection" };
   .gf-price-sep {
     color: $text-tertiary;
     font-size: 13px;
+  }
+}
+
+// ---- 合格规则 + 预设栏 ----
+.rule-filterbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 16px;
+  background: $bg-color;
+  border-bottom: 1px solid $border-color;
+  flex-shrink: 0;
+}
+
+// ---- 郑总数据完整性提示 ----
+.completeness-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: #fef3c7;
+  border-bottom: 1px solid #fcd34d;
+  flex-shrink: 0;
+
+  .cb-icon {
+    color: $warning-color;
+    font-size: 18px;
+  }
+  .cb-text {
+    flex: 1;
+    font-size: 13px;
+    color: $text-primary;
+    b {
+      color: $warning-color;
+    }
   }
 }
 

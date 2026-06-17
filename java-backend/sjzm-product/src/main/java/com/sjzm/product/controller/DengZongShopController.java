@@ -110,6 +110,12 @@ public class DengZongShopController {
         return Result.success(dengZongShopService.getMaxBatchDate(marketplace));
     }
 
+    @GetMapping("/completeness")
+    @Operation(summary = "郑总店铺数据完整性", description = "名单全集 vs 最新批次已抓取，返回缺数据店铺名单")
+    public Result<Map<String, Object>> completeness(@RequestParam(defaultValue = "UK") String marketplace) {
+        return Result.success(dengZongShopService.getCompleteness(marketplace));
+    }
+
     // ========== 卖家 CRUD ==========
 
     @GetMapping("/seller-summary")
