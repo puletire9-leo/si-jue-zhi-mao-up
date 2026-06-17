@@ -280,6 +280,7 @@
       v-model:visible="detailDialogVisible"
       :product="selectedProduct"
       mode="selection"
+      data-source="selection"
       :show-edit-button="false"
       :show-delete-button="true"
       @delete="handleDeleteProduct"
