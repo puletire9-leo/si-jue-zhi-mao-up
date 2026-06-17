@@ -905,7 +905,7 @@ const handleDownloadTemplate = async () => {
   try {
     const token = localStorage.getItem('token')
 
-    const response = await fetch('/api/v1/lingxing/download-template', {
+    const response = await fetch(`/api/v1/lingxing/download-template?t=${Date.now()}`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
