@@ -83,6 +83,7 @@ declare module 'vue' {
     LazyImage: typeof import('./components/LazyImage/index.vue')['default']
     MobileActionSheet: typeof import('./components/MobileActionSheet/index.vue')['default']
     ProductDetailDialog: typeof import('./components/ProductDetailDialog/index.vue')['default']
+    QualifyRuleFilter: typeof import('./components/QualifyRuleFilter/index.vue')['default']
     RangeSlider: typeof import('./components/global/RangeSlider.vue')['default']
     RecycleBinPage: typeof import('./components/RecycleBinPage/index.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

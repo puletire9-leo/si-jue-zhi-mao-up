@@ -131,7 +131,14 @@ export default defineConfig(({ mode }) => {
           timeout: 30000,
           logLevel: 'warn'
         },
-        // 选品 Agent（通配 — 放在 all-categories 之后，确保具体路径优先）
+        '/api/v1/product-line/tree': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 30000,
+          logLevel: 'warn'
+        },
+        // 选品 Agent（通配 — 放在具体路径之后，确保具体路径优先）
         '/api/v1/product-line': {
           target: mode === 'development'
             ? `http://${env.VITE_SELECTION_AGENT_HOST || 'localhost'}:${env.VITE_SELECTION_AGENT_PORT || '8011'}`

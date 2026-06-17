@@ -69,11 +69,12 @@ public class CompetitorController {
     }
 
     @GetMapping("/created-weeks")
-    @Operation(summary = "获取商品入库周次列表（选品模式筛选用）")
-    public Result<List<String>> createdWeeks(
+    @Operation(summary = "获取入库批次列表（按 created_at 实时计算 ISO 周 + 每周条数，第一条为最新批次）")
+    public Result<List<Map<String, Object>>> createdWeeks(
             @RequestParam(defaultValue = "UK") String marketplace,
-            @RequestParam String month) {
-        return Result.success(competitorService.getCreatedWeeks(marketplace, month));
+            @RequestParam(required = false) String source,
+            @RequestParam(required = false, defaultValue = "MODE1") String filterMode) {
+        return Result.success(competitorService.getCreatedWeeks(marketplace, source, filterMode));
     }
 
     @GetMapping("/stats")

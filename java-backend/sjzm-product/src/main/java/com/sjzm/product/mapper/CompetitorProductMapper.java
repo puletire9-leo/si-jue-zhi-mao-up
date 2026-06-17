@@ -3,6 +3,7 @@ package com.sjzm.product.mapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.support.SFunction;
+import com.sjzm.product.dto.CompetitorQueryRequest;
 import com.sjzm.product.entity.CompetitorProduct;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -69,10 +70,40 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
         "  <if test='weightMax != null'> AND cp.weight_g &lt;= #{weightMax}</if>" +
         "  <if test='createdAtStart != null'> AND cp.created_at &gt;= #{createdAtStart}</if>" +
         "  <if test='createdAtEnd != null'> AND cp.created_at &lt;= #{createdAtEnd}</if>" +
+        "  <if test='createdWeek != null'> AND DATE_FORMAT(cp.created_at, '%x-W%v') = #{createdWeek}</if>" +
         "  <if test='keywordList != null and keywordList.size() > 0'>" +
         "    <foreach collection='keywordList' item='word' open='' separator='' close=''>" +
         "      AND cp.title LIKE CONCAT('%', #{word}, '%')" +
         "    </foreach>" +
+        "  </if>" +
+        "  <if test='qualifyRules != null and qualifyRules.size() > 0'>" +
+        "    AND (" +
+        "    <foreach collection='qualifyRules' item='r' separator=' OR '>" +
+        "      ( 1=1" +
+        "        <foreach collection='r.conditions' item='c'>" +
+        "          <if test='c.value != null'>" +
+        "            <if test='c.field == \"bsr\"'> AND cp.bsr &gt; 0</if>" +
+        "            AND " +
+        "            <choose>" +
+        "              <when test='c.field == \"listingDays\"'>cp.listing_days</when>" +
+        "              <when test='c.field == \"weightG\"'>cp.weight_g</when>" +
+        "              <when test='c.field == \"units\"'>cp.units</when>" +
+        "              <when test='c.field == \"bsr\"'>cp.bsr</when>" +
+        "              <otherwise>NULL</otherwise>" +
+        "            </choose>" +
+        "            <choose>" +
+        "              <when test='c.op == \"lt\"'> &lt; </when>" +
+        "              <when test='c.op == \"le\"'> &lt;= </when>" +
+        "              <when test='c.op == \"ge\"'> &gt;= </when>" +
+        "              <when test='c.op == \"gt\"'> &gt; </when>" +
+        "              <otherwise> = </otherwise>" +
+        "            </choose>" +
+        "            #{c.value}" +
+        "          </if>" +
+        "        </foreach>" +
+        "      )" +
+        "    </foreach>" +
+        "    )" +
         "  </if>" +
         ") t WHERE ((t.filter_mode IN ('MODE1','MODE2') AND t.rn &lt;= 3) " +
         "   OR (t.filter_mode NOT IN ('MODE1','MODE2') AND t.rn = 1)) " +
@@ -109,6 +140,7 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
             @Param("nodeId") Long nodeId,
             @Param("createdAtStart") String createdAtStart,
             @Param("createdAtEnd") String createdAtEnd,
+            @Param("createdWeek") String createdWeek,
             @Param("category") String category,
             @Param("priceMin") BigDecimal priceMin,
             @Param("priceMax") BigDecimal priceMax,
@@ -116,6 +148,7 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
             @Param("ratingMin") BigDecimal ratingMin,
             @Param("weightMax") BigDecimal weightMax,
             @Param("keywordList") List<String> keywordList,
+            @Param("qualifyRules") List<CompetitorQueryRequest.QualifyRule> qualifyRules,
             @Param("sortBy") String sortBy,
             @Param("sortOrder") String sortOrder,
             @Param("offset") int offset,
@@ -174,10 +207,40 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
         "    <if test='weightMax != null'> AND cp.weight_g &lt;= #{weightMax}</if>" +
         "    <if test='createdAtStart != null'> AND cp.created_at &gt;= #{createdAtStart}</if>" +
         "    <if test='createdAtEnd != null'> AND cp.created_at &lt;= #{createdAtEnd}</if>" +
+        "    <if test='createdWeek != null'> AND DATE_FORMAT(cp.created_at, '%x-W%v') = #{createdWeek}</if>" +
         "    <if test='keywordList != null and keywordList.size() > 0'>" +
         "      <foreach collection='keywordList' item='word' open='' separator='' close=''>" +
         "        AND cp.title LIKE CONCAT('%', #{word}, '%')" +
         "      </foreach>" +
+        "    </if>" +
+        "    <if test='qualifyRules != null and qualifyRules.size() > 0'>" +
+        "      AND (" +
+        "      <foreach collection='qualifyRules' item='r' separator=' OR '>" +
+        "        ( 1=1" +
+        "          <foreach collection='r.conditions' item='c'>" +
+        "            <if test='c.value != null'>" +
+        "              <if test='c.field == \"bsr\"'> AND cp.bsr &gt; 0</if>" +
+        "              AND " +
+        "              <choose>" +
+        "                <when test='c.field == \"listingDays\"'>cp.listing_days</when>" +
+        "                <when test='c.field == \"weightG\"'>cp.weight_g</when>" +
+        "                <when test='c.field == \"units\"'>cp.units</when>" +
+        "                <when test='c.field == \"bsr\"'>cp.bsr</when>" +
+        "                <otherwise>NULL</otherwise>" +
+        "              </choose>" +
+        "              <choose>" +
+        "                <when test='c.op == \"lt\"'> &lt; </when>" +
+        "                <when test='c.op == \"le\"'> &lt;= </when>" +
+        "                <when test='c.op == \"ge\"'> &gt;= </when>" +
+        "                <when test='c.op == \"gt\"'> &gt; </when>" +
+        "                <otherwise> = </otherwise>" +
+        "              </choose>" +
+        "              #{c.value}" +
+        "            </if>" +
+        "          </foreach>" +
+        "        )" +
+        "      </foreach>" +
+        "      )" +
         "    </if>" +
         "  ) t" +
         "  <if test='maxVariantCount != null'> WHERE t.variations &lt;= #{maxVariantCount}</if>" +
@@ -200,13 +263,15 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
             @Param("nodeId") Long nodeId,
             @Param("createdAtStart") String createdAtStart,
             @Param("createdAtEnd") String createdAtEnd,
+            @Param("createdWeek") String createdWeek,
             @Param("category") String category,
             @Param("priceMin") BigDecimal priceMin,
             @Param("priceMax") BigDecimal priceMax,
             @Param("bsrMax") Integer bsrMax,
             @Param("ratingMin") BigDecimal ratingMin,
             @Param("weightMax") BigDecimal weightMax,
-            @Param("keywordList") List<String> keywordList);
+            @Param("keywordList") List<String> keywordList,
+            @Param("qualifyRules") List<CompetitorQueryRequest.QualifyRule> qualifyRules);
 
     @Select("SELECT bsr_id AS bsrId, COUNT(*) AS productCount" +
             " FROM competitor_products" +
@@ -229,10 +294,20 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
     @Select("SELECT DISTINCT bsr_id FROM competitor_products WHERE marketplace = #{marketplace}")
     Set<String> selectDistinctBsrIdByMarketplace(@Param("marketplace") String marketplace);
 
-    @Select("SELECT DISTINCT DATE_FORMAT(created_at, '%x-W%v') AS week " +
+    /**
+     * 实时按 created_at 计算入库周次（ISO 周），返回每周条数与起止日期，按周倒序（第一条即最新批次）。
+     * 不依赖 week_tag / is_current / month 列。source 用 LIKE 以兼容存量来源文案。
+     */
+    @Select("<script>" +
+            "SELECT DATE_FORMAT(created_at, '%x-W%v') AS week, COUNT(*) AS count, " +
+            "MIN(DATE(created_at)) AS startDate, MAX(DATE(created_at)) AS endDate " +
             "FROM competitor_products " +
-            "WHERE marketplace = #{marketplace} AND month = #{month} " +
-            "AND created_at IS NOT NULL AND filter_mode = 'MODE1' " +
-            "ORDER BY week DESC")
-    List<String> selectDistinctCreatedWeeks(@Param("marketplace") String marketplace, @Param("month") String month);
+            "WHERE marketplace = #{marketplace} AND created_at IS NOT NULL " +
+            "<if test='source != null and source != \"\"'> AND source LIKE CONCAT('%', #{source}, '%')</if>" +
+            "<if test='filterMode != null and filterMode != \"\"'> AND filter_mode = #{filterMode}</if>" +
+            "GROUP BY week ORDER BY week DESC" +
+            "</script>")
+    List<Map<String, Object>> selectCreatedWeeksWithCount(@Param("marketplace") String marketplace,
+                                                          @Param("source") String source,
+                                                          @Param("filterMode") String filterMode);
 }

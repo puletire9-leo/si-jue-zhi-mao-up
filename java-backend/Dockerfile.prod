@@ -8,16 +8,17 @@ FROM maven:3.9-eclipse-temurin-21 AS builder
 WORKDIR /build
 
 # 配置阿里云 Maven 镜像源加速依赖下载
-RUN mkdir -p /root/.m2 && echo '\
-<settings>\
-  <mirrors>\
-    <mirror>\
-      <id>aliyun</id>\
-      <url>https://maven.aliyun.com/repository/public</url>\
-      <mirrorOf>*</mirrorOf>\
-    </mirror>\
-  </mirrors>\
-</settings>' > /root/.m2/settings.xml
+RUN mkdir -p /root/.m2 && cat > /root/.m2/settings.xml <<'EOF'
+<settings>
+  <mirrors>
+    <mirror>
+      <id>aliyun</id>
+      <url>https://maven.aliyun.com/repository/public</url>
+      <mirrorOf>*</mirrorOf>
+    </mirror>
+  </mirrors>
+</settings>
+EOF
 
 # 先复制依赖配置，利用 Docker 层缓存加速
 COPY java-backend/pom.xml ./java-backend/pom.xml
