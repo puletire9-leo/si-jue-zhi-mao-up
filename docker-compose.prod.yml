@@ -83,7 +83,6 @@ services:
       - prod-logs:/app/logs
       - prod-models:/app/model_cache
       - prod-download-cache:/app/下载缓存
-      - ./领星:/app/领星
     depends_on:
       mysql:
         condition: service_healthy
