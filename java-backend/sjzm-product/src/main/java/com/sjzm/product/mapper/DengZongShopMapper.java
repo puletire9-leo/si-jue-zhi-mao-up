@@ -156,25 +156,24 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
     @Select("<script>" +
             "SELECT CONCAT(bsr_id, '_', node_id) AS composite_key, COUNT(*) AS product_count " +
             "FROM deng_zong_shop " +
-            "WHERE marketplace = #{marketplace} AND month = #{month} " +
-            "<if test='batchDate != null'> AND (batch_date = #{batchDate} OR batch_date IS NULL)</if> " +
+            "WHERE marketplace = #{marketplace} " +
+            "<if test='batchDate != null'> AND batch_date = #{batchDate}</if> " +
             "AND bsr_id IS NOT NULL AND node_id IS NOT NULL " +
             "GROUP BY bsr_id, node_id" +
             "</script>")
-    List<Map<String, Object>> selectZhengNodeCounts(@Param("marketplace") String marketplace, @Param("month") String month, @Param("batchDate") String batchDate);
+    List<Map<String, Object>> selectZhengNodeCounts(@Param("marketplace") String marketplace, @Param("batchDate") String batchDate);
 
     /** 郑总 bsr_id 按数量降序排列（保持郑总店铺当前的榜单顺序） */
     @Select("<script>" +
             "SELECT bsr_id AS bsrId, COUNT(*) AS productCount " +
             "FROM deng_zong_shop " +
-            "WHERE marketplace = #{marketplace} AND month = #{month} " +
-            "<if test='batchDate != null'> AND (batch_date = #{batchDate} OR batch_date IS NULL)</if> " +
+            "WHERE marketplace = #{marketplace} " +
+            "<if test='batchDate != null'> AND batch_date = #{batchDate}</if> " +
             "AND bsr_id IS NOT NULL " +
             "GROUP BY bsr_id ORDER BY productCount DESC" +
             "</script>")
     List<Map<String, Object>> selectZhengBsrIdsOrdered(
             @Param("marketplace") String marketplace,
-            @Param("month") String month,
             @Param("batchDate") String batchDate);
 
     @Select("SELECT MAX(month) FROM deng_zong_shop WHERE marketplace = #{marketplace}")
