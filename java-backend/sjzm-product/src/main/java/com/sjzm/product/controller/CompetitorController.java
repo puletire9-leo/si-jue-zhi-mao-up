@@ -73,7 +73,7 @@ public class CompetitorController {
     public Result<List<Map<String, Object>>> createdWeeks(
             @RequestParam(defaultValue = "UK") String marketplace,
             @RequestParam(required = false) String source,
-            @RequestParam(required = false, defaultValue = "MODE1") String filterMode) {
+            @RequestParam(required = false) String filterMode) {
         return Result.success(competitorService.getCreatedWeeks(marketplace, source, filterMode));
     }
 

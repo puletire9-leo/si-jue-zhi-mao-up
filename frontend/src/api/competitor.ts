@@ -114,6 +114,12 @@ export interface CompetitorListParams {
   bsrMax?: number;
   ratingMin?: number;
   weightMax?: number;
+  fulfillment?: string[];
+  createdWeeks?: string[];
+  unitsMin?: number;
+  unitsMax?: number;
+  listingDaysMin?: number;
+  listingDaysMax?: number;
   keywords?: string;
   nodeId?: number | string;
   /** 入库周次（ISO 周，如 2026-W19），后端按 created_at 实时过滤 */
@@ -405,9 +411,10 @@ export function getDengZongMaxBatchDate(marketplace: string) {
 export function getCreatedWeeks(
   marketplace: string,
   source?: string,
-  filterMode = "MODE1",
+  filterMode?: string,
 ): Promise<ApiResponse<BatchWeek[]>> {
-  return request.get("/api/v1/competitor/created-weeks", {
-    params: { marketplace, source, filterMode },
-  });
+  const params: Record<string, any> = { marketplace };
+  if (source) params.source = source;
+  if (filterMode) params.filterMode = filterMode;
+  return request.get("/api/v1/competitor/created-weeks", { params });
 }

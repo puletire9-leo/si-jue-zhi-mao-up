@@ -74,6 +74,21 @@ public class CompetitorQueryRequest {
     /** 按入库周次过滤（ISO 周，如 2026-W19），实时由 created_at 计算，不依赖 week_tag 列 */
     private String createdWeek;
 
+    // ── 筛选重构新增字段 ──
+    /** 周批次多选（取代单值 createdWeek） */
+    private List<String> createdWeeks;
+
+    /** 销量区间 */
+    private Integer unitsMin;
+    private Integer unitsMax;
+
+    /** 上架天数区间 */
+    private Integer listingDaysMin;
+    private Integer listingDaysMax;
+
+    /** 配送方式多选 */
+    private List<String> fulfillment;
+
     /**
      * 灵活合格规则（最多 5 条，规则间 OR：满足任一即合格）。
      * 取代写死的 MODE1/MODE2 硬分类，由用户在查询期自由配置。

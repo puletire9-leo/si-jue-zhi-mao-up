@@ -24,6 +24,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Slf4j
 @Service
@@ -448,9 +449,6 @@ public class CompetitorService {
         if (StringUtils.hasText(request.getCreatedAtEnd())) {
             wrapper.apply("created_at <= {0}", request.getCreatedAtEnd() + " 23:59:59");
         }
-        if (StringUtils.hasText(request.getCreatedWeek())) {
-            wrapper.apply("DATE_FORMAT(created_at, '%x-W%v') = {0}", request.getCreatedWeek());
-        }
         if (request.getIsCurrent() != null) {
             wrapper.eq(CompetitorProduct::getIsCurrent, request.getIsCurrent());
         }
@@ -463,6 +461,7 @@ public class CompetitorService {
             wrapper.le(CompetitorProduct::getPrice, request.getPriceMax());
         }
         if (request.getBsrMax() != null) {
+            wrapper.gt(CompetitorProduct::getBsr, 0);
             wrapper.le(CompetitorProduct::getBsr, request.getBsrMax());
         }
         if (request.getRatingMin() != null) {
@@ -480,6 +479,33 @@ public class CompetitorService {
                     wrapper.like(CompetitorProduct::getTitle, trimmed);
                 }
             }
+        }
+
+        // ── 筛选重构新增：面板区间直连 wrapper ──
+        if (request.getUnitsMin() != null) {
+            wrapper.ge(CompetitorProduct::getUnits, request.getUnitsMin());
+        }
+        if (request.getUnitsMax() != null) {
+            wrapper.le(CompetitorProduct::getUnits, request.getUnitsMax());
+        }
+        if (request.getListingDaysMin() != null) {
+            wrapper.ge(CompetitorProduct::getListingDays, request.getListingDaysMin());
+        }
+        if (request.getListingDaysMax() != null) {
+            wrapper.le(CompetitorProduct::getListingDays, request.getListingDaysMax());
+        }
+        if (request.getFulfillment() != null && !request.getFulfillment().isEmpty()) {
+            wrapper.in(CompetitorProduct::getFulfillment, request.getFulfillment());
+        }
+        if (request.getCreatedWeeks() != null && !request.getCreatedWeeks().isEmpty()) {
+            List<String> weeks = request.getCreatedWeeks();
+            String placeholders = IntStream.range(0, weeks.size())
+                    .mapToObj(i -> "{" + i + "}")
+                    .collect(Collectors.joining(","));
+            wrapper.apply("DATE_FORMAT(created_at,'%x-W%v') IN (" + placeholders + ")", weeks.toArray());
+        } else if (StringUtils.hasText(request.getCreatedWeek())) {
+            // backward compatibility with single week
+            wrapper.apply("DATE_FORMAT(created_at,'%x-W%v') = {0}", request.getCreatedWeek());
         }
 
         // ── 灵活合格规则（规则间 OR：满足任一即合格，取代写死的 MODE1 过滤）──

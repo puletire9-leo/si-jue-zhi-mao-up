@@ -84,6 +84,7 @@ declare module 'vue' {
     MobileActionSheet: typeof import('./components/MobileActionSheet/index.vue')['default']
     ProductDetailDialog: typeof import('./components/ProductDetailDialog/index.vue')['default']
     QualifyRuleFilter: typeof import('./components/QualifyRuleFilter/index.vue')['default']
+    RangeFilterPanel: typeof import('./components/RangeFilterPanel/index.vue')['default']
     RangeSlider: typeof import('./components/global/RangeSlider.vue')['default']
     RecycleBinPage: typeof import('./components/RecycleBinPage/index.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
