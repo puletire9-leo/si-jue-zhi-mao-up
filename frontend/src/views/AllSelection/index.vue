@@ -61,14 +61,6 @@
                   </template>
                 </el-dropdown>
 
-                <el-switch
-                  v-model="groupByParent"
-                  active-text="合并变体"
-                  size="small"
-                  @change="handleGroupByParentChange"
-                  class="group-by-parent-switch"
-                />
-
                 <!-- 低频操作 → 更多菜单 -->
                 <el-dropdown @command="handleMoreCommand">
                   <el-button type="default" :icon="MoreFilled">
@@ -126,9 +118,9 @@
             @apply="handlePresetApply"
           />
 
-          <!-- 合格规则筛选（新品榜，OR：满足任一即合格） -->
+          <!-- 合格规则筛选：按筛选重构计划隐藏，筛选统一走面板 AND 语义（保留组件便于回滚） -->
           <QualifyRuleFilter
-            v-show="activeTab === 'new'"
+            v-if="false"
             class="rule-filter-bar"
             :model-value="newQualifyRules"
             @apply="onNewRulesApply"
@@ -140,36 +132,14 @@
           <!-- 卖家精灵风格筛选面板 -->
           <RangeFilterPanel
             v-model="rangeFilter"
-            :country="(queryFormRef.value as any)?.getQueryParams()?.country || 'US'"
+            :country="
+              (queryFormRef as any)?.getQueryParams?.()?.country || 'US'
+            "
             @update:model-value="handleRangeFilterChange"
           />
 
-          <!-- 变体数筛选 & 置顶开关 -->
+          <!-- 置顶开关 -->
           <div class="variant-filter-bar">
-            <template v-if="groupByParent">
-              <span class="filter-label">变体数 ≤</span>
-              <el-input-number
-                :model-value="maxVariantCount"
-                :min="0"
-                :max="999"
-                size="small"
-                controls-position="right"
-                style="width: 90px"
-                placeholder="不限"
-                @change="handleMaxVariantCountChange"
-              />
-              <el-button
-                v-if="maxVariantCount != null"
-                size="small"
-                text
-                @click="
-                  maxVariantCount = undefined;
-                  handleGroupByParentChange();
-                "
-                >清除</el-button
-              >
-              <el-divider direction="vertical" />
-            </template>
             <span class="filter-label">选中置顶</span>
             <el-switch
               v-model="pinSelected"
@@ -701,8 +671,8 @@ import SelectionQueryForm from "@/components/SelectionQueryForm/index.vue";
 import ScoringConfigPanel from "./ScoringConfigPanel.vue";
 import FilterPresetSelector from "@/components/FilterPresetSelector/index.vue";
 import QualifyRuleFilter from "@/components/QualifyRuleFilter/index.vue";
-import RangeFilterPanel from "@/components/RangeFilterPanel/index.vue"
-import type { RangeFilterValue } from "@/components/RangeFilterPanel/index.vue"
+import RangeFilterPanel from "@/components/RangeFilterPanel/index.vue";
+import type { RangeFilterValue } from "@/components/RangeFilterPanel/index.vue";
 import type { SelectionQueryParams } from "@/components/SelectionQueryForm/types";
 import { selectionApi } from "@/api/selection";
 import {
@@ -854,22 +824,24 @@ const importFile = ref(null);
 const importMode = ref("skip"); // 导入模式：skip(跳过)/update(更新)/overwrite(覆盖)
 const searchImageFile = ref(null);
 const searchImagePreview = ref("");
-const groupByParent = ref(false);
-const maxVariantCount = ref<number | undefined>(undefined);
 const categories = ref([]);
 
 const rangeFilter = ref<RangeFilterValue>({
-  priceMin: null, priceMax: null,
-  unitsMin: null, unitsMax: null,
-  listingDaysMin: null, listingDaysMax: null,
-  bsrMax: null, weightMax: null,
+  priceMin: null,
+  priceMax: null,
+  unitsMin: null,
+  unitsMax: null,
+  listingDaysMin: null,
+  listingDaysMax: null,
+  bsrMax: null,
+  weightMax: null,
   variantCountMax: null,
   fulfillment: [],
   createdWeeks: [],
   category: [],
   grade: [],
   listingPreset: null,
-})
+});
 
 const addForm = reactive({
   asin: "",
@@ -993,28 +965,31 @@ const loadProducts = async (params?: SelectionQueryParams) => {
       productList.value = (res.data?.list || []).map(normalizeProduct);
       pagination.total = res.data?.total || 0;
     } else {
-      // 调用 Java 后端 competitor API
+      // 调用 Java 后端 competitor API（扁平路径：一变体一卡，无折叠）
       const competitorParams: any = {
         ...apiParams,
         source: source || undefined,
-        groupByParent: groupByParent.value || undefined,
-        maxVariantCount: maxVariantCount.value ?? undefined,
       };
       // 面板区间直接映射为请求字段
-      const rf = rangeFilter.value
+      const rf = rangeFilter.value;
       if (rf) {
-        if (rf.unitsMin != null) competitorParams.unitsMin = rf.unitsMin
-        if (rf.unitsMax != null) competitorParams.unitsMax = rf.unitsMax
-        if (rf.listingDaysMin != null) competitorParams.listingDaysMin = rf.listingDaysMin
-        if (rf.listingDaysMax != null) competitorParams.listingDaysMax = rf.listingDaysMax
-        if (rf.priceMin != null) competitorParams.priceMin = rf.priceMin
-        if (rf.priceMax != null) competitorParams.priceMax = rf.priceMax
-        if (rf.bsrMax != null) competitorParams.bsrMax = rf.bsrMax
-        if (rf.weightMax != null) competitorParams.weightMax = rf.weightMax
-        if (rf.variantCountMax != null) competitorParams.maxVariantCount = rf.variantCountMax
-        if (rf.fulfillment?.length > 0) competitorParams.fulfillment = rf.fulfillment
-        if (rf.grade?.length > 0) competitorParams.grade = rf.grade.join(',')
-        if (rf.createdWeeks?.length > 0) competitorParams.createdWeeks = rf.createdWeeks
+        if (rf.unitsMin != null) competitorParams.unitsMin = rf.unitsMin;
+        if (rf.unitsMax != null) competitorParams.unitsMax = rf.unitsMax;
+        if (rf.listingDaysMin != null)
+          competitorParams.listingDaysMin = rf.listingDaysMin;
+        if (rf.listingDaysMax != null)
+          competitorParams.listingDaysMax = rf.listingDaysMax;
+        if (rf.priceMin != null) competitorParams.priceMin = rf.priceMin;
+        if (rf.priceMax != null) competitorParams.priceMax = rf.priceMax;
+        if (rf.bsrMax != null) competitorParams.bsrMax = rf.bsrMax;
+        if (rf.weightMax != null) competitorParams.weightMax = rf.weightMax;
+        if (rf.variantCountMax != null)
+          competitorParams.maxVariantCount = rf.variantCountMax;
+        if (rf.fulfillment?.length > 0)
+          competitorParams.fulfillment = rf.fulfillment;
+        if (rf.grade?.length > 0) competitorParams.grade = rf.grade.join(",");
+        if (rf.createdWeeks?.length > 0)
+          competitorParams.createdWeeks = rf.createdWeeks;
       }
       // 默认按最新周过滤；若面板已选周则跳过
       if (
@@ -1035,10 +1010,6 @@ const loadProducts = async (params?: SelectionQueryParams) => {
         } catch {
           // 批次获取失败不阻塞列表加载
         }
-      }
-      // 新品榜：下发合格规则（OR，取代写死的 MODE1）
-      if (activeTab.value === "new" && newQualifyRules.value.length > 0) {
-        competitorParams.qualifyRules = newQualifyRules.value;
       }
       // 移除空值参数
       Object.keys(competitorParams).forEach((key) => {
@@ -1111,6 +1082,7 @@ function buildApiParams(
     "weekTag",
     "listingDateStart",
     "listingDateEnd",
+    "sortField",
   ];
   for (const field of filterFields) {
     const val = queryParams?.[field as keyof SelectionQueryParams];
@@ -1122,6 +1094,14 @@ function buildApiParams(
   // isCurrent 需要转换为整数类型
   if (queryParams?.isCurrent !== undefined && queryParams?.isCurrent !== "") {
     params.isCurrent = parseInt(queryParams.isCurrent as string, 10);
+  }
+  // 排序字段：前端语汇 → 后端 applySort 白名单值
+  if (params.sortBy) {
+    const SORT_VALUE_MAP: Record<string, string> = {
+      salesVolume: "units",
+      listingDate: "listingDays",
+    };
+    params.sortBy = SORT_VALUE_MAP[params.sortBy] || params.sortBy;
   }
   return params;
 }
@@ -1330,17 +1310,36 @@ const handleSearch = (params: SelectionQueryParams) => {
 };
 
 const handleReset = () => {
+  rangeFilter.value = {
+    priceMin: null,
+    priceMax: null,
+    unitsMin: null,
+    unitsMax: null,
+    listingDaysMin: null,
+    listingDaysMax: null,
+    bsrMax: null,
+    weightMax: null,
+    variantCountMax: null,
+    fulfillment: [],
+    createdWeeks: [],
+    category: [],
+    grade: [],
+    listingPreset: null,
+  };
   pagination.page = 1;
   loadProducts();
 };
 
 const handleRangeFilterChange = () => {
-  pagination.page = 1
-  loadProducts()
-}
+  pagination.page = 1;
+  loadProducts();
+};
 
 const getCurrentFilterConfig = (): Record<string, any> => {
-  const params = (queryFormRef.value?.getQueryParams() || {}) as Record<string, any>;
+  const params = (queryFormRef.value?.getQueryParams() || {}) as Record<
+    string,
+    any
+  >;
   return {
     ...rangeFilter.value,
     // 筛选条件（与筛选弹窗字段一一对应）
@@ -1348,8 +1347,6 @@ const getCurrentFilterConfig = (): Record<string, any> => {
     listingDateStart: params.listingDateStart || "",
     listingDateEnd: params.listingDateEnd || "",
     dataFilterMode: params.dataFilterMode || "",
-    category: params.category || "",
-    grade: params.grade || "",
     isCurrent: params.isCurrent || "",
     sortField: params.sortField || "score",
     sortOrder: params.sortOrder || "desc",
@@ -1363,24 +1360,23 @@ const handlePresetApply = (config: Record<string, any>) => {
   if (Array.isArray(config?.qualifyRules)) {
     newQualifyRules.value = config.qualifyRules;
   }
-  if (config.priceMin != null || config.unitsMin != null) {
-    rangeFilter.value = {
-      priceMin: config.priceMin ?? null,
-      priceMax: config.priceMax ?? null,
-      unitsMin: config.unitsMin ?? null,
-      unitsMax: config.unitsMax ?? null,
-      listingDaysMin: config.listingDaysMin ?? null,
-      listingDaysMax: config.listingDaysMax ?? null,
-      bsrMax: config.bsrMax ?? null,
-      weightMax: config.weightMax ?? null,
-      variantCountMax: config.variantCountMax ?? null,
-      fulfillment: config.fulfillment ?? [],
-      createdWeeks: config.createdWeeks ?? [],
-      category: config.category ?? [],
-      grade: config.grade ?? [],
-      listingPreset: config.listingPreset ?? null,
-    }
-  }
+  // 无条件回填面板全字段（存取对称：仅设了 grade/周/上架预设的预设也能恢复）
+  rangeFilter.value = {
+    priceMin: config.priceMin ?? null,
+    priceMax: config.priceMax ?? null,
+    unitsMin: config.unitsMin ?? null,
+    unitsMax: config.unitsMax ?? null,
+    listingDaysMin: config.listingDaysMin ?? null,
+    listingDaysMax: config.listingDaysMax ?? null,
+    bsrMax: config.bsrMax ?? null,
+    weightMax: config.weightMax ?? null,
+    variantCountMax: config.variantCountMax ?? null,
+    fulfillment: config.fulfillment ?? [],
+    createdWeeks: config.createdWeeks ?? [],
+    category: config.category ?? [],
+    grade: config.grade ?? [],
+    listingPreset: config.listingPreset ?? null,
+  };
   pagination.page = 1;
   loadProducts();
 };
@@ -1825,17 +1821,6 @@ const handleSelectAll = async (command) => {
     selectedIds.value = [];
     ElMessage.info("已清空选择");
   }
-};
-
-const handleGroupByParentChange = () => {
-  pagination.page = 1;
-  loadProducts();
-};
-
-const handleMaxVariantCountChange = (val: number | undefined) => {
-  maxVariantCount.value = val ?? undefined;
-  pagination.page = 1;
-  loadProducts();
 };
 
 const handleClearAll = async () => {

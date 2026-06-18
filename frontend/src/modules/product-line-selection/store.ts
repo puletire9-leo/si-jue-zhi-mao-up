@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { ElMessage } from "element-plus";
 import { getBatches, getTree } from "@/api/product-line";
-import { competitorApi, getCreatedWeeks } from "@/api/competitor";
+import { competitorApi } from "@/api/competitor";
 import { selectionApi } from "@/api/selection";
 import type {
   ProductLineGroup,
@@ -10,11 +10,27 @@ import type {
   FilterType,
   TreeGroup,
 } from "@/types/productLine";
-import type {
-  CompetitorProductRaw,
-  BatchWeek,
-  QualifyRule,
-} from "@/api/competitor";
+import type { CompetitorProductRaw, QualifyRule } from "@/api/competitor";
+import type { RangeFilterValue } from "@/components/RangeFilterPanel/index.vue";
+
+function emptyRangeFilter(): RangeFilterValue {
+  return {
+    priceMin: null,
+    priceMax: null,
+    unitsMin: null,
+    unitsMax: null,
+    listingDaysMin: null,
+    listingDaysMax: null,
+    bsrMax: null,
+    weightMax: null,
+    variantCountMax: null,
+    fulfillment: [],
+    createdWeeks: [],
+    category: [],
+    grade: [],
+    listingPreset: null,
+  };
+}
 
 interface SubCategoryItem {
   nodeId: string | number;
@@ -69,40 +85,15 @@ export const useProductLineSelectionStore = defineStore(
     const searchKeyword = ref("");
     const searchSellerName = ref("");
     const searchBrand = ref("");
-    const searchPriceMin = ref<number | null>(null);
-    const searchPriceMax = ref<number | null>(null);
     const selectedProducts = ref(new Set<string>());
     const sortBy = ref("");
 
-    // ---- 灵活合格规则（取代写死的 MODE1 过滤）----
-    // 默认套一条规则：上架≤30天 且 销量>30
-    const qualifyRules = ref<QualifyRule[]>([
-      {
-        conditions: [
-          { field: "listingDays", op: "le", value: 30 },
-          { field: "units", op: "gt", value: 30 },
-        ],
-      },
-    ]);
+    // ---- 统一区间筛选面板（与新品榜一致）----
+    const rangeFilter = ref<RangeFilterValue>(emptyRangeFilter());
 
-    // ---- 入库时间按周筛选 ----
-    function weekToDateRange(w: string): { start: string; end: string } {
-      const [y, wk] = w.split("-W");
-      const jan1 = new Date(parseInt(y), 0, 1);
-      const start = new Date(
-        jan1.getTime() + (parseInt(wk) - 1) * 7 * 86400000,
-      );
-      const dow = start.getDay() || 7;
-      start.setDate(start.getDate() - dow + 1);
-      const end = new Date(start.getTime() + 6 * 86400000);
-      return {
-        start: start.toISOString().split("T")[0],
-        end: end.toISOString().split("T")[0],
-      };
-    }
+    // ---- 灵活合格规则（已由面板的上架天数/月销区间承担，默认空=不限）----
+    const qualifyRules = ref<QualifyRule[]>([]);
 
-    const selectedWeekTags = ref<string[]>([]);
-    const availableWeekOptions = ref<BatchWeek[]>([]);
     // 郑总盘子实际使用的最新批次日期（由 /tree 响应回填，仅展示用）
     const zhengBatchDate = ref("");
 
@@ -129,24 +120,6 @@ export const useProductLineSelectionStore = defineStore(
       }
     }
 
-    async function fetchAvailableWeeks() {
-      try {
-        // 品线选品页列表按 MODE1 查询、不限 source（两种 source 都展示），
-        // 故批次也不限 source，保证周次条数与页面展示一致。
-        const res = await getCreatedWeeks(marketplace.value);
-        availableWeekOptions.value = (res?.data ?? []) as BatchWeek[];
-        // 默认选中最新周（列表已按周倒序，第一条即最新批次）
-        if (
-          availableWeekOptions.value.length > 0 &&
-          selectedWeekTags.value.length === 0
-        ) {
-          selectedWeekTags.value = [availableWeekOptions.value[0].week];
-        }
-      } catch {
-        availableWeekOptions.value = [];
-      }
-    }
-
     // ---- 计算 ----
     const filterCount = computed(() => activeFilters.value.length);
     const hasFilters = computed(() => activeFilters.value.length > 0);
@@ -169,14 +142,9 @@ export const useProductLineSelectionStore = defineStore(
 
     // ---- 数据初始化 ----
     async function initData() {
-      // 切换站点/月份时清空已选周，让 fetchAvailableWeeks 回填为当前站点的最新周
-      selectedWeekTags.value = [];
-      await Promise.all([
-        fetchTree(),
-        fetchBatchesList(),
-        fetchAvailableWeeks(),
-        fetchCompleteness(),
-      ]);
+      // 切换站点/月份时重置区间筛选（周批次由面板按站点重新拉取并默认最新）
+      rangeFilter.value = emptyRangeFilter();
+      await Promise.all([fetchTree(), fetchBatchesList(), fetchCompleteness()]);
 
       // 默认加载第一个大类的商品
       if (treeData.value.length > 0 && !selectedBsrId.value) {
@@ -292,9 +260,6 @@ export const useProductLineSelectionStore = defineStore(
     function clearBasicFilters() {
       searchSellerName.value = "";
       searchBrand.value = "";
-      searchPriceMin.value = null;
-      searchPriceMax.value = null;
-      selectedWeekTags.value = [];
     }
 
     // ---- 通用商品加载 ----
@@ -319,12 +284,24 @@ export const useProductLineSelectionStore = defineStore(
         if (searchKeyword.value) params.title = searchKeyword.value;
         if (searchSellerName.value) params.sellerName = searchSellerName.value;
         if (searchBrand.value) params.brand = searchBrand.value;
-        if (searchPriceMin.value != null)
-          params.priceMin = searchPriceMin.value;
-        if (searchPriceMax.value != null)
-          params.priceMax = searchPriceMax.value;
-        if (selectedWeekTags.value.length > 0) {
-          params.createdWeeks = [...selectedWeekTags.value].sort();
+        // 统一面板区间映射（价格/销量/上架天数/BSR/重量/变体数/配送/评级/入库周）
+        const rf = rangeFilter.value;
+        if (rf.priceMin != null) params.priceMin = rf.priceMin;
+        if (rf.priceMax != null) params.priceMax = rf.priceMax;
+        if (rf.unitsMin != null) params.unitsMin = rf.unitsMin;
+        if (rf.unitsMax != null) params.unitsMax = rf.unitsMax;
+        if (rf.listingDaysMin != null)
+          params.listingDaysMin = rf.listingDaysMin;
+        if (rf.listingDaysMax != null)
+          params.listingDaysMax = rf.listingDaysMax;
+        if (rf.bsrMax != null) params.bsrMax = rf.bsrMax;
+        if (rf.weightMax != null) params.weightMax = rf.weightMax;
+        if (rf.variantCountMax != null)
+          params.maxVariantCount = rf.variantCountMax;
+        if (rf.fulfillment?.length > 0) params.fulfillment = rf.fulfillment;
+        if (rf.grade?.length > 0) params.grade = rf.grade.join(",");
+        if (rf.createdWeeks?.length > 0) {
+          params.createdWeeks = [...rf.createdWeeks].sort();
         }
 
         // element/carrier/keyword/combo filters
@@ -548,6 +525,22 @@ export const useProductLineSelectionStore = defineStore(
     }
 
     /**
+     * 应用统一区间筛选面板并重新搜索当前选中类目
+     */
+    async function applyRangeFilter(val: RangeFilterValue) {
+      rangeFilter.value = val;
+      competitorPage.value = 1;
+      if (selectedNodeId.value || selectedBsrId.value) {
+        await loadProducts({
+          nodeId: selectedNodeId.value
+            ? Number(selectedNodeId.value)
+            : undefined,
+          bsrId: selectedBsrId.value || undefined,
+        });
+      }
+    }
+
+    /**
      * 应用合格规则并重新搜索当前选中类目
      */
     async function applyQualifyRules(rules: QualifyRule[]) {
@@ -601,6 +594,21 @@ export const useProductLineSelectionStore = defineStore(
       batchVersion.value = val;
     }
 
+    // ---- AI 选品助手：套用筛选（全局悬浮卡 / 跨页消费调用） ----
+
+    function applyAiFilterRules(rules: QualifyRule[]) {
+      qualifyRules.value = rules;
+      competitorPage.value = 1;
+      if (selectedNodeId.value || selectedBsrId.value) {
+        loadProducts({
+          nodeId: selectedNodeId.value
+            ? Number(selectedNodeId.value)
+            : undefined,
+          bsrId: selectedBsrId.value || undefined,
+        });
+      }
+    }
+
     return {
       marketplace,
       month,
@@ -649,8 +657,6 @@ export const useProductLineSelectionStore = defineStore(
       searchKeyword,
       searchSellerName,
       searchBrand,
-      searchPriceMin,
-      searchPriceMax,
       selectedProducts,
       selectedProductList,
       selectedCount,
@@ -659,6 +665,9 @@ export const useProductLineSelectionStore = defineStore(
       // ---- 合格规则 ----
       qualifyRules,
       applyQualifyRules,
+      // ---- 统一区间筛选面板 ----
+      rangeFilter,
+      applyRangeFilter,
       // ---- 新增方法 ----
       toggleProductSelection,
       selectAllOnPage,
@@ -668,12 +677,16 @@ export const useProductLineSelectionStore = defineStore(
       exportSelectedExcel,
       clearBasicFilters,
       applyBasicFilters,
-      fetchAvailableWeeks,
-      selectedWeekTags,
-      availableWeekOptions,
       zhengBatchDate,
       completeness,
       fetchCompleteness,
+      // AI 选品助手
+      agentDrawerVisible,
+      agentNodeId,
+      agentNodeName,
+      openAgentDrawer,
+      closeAgentDrawer,
+      applyAiFilterRules,
     };
   },
 );

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, onMounted } from "vue";
 import { QuestionFilled } from "@element-plus/icons-vue";
+import { getCreatedWeeks } from "@/api/competitor";
 
 export interface RangeFilterValue {
   priceMin: number | null;
@@ -148,10 +149,45 @@ function clearListingPreset() {
   local.value.listingPreset = null;
   local.value.listingDaysMax = null;
 }
+
+const availableWeeks = ref<Array<{ week: string; count: number }>>([]);
+
+onMounted(async () => {
+  const res = await getCreatedWeeks(props.country);
+  availableWeeks.value = res?.data ?? [];
+  if (
+    local.value.createdWeeks.length === 0 &&
+    availableWeeks.value.length > 0
+  ) {
+    local.value.createdWeeks = [availableWeeks.value[0].week];
+  }
+});
 </script>
 
 <template>
   <div class="rfp">
+    <div class="rfp__week-row">
+      <div class="rfp__field">
+        <label class="rfp__label">入库批次（周）</label>
+        <el-select
+          v-model="local.createdWeeks"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          placeholder="选择周批次（默认最新）"
+          clearable
+          style="width: 100%"
+        >
+          <el-option
+            v-for="w in availableWeeks"
+            :key="w.week"
+            :label="`${w.week} (${w.count})`"
+            :value="w.week"
+          />
+        </el-select>
+      </div>
+    </div>
+
     <div class="rfp__col">
       <div class="rfp__col-title">
         <span class="rfp__dot"></span>
@@ -237,8 +273,14 @@ function clearListingPreset() {
         </div>
         <div class="rfp__range" v-else>
           <el-button size="small" @click="clearListingPreset">清除</el-button>
-          <span class="rfp__preset-label">已选：{{ local.listingPreset }}天内</span>
-          <el-tooltip :content="TOOLTIPS.listingDays" placement="top" trigger="hover">
+          <span class="rfp__preset-label"
+            >已选：{{ local.listingPreset }}天内</span
+          >
+          <el-tooltip
+            :content="TOOLTIPS.listingDays"
+            placement="top"
+            trigger="hover"
+          >
             <el-icon class="rfp__tip"><QuestionFilled /></el-icon>
           </el-tooltip>
         </div>
@@ -280,7 +322,11 @@ function clearListingPreset() {
             class="rfp__num--single"
             placeholder="不限"
           />
-          <el-tooltip :content="TOOLTIPS.variantCount" placement="top" trigger="hover">
+          <el-tooltip
+            :content="TOOLTIPS.variantCount"
+            placement="top"
+            trigger="hover"
+          >
             <el-icon class="rfp__tip"><QuestionFilled /></el-icon>
           </el-tooltip>
         </div>
@@ -315,7 +361,11 @@ function clearListingPreset() {
             />
             <span class="rfp__suffix">g</span>
           </span>
-          <el-tooltip :content="TOOLTIPS.weight" placement="top" trigger="hover">
+          <el-tooltip
+            :content="TOOLTIPS.weight"
+            placement="top"
+            trigger="hover"
+          >
             <el-icon class="rfp__tip"><QuestionFilled /></el-icon>
           </el-tooltip>
         </div>
@@ -333,7 +383,11 @@ function clearListingPreset() {
               {{ opt.label }}
             </el-checkbox>
           </el-checkbox-group>
-          <el-tooltip :content="TOOLTIPS.fulfillment" placement="top" trigger="hover">
+          <el-tooltip
+            :content="TOOLTIPS.fulfillment"
+            placement="top"
+            trigger="hover"
+          >
             <el-icon class="rfp__tip"><QuestionFilled /></el-icon>
           </el-tooltip>
         </div>
@@ -365,6 +419,7 @@ function clearListingPreset() {
 
 .rfp {
   display: flex;
+  flex-wrap: wrap;
   gap: $space-xl;
   background: $bg-body;
   border: 1px solid $border-color;
@@ -375,6 +430,11 @@ function clearListingPreset() {
     flex-direction: column;
     gap: $space-lg;
   }
+}
+
+.rfp__week-row {
+  width: 100%;
+  margin-bottom: $space-md;
 }
 
 .rfp__col {
