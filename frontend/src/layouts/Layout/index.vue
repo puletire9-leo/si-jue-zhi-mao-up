@@ -1,21 +1,24 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useAppStore } from '@/stores/app'
-import LayNavbar from './components/lay-navbar/index.vue'
-import LaySidebar from './components/lay-sidebar/index.vue'
-import LayTags from './components/lay-tags/index.vue'
-import LayContent from './components/lay-content/index.vue'
-import LayPanel from './components/lay-panel/index.vue'
-import LaySetting from './components/lay-setting/index.vue'
+import { computed } from "vue";
+import { useAppStore } from "@/stores/app";
+import LayNavbar from "./components/lay-navbar/index.vue";
+import LaySidebar from "./components/lay-sidebar/index.vue";
+import LayTags from "./components/lay-tags/index.vue";
+import LayContent from "./components/lay-content/index.vue";
+import LayPanel from "./components/lay-panel/index.vue";
+import LaySetting from "./components/lay-setting/index.vue";
+import SelectionAgentFloat from "@/components/SelectionAgentFloat/index.vue";
 
-const appStore = useAppStore()
+const appStore = useAppStore();
 
-const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
-const sidebarWidth = computed(() => sidebarCollapsed.value ? '64px' : '260px')
+const sidebarCollapsed = computed(() => appStore.sidebarCollapsed);
+const sidebarWidth = computed(() =>
+  sidebarCollapsed.value ? "64px" : "260px",
+);
 
 const handleToggleSidebar = () => {
-  appStore.toggleSidebar()
-}
+  appStore.toggleSidebar();
+};
 </script>
 
 <template>
@@ -41,6 +44,8 @@ const handleToggleSidebar = () => {
     <LayPanel>
       <LaySetting />
     </LayPanel>
+
+    <SelectionAgentFloat />
   </div>
 </template>
 
@@ -94,21 +99,21 @@ const handleToggleSidebar = () => {
 // 深色主题
 :deep(html.dark) {
   .sidebar {
-    background: #1A1A2E;
+    background: #1a1a2e;
     box-shadow: 2px 0 12px rgba(0, 0, 0, 0.3);
   }
 
   .main-content {
-    background: #16162A;
+    background: #16162a;
   }
 
   .header {
-    background: #1A1A2E;
-    border-bottom-color: #2D2D44;
+    background: #1a1a2e;
+    border-bottom-color: #2d2d44;
   }
 
   .tags-bar {
-    background: #16162A;
+    background: #16162a;
   }
 }
 </style>

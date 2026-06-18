@@ -38,7 +38,7 @@ export interface SelectionQueryParams {
   /** 本周/往期筛选（1=本周, 0=往期, 空=全部） */
   isCurrent: '' | '1' | '0'
   /** 排序字段 */
-  sortField: '' | 'salesVolume' | 'price' | 'listingDate' | 'createdAt' | 'score'
+  sortField: '' | 'salesVolume' | 'price' | 'listingDate' | 'createdAt' | 'score' | 'bsr'
   /** 排序方式 */
   sortOrder: '' | 'desc' | 'asc'
   /** 开始日期 */

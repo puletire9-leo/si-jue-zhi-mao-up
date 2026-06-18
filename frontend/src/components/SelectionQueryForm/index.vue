@@ -5,11 +5,26 @@
  * @author AI Assistant
  * @version 1.3.0
  */
-import { ref, reactive, computed, watch, onMounted } from 'vue'
-import { Search, Refresh, Picture, List, Filter } from '@element-plus/icons-vue'
-import type { SelectionQueryParams, SelectionQueryFormProps, CategoryItem, SearchTypeOption } from './types'
-import { defaultQueryParams, pageTypeConfig, defaultSearchTypeOptions } from './types'
-import { competitorApi } from '@/api/competitor'
+import { ref, reactive, computed, watch, onMounted } from "vue";
+import {
+  Search,
+  Refresh,
+  Picture,
+  List,
+  Filter,
+} from "@element-plus/icons-vue";
+import type {
+  SelectionQueryParams,
+  SelectionQueryFormProps,
+  CategoryItem,
+  SearchTypeOption,
+} from "./types";
+import {
+  defaultQueryParams,
+  pageTypeConfig,
+  defaultSearchTypeOptions,
+} from "./types";
+import { competitorApi } from "@/api/competitor";
 
 // Props 定义
 const props = withDefaults(defineProps<SelectionQueryFormProps>(), {
@@ -26,379 +41,405 @@ const props = withDefaults(defineProps<SelectionQueryFormProps>(), {
   showTotal: false,
   categories: () => [],
   total: 0,
-  title: ''
-})
+  title: "",
+});
 
 // Emits 定义
 const emit = defineEmits<{
-  search: [params: SelectionQueryParams]
-  reset: []
-  imageSearch: []
-  change: [params: SelectionQueryParams]
-}>()
+  search: [params: SelectionQueryParams];
+  reset: [];
+  imageSearch: [];
+  change: [params: SelectionQueryParams];
+}>();
 
 // 表单数据
 const formData = reactive<SelectionQueryParams>({
   ...defaultQueryParams,
-  ...props.initialParams
-})
+  ...props.initialParams,
+});
 
 // 紧凑模式下的搜索类型和搜索内容
-const compactSearchType = ref('asin')
-const compactSearchContent = ref('')
+const compactSearchType = ref("asin");
+const compactSearchContent = ref("");
 
 // 日期范围（用于日期选择器）
-const dateRange = ref<string[]>([])
+const dateRange = ref<string[]>([]);
 
 // 上架时间范围（用于筛选对话框中的上架时间选择器）
-const listingDateRange = ref<string[]>([])
+const listingDateRange = ref<string[]>([]);
 
 // 卖家列表（从后端加载）
-const sellerOptions = ref<{ id: number; marketplace: string; sellerName: string; storeUrl: string }[]>([])
-const sellerLoading = ref(false)
+const sellerOptions = ref<
+  { id: number; marketplace: string; sellerName: string; storeUrl: string }[]
+>([]);
+const sellerLoading = ref(false);
 
 const loadSellers = async (marketplace?: string) => {
-  sellerLoading.value = true
+  sellerLoading.value = true;
   try {
-    const res = await competitorApi.getDengZongShopSellers(marketplace ? { marketplace } : undefined)
-    sellerOptions.value = res.data || []
+    const res = await competitorApi.getDengZongShopSellers(
+      marketplace ? { marketplace } : undefined,
+    );
+    sellerOptions.value = res.data || [];
   } catch {
-    sellerOptions.value = []
+    sellerOptions.value = [];
   } finally {
-    sellerLoading.value = false
+    sellerLoading.value = false;
   }
-}
+};
 
 // 多项精确搜索对话框
-const advancedSearchDialogVisible = ref(false)
-const advancedSearchContent = ref('')
+const advancedSearchDialogVisible = ref(false);
+const advancedSearchContent = ref("");
 
 // 筛选对话框
-const filterDialogVisible = ref(false)
+const filterDialogVisible = ref(false);
 
 // 国家选项（值必须与数据库中存储的值一致）
 const countryOptions = [
-  { label: '美国', value: 'US' },
-  { label: '英国', value: 'UK' },
-  { label: '德国', value: 'DE' }
-]
+  { label: "美国", value: "US" },
+  { label: "英国", value: "UK" },
+  { label: "德国", value: "DE" },
+];
 
 // 数据筛选模式选项（值必须与数据库中存储的值一致）
 const dataFilterModeOptions = [
-  { label: '模式一', value: 'MODE1' },
-  { label: '模式二', value: 'MODE2' },
-  { label: '未通过', value: 'FAIL' }
-]
+  { label: "模式一", value: "MODE1" },
+  { label: "模式二", value: "MODE2" },
+  { label: "未通过", value: "FAIL" },
+];
 
 // 等级选项
 const gradeOptions = [
-  { label: 'S', value: 'S', color: '#67C23A' },
-  { label: 'A', value: 'A', color: '#409EFF' },
-  { label: 'B', value: 'B', color: '#E6A23C' },
-  { label: 'C', value: 'C', color: '#909399' },
-  { label: 'D', value: 'D', color: '#F56C6C' }
-]
+  { label: "S", value: "S", color: "#67C23A" },
+  { label: "A", value: "A", color: "#409EFF" },
+  { label: "B", value: "B", color: "#E6A23C" },
+  { label: "C", value: "C", color: "#909399" },
+  { label: "D", value: "D", color: "#F56C6C" },
+];
 
 // 根据页面类型获取默认配置
 const pageConfig = computed(() => {
-  return pageTypeConfig[props.pageType] || {}
-})
+  return pageTypeConfig[props.pageType] || {};
+});
 
 // 合并配置（Props优先级高于默认配置）
 const config = computed(() => {
   // 从 props 中提取显式设置的布尔值
-  const explicitProps: Record<string, boolean> = {}
-  
+  const explicitProps: Record<string, boolean> = {};
+
   // 对于每个布尔类型的 prop，如果为 true 则覆盖默认值
-  if (props.showSource === true) explicitProps.showSource = true
-  if (props.showCombinedSearch === true) explicitProps.showCombinedSearch = true
-  if (props.showCompactMode === true) explicitProps.showCompactMode = true
-  if (props.showAdvancedSearch === true) explicitProps.showAdvancedSearch = true
-  if (props.showFilter === true) explicitProps.showFilter = true
-  if (props.showSort === true) explicitProps.showSort = true
-  if (props.showDateRange === true) explicitProps.showDateRange = true
-  if (props.showImageSearch === true) explicitProps.showImageSearch = true
-  if (props.showTitle === true) explicitProps.showTitle = true
-  if (props.showTotal === true) explicitProps.showTotal = true
-  
+  if (props.showSource === true) explicitProps.showSource = true;
+  if (props.showCombinedSearch === true)
+    explicitProps.showCombinedSearch = true;
+  if (props.showCompactMode === true) explicitProps.showCompactMode = true;
+  if (props.showAdvancedSearch === true)
+    explicitProps.showAdvancedSearch = true;
+  if (props.showFilter === true) explicitProps.showFilter = true;
+  if (props.showSort === true) explicitProps.showSort = true;
+  if (props.showDateRange === true) explicitProps.showDateRange = true;
+  if (props.showImageSearch === true) explicitProps.showImageSearch = true;
+  if (props.showTitle === true) explicitProps.showTitle = true;
+  if (props.showTotal === true) explicitProps.showTotal = true;
+
   const mergedConfig = {
     ...pageConfig.value,
-    ...explicitProps
-  }
-  
-  return mergedConfig
-})
+    ...explicitProps,
+  };
+
+  return mergedConfig;
+});
 
 // 显示标题
 const displayTitle = computed(() => {
-  if (props.title) return props.title
+  if (props.title) return props.title;
   const titles: Record<string, string> = {
-    all: '全部选品',
-    new: '新品榜',
-    reference: '竞品店铺',
-    recycle: '回收站'
-  }
-  return titles[props.pageType] || '选品列表'
-})
+    all: "全部选品",
+    new: "新品榜",
+    reference: "竞品店铺",
+    recycle: "回收站",
+  };
+  return titles[props.pageType] || "选品列表";
+});
 
 // 监听日期范围变化
-watch(dateRange, (newVal) => {
-  if (newVal && newVal.length === 2) {
-    formData.startDate = newVal[0]
-    formData.endDate = newVal[1]
-  } else {
-    formData.startDate = ''
-    formData.endDate = ''
-  }
-  emit('change', { ...formData })
-}, { deep: true })
+watch(
+  dateRange,
+  (newVal) => {
+    if (newVal && newVal.length === 2) {
+      formData.startDate = newVal[0];
+      formData.endDate = newVal[1];
+    } else {
+      formData.startDate = "";
+      formData.endDate = "";
+    }
+    emit("change", { ...formData });
+  },
+  { deep: true },
+);
 
 // 监听上架时间范围变化
-watch(listingDateRange, (newVal) => {
-  if (newVal && newVal.length === 2) {
-    formData.listingDateStart = newVal[0]
-    formData.listingDateEnd = newVal[1]
-  } else {
-    formData.listingDateStart = ''
-    formData.listingDateEnd = ''
-  }
-  emit('change', { ...formData })
-}, { deep: true })
+watch(
+  listingDateRange,
+  (newVal) => {
+    if (newVal && newVal.length === 2) {
+      formData.listingDateStart = newVal[0];
+      formData.listingDateEnd = newVal[1];
+    } else {
+      formData.listingDateStart = "";
+      formData.listingDateEnd = "";
+    }
+    emit("change", { ...formData });
+  },
+  { deep: true },
+);
 
 // 监听表单数据变化
-watch(formData, (newVal) => {
-  emit('change', { ...newVal })
-}, { deep: true })
+watch(
+  formData,
+  (newVal) => {
+    emit("change", { ...newVal });
+  },
+  { deep: true },
+);
 
 // 监听国家变化，重新加载卖家列表
-watch(() => formData.country, (newVal) => {
-  loadSellers(newVal || undefined)
-  // 切换国家时清空卖家选择
-  formData.sellerSelect = ''
-})
+watch(
+  () => formData.country,
+  (newVal) => {
+    loadSellers(newVal || undefined);
+    // 切换国家时清空卖家选择
+    formData.sellerSelect = "";
+  },
+);
 
 // 组件挂载时加载卖家列表
 onMounted(() => {
-  loadSellers(formData.country || undefined)
-})
+  loadSellers(formData.country || undefined);
+});
 
 /**
  * 处理紧凑模式搜索
  */
 const handleCompactSearch = () => {
   // 根据搜索类型设置对应的字段
-  const searchType = compactSearchType.value
-  const searchContent = compactSearchContent.value.trim()
-  
+  const searchType = compactSearchType.value;
+  const searchContent = compactSearchContent.value.trim();
+
   // 重置所有搜索字段
-  formData.asin = ''
-  formData.productTitle = ''
-  formData.storeName = ''
-  formData.category = ''
-  
+  formData.asin = "";
+  formData.productTitle = "";
+  formData.storeName = "";
+  formData.category = "";
+
   // 根据搜索类型设置值
   switch (searchType) {
-    case 'asin':
-      formData.asin = searchContent
-      break
-    case 'productTitle':
-      formData.productTitle = searchContent
-      break
-    case 'storeName':
-      formData.storeName = searchContent
-      break
-    case 'category':
-      formData.category = searchContent
-      break
+    case "asin":
+      formData.asin = searchContent;
+      break;
+    case "productTitle":
+      formData.productTitle = searchContent;
+      break;
+    case "storeName":
+      formData.storeName = searchContent;
+      break;
+    case "category":
+      formData.category = searchContent;
+      break;
   }
-  
-  emit('search', { ...formData })
-}
+
+  emit("search", { ...formData });
+};
 
 /**
  * 处理搜索
  */
 const handleSearch = () => {
-  emit('search', getQueryParams())
-}
+  emit("search", getQueryParams());
+};
 
 /**
  * 处理卖家选择变化
  */
 const handleSellerChange = (val: string) => {
   // 选中卖家时，同步设置 storeName 用于搜索
-  formData.storeName = val || ''
-  emit('search', getQueryParams())
-}
+  formData.storeName = val || "";
+  emit("search", getQueryParams());
+};
 
 /**
  * 处理重置
  */
 const handleReset = () => {
   // 重置表单数据
-  Object.assign(formData, defaultQueryParams)
+  Object.assign(formData, defaultQueryParams);
   // 重置紧凑模式数据
-  compactSearchType.value = 'asin'
-  compactSearchContent.value = ''
+  compactSearchType.value = "asin";
+  compactSearchContent.value = "";
   // 重置日期范围
-  dateRange.value = []
+  dateRange.value = [];
   // 重置上架时间范围
-  listingDateRange.value = []
+  listingDateRange.value = [];
   // 关闭筛选对话框（如果在对话框中）
-  filterDialogVisible.value = false
+  filterDialogVisible.value = false;
   // 触发重置事件
-  emit('reset')
+  emit("reset");
   // 触发搜索（重置后重新加载数据）
-  emit('search', { ...formData })
-}
+  emit("search", { ...formData });
+};
 
 /**
  * 处理以图搜图
  */
 const handleImageSearch = () => {
-  emit('imageSearch')
-}
+  emit("imageSearch");
+};
 
 /**
  * 打开多项精确搜索对话框
  */
 const openAdvancedSearchDialog = () => {
-  advancedSearchDialogVisible.value = true
-}
+  advancedSearchDialogVisible.value = true;
+};
 
 /**
  * 关闭多项精确搜索对话框
  */
 const closeAdvancedSearchDialog = () => {
-  advancedSearchDialogVisible.value = false
-}
+  advancedSearchDialogVisible.value = false;
+};
 
 /**
  * 清空多项搜索内容
  */
 const clearAdvancedSearchContent = () => {
-  advancedSearchContent.value = ''
-}
+  advancedSearchContent.value = "";
+};
 
 /**
  * 处理多项精确搜索
  */
 const handleAdvancedSearch = () => {
-  const content = advancedSearchContent.value.trim()
+  const content = advancedSearchContent.value.trim();
   if (!content) {
-    return
+    return;
   }
-  
+
   // 按行分割，获取搜索列表
-  const searchList = content.split('\n').map(line => line.trim()).filter(line => line)
-  
+  const searchList = content
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line);
+
   if (searchList.length === 0) {
-    return
+    return;
   }
-  
+
   // 根据当前搜索类型设置搜索条件
-  const searchType = compactSearchType.value
-  
+  const searchType = compactSearchType.value;
+
   // 重置所有搜索字段
-  formData.asin = ''
-  formData.productTitle = ''
-  formData.storeName = ''
-  formData.category = ''
-  
+  formData.asin = "";
+  formData.productTitle = "";
+  formData.storeName = "";
+  formData.category = "";
+
   // 如果有多个值，使用第一个值作为主要搜索条件
   // 其他值可以通过其他方式处理（如发送到后端进行批量查询）
-  const firstValue = searchList[0]
-  
+  const firstValue = searchList[0];
+
   switch (searchType) {
-    case 'asin':
-      formData.asin = firstValue
-      break
-    case 'productTitle':
-      formData.productTitle = firstValue
-      break
-    case 'storeName':
-      formData.storeName = firstValue
-      break
-    case 'category':
-      formData.category = firstValue
-      break
+    case "asin":
+      formData.asin = firstValue;
+      break;
+    case "productTitle":
+      formData.productTitle = firstValue;
+      break;
+    case "storeName":
+      formData.storeName = firstValue;
+      break;
+    case "category":
+      formData.category = firstValue;
+      break;
   }
-  
+
   // 关闭对话框
-  advancedSearchDialogVisible.value = false
-  
+  advancedSearchDialogVisible.value = false;
+
   // 触发搜索
-  emit('search', { ...formData })
-}
+  emit("search", { ...formData });
+};
 
 /**
  * 打开筛选对话框
  */
 const openFilterDialog = () => {
-  filterDialogVisible.value = true
-}
+  filterDialogVisible.value = true;
+};
 
 /**
  * 关闭筛选对话框
  */
 const closeFilterDialog = () => {
-  filterDialogVisible.value = false
-}
+  filterDialogVisible.value = false;
+};
 
 /**
  * 应用筛选
  */
 const applyFilter = () => {
-  emit('search', { ...formData })
-  filterDialogVisible.value = false
-}
+  emit("search", { ...formData });
+  filterDialogVisible.value = false;
+};
 
 /**
  * 切换等级筛选
  */
 const handleGradeToggle = (grade: string) => {
-  const grades = formData.grade ? formData.grade.split(',').filter(g => g) : []
-  const index = grades.indexOf(grade)
+  const grades = formData.grade
+    ? formData.grade.split(",").filter((g) => g)
+    : [];
+  const index = grades.indexOf(grade);
   if (index >= 0) {
-    grades.splice(index, 1)
+    grades.splice(index, 1);
   } else {
-    grades.push(grade)
+    grades.push(grade);
   }
-  formData.grade = grades.join(',')
+  formData.grade = grades.join(",");
   // 不立即关闭对话框，让用户可以继续选择其他筛选条件
   // applyFilter()
-}
+};
 
 /**
  * 获取当前查询参数
  */
 const getQueryParams = (): SelectionQueryParams => {
-  const params = { ...formData }
+  const params = { ...formData };
   // 多选 category 数组转逗号分隔字符串
   if (Array.isArray(params.category)) {
-    params.category = params.category.join(',')
+    params.category = params.category.join(",");
   }
-  return params
-}
+  return params;
+};
 
 /**
  * 设置查询参数
  */
 const setQueryParams = (params: Partial<SelectionQueryParams>) => {
   // category 字符串转数组（多选模式）
-  if (params.category && typeof params.category === 'string') {
-    params.category = params.category.split(',').filter(Boolean) as any
+  if (params.category && typeof params.category === "string") {
+    params.category = params.category.split(",").filter(Boolean) as any;
   }
-  Object.assign(formData, params)
+  Object.assign(formData, params);
   // 同步更新日期范围
   if (params.startDate && params.endDate) {
-    dateRange.value = [params.startDate, params.endDate]
+    dateRange.value = [params.startDate, params.endDate];
   }
   // 同步更新上架时间范围
   if (params.listingDateStart && params.listingDateEnd) {
-    listingDateRange.value = [params.listingDateStart, params.listingDateEnd]
+    listingDateRange.value = [params.listingDateStart, params.listingDateEnd];
   }
-}
+};
 
 // 暴露方法给父组件
 defineExpose({
@@ -407,8 +448,8 @@ defineExpose({
   handleSearch,
   handleReset,
   openAdvancedSearchDialog,
-  openFilterDialog
-})
+  openFilterDialog,
+});
 </script>
 
 <template>
@@ -416,9 +457,11 @@ defineExpose({
     <!-- 标题区域 -->
     <div v-if="config.showTitle" class="form-title">
       <h3>{{ displayTitle }}</h3>
-      <span v-if="config.showTotal" class="product-count">共 {{ total }} 个产品</span>
+      <span v-if="config.showTotal" class="product-count"
+        >共 {{ total }} 个产品</span
+      >
     </div>
-    
+
     <!-- 紧凑模式（单行布局） -->
     <div v-if="config.showCompactMode" class="compact-search-bar">
       <div class="search-filters-row">
@@ -457,12 +500,15 @@ defineExpose({
             :value="seller.sellerName"
           >
             <span>{{ seller.sellerName }}</span>
-            <span style="float: right; color: #8492a6; font-size: 12px">{{ seller.marketplace }}</span>
+            <span style="float: right; color: #8492a6; font-size: 12px">{{
+              seller.marketplace
+            }}</span>
           </el-option>
         </el-select>
 
-        <!-- 上架时间范围选择器 -->
+        <!-- 上架时间范围选择器：按筛选重构计划隐藏，上架时间统一收进面板（上架天数预设+区间） -->
         <el-date-picker
+          v-if="false"
           v-model="listingDateRange"
           type="daterange"
           range-separator="至"
@@ -473,7 +519,7 @@ defineExpose({
           size="default"
           @change="handleSearch"
         />
-        
+
         <!-- 数据筛选模式选择器 -->
         <el-select
           v-if="false"
@@ -507,7 +553,7 @@ defineExpose({
             :value="option.value"
           />
         </el-select>
-        
+
         <div class="search-input-wrapper">
           <el-input
             v-model="compactSearchContent"
@@ -518,9 +564,9 @@ defineExpose({
             @keyup.enter="handleCompactSearch"
           >
             <template #append>
-              <el-button 
-                type="primary" 
-                :icon="Search" 
+              <el-button
+                type="primary"
+                :icon="Search"
                 size="default"
                 @click="handleCompactSearch"
                 class="search-btn"
@@ -531,7 +577,7 @@ defineExpose({
           </el-input>
         </div>
       </div>
-      
+
       <div class="action-buttons">
         <!-- 多项精确搜索按钮 -->
         <el-button
@@ -542,7 +588,7 @@ defineExpose({
           class="advanced-search-btn"
           title="多项精确搜索"
         />
-        
+
         <!-- 筛选按钮 -->
         <el-button
           v-if="config.showFilter"
@@ -554,20 +600,20 @@ defineExpose({
         >
           筛选
         </el-button>
-        
-        <el-button 
-          :icon="Refresh" 
+
+        <el-button
+          :icon="Refresh"
           size="default"
           @click="handleReset"
           class="reset-btn"
         >
           重置
         </el-button>
-        
-        <el-button 
-          v-if="config.showImageSearch" 
-          type="info" 
-          :icon="Picture" 
+
+        <el-button
+          v-if="config.showImageSearch"
+          type="info"
+          :icon="Picture"
           size="default"
           @click="handleImageSearch"
           class="image-search-btn"
@@ -576,14 +622,17 @@ defineExpose({
         </el-button>
       </div>
     </div>
-    
+
     <!-- 传统模式（多行布局） -->
     <el-form v-else :inline="true" :model="formData" class="traditional-form">
       <!-- 组合搜索 (新品榜模式) -->
-      <el-form-item v-if="config.showCombinedSearch" class="combined-search-item">
-        <el-input 
-          v-model="formData.keyword" 
-          placeholder="请输入搜索内容" 
+      <el-form-item
+        v-if="config.showCombinedSearch"
+        class="combined-search-item"
+      >
+        <el-input
+          v-model="formData.keyword"
+          placeholder="请输入搜索内容"
           clearable
           class="search-input"
         >
@@ -594,51 +643,57 @@ defineExpose({
             </el-select>
           </template>
           <template #append>
-            <el-button type="primary" :icon="Search" @click="handleSearch">搜索</el-button>
+            <el-button type="primary" :icon="Search" @click="handleSearch"
+              >搜索</el-button
+            >
           </template>
         </el-input>
       </el-form-item>
-      
+
       <!-- ASIN输入框 (非组合搜索模式) -->
       <el-form-item v-if="!config.showCombinedSearch" label="ASIN">
-        <el-input 
-          v-model="formData.asin" 
-          placeholder="请输入ASIN" 
+        <el-input
+          v-model="formData.asin"
+          placeholder="请输入ASIN"
           clearable
           @keyup.enter="handleSearch"
         />
       </el-form-item>
-      
+
       <!-- 商品标题输入框 (非组合搜索模式) -->
       <el-form-item v-if="!config.showCombinedSearch" label="商品标题">
-        <el-input 
-          v-model="formData.productTitle" 
-          placeholder="请输入商品标题" 
+        <el-input
+          v-model="formData.productTitle"
+          placeholder="请输入商品标题"
           clearable
           @keyup.enter="handleSearch"
         />
       </el-form-item>
-      
+
       <!-- 来源筛选 (总选品页面) -->
       <el-form-item v-if="config.showSource" label="来源">
-        <el-select v-model="formData.productType" placeholder="请选择来源" clearable>
+        <el-select
+          v-model="formData.productType"
+          placeholder="请选择来源"
+          clearable
+        >
           <el-option label="全部" value="" />
           <el-option label="新品榜" value="new" />
           <el-option label="竞品店铺" value="reference" />
           <el-option label="郑总店铺" value="zheng" />
         </el-select>
       </el-form-item>
-      
+
       <!-- 店铺名称 -->
       <el-form-item v-if="!config.showCombinedSearch" label="店铺名称">
-        <el-input 
-          v-model="formData.storeName" 
-          placeholder="请输入店铺名称" 
+        <el-input
+          v-model="formData.storeName"
+          placeholder="请输入店铺名称"
           clearable
           @keyup.enter="handleSearch"
         />
       </el-form-item>
-      
+
       <!-- 大类榜单 -->
       <el-form-item v-if="!config.showCombinedSearch" label="大类榜单">
         <el-select
@@ -659,66 +714,67 @@ defineExpose({
           />
         </el-select>
       </el-form-item>
-      
+
       <!-- 排序字段和排序方式 -->
       <el-form-item v-if="config.showSort" label="排序">
-        <el-select 
-          v-model="formData.sortField" 
-          placeholder="排序字段" 
-          clearable 
+        <el-select
+          v-model="formData.sortField"
+          placeholder="排序字段"
+          clearable
           style="width: 120px"
         >
           <el-option label="销量" value="salesVolume" />
+          <el-option label="BSR" value="bsr" />
           <el-option label="价格" value="price" />
           <el-option label="上架时间" value="listingDate" />
           <el-option label="创建时间" value="createdAt" />
         </el-select>
-        <el-select 
-          v-model="formData.sortOrder" 
-          placeholder="排序方式" 
-          clearable 
+        <el-select
+          v-model="formData.sortOrder"
+          placeholder="排序方式"
+          clearable
           style="width: 100px; margin-left: 8px"
         >
           <el-option label="降序" value="desc" />
           <el-option label="升序" value="asc" />
         </el-select>
       </el-form-item>
-      
+
       <!-- 日期范围 (回收站) -->
       <el-form-item v-if="config.showDateRange" label="删除时间">
-        <el-date-picker 
-          v-model="dateRange" 
-          type="daterange" 
-          range-separator="至" 
-          start-placeholder="开始日期" 
+        <el-date-picker
+          v-model="dateRange"
+          type="daterange"
+          range-separator="至"
+          start-placeholder="开始日期"
           end-placeholder="结束日期"
           value-format="YYYY-MM-DD"
           style="width: 240px"
         />
       </el-form-item>
-      
+
       <!-- 操作按钮 -->
       <el-form-item class="action-buttons">
-        <el-button 
-          v-if="!config.showCombinedSearch" 
-          type="primary" 
-          :icon="Search" 
+        <el-button
+          v-if="!config.showCombinedSearch"
+          type="primary"
+          :icon="Search"
           @click="handleSearch"
         >
           搜索
         </el-button>
         <el-button :icon="Refresh" @click="handleReset">重置</el-button>
-        <el-button 
-          v-if="config.showImageSearch" 
-          type="info" 
-          :icon="Picture" 
+        <el-button
+          v-if="config.showImageSearch"
+          type="info"
+          :icon="Picture"
           @click="handleImageSearch"
         >
           以图搜图
         </el-button>
       </el-form-item>
     </el-form>
-    
+
     <!-- 多项精确搜索对话框 -->
     <el-dialog
       v-model="advancedSearchDialogVisible"
@@ -743,7 +799,7 @@ defineExpose({
             />
           </el-select>
         </div>
-        
+
         <div class="search-content-area">
           <el-input
             v-model="advancedSearchContent"
@@ -754,22 +810,18 @@ defineExpose({
           />
         </div>
       </div>
-      
+
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="clearAdvancedSearchContent">
-            清空
-          </el-button>
-          <el-button @click="closeAdvancedSearchDialog">
-            关闭
-          </el-button>
+          <el-button @click="clearAdvancedSearchContent"> 清空 </el-button>
+          <el-button @click="closeAdvancedSearchDialog"> 关闭 </el-button>
           <el-button type="primary" @click="handleAdvancedSearch">
             搜索
           </el-button>
         </span>
       </template>
     </el-dialog>
-    
+
     <!-- 筛选对话框 -->
     <el-dialog
       v-model="filterDialogVisible"
@@ -781,18 +833,23 @@ defineExpose({
         <!-- 国家筛选 -->
         <div class="filter-section">
           <div class="filter-label">国家</div>
-          <el-select v-model="formData.country" placeholder="请选择国家" clearable style="width: 100%">
-            <el-option 
-              v-for="option in countryOptions" 
-              :key="option.value" 
-              :label="option.label" 
-              :value="option.value" 
+          <el-select
+            v-model="formData.country"
+            placeholder="请选择国家"
+            clearable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="option in countryOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
             />
           </el-select>
         </div>
-        
-        <!-- 上架时间范围筛选 -->
-        <div class="filter-section">
+
+        <!-- 上架时间范围筛选：按筛选重构计划隐藏，上架时间统一收进面板 -->
+        <div v-if="false" class="filter-section">
           <div class="filter-label">上架时间范围</div>
           <el-date-picker
             v-model="listingDateRange"
@@ -804,31 +861,41 @@ defineExpose({
             style="width: 100%"
           />
         </div>
-        
+
         <!-- 数据筛选模式 -->
         <div v-if="false" class="filter-section">
           <div class="filter-label">数据筛选模式</div>
-          <el-select v-model="formData.dataFilterMode" placeholder="请选择数据筛选模式" clearable style="width: 100%">
-            <el-option 
-              v-for="option in dataFilterModeOptions" 
-              :key="option.value" 
-              :label="option.label" 
-              :value="option.value" 
+          <el-select
+            v-model="formData.dataFilterMode"
+            placeholder="请选择数据筛选模式"
+            clearable
+            style="width: 100%"
+          >
+            <el-option
+              v-for="option in dataFilterModeOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
             />
           </el-select>
         </div>
-        
+
         <!-- 来源筛选 -->
         <div class="filter-section">
           <div class="filter-label">来源</div>
-          <el-select v-model="formData.productType" placeholder="请选择来源" clearable style="width: 100%">
+          <el-select
+            v-model="formData.productType"
+            placeholder="请选择来源"
+            clearable
+            style="width: 100%"
+          >
             <el-option label="全部" value="" />
             <el-option label="新品榜" value="new" />
             <el-option label="竞品店铺" value="reference" />
             <el-option label="郑总店铺" value="zheng" />
           </el-select>
         </div>
-        
+
         <!-- 大类榜单筛选 -->
         <div class="filter-section">
           <div class="filter-label">大类榜单</div>
@@ -876,27 +943,28 @@ defineExpose({
             <el-radio-button label="0">往期上架</el-radio-button>
           </el-radio-group>
         </div>
-        
+
         <!-- 排序 -->
         <div class="filter-section">
           <div class="filter-label">排序</div>
           <div class="sort-row">
-            <el-select 
-              v-model="formData.sortField" 
-              placeholder="排序字段" 
-              clearable 
+            <el-select
+              v-model="formData.sortField"
+              placeholder="排序字段"
+              clearable
               style="width: 150px"
             >
               <el-option label="评分" value="score" />
               <el-option label="销量" value="salesVolume" />
+              <el-option label="BSR" value="bsr" />
               <el-option label="价格" value="price" />
               <el-option label="上架时间" value="listingDate" />
               <el-option label="创建时间" value="createdAt" />
             </el-select>
-            <el-select 
-              v-model="formData.sortOrder" 
-              placeholder="排序方式" 
-              clearable 
+            <el-select
+              v-model="formData.sortOrder"
+              placeholder="排序方式"
+              clearable
               style="width: 120px; margin-left: 12px"
             >
               <el-option label="降序" value="desc" />
@@ -905,18 +973,12 @@ defineExpose({
           </div>
         </div>
       </div>
-      
+
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="handleReset">
-            重置
-          </el-button>
-          <el-button @click="closeFilterDialog">
-            关闭
-          </el-button>
-          <el-button type="primary" @click="applyFilter">
-            应用
-          </el-button>
+          <el-button @click="handleReset"> 重置 </el-button>
+          <el-button @click="closeFilterDialog"> 关闭 </el-button>
+          <el-button type="primary" @click="applyFilter"> 应用 </el-button>
         </span>
       </template>
     </el-dialog>
@@ -932,20 +994,20 @@ defineExpose({
     margin-bottom: 20px;
     padding-top: 8px;
     width: 100%;
-    
+
     h3 {
       margin: 0;
       font-size: 18px;
       font-weight: 600;
       color: #303133;
     }
-    
+
     .product-count {
       color: #909399;
       font-size: 14px;
     }
   }
-  
+
   // 紧凑模式样式
   .compact-search-bar {
     display: flex;
@@ -955,12 +1017,12 @@ defineExpose({
     flex-wrap: wrap;
     padding: 16px 0;
     margin-bottom: 16px;
-    
+
     .search-filters-row {
       display: flex;
       align-items: center;
       gap: 12px;
-      
+
       .country-select {
         width: 120px;
       }
@@ -968,43 +1030,43 @@ defineExpose({
       .seller-select {
         width: 200px;
       }
-      
+
       .listing-date-picker {
         width: 320px;
       }
-      
+
       .data-filter-select {
         width: 140px;
       }
     }
-    
+
     .search-wrapper {
       display: flex;
       align-items: center;
       gap: 0;
-      
+
       .search-type-select {
         width: 120px;
-        
+
         :deep(.el-input__wrapper) {
           border-top-right-radius: 0;
           border-bottom-right-radius: 0;
         }
       }
-      
+
       .search-input-wrapper {
         .search-input {
           width: 300px;
-          
+
           :deep(.el-input__wrapper) {
             border-top-left-radius: 0;
             border-bottom-left-radius: 0;
             border-left: none;
           }
-          
+
           :deep(.el-input-group__append) {
             padding: 0;
-            
+
             .search-btn {
               margin: 0;
               border-radius: 0 4px 4px 0;
@@ -1014,11 +1076,11 @@ defineExpose({
         }
       }
     }
-    
+
     .action-buttons {
       display: flex;
       gap: 12px;
-      
+
       .advanced-search-btn,
       .filter-btn,
       .reset-btn,
@@ -1027,30 +1089,30 @@ defineExpose({
       }
     }
   }
-  
+
   // 传统表单样式
   .traditional-form {
     .el-form-item {
       margin-bottom: 16px;
       margin-right: 16px;
-      
+
       &:last-child {
         margin-right: 0;
       }
     }
-    
+
     .combined-search-item {
       .search-input {
         width: 400px;
-        
+
         :deep(.el-input-group__prepend) {
           padding: 0;
           background-color: #fff;
         }
-        
+
         :deep(.el-input-group__append) {
           padding: 0;
-          
+
           .el-button {
             margin: 0;
             border-radius: 0;
@@ -1059,18 +1121,18 @@ defineExpose({
         }
       }
     }
-    
+
     .action-buttons {
       .el-button {
         margin-left: 8px;
-        
+
         &:first-child {
           margin-left: 0;
         }
       }
     }
   }
-  
+
   // 多项精确搜索对话框样式
   .advanced-search {
     .search-type-selector {
@@ -1078,35 +1140,35 @@ defineExpose({
       align-items: center;
       gap: 12px;
       margin-bottom: 16px;
-      
+
       .search-type-label {
         font-weight: 500;
         color: #606266;
       }
     }
-    
+
     .search-content-area {
       .el-textarea {
         width: 100%;
       }
     }
   }
-  
+
   // 筛选面板样式
   .filter-panel {
     .filter-section {
       margin-bottom: 20px;
-      
+
       &:last-child {
         margin-bottom: 0;
       }
-      
+
       .filter-label {
         font-weight: 500;
         color: #606266;
         margin-bottom: 8px;
       }
-      
+
       .sort-row {
         display: flex;
         align-items: center;
@@ -1119,7 +1181,7 @@ defineExpose({
       }
     }
   }
-  
+
   .dialog-footer {
     display: flex;
     justify-content: flex-end;
@@ -1139,7 +1201,7 @@ defineExpose({
         }
       }
     }
-    
+
     .traditional-form {
       .combined-search-item {
         .search-input {
@@ -1155,44 +1217,44 @@ defineExpose({
     .compact-search-bar {
       flex-direction: column;
       align-items: stretch;
-      
+
       .search-wrapper {
         width: 100%;
-        
+
         .search-type-select {
           width: 100px;
           flex-shrink: 0;
         }
-        
+
         .search-input-wrapper {
           flex: 1;
-          
+
           .search-input {
             width: 100%;
           }
         }
       }
-      
+
       .action-buttons {
         width: 100%;
         justify-content: flex-end;
       }
     }
-    
+
     .traditional-form {
       .el-form-item {
         margin-right: 8px;
         margin-bottom: 12px;
       }
-      
+
       .combined-search-item {
         width: 100%;
-        
+
         .search-input {
           width: 100%;
         }
       }
-      
+
       .action-buttons {
         width: 100%;
         margin-top: 8px;

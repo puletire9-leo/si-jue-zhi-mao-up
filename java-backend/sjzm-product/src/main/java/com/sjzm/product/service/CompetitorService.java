@@ -335,69 +335,7 @@ public class CompetitorService {
     }
 
 
-    private PageResult<CompetitorProductResponse> queryGroupedByParent(CompetitorQueryRequest request) {
-        int offset = (request.getPage() - 1) * request.getSize();
-        // 校验排序方向，防止 SQL 注入
-        String sortOrder = "asc".equalsIgnoreCase(request.getSortOrder()) ? "ASC" : "DESC";
-        // 关键词拆分为列表
-        java.util.List<String> keywordList = request.getKeywords() != null
-                ? java.util.Arrays.stream(request.getKeywords().split(","))
-                        .map(String::strip).filter(s -> !s.isEmpty()).collect(java.util.stream.Collectors.toList())
-                : java.util.List.of();
-        // 清洗规则（去无效条件/空规则），避免 @Select 内 (1=1) 退化为匹配全部
-        List<CompetitorQueryRequest.QualifyRule> effectiveRules = effectiveRulesOrNull(request.getQualifyRules());
-        List<CompetitorProduct> records = productMapper.selectGroupedByParent(
-                request.getMarketplace(), request.getMonth(), request.getSource(),
-                request.getFilterMode(), request.getBrand(), request.getSellerName(),
-                request.getTitle(), request.getGrade(), request.getWeekTag(),
-                request.getIsCurrent(), request.getMaxVariantCount(),
-                request.getBsrId(), request.getNodeId(),
-                request.getCreatedAtStart(), request.getCreatedAtEnd(), request.getCreatedWeek(), request.getCategory(),
-                request.getPriceMin(), request.getPriceMax(), request.getBsrMax(),
-                request.getRatingMin(), request.getWeightMax(),
-                keywordList,
-                effectiveRules,
-                request.getSortBy(), sortOrder, offset, request.getSize());
-
-        long total = productMapper.countGroupedByParent(
-                request.getMarketplace(), request.getMonth(), request.getSource(), request.getFilterMode(),
-                request.getBrand(), request.getSellerName(), request.getTitle(),
-                request.getGrade(), request.getWeekTag(), request.getIsCurrent(),
-                request.getMaxVariantCount(), request.getBsrId(), request.getNodeId(),
-                request.getCreatedAtStart(), request.getCreatedAtEnd(), request.getCreatedWeek(), request.getCategory(),
-                request.getPriceMin(), request.getPriceMax(), request.getBsrMax(),
-                request.getRatingMin(), request.getWeightMax(),
-                keywordList,
-                effectiveRules);
-
-        // 批量查子类目，避免 N+1
-        List<Long> productIds = records.stream().map(CompetitorProduct::getId).collect(Collectors.toList());
-        Map<Long, List<CompetitorSubcategory>> subMap = productIds.isEmpty()
-                ? Map.of()
-                : subcategoryMapper.selectByProductIds(productIds).stream()
-                        .collect(Collectors.groupingBy(CompetitorSubcategory::getProductId));
-
-        List<CompetitorProductResponse> list = records.stream()
-                .map(p -> {
-                    List<CompetitorSubcategory> subs = subMap.getOrDefault(p.getId(), List.of());
-                    List<CompetitorProductResponse.SubcategoryDto> subDtos = subs.stream()
-                            .map(s -> CompetitorProductResponse.SubcategoryDto.builder()
-                                    .code(s.getCode()).rankValue(s.getRankValue()).label(s.getLabel()).build())
-                            .collect(Collectors.toList());
-                    CompetitorProductResponse resp = toResponse(p, subDtos);
-                    resp.setVariantCount(p.getVariantCount());
-                    return resp;
-                }).collect(Collectors.toList());
-
-        return PageResult.of(list, total, (long) request.getPage(), (long) request.getSize());
-    }
-
     public PageResult<CompetitorProductResponse> queryFromDb(CompetitorQueryRequest request) {
-
-        // 按 parent_asin 去重
-        if (Boolean.TRUE.equals(request.getGroupByParent())) {
-            return queryGroupedByParent(request);
-        }
 
         LambdaQueryWrapper<CompetitorProduct> wrapper = new LambdaQueryWrapper<>();
         // 排除空壳追踪记录
@@ -632,11 +570,6 @@ public class CompetitorService {
             }
         }
         return out;
-    }
-
-    private List<CompetitorQueryRequest.QualifyRule> effectiveRulesOrNull(List<CompetitorQueryRequest.QualifyRule> rules) {
-        List<CompetitorQueryRequest.QualifyRule> eff = effectiveRules(rules);
-        return eff.isEmpty() ? null : eff;
     }
 
     private void applyCondition(LambdaQueryWrapper<CompetitorProduct> x, CompetitorQueryRequest.RuleCondition c) {

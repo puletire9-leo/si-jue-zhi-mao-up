@@ -46,12 +46,13 @@ class CompetitorServiceCreatedWeeksTest {
                 week("2026-W19", 142, "2026-05-04", "2026-05-10"),
                 week("2026-W18", 98, "2026-04-27", "2026-05-03")
         );
-        when(productMapper.selectCreatedWeeksWithCount("UK", "竞品", "MODE1"))
+        // filterMode 不传（去 MODE1 默认后统计全部周）
+        when(productMapper.selectCreatedWeeksWithCount("UK", "竞品", null))
                 .thenReturn(mapperResult);
 
-        List<Map<String, Object>> result = service.getCreatedWeeks("UK", "竞品", "MODE1");
+        List<Map<String, Object>> result = service.getCreatedWeeks("UK", "竞品", null);
 
-        verify(productMapper).selectCreatedWeeksWithCount(eq("UK"), eq("竞品"), eq("MODE1"));
+        verify(productMapper).selectCreatedWeeksWithCount(eq("UK"), eq("竞品"), eq(null));
         assertThat(result).hasSize(2);
         // 第一条必须是最新批次（前端默认选中它）
         assertThat(result.get(0).get("week")).isEqualTo("2026-W19");
@@ -60,9 +61,9 @@ class CompetitorServiceCreatedWeeksTest {
 
     @Test
     void getCreatedWeeks_emptyResultDoesNotThrow() {
-        when(productMapper.selectCreatedWeeksWithCount("UK", "新品榜", "MODE1"))
+        when(productMapper.selectCreatedWeeksWithCount("UK", "新品榜", null))
                 .thenReturn(Collections.emptyList());
 
-        assertThat(service.getCreatedWeeks("UK", "新品榜", "MODE1")).isEmpty();
+        assertThat(service.getCreatedWeeks("UK", "新品榜", null)).isEmpty();
     }
 }

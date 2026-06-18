@@ -79,10 +79,12 @@ public class CompetitorQueryRequest {
     private List<String> createdWeeks;
 
     /** 销量区间 */
+    @Min(0)
     private Integer unitsMin;
     private Integer unitsMax;
 
     /** 上架天数区间 */
+    @Min(0)
     private Integer listingDaysMin;
     private Integer listingDaysMax;
 

@@ -53,25 +53,8 @@
       </button>
     </div>
 
-    <!-- 全局筛选栏 -->
+    <!-- 全局筛选栏（卖家/品牌，区间筛选移至下方面板） -->
     <div class="global-filterbar">
-      <el-select
-        v-model="store.selectedWeekTags"
-        multiple
-        collapse-tags
-        collapse-tags-tooltip
-        placeholder="入库周次"
-        size="small"
-        style="width: 150px"
-        @change="store.searchCompetitors()"
-      >
-        <el-option
-          v-for="w in store.availableWeekOptions"
-          :key="w.week"
-          :label="`${w.week} (${w.startDate?.slice(5)}~${w.endDate?.slice(5)}, ${w.count}条)`"
-          :value="w.week"
-        />
-      </el-select>
       <el-input
         v-model="store.searchSellerName"
         placeholder="卖家名"
@@ -90,23 +73,6 @@
         @keyup.enter="store.applyBasicFilters()"
         @clear="store.applyBasicFilters()"
       />
-      <el-input
-        v-model.number="store.searchPriceMin"
-        placeholder="最低价"
-        type="number"
-        size="small"
-        style="width: 100px"
-        @change="store.applyBasicFilters()"
-      />
-      <span class="gf-price-sep">—</span>
-      <el-input
-        v-model.number="store.searchPriceMax"
-        placeholder="最高价"
-        type="number"
-        size="small"
-        style="width: 100px"
-        @change="store.applyBasicFilters()"
-      />
       <el-button
         size="small"
         @click="
@@ -117,13 +83,22 @@
       >
     </div>
 
-    <!-- 合格规则筛选 + 预设 -->
+    <!-- 统一区间筛选面板（与新品榜一致） -->
+    <RangeFilterPanel
+      :key="store.marketplace"
+      :model-value="store.rangeFilter"
+      :country="store.marketplace"
+      @update:model-value="store.applyRangeFilter"
+    />
+
+    <!-- 预设栏（合格规则编辑器按筛选重构计划隐藏，筛选统一走面板 AND） -->
     <div class="rule-filterbar">
       <FilterPresetSelector
         :current-config="presetConfig"
         @apply="onPresetApply"
       />
       <QualifyRuleFilter
+        v-if="false"
         :model-value="store.qualifyRules"
         @apply="store.applyQualifyRules"
       />
@@ -367,7 +342,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, onActivated, watch } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import {
@@ -387,17 +362,46 @@ import ProductDetailDialog from "@/components/ProductDetailDialog/index.vue";
 import MobileActionSheet from "@/components/MobileActionSheet/index.vue";
 import QualifyRuleFilter from "@/components/QualifyRuleFilter/index.vue";
 import FilterPresetSelector from "@/components/FilterPresetSelector/index.vue";
+import RangeFilterPanel from "@/components/RangeFilterPanel/index.vue";
+import { useSelectionAgentStore } from "@/stores/selectionAgent";
 
 const store = useProductLineSelectionStore();
+const agentStore = useSelectionAgentStore();
+
+// 跨页套用：悬浮卡在其他页套用筛选后跳转过来，这里消费暂存规则
+function consumeAgentRules() {
+  const rules = agentStore.consumePendingRules();
+  if (rules && rules.length > 0) {
+    store.applyAiFilterRules(rules);
+    ElMessage.success("已套用 AI 推荐筛选");
+  }
+}
 const router = useRouter();
 const mobileTreeOpen = ref(false);
 
-// ---- 合格规则预设 ----
-const presetConfig = () => ({ qualifyRules: store.qualifyRules });
+// ---- 筛选预设（统一面板区间）----
+const presetConfig = () => ({
+  ...store.rangeFilter,
+  qualifyRules: store.qualifyRules,
+});
 function onPresetApply(cfg: Record<string, any>) {
-  store.applyQualifyRules(
-    Array.isArray(cfg?.qualifyRules) ? cfg.qualifyRules : [],
-  );
+  // 回填面板全字段（缺失补默认）
+  store.applyRangeFilter({
+    priceMin: cfg.priceMin ?? null,
+    priceMax: cfg.priceMax ?? null,
+    unitsMin: cfg.unitsMin ?? null,
+    unitsMax: cfg.unitsMax ?? null,
+    listingDaysMin: cfg.listingDaysMin ?? null,
+    listingDaysMax: cfg.listingDaysMax ?? null,
+    bsrMax: cfg.bsrMax ?? null,
+    weightMax: cfg.weightMax ?? null,
+    variantCountMax: cfg.variantCountMax ?? null,
+    fulfillment: cfg.fulfillment ?? [],
+    createdWeeks: cfg.createdWeeks ?? [],
+    category: cfg.category ?? [],
+    grade: cfg.grade ?? [],
+    listingPreset: cfg.listingPreset ?? null,
+  });
 }
 
 // 补全缺失店铺 → 跳转到店铺总览页自动勾选
@@ -506,6 +510,11 @@ function openDetail(product: any) {
 
 onMounted(() => {
   store.initData();
+  consumeAgentRules();
+});
+
+onActivated(() => {
+  consumeAgentRules();
 });
 
 watch(
@@ -729,11 +738,6 @@ export default { name: "ProductLineSelection" };
   border-bottom: 1px solid $border-color;
   flex-wrap: wrap;
   flex-shrink: 0;
-
-  .gf-price-sep {
-    color: $text-tertiary;
-    font-size: 13px;
-  }
 }
 
 // ---- 合格规则 + 预设栏 ----
@@ -934,6 +938,23 @@ export default { name: "ProductLineSelection" };
   margin-left: 4px;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.l2-ai-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+  margin-left: 2px;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+
+  &:hover {
+    opacity: 1;
+  }
 }
 
 // 移动端: L2 搜索框和列表可触摸滚动
