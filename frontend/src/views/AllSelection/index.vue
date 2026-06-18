@@ -137,6 +137,13 @@
           <!-- 评分配置面板 -->
           <ScoringConfigPanel v-if="activeTab === 'all'" />
 
+          <!-- 卖家精灵风格筛选面板 -->
+          <RangeFilterPanel
+            v-model="rangeFilter"
+            :country="(queryFormRef.value as any)?.getQueryParams()?.country || 'US'"
+            @update:model-value="handleRangeFilterChange"
+          />
+
           <!-- 变体数筛选 & 置顶开关 -->
           <div class="variant-filter-bar">
             <template v-if="groupByParent">
@@ -694,6 +701,8 @@ import SelectionQueryForm from "@/components/SelectionQueryForm/index.vue";
 import ScoringConfigPanel from "./ScoringConfigPanel.vue";
 import FilterPresetSelector from "@/components/FilterPresetSelector/index.vue";
 import QualifyRuleFilter from "@/components/QualifyRuleFilter/index.vue";
+import RangeFilterPanel from "@/components/RangeFilterPanel/index.vue"
+import type { RangeFilterValue } from "@/components/RangeFilterPanel/index.vue"
 import type { SelectionQueryParams } from "@/components/SelectionQueryForm/types";
 import { selectionApi } from "@/api/selection";
 import {
@@ -845,9 +854,22 @@ const importFile = ref(null);
 const importMode = ref("skip"); // 导入模式：skip(跳过)/update(更新)/overwrite(覆盖)
 const searchImageFile = ref(null);
 const searchImagePreview = ref("");
-const groupByParent = ref(true);
+const groupByParent = ref(false);
 const maxVariantCount = ref<number | undefined>(undefined);
 const categories = ref([]);
+
+const rangeFilter = ref<RangeFilterValue>({
+  priceMin: null, priceMax: null,
+  unitsMin: null, unitsMax: null,
+  listingDaysMin: null, listingDaysMax: null,
+  bsrMax: null, weightMax: null,
+  variantCountMax: null,
+  fulfillment: [],
+  createdWeeks: [],
+  category: [],
+  grade: [],
+  listingPreset: null,
+})
 
 const addForm = reactive({
   asin: "",
@@ -978,9 +1000,26 @@ const loadProducts = async (params?: SelectionQueryParams) => {
         groupByParent: groupByParent.value || undefined,
         maxVariantCount: maxVariantCount.value ?? undefined,
       };
-      // 默认按最新批次（created_at 实时算的 ISO 周）过滤；用户已选周次/日期范围则不覆盖
+      // 面板区间直接映射为请求字段
+      const rf = rangeFilter.value
+      if (rf) {
+        if (rf.unitsMin != null) competitorParams.unitsMin = rf.unitsMin
+        if (rf.unitsMax != null) competitorParams.unitsMax = rf.unitsMax
+        if (rf.listingDaysMin != null) competitorParams.listingDaysMin = rf.listingDaysMin
+        if (rf.listingDaysMax != null) competitorParams.listingDaysMax = rf.listingDaysMax
+        if (rf.priceMin != null) competitorParams.priceMin = rf.priceMin
+        if (rf.priceMax != null) competitorParams.priceMax = rf.priceMax
+        if (rf.bsrMax != null) competitorParams.bsrMax = rf.bsrMax
+        if (rf.weightMax != null) competitorParams.weightMax = rf.weightMax
+        if (rf.variantCountMax != null) competitorParams.maxVariantCount = rf.variantCountMax
+        if (rf.fulfillment?.length > 0) competitorParams.fulfillment = rf.fulfillment
+        if (rf.grade?.length > 0) competitorParams.grade = rf.grade.join(',')
+        if (rf.createdWeeks?.length > 0) competitorParams.createdWeeks = rf.createdWeeks
+      }
+      // 默认按最新周过滤；若面板已选周则跳过
       if (
-        !competitorParams.createdWeek &&
+        !competitorParams.createdWeeks &&
+        !competitorParams.month &&
         !competitorParams.weekTag &&
         !competitorParams.createdAtStart
       ) {
@@ -990,7 +1029,9 @@ const loadProducts = async (params?: SelectionQueryParams) => {
             source || undefined,
           );
           const weeks = wkRes?.data ?? [];
-          if (weeks.length > 0) competitorParams.createdWeek = weeks[0].week;
+          if (weeks.length > 0) {
+            competitorParams.createdWeeks = [weeks[0].week];
+          }
         } catch {
           // 批次获取失败不阻塞列表加载
         }
@@ -1293,9 +1334,15 @@ const handleReset = () => {
   loadProducts();
 };
 
-const getCurrentFilterConfig = () => {
-  const params = queryFormRef.value?.getQueryParams() || {};
+const handleRangeFilterChange = () => {
+  pagination.page = 1
+  loadProducts()
+}
+
+const getCurrentFilterConfig = (): Record<string, any> => {
+  const params = (queryFormRef.value?.getQueryParams() || {}) as Record<string, any>;
   return {
+    ...rangeFilter.value,
     // 筛选条件（与筛选弹窗字段一一对应）
     country: params.country || "",
     listingDateStart: params.listingDateStart || "",
@@ -1315,6 +1362,24 @@ const handlePresetApply = (config: Record<string, any>) => {
   queryFormRef.value?.setQueryParams(config);
   if (Array.isArray(config?.qualifyRules)) {
     newQualifyRules.value = config.qualifyRules;
+  }
+  if (config.priceMin != null || config.unitsMin != null) {
+    rangeFilter.value = {
+      priceMin: config.priceMin ?? null,
+      priceMax: config.priceMax ?? null,
+      unitsMin: config.unitsMin ?? null,
+      unitsMax: config.unitsMax ?? null,
+      listingDaysMin: config.listingDaysMin ?? null,
+      listingDaysMax: config.listingDaysMax ?? null,
+      bsrMax: config.bsrMax ?? null,
+      weightMax: config.weightMax ?? null,
+      variantCountMax: config.variantCountMax ?? null,
+      fulfillment: config.fulfillment ?? [],
+      createdWeeks: config.createdWeeks ?? [],
+      category: config.category ?? [],
+      grade: config.grade ?? [],
+      listingPreset: config.listingPreset ?? null,
+    }
   }
   pagination.page = 1;
   loadProducts();

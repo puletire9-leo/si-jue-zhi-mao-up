@@ -323,14 +323,8 @@ export const useProductLineSelectionStore = defineStore(
           params.priceMin = searchPriceMin.value;
         if (searchPriceMax.value != null)
           params.priceMax = searchPriceMax.value;
-        if (selectedWeekTags.value.length === 1) {
-          // 单周：后端按 created_at 实时算的 ISO 周精确过滤
-          params.createdWeek = selectedWeekTags.value[0];
-        } else if (selectedWeekTags.value.length > 1) {
-          // 多周：退化为日期范围（最早周起 ~ 最晚周止）
-          const sorted = [...selectedWeekTags.value].sort();
-          params.createdAtStart = weekToDateRange(sorted[0]).start;
-          params.createdAtEnd = weekToDateRange(sorted[sorted.length - 1]).end;
+        if (selectedWeekTags.value.length > 0) {
+          params.createdWeeks = [...selectedWeekTags.value].sort();
         }
 
         // element/carrier/keyword/combo filters
@@ -369,7 +363,7 @@ export const useProductLineSelectionStore = defineStore(
 
         const res = await competitorApi.getList({
           ...params,
-          groupByParent: true,
+          groupByParent: false,
         });
         if (reqId !== _productsReqId) return; // R3.2: 过时请求丢弃
         competitorResults.value = (res?.data?.list ??

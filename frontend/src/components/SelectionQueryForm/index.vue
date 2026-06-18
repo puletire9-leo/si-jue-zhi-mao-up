@@ -476,6 +476,7 @@ defineExpose({
         
         <!-- 数据筛选模式选择器 -->
         <el-select
+          v-if="false"
           v-model="formData.dataFilterMode"
           placeholder="数据筛选模式"
           clearable
@@ -805,7 +806,7 @@ defineExpose({
         </div>
         
         <!-- 数据筛选模式 -->
-        <div class="filter-section">
+        <div v-if="false" class="filter-section">
           <div class="filter-label">数据筛选模式</div>
           <el-select v-model="formData.dataFilterMode" placeholder="请选择数据筛选模式" clearable style="width: 100%">
             <el-option 

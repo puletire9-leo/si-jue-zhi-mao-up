@@ -78,7 +78,7 @@
       </div>
 
       <!-- 精筛配置 -->
-      <FilterConfigPanel :marketplace="marketplace" />
+      <!-- <FilterConfigPanel :marketplace="marketplace" /> -->
 
       <div style="text-align: center; margin-top: 24px">
         <el-button type="primary" :disabled="importMode !== 'asin' && importMode !== 'seller'" @click="handleNextFromMode">
