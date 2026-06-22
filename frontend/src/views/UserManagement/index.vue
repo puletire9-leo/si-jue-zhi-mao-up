@@ -42,15 +42,6 @@
           </template>
         </el-table-column>
         <el-table-column
-          prop="email"
-          label="邮箱"
-          width="200"
-        >
-          <template #default="{ row }">
-            {{ row.email || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column
           prop="developer"
           label="关联开发人"
           width="150"
@@ -125,15 +116,6 @@
             v-model="formData.password"
             type="password"
             :placeholder="isEdit ? '留空则不修改密码' : '请输入密码'"
-          />
-        </el-form-item>
-        <el-form-item
-          label="邮箱"
-          required
-        >
-          <el-input
-            v-model="formData.email"
-            placeholder="请输入邮箱"
           />
         </el-form-item>
         <el-form-item
@@ -226,7 +208,6 @@ const formData = reactive({
   id: null,
   username: '',
   password: '',
-  email: '',
   role: '开发',
   developer: ''
 })
@@ -270,7 +251,6 @@ const handleAdd = () => {
   formData.id = null
   formData.username = ''
   formData.password = ''
-  formData.email = ''
   formData.role = '开发'
   formData.developer = ''
   // 确保开发人列表已加载
@@ -288,7 +268,6 @@ const handleEdit = (row) => {
   formData.id = row.id
   formData.username = row.username
   formData.password = ''
-  formData.email = row.email || ''
   formData.role = row.role
   formData.developer = row.developer || ''
   // 确保开发人列表已加载
