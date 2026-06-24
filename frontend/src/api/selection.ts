@@ -73,7 +73,7 @@ export const selectionApi = {
 
   batchDelete(asins: string[]): Promise<ApiResponse<null>> {
     return request({
-      url: '/api/v1/selection/products/batch-delete',
+      url: '/api/v1/selection/products/batch-delete-by-asin',
       method: 'post',
       data: { asins }
     })
@@ -90,27 +90,6 @@ export const selectionApi = {
     return request({
       url: '/api/v1/selection/stores',
       method: 'get'
-    })
-  },
-
-  getStoresWithGrades(params?: { page?: number; size?: number }): Promise<ApiResponse<{
-    list: Array<{
-      storeName: string
-      storeUrl?: string
-      productCount: number
-      storeScore: number
-      grade: 'premium' | 'normal' | 'poor'
-      gradeDistribution: { S: number; A: number; B: number; C: number; D: number }
-      avgListingDays?: number
-    }>
-    total: number
-    page: number
-    size: number
-  }>> {
-    return request({
-      url: '/api/v1/selection/stores/grades',
-      method: 'get',
-      params
     })
   },
 

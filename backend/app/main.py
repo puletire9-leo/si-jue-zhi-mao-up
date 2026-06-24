@@ -436,6 +436,10 @@ if os.path.exists(settings.IMAGE_ROOT_DIR):
     app.mount("/images", StaticFiles(directory=settings.IMAGE_ROOT_DIR), name="images")
     logger.info(f"[OK] 图片目录静态文件服务已配置: {settings.IMAGE_ROOT_DIR}")
 
+os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
+logger.info(f"[OK] 上传目录静态文件服务已配置: {settings.UPLOAD_DIR}")
+
 if os.path.exists(settings.THUMBNAIL_DIR):
     app.mount("/thumbnails", StaticFiles(directory=settings.THUMBNAIL_DIR), name="thumbnails")
     logger.info(f"[OK] 缩略图目录静态文件服务已配置: {settings.THUMBNAIL_DIR}")

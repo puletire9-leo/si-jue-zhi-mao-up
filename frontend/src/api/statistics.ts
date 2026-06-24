@@ -2,27 +2,29 @@ import request from '@/utils/request'
 import type {
   ApiResponse,
   DashboardStatistics,
-  ProductTrendData,
   ImageTrendData,
-  TopProduct,
   StorageStatistics,
   UserActivityData,
   ImageQualityStatistics
 } from '@/types/api'
+
+type StorageStatisticsPayload = {
+  by_type?: StorageStatistics[]
+}
+
+type UserActivityPayload = {
+  daily_activity?: UserActivityData[]
+}
+
+type ImageQualityPayload = {
+  resolution_distribution?: ImageQualityStatistics[]
+}
 
 export const statisticsApi = {
   getDashboardStatistics(): Promise<ApiResponse<DashboardStatistics>> {
     return request({
       url: '/api/v1/statistics/dashboard',
       method: 'get'
-    })
-  },
-
-  getProductTrend(days: number = 30): Promise<ApiResponse<ProductTrendData[]>> {
-    return request({
-      url: '/api/v1/statistics/product-trend',
-      method: 'get',
-      params: { days }
     })
   },
 
@@ -33,34 +35,43 @@ export const statisticsApi = {
       params: { days }
     })
   },
-
-  getTopProducts(limit: number = 10): Promise<ApiResponse<TopProduct[]>> {
-    return request({
-      url: '/api/v1/statistics/top-products',
-      method: 'get',
-      params: { limit }
-    })
-  },
-
-  getStorageStatistics(): Promise<ApiResponse<StorageStatistics>> {
-    return request({
+  async getStorageStatistics(): Promise<ApiResponse<StorageStatistics[]>> {
+    const response = await request<ApiResponse<StorageStatisticsPayload>, ApiResponse<StorageStatisticsPayload>>({
       url: '/api/v1/statistics/storage',
       method: 'get'
     })
+
+    return {
+      code: response.code,
+      message: response.message,
+      data: Array.isArray(response?.data?.by_type) ? response.data.by_type : []
+    }
   },
 
-  getUserActivity(days: number = 30): Promise<ApiResponse<UserActivityData[]>> {
-    return request({
+  async getUserActivity(days: number = 30): Promise<ApiResponse<UserActivityData[]>> {
+    const response = await request<ApiResponse<UserActivityPayload>, ApiResponse<UserActivityPayload>>({
       url: '/api/v1/statistics/user-activity',
       method: 'get',
       params: { days }
     })
+
+    return {
+      code: response.code,
+      message: response.message,
+      data: Array.isArray(response?.data?.daily_activity) ? response.data.daily_activity : []
+    }
   },
 
-  getImageQualityStatistics(): Promise<ApiResponse<ImageQualityStatistics>> {
-    return request({
+  async getImageQualityStatistics(): Promise<ApiResponse<ImageQualityStatistics[]>> {
+    const response = await request<ApiResponse<ImageQualityPayload>, ApiResponse<ImageQualityPayload>>({
       url: '/api/v1/statistics/image-quality',
       method: 'get'
     })
+
+    return {
+      code: response.code,
+      message: response.message,
+      data: Array.isArray(response?.data?.resolution_distribution) ? response.data.resolution_distribution : []
+    }
   }
 }

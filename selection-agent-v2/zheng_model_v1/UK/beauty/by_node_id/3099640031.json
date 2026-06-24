@@ -1,7 +1,7 @@
 {
   "nodeId": 3099640031,
   "nodeName": "Cosmetic Bags",
-  "nodeFullPath": "Beauty:Tools & Accessories:Bags & Cases:Cosmetic Bags",
+  "nodeFullPath": "",
   "bsrId": "beauty",
   "stats": {
     "raw": 132,
@@ -9,7 +9,7 @@
     "sampled": 40
   },
   "overallHealth": "stable",
-  "healthReason": "RISING和STABLE信号占比45%（48/104），新品率15.4%，价格甜点21个，但DECLINING+DEAD占55%，竞争激烈，品牌集中度低，整体健康度稳定但需警惕衰退品占比高。",
+  "healthReason": "RISING品占比最高(29/104)，STABLE品19个，DECLINING品26个但多为变体，整体稳定但需警惕衰退趋势。BURST仅1个，缺乏爆发品类。",
   "qualityBenchmark": {
     "bsr_p50": 54129,
     "bsr_p90": 121505,
@@ -19,7 +19,7 @@
     "weight_g_max": 140.0,
     "fba_median": 1.52,
     "fba_max": 2.69,
-    "listing_days_median": 270
+    "listing_days_median": 273
   },
   "priceBand": {
     "min": 3.39,
@@ -31,15 +31,15 @@
   },
   "carrierDetail": [
     {
-      "name": "Canvas Bag",
-      "count": 0,
-      "avg_price": 0,
-      "avg_weight_g": 0,
-      "avg_fba": 0,
-      "avg_variants": 0,
-      "variant_strategy": "未知",
-      "lightweight": "?",
-      "lightweight_reason": "无对应好品数据"
+      "name": "Book Bags",
+      "count": 1,
+      "avg_price": 9.99,
+      "avg_weight_g": 140.0,
+      "avg_fba": 1.75,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量140g，符合轻小件"
     },
     {
       "name": "Canvas Bag Set",
@@ -53,62 +53,7 @@
       "lightweight_reason": "中位重量100g，符合轻小件"
     },
     {
-      "name": "Canvas Cosmetic Bag",
-      "count": 1,
-      "avg_price": 3.99,
-      "avg_weight_g": 90.0,
-      "avg_fba": 1.72,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量90g，符合轻小件"
-    },
-    {
-      "name": "Canvas Cosmetic Bags",
-      "count": 1,
-      "avg_price": 5.98,
-      "avg_weight_g": 50.0,
-      "avg_fba": 1.54,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量50g，符合轻小件"
-    },
-    {
-      "name": "Canvas Make Up Bag",
-      "count": 1,
-      "avg_price": 6.95,
-      "avg_weight_g": 50.0,
-      "avg_fba": 2.44,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量50g，符合轻小件"
-    },
-    {
-      "name": "Canvas Medicine Organiser Bag",
-      "count": 1,
-      "avg_price": 5.99,
-      "avg_weight_g": 30.0,
-      "avg_fba": 1.51,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量30g，符合轻小件"
-    },
-    {
-      "name": "Canvas Medicine Storage Pouch",
-      "count": 1,
-      "avg_price": 4.99,
-      "avg_weight_g": 40.0,
-      "avg_fba": 1.52,
-      "avg_variants": 4.0,
-      "variant_strategy": "中等(4-9)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量40g，符合轻小件"
-    },
-    {
-      "name": "Canvas Organiser Bag",
+      "name": "Canvas Pouch",
       "count": 0,
       "avg_price": 0,
       "avg_weight_g": 0,
@@ -117,17 +62,6 @@
       "variant_strategy": "未知",
       "lightweight": "?",
       "lightweight_reason": "无对应好品数据"
-    },
-    {
-      "name": "Canvas Snack Bags",
-      "count": 1,
-      "avg_price": 4.99,
-      "avg_weight_g": 30.0,
-      "avg_fba": 1.52,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量30g，符合轻小件"
     },
     {
       "name": "Canvas Tote",
@@ -141,17 +75,6 @@
       "lightweight_reason": "中位重量145g，符合轻小件"
     },
     {
-      "name": "Canvas Tote Bag",
-      "count": 1,
-      "avg_price": 9.99,
-      "avg_weight_g": 140.0,
-      "avg_fba": 1.75,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量140g，符合轻小件"
-    },
-    {
       "name": "Canvas Zipper Pouch",
       "count": 1,
       "avg_price": 4.79,
@@ -163,37 +86,15 @@
       "lightweight_reason": "中位重量30g，符合轻小件"
     },
     {
-      "name": "Canvas Zipper Snack Bags",
-      "count": 1,
-      "avg_price": 4.19,
-      "avg_weight_g": 30.0,
-      "avg_fba": 1.52,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量30g，符合轻小件"
-    },
-    {
       "name": "Cosmetic Bag",
-      "count": 10,
-      "avg_price": 5.32,
-      "avg_weight_g": 30.0,
-      "avg_fba": 1.51,
-      "avg_variants": 4.0,
+      "count": 26,
+      "avg_price": 5.76,
+      "avg_weight_g": 40.0,
+      "avg_fba": 1.52,
+      "avg_variants": 4.2,
       "variant_strategy": "中等(4-9)",
       "lightweight": true,
-      "lightweight_reason": "中位重量30g，符合轻小件"
-    },
-    {
-      "name": "Cosmetic Bags",
-      "count": 5,
-      "avg_price": 6.01,
-      "avg_weight_g": 50.0,
-      "avg_fba": 1.53,
-      "avg_variants": 3.0,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量50g，符合轻小件"
+      "lightweight_reason": "中位重量40g，符合轻小件"
     },
     {
       "name": "Cosmetic Makeup Organizer",
@@ -208,41 +109,19 @@
     },
     {
       "name": "Cosmetic Pouch",
-      "count": 0,
-      "avg_price": 0,
-      "avg_weight_g": 0,
-      "avg_fba": 0,
-      "avg_variants": 0,
-      "variant_strategy": "未知",
-      "lightweight": "?",
-      "lightweight_reason": "无对应好品数据"
-    },
-    {
-      "name": "Cosmetic Storage Bag",
       "count": 1,
-      "avg_price": 4.99,
-      "avg_weight_g": 40.0,
-      "avg_fba": 1.52,
-      "avg_variants": 4.0,
-      "variant_strategy": "中等(4-9)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量40g，符合轻小件"
-    },
-    {
-      "name": "Food Storage Bag",
-      "count": 1,
-      "avg_price": 4.99,
-      "avg_weight_g": 40.0,
-      "avg_fba": 1.52,
+      "avg_price": 4.59,
+      "avg_weight_g": 60.0,
+      "avg_fba": 1.54,
       "avg_variants": 1,
       "variant_strategy": "低变体(1-3)",
       "lightweight": true,
-      "lightweight_reason": "中位重量40g，符合轻小件"
+      "lightweight_reason": "中位重量60g，符合轻小件"
     },
     {
-      "name": "Linen Cosmetic Bags",
+      "name": "Cosmetics Bag Organiser",
       "count": 1,
-      "avg_price": 6.95,
+      "avg_price": 5.29,
       "avg_weight_g": 30.0,
       "avg_fba": 1.51,
       "avg_variants": 1,
@@ -251,7 +130,29 @@
       "lightweight_reason": "中位重量30g，符合轻小件"
     },
     {
-      "name": "Linen Make Up Organiser Bag",
+      "name": "Food Storage Bag",
+      "count": 2,
+      "avg_price": 4.99,
+      "avg_weight_g": 40.0,
+      "avg_fba": 1.52,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量40g，符合轻小件"
+    },
+    {
+      "name": "Make Up Bag",
+      "count": 4,
+      "avg_price": 4.6,
+      "avg_weight_g": 50.0,
+      "avg_fba": 1.54,
+      "avg_variants": 4.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量50g，符合轻小件"
+    },
+    {
+      "name": "Make Up Organiser Bag",
       "count": 1,
       "avg_price": 5.99,
       "avg_weight_g": 40.0,
@@ -262,40 +163,7 @@
       "lightweight_reason": "中位重量40g，符合轻小件"
     },
     {
-      "name": "Linen Organiser Bag",
-      "count": 0,
-      "avg_price": 0,
-      "avg_weight_g": 0,
-      "avg_fba": 0,
-      "avg_variants": 0,
-      "variant_strategy": "未知",
-      "lightweight": "?",
-      "lightweight_reason": "无对应好品数据"
-    },
-    {
-      "name": "Linen Travel Toiletry Bag",
-      "count": 1,
-      "avg_price": 6.99,
-      "avg_weight_g": 30.0,
-      "avg_fba": 0,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": "unknown",
-      "lightweight_reason": "中位重量30g，符合轻小件"
-    },
-    {
-      "name": "Make Up Bag",
-      "count": 2,
-      "avg_price": 3.57,
-      "avg_weight_g": 50.0,
-      "avg_fba": 2.69,
-      "avg_variants": 4.0,
-      "variant_strategy": "中等(4-9)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量50g，符合轻小件"
-    },
-    {
-      "name": "Make up Bags",
+      "name": "Make up Bag",
       "count": 1,
       "avg_price": 6.95,
       "avg_weight_g": 30.0,
@@ -307,14 +175,14 @@
     },
     {
       "name": "Makeup Bag",
-      "count": 19,
-      "avg_price": 5.97,
-      "avg_weight_g": 50.0,
+      "count": 29,
+      "avg_price": 6.0,
+      "avg_weight_g": 40.0,
       "avg_fba": 1.53,
-      "avg_variants": 4.7,
+      "avg_variants": 4.2,
       "variant_strategy": "中等(4-9)",
       "lightweight": true,
-      "lightweight_reason": "中位重量50g，符合轻小件"
+      "lightweight_reason": "中位重量40g，符合轻小件"
     },
     {
       "name": "Makeup Bag Set",
@@ -329,8 +197,8 @@
     },
     {
       "name": "Makeup Bags",
-      "count": 2,
-      "avg_price": 5.99,
+      "count": 1,
+      "avg_price": 4.99,
       "avg_weight_g": 40.0,
       "avg_fba": 1.52,
       "avg_variants": 1,
@@ -350,15 +218,59 @@
       "lightweight_reason": "中位重量50g，符合轻小件"
     },
     {
-      "name": "Medicine Bag",
+      "name": "Medical Organizer",
       "count": 1,
-      "avg_price": 3.74,
+      "avg_price": 4.99,
+      "avg_weight_g": 40.0,
+      "avg_fba": 1.52,
+      "avg_variants": 4.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量40g，符合轻小件"
+    },
+    {
+      "name": "Medication Bag",
+      "count": 2,
+      "avg_price": 4.37,
+      "avg_weight_g": 50.0,
+      "avg_fba": 2.69,
+      "avg_variants": 4.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量50g，符合轻小件"
+    },
+    {
+      "name": "Medicine Bag",
+      "count": 2,
+      "avg_price": 4.87,
       "avg_weight_g": 50.0,
       "avg_fba": 2.69,
       "avg_variants": 1,
       "variant_strategy": "低变体(1-3)",
       "lightweight": true,
       "lightweight_reason": "中位重量50g，符合轻小件"
+    },
+    {
+      "name": "Medicine Organiser Bag",
+      "count": 1,
+      "avg_price": 5.99,
+      "avg_weight_g": 30.0,
+      "avg_fba": 1.51,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量30g，符合轻小件"
+    },
+    {
+      "name": "Medicine Storage Pouch",
+      "count": 1,
+      "avg_price": 4.99,
+      "avg_weight_g": 40.0,
+      "avg_fba": 1.52,
+      "avg_variants": 4.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量40g，符合轻小件"
     },
     {
       "name": "Organiser Bag",
@@ -372,29 +284,7 @@
       "lightweight_reason": "中位重量48g，符合轻小件"
     },
     {
-      "name": "Pencil Case",
-      "count": 3,
-      "avg_price": 4.82,
-      "avg_weight_g": 30.0,
-      "avg_fba": 1.51,
-      "avg_variants": 4.0,
-      "variant_strategy": "中等(4-9)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量30g，符合轻小件"
-    },
-    {
-      "name": "Polyester Bag",
-      "count": 1,
-      "avg_price": 3.39,
-      "avg_weight_g": 30.0,
-      "avg_fba": 0,
-      "avg_variants": 4.0,
-      "variant_strategy": "中等(4-9)",
-      "lightweight": "unknown",
-      "lightweight_reason": "中位重量30g，符合轻小件"
-    },
-    {
-      "name": "Polyester Pouch",
+      "name": "Organizer",
       "count": 0,
       "avg_price": 0,
       "avg_weight_g": 0,
@@ -405,8 +295,41 @@
       "lightweight_reason": "无对应好品数据"
     },
     {
-      "name": "Portable Canvas Snack Bags",
+      "name": "Pencil Case",
+      "count": 2,
+      "avg_price": 4.74,
+      "avg_weight_g": 50.0,
+      "avg_fba": 0,
+      "avg_variants": 4.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": "unknown",
+      "lightweight_reason": "中位重量50g，符合轻小件"
+    },
+    {
+      "name": "Pill Pouch",
+      "count": 0,
+      "avg_price": 0,
+      "avg_weight_g": 0,
+      "avg_fba": 0,
+      "avg_variants": 0,
+      "variant_strategy": "未知",
+      "lightweight": "?",
+      "lightweight_reason": "无对应好品数据"
+    },
+    {
+      "name": "Snack Bag",
       "count": 1,
+      "avg_price": 4.19,
+      "avg_weight_g": 30.0,
+      "avg_fba": 1.52,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量30g，符合轻小件"
+    },
+    {
+      "name": "Snack Bags",
+      "count": 2,
       "avg_price": 4.99,
       "avg_weight_g": 40.0,
       "avg_fba": 1.52,
@@ -416,7 +339,7 @@
       "lightweight_reason": "中位重量40g，符合轻小件"
     },
     {
-      "name": "Portable Compact Medicine Storage Bag",
+      "name": "Storage Bag",
       "count": 1,
       "avg_price": 5.99,
       "avg_weight_g": 30.0,
@@ -425,61 +348,6 @@
       "variant_strategy": "低变体(1-3)",
       "lightweight": true,
       "lightweight_reason": "中位重量30g，符合轻小件"
-    },
-    {
-      "name": "Portable Cosmetic Bag",
-      "count": 1,
-      "avg_price": 3.99,
-      "avg_weight_g": 30.0,
-      "avg_fba": 1.51,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量30g，符合轻小件"
-    },
-    {
-      "name": "Portable Cosmetic Bags",
-      "count": 1,
-      "avg_price": 6.89,
-      "avg_weight_g": 40.0,
-      "avg_fba": 0,
-      "avg_variants": 3.0,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": "unknown",
-      "lightweight_reason": "中位重量40g，符合轻小件"
-    },
-    {
-      "name": "Portable Pouch Bag",
-      "count": 1,
-      "avg_price": 6.99,
-      "avg_weight_g": 30.0,
-      "avg_fba": 0,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": "unknown",
-      "lightweight_reason": "中位重量30g，符合轻小件"
-    },
-    {
-      "name": "Small Make Up Bag",
-      "count": 1,
-      "avg_price": 5.29,
-      "avg_weight_g": 30.0,
-      "avg_fba": 1.51,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量30g，符合轻小件"
-    },
-    {
-      "name": "Small Makeup Bag",
-      "count": 2,
-      "avg_price": 6.46,
-      "avg_weight_g": 50.0,
-      "avg_fba": 1.54,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量50g，符合轻小件"
     },
     {
       "name": "Storage Makeup Bag",
@@ -493,18 +361,7 @@
       "lightweight_reason": "中位重量48g，符合轻小件"
     },
     {
-      "name": "Storage Pouch",
-      "count": 0,
-      "avg_price": 0,
-      "avg_weight_g": 0,
-      "avg_fba": 0,
-      "avg_variants": 0,
-      "variant_strategy": "未知",
-      "lightweight": "?",
-      "lightweight_reason": "无对应好品数据"
-    },
-    {
-      "name": "Stuff Storage Pouch Case",
+      "name": "Stuff Storage Pouch",
       "count": 1,
       "avg_price": 4.57,
       "avg_weight_g": 48.0,
@@ -516,8 +373,8 @@
     },
     {
       "name": "Toiletry Bag",
-      "count": 2,
-      "avg_price": 4.09,
+      "count": 3,
+      "avg_price": 4.72,
       "avg_weight_g": 30.0,
       "avg_fba": 1.52,
       "avg_variants": 1,
@@ -526,35 +383,24 @@
       "lightweight_reason": "中位重量30g，符合轻小件"
     },
     {
-      "name": "Toiletry Bags",
-      "count": 1,
-      "avg_price": 5.99,
+      "name": "Toiletry Organizer",
+      "count": 3,
+      "avg_price": 8.32,
       "avg_weight_g": 50.0,
-      "avg_fba": 3.06,
-      "avg_variants": 1,
+      "avg_fba": 1.53,
+      "avg_variants": 3.0,
       "variant_strategy": "低变体(1-3)",
       "lightweight": true,
       "lightweight_reason": "中位重量50g，符合轻小件"
     },
     {
-      "name": "Toiletry Organizer",
-      "count": 1,
-      "avg_price": 11.99,
-      "avg_weight_g": 170.0,
-      "avg_fba": 1.76,
-      "avg_variants": 3.0,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量170g，符合轻小件"
-    },
-    {
       "name": "Toiletry Pouch",
-      "count": 2,
-      "avg_price": 5.64,
+      "count": 4,
+      "avg_price": 5.19,
       "avg_weight_g": 40.0,
       "avg_fba": 1.51,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
+      "avg_variants": 4.0,
+      "variant_strategy": "中等(4-9)",
       "lightweight": true,
       "lightweight_reason": "中位重量40g，符合轻小件"
     },
@@ -571,8 +417,8 @@
     },
     {
       "name": "Tote Bag",
-      "count": 1,
-      "avg_price": 11.38,
+      "count": 2,
+      "avg_price": 10.69,
       "avg_weight_g": 140.0,
       "avg_fba": 1.75,
       "avg_variants": 1,
@@ -592,124 +438,14 @@
       "lightweight_reason": "中位重量30g，符合轻小件"
     },
     {
-      "name": "Travel Cosmetic Bag",
-      "count": 1,
-      "avg_price": 6.95,
-      "avg_weight_g": 50.0,
-      "avg_fba": 2.44,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量50g，符合轻小件"
-    },
-    {
-      "name": "Travel Cosmetic Pouch",
-      "count": 1,
-      "avg_price": 4.59,
-      "avg_weight_g": 60.0,
-      "avg_fba": 1.54,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量60g，符合轻小件"
-    },
-    {
-      "name": "Travel Cosmetics Bag",
-      "count": 1,
-      "avg_price": 5.29,
-      "avg_weight_g": 30.0,
-      "avg_fba": 1.51,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量30g，符合轻小件"
-    },
-    {
-      "name": "Travel Makeup Bag",
-      "count": 1,
-      "avg_price": 11.99,
-      "avg_weight_g": 170.0,
-      "avg_fba": 1.76,
-      "avg_variants": 3.0,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量170g，符合轻小件"
-    },
-    {
-      "name": "Travel Medicine Bag",
-      "count": 2,
-      "avg_price": 4.87,
-      "avg_weight_g": 50.0,
-      "avg_fba": 2.69,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量50g，符合轻小件"
-    },
-    {
       "name": "Travel Toiletry Bag",
       "count": 1,
-      "avg_price": 4.79,
+      "avg_price": 6.99,
       "avg_weight_g": 30.0,
-      "avg_fba": 1.51,
-      "avg_variants": 7.0,
-      "variant_strategy": "中等(4-9)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量30g，符合轻小件"
-    },
-    {
-      "name": "Travel Toiletry Organizer",
-      "count": 2,
-      "avg_price": 6.49,
-      "avg_weight_g": 50.0,
-      "avg_fba": 1.53,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量50g，符合轻小件"
-    },
-    {
-      "name": "Travel Toiletry Pouch",
-      "count": 2,
-      "avg_price": 4.74,
-      "avg_weight_g": 50.0,
       "avg_fba": 0,
-      "avg_variants": 4.0,
-      "variant_strategy": "中等(4-9)",
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
       "lightweight": "unknown",
-      "lightweight_reason": "中位重量50g，符合轻小件"
-    },
-    {
-      "name": "Travel Zipper Pouch",
-      "count": 1,
-      "avg_price": 5.99,
-      "avg_weight_g": 30.0,
-      "avg_fba": 1.52,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量30g，符合轻小件"
-    },
-    {
-      "name": "Waterproof Cosmetic Bag",
-      "count": 2,
-      "avg_price": 5.96,
-      "avg_weight_g": 50.0,
-      "avg_fba": 3.06,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量50g，符合轻小件"
-    },
-    {
-      "name": "Waterproof Food Storage Bag",
-      "count": 1,
-      "avg_price": 4.99,
-      "avg_weight_g": 30.0,
-      "avg_fba": 1.52,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
       "lightweight_reason": "中位重量30g，符合轻小件"
     },
     {
@@ -725,68 +461,19 @@
     },
     {
       "name": "Zipper Pouch",
-      "count": 3,
-      "avg_price": 8.66,
-      "avg_weight_g": 100.0,
-      "avg_fba": 1.76,
+      "count": 7,
+      "avg_price": 6.55,
+      "avg_weight_g": 30.0,
+      "avg_fba": 1.52,
       "avg_variants": 3.0,
       "variant_strategy": "低变体(1-3)",
       "lightweight": true,
-      "lightweight_reason": "中位重量100g，符合轻小件"
-    },
-    {
-      "name": "Zipper Pouch Bag",
-      "count": 2,
-      "avg_price": 3.99,
-      "avg_weight_g": 30.0,
-      "avg_fba": 1.51,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
       "lightweight_reason": "中位重量30g，符合轻小件"
-    },
-    {
-      "name": "Zipper Pouch Cosmetic Bag",
-      "count": 1,
-      "avg_price": 5.92,
-      "avg_weight_g": 30.0,
-      "avg_fba": 1.52,
-      "avg_variants": 1,
-      "variant_strategy": "低变体(1-3)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量30g，符合轻小件"
-    },
-    {
-      "name": "Zippered Medical Organizer",
-      "count": 1,
-      "avg_price": 4.99,
-      "avg_weight_g": 40.0,
-      "avg_fba": 1.52,
-      "avg_variants": 4.0,
-      "variant_strategy": "中等(4-9)",
-      "lightweight": true,
-      "lightweight_reason": "中位重量40g，符合轻小件"
     }
   ],
   "provenElements": [
     {
-      "name": "Musical Theatre / Broadway",
-      "frequency": 4,
-      "carriers": [
-        "Makeup Bag",
-        "Tote Bag",
-        "Zipper Pouch",
-        "Canvas Bag"
-      ],
-      "signalTags": [
-        "RISING",
-        "STABLE",
-        "SWEET_SPOT"
-      ],
-      "insight": "音乐剧/百老汇题材在多个载体上持续成功，粉丝经济+送礼场景稳定，可扩展至更多演出IP。"
-    },
-    {
-      "name": "Racing / F1",
+      "name": "Racing",
       "frequency": 3,
       "carriers": [
         "Cosmetic Bag",
@@ -795,106 +482,158 @@
       ],
       "signalTags": [
         "RISING",
-        "STABLE",
+        "STABLE"
+      ],
+      "insight": "赛车主题在化妆包上已验证3次，RISING和STABLE信号，可扩展到其他载体如笔袋、洗漱包"
+    },
+    {
+      "name": "Broadway / Musical Theatre",
+      "frequency": 4,
+      "carriers": [
+        "Makeup Bag",
+        "Tote Bag",
+        "Zipper Pouch"
+      ],
+      "signalTags": [
+        "RISING",
         "SWEET_SPOT"
       ],
-      "insight": "赛车主题（尤其是F1）在RISING和STABLE中均有体现，英国赛车文化浓厚，可深挖赛道/车队元素。"
+      "insight": "音乐剧主题组合（化妆包+手提袋）表现好，可开发舞台表演者或戏剧老师子品类"
+    },
+    {
+      "name": "Emergency Snacks",
+      "frequency": 3,
+      "carriers": [
+        "Snack Bag",
+        "Canvas Pouch",
+        "Food Storage Bag"
+      ],
+      "signalTags": [
+        "RISING",
+        "STABLE"
+      ],
+      "insight": "应急零食袋概念已跨多个载体验证，可加入趣味文案或食物图案"
+    },
+    {
+      "name": "Friendship",
+      "frequency": 3,
+      "carriers": [
+        "Makeup Bag",
+        "Cosmetic Bag",
+        "Toiletry Bag"
+      ],
+      "signalTags": [
+        "STABLE",
+        "RISING"
+      ],
+      "insight": "友谊主题礼品化妆包稳定，可结合特定节日（如情人节、闺蜜节）"
+    },
+    {
+      "name": "Medicine",
+      "frequency": 3,
+      "carriers": [
+        "Medicine Bag",
+        "Pill Pouch",
+        "Organizer"
+      ],
+      "signalTags": [
+        "BURST",
+        "RISING",
+        "DECLINING"
+      ],
+      "insight": "药袋/医疗包有爆发案例，可细分糖尿病、急救等场景"
     },
     {
       "name": "Capybara",
       "frequency": 2,
       "carriers": [
         "Makeup Bag",
-        "Cosmetic Bag",
-        "Polyester Pouch"
+        "Makeup Pouch"
       ],
       "signalTags": [
         "RISING"
       ],
-      "insight": "卡皮巴拉作为新兴动物IP，RISING信号强烈，色彩和材质变体表现好，可快速复制到更多动物IP。"
+      "insight": "水豚主题正在上升，可爱动物趋势，可结合更多动物IP"
+    },
+    {
+      "name": "Highland Cow",
+      "frequency": 2,
+      "carriers": [
+        "Makeup Bag",
+        "Cosmetic Bag"
+      ],
+      "signalTags": [
+        "DECLINING"
+      ],
+      "insight": "高地牛虽衰退但仍有2次出现，可能季节性，可做苏格兰旅游礼品"
     },
     {
       "name": "Crochet / Knitting",
       "frequency": 2,
       "carriers": [
         "Makeup Bag",
-        "Cosmetic Pouch",
-        "Zipper Pouch"
+        "Cosmetic Pouch"
       ],
       "signalTags": [
-        "STABLE",
-        "SWEET_SPOT"
+        "STABLE"
       ],
-      "insight": "手工兴趣品类稳定，面向钩针/编织爱好者，可延伸至钩针工具包或图案设计。"
+      "insight": "钩针编织主题稳定，可扩展至收纳包、工具袋"
+    },
+    {
+      "name": "Dog Lovers",
+      "frequency": 2,
+      "carriers": [
+        "Makeup Bag",
+        "Cosmetic Bag"
+      ],
+      "signalTags": [
+        "RISING",
+        "DECLINING"
+      ],
+      "insight": "狗爱好者题材多样，可细分品种（如腊肠犬已成功）"
     },
     {
       "name": "Book Lover / Reading",
       "frequency": 2,
       "carriers": [
         "Makeup Bag",
-        "Linen Organiser Bag",
-        "Canvas Tote Bag"
-      ],
-      "signalTags": [
-        "RISING",
-        "STABLE",
-        "SWEET_SPOT"
-      ],
-      "insight": "阅读主题既有RISING也有STABLE，可与哥特/文艺风格结合，拓展文学IP。"
-    },
-    {
-      "name": "Friendship / Bestie",
-      "frequency": 2,
-      "carriers": [
-        "Makeup Bag",
-        "Cosmetic Bag",
-        "Canvas Bag"
-      ],
-      "signalTags": [
-        "RISING",
-        "STABLE",
-        "SWEET_SPOT"
-      ],
-      "insight": "友谊/闺蜜主题送礼场景稳定，可搭配小卡片或套装提升复购。"
-    },
-    {
-      "name": "Medicine / Pill",
-      "frequency": 2,
-      "carriers": [
-        "Medicine Bag",
-        "Canvas Organiser Bag",
-        "Storage Pouch"
-      ],
-      "signalTags": [
-        "BURST",
-        "RISING",
-        "SWEET_SPOT"
-      ],
-      "insight": "功能性医药袋有BURST爆发，彩色/趣味设计提升吸引力，可结合急救场景扩展。"
-    },
-    {
-      "name": "Horse / Equestrian",
-      "frequency": 1,
-      "carriers": [
-        "Makeup Bag",
         "Toiletry Pouch",
-        "Pencil Case"
+        "Tote Bag"
       ],
       "signalTags": [
-        "RISING"
+        "RISING",
+        "SWEET_SPOT"
       ],
-      "insight": "马术/牛仔主题有RISING信号，英国马术文化强，可进一步开发马匹品种细分。"
+      "insight": "阅读爱好者主题结合书袋、化妆包，可加入名言或文学引用"
     }
   ],
   "elementSaturation": [
     {
-      "element": "Musical Theatre / Broadway",
+      "element": "Racing",
+      "frequency": 3,
+      "saturation": "medium",
+      "insight": "出现在3个商品中，值得持续观察"
+    },
+    {
+      "element": "Broadway / Musical Theatre",
       "frequency": 4,
       "saturation": "medium",
       "insight": "出现在4个商品中，值得持续观察"
     },
     {
-      "element": "Racing / F1",
+      "element": "Emergency Snacks",
+      "frequency": 3,
+      "saturation": "medium",
+      "insight": "出现在3个商品中，值得持续观察"
+    },
+    {
+      "element": "Friendship",
+      "frequency": 3,
+      "saturation": "medium",
+      "insight": "出现在3个商品中，值得持续观察"
+    },
+    {
+      "element": "Medicine",
       "frequency": 3,
       "saturation": "medium",
       "insight": "出现在3个商品中，值得持续观察"
@@ -906,7 +645,19 @@
       "insight": "出现在2个商品中，值得持续观察"
     },
     {
+      "element": "Highland Cow",
+      "frequency": 2,
+      "saturation": "medium",
+      "insight": "出现在2个商品中，值得持续观察"
+    },
+    {
       "element": "Crochet / Knitting",
+      "frequency": 2,
+      "saturation": "medium",
+      "insight": "出现在2个商品中，值得持续观察"
+    },
+    {
+      "element": "Dog Lovers",
       "frequency": 2,
       "saturation": "medium",
       "insight": "出现在2个商品中，值得持续观察"
@@ -916,114 +667,150 @@
       "frequency": 2,
       "saturation": "medium",
       "insight": "出现在2个商品中，值得持续观察"
-    },
-    {
-      "element": "Friendship / Bestie",
-      "frequency": 2,
-      "saturation": "medium",
-      "insight": "出现在2个商品中，值得持续观察"
-    },
-    {
-      "element": "Medicine / Pill",
-      "frequency": 2,
-      "saturation": "medium",
-      "insight": "出现在2个商品中，值得持续观察"
-    },
-    {
-      "element": "Horse / Equestrian",
-      "frequency": 1,
-      "saturation": "low",
-      "insight": "仅1次出现，待更多数据验证"
     }
   ],
   "emergingElements": [
     {
-      "element": "Colorful Medicine / Pill",
+      "element": "Colorful Canvas / Vibrant Designs",
       "asin": "B0G7Z4QW47",
       "signal": "BURST",
-      "opportunity": "医药袋带彩色设计，需求爆发快，可推出更多颜色变体和组合装，抢占功能性+美观交汇点。"
+      "opportunity": "唯一BURST品，彩色医疗收纳袋需求激增，可推出多色系同类产品"
+    },
+    {
+      "element": "Capybara",
+      "asin": "B0DT15S167",
+      "signal": "RISING",
+      "opportunity": "水豚动物热潮，可结合其他热门动物（如豚鼠、羊驼）快速上架"
+    },
+    {
+      "element": "Racing",
+      "asin": "B0F8QKSRF5",
+      "signal": "RISING",
+      "opportunity": "F1赛事热度高，可结合特定车队或车手元素（注意版权）"
+    },
+    {
+      "element": "K-pop / Stray Kids",
+      "asin": "B0GC2HMKWN",
+      "signal": "RISING",
+      "opportunity": "韩流粉丝经济，可开发更多K-pop团体主题化妆包"
+    },
+    {
+      "element": "Bubu Dudu",
+      "asin": "B0FXRRMWV5",
+      "signal": "RISING",
+      "opportunity": "卡通角色趋势，可寻找类似热门IP（如Squishmallows）"
+    },
+    {
+      "element": "Skull / Gothic",
+      "asin": "B0G7FBDRCC",
+      "signal": "RISING",
+      "opportunity": "哥特+阅读主题组合独特，可扩展暗黑风格礼品套"
     }
   ],
   "recommendedCombos": [
     {
       "elements": [
-        "Musical Theatre",
-        "Broadway"
+        "Racing",
+        "Funny F1"
       ],
       "carriers": [
         "Makeup Bag",
-        "Zipper Pouch"
-      ],
-      "scenes": [
-        "Theatre Fan Gifts",
-        "Drama Teacher Presents"
-      ],
-      "keywordsEn": [
-        "Broadway makeup bag",
-        "musical theatre zipper pouch",
-        "drama teacher gift"
-      ],
-      "keywordsCn": [
-        "百老汇化妆包",
-        "音乐剧拉链袋",
-        "戏剧老师礼物"
-      ],
-      "heat": "已验证",
-      "reason": "4次出现，RISING/STABLE信号强，价格甜点覆盖。"
-    },
-    {
-      "elements": [
-        "Racing",
-        "F1",
-        "Aesthetic"
-      ],
-      "carriers": [
-        "Cosmetic Bag",
-        "Travel Pouch"
+        "Pencil Case"
       ],
       "scenes": [
         "Racing Fans",
-        "Formula 1 Gifts"
+        "Gift for Men"
       ],
       "keywordsEn": [
-        "racing cosmetic bag",
-        "F1 travel pouch",
-        "formula one gift"
+        "f1 makeup bag",
+        "racing pencil case",
+        "funny racing cosmetic bag"
       ],
       "keywordsCn": [
-        "赛车化妆包",
-        "F1旅行袋",
-        "一级方程式礼物"
+        "F1化妆包",
+        "赛车笔袋",
+        "搞笑赛车化妆包"
       ],
       "heat": "已验证",
-      "reason": "3次出现，RISING/STABLE，可切入车队或车手IP。"
+      "reason": "RISING+STABLE信号，赛车主题已在多个载体成功"
+    },
+    {
+      "elements": [
+        "Broadway",
+        "Musical Theatre"
+      ],
+      "carriers": [
+        "Tote Bag",
+        "Makeup Bag Set"
+      ],
+      "scenes": [
+        "Theatre Lovers",
+        "Drama Teacher Gift"
+      ],
+      "keywordsEn": [
+        "broadway tote bag set",
+        "musical theatre gift",
+        "drama teacher present"
+      ],
+      "keywordsCn": [
+        "百老汇手提包套装",
+        "音乐剧礼物",
+        "戏剧老师礼物"
+      ],
+      "heat": "已验证",
+      "reason": "RISING+SWEET_SPOT，组合套装表现好"
     },
     {
       "elements": [
         "Capybara",
-        "Cute",
-        "Beige"
+        "Cute"
+      ],
+      "carriers": [
+        "Makeup Pouch",
+        "Cosmetic Bag"
+      ],
+      "scenes": [
+        "Gift for Girls",
+        "Animal Lover"
+      ],
+      "keywordsEn": [
+        "capybara cosmetic bag",
+        "cute animal pouch",
+        "capybara lover gift"
+      ],
+      "keywordsCn": [
+        "水豚化妆包",
+        "可爱动物袋",
+        "水豚爱好者礼物"
+      ],
+      "heat": "已验证",
+      "reason": "RISING趋势，可快速复制"
+    },
+    {
+      "elements": [
+        "Highland Cow",
+        "Scottish"
       ],
       "carriers": [
         "Makeup Bag",
-        "Polyester Pouch"
+        "Toiletry Pouch"
       ],
       "scenes": [
-        "Animal Lovers",
-        "Girls Gifts"
+        "Scottish Gifts",
+        "Travel Souvenir"
       ],
       "keywordsEn": [
-        "capybara makeup bag",
-        "cute capybara pouch",
-        "capybara gift"
+        "highland cow toiletry bag",
+        "scottish souvenir makeup bag",
+        "coo cosmetic bag"
       ],
       "keywordsCn": [
-        "卡皮巴拉化妆包",
-        "水豚收纳袋",
-        "可爱动物礼物"
+        "高地牛洗漱包",
+        "苏格兰纪念品化妆包",
+        "库伊化妆包"
       ],
-      "heat": "已验证",
-      "reason": "2次RISING，动物IP热度正盛。"
+      "heat": "待观察",
+      "reason": "DECLINING但仍有2次验证，可结合旅游场景"
     },
     {
       "elements": [
@@ -1032,387 +819,341 @@
         "Funny"
       ],
       "carriers": [
-        "Travel Cosmetic Pouch",
-        "Zipper Pouch"
+        "Makeup Bag",
+        "Storage Pouch"
       ],
       "scenes": [
-        "Crochet Lovers",
+        "Gift for Crocheter",
         "Mother's Day"
       ],
       "keywordsEn": [
-        "crochet gifts for women",
-        "knitting cosmetic bag",
-        "funny crochet pouch"
+        "crochet storage pouch",
+        "knitting lover makeup bag",
+        "funny crochet gift"
       ],
       "keywordsCn": [
-        "钩针化妆包",
-        "编织礼物袋"
+        "钩针收纳袋",
+        "编织爱好者化妆包",
+        "搞笑钩针礼物"
       ],
       "heat": "已验证",
-      "reason": "2次STABLE，手工类稳定需求。"
-    },
-    {
-      "elements": [
-        "Book Lover",
-        "Reading Theme",
-        "Waterproof Linen"
-      ],
-      "carriers": [
-        "Makeup Bag",
-        "Toiletry Organiser"
-      ],
-      "scenes": [
-        "Gifts for Readers",
-        "Bookish Friends"
-      ],
-      "keywordsEn": [
-        "book lover toiletry bag",
-        "reading cosmetic pouch",
-        "novelty book bag"
-      ],
-      "keywordsCn": [
-        "书虫洗漱包",
-        "阅读主题化妆袋"
-      ],
-      "heat": "已验证",
-      "reason": "2次RISING/STABLE，可结合经典文学封面。"
+      "reason": "STABLE信号，手工爱好者群体稳定"
     },
     {
       "elements": [
         "Friendship",
-        "Bestie",
         "Thank You"
       ],
       "carriers": [
-        "Canvas Zipper Pouch",
-        "Cosmetic Bag"
+        "Cosmetic Bag",
+        "Toiletry Pouch"
       ],
       "scenes": [
-        "Best Friend Gifts",
-        "Leaving Presents",
-        "Coworker"
+        "Bestie Gift",
+        "Leaving Present"
       ],
       "keywordsEn": [
-        "friendship makeup bag",
-        "bestie cosmetic pouch",
-        "thank you gift bag"
+        "friendship cosmetic bag",
+        "thank you gift pouch",
+        "best friend makeup bag"
       ],
       "keywordsCn": [
-        "闺蜜化妆包",
-        "感谢礼物袋"
+        "友谊化妆包",
+        "感谢礼物袋",
+        "闺蜜化妆包"
       ],
       "heat": "已验证",
-      "reason": "2次RISING/STABLE，社交礼品高频。"
+      "reason": "STABLE+RISING，社交关系礼品需求大"
     },
     {
       "elements": [
-        "Pill",
+        "Emergency Snacks",
+        "Funny"
+      ],
+      "carriers": [
+        "Canvas Snack Bag",
+        "Food Pouch"
+      ],
+      "scenes": [
+        "Travel",
+        "Office",
+        "Gym"
+      ],
+      "keywordsEn": [
+        "emergency snack pouch",
+        "funny food bag",
+        "canvas snack bag travel"
+      ],
+      "keywordsCn": [
+        "应急零食袋",
+        "搞笑食品袋",
+        "帆布零食包旅行"
+      ],
+      "heat": "已验证",
+      "reason": "RISING+STABLE，实用性强"
+    },
+    {
+      "elements": [
         "Medicine",
+        "Pill Print",
         "First Aid"
       ],
       "carriers": [
-        "Canvas Medicine Bag",
-        "Portable Organiser"
+        "Medicine Organizer",
+        "Travel Pouch"
       ],
       "scenes": [
         "Travel",
         "Camping",
-        "Health"
+        "Diabetic"
       ],
       "keywordsEn": [
-        "pill organizer bag",
-        "medicine travel pouch",
-        "first aid canvas bag"
+        "pill organizer travel",
+        "first aid pouch",
+        "diabetic supplies bag"
       ],
       "keywordsCn": [
-        "药丸收纳包",
-        "药品旅行袋"
+        "药丸收纳盒旅行",
+        "急救包",
+        "糖尿病用品袋"
       ],
-      "heat": "新兴",
-      "reason": "BURST+RISING，功能性爆发，可做多种尺寸。"
+      "heat": "已验证",
+      "reason": "BURST+RISING，医疗场景有爆发点"
     },
     {
       "elements": [
-        "London",
-        "British",
-        "Watercolour"
+        "Book Lover",
+        "Reading Theme"
       ],
       "carriers": [
-        "Toiletry Organizer",
-        "Zipper Pouch"
+        "Makeup Bag",
+        "Tote Bag",
+        "Pencil Case"
       ],
       "scenes": [
-        "Souvenir",
-        "London Trip",
-        "Tourist Gifts"
+        "Gift for Readers",
+        "Book Club"
       ],
       "keywordsEn": [
-        "London souvenir toiletry bag",
-        "UK travel pouch",
-        "British watercolour cosmetic bag"
+        "book lover makeup bag",
+        "reading tote bag",
+        "literary pencil case"
       ],
       "keywordsCn": [
-        "伦敦纪念品洗漱包",
-        "英国旅行收纳袋"
+        "书本爱好者化妆包",
+        "阅读手提包",
+        "文学笔袋"
       ],
       "heat": "已验证",
-      "reason": "RISING，地域主题溢价。"
+      "reason": "RISING+SWEET_SPOT，可结合名言"
+    },
+    {
+      "elements": [
+        "Dog Lovers",
+        "Dachshund"
+      ],
+      "carriers": [
+        "Cosmetic Bag",
+        "Toiletry Organizer"
+      ],
+      "scenes": [
+        "Dog Owner Gift",
+        "Travel"
+      ],
+      "keywordsEn": [
+        "dachshund cosmetic bag",
+        "dog lover toiletry organizer",
+        "wiener dog pouch"
+      ],
+      "keywordsCn": [
+        "腊肠犬化妆包",
+        "狗爱好者洗漱包",
+        "腊肠狗袋"
+      ],
+      "heat": "已验证",
+      "reason": "RISING，品种细分可行"
     },
     {
       "elements": [
         "Horse",
-        "Equestrian",
-        "Cowgirl"
+        "Equestrian"
+      ],
+      "carriers": [
+        "Pencil Case",
+        "Makeup Bag"
+      ],
+      "scenes": [
+        "Horse Lover Gift",
+        "Equestrian"
+      ],
+      "keywordsEn": [
+        "horse pencil case",
+        "equestrian makeup bag",
+        "cowgirl cosmetic bag"
+      ],
+      "keywordsCn": [
+        "马笔袋",
+        "马术化妆包",
+        "女牛仔化妆包"
+      ],
+      "heat": "已验证",
+      "reason": "RISING变体，可开发骑马主题"
+    },
+    {
+      "elements": [
+        "London",
+        "British"
       ],
       "carriers": [
         "Makeup Bag",
-        "Pencil Case"
+        "Zipper Pouch"
       ],
       "scenes": [
-        "Horse Lover Gifts",
-        "Rider"
+        "Souvenir",
+        "Vacation Gift"
       ],
       "keywordsEn": [
-        "horse makeup bag",
-        "equestrian pencil case",
-        "cowgirl cosmetic pouch"
+        "london souvenir makeup bag",
+        "british gift pouch",
+        "uk cosmetic bag"
       ],
       "keywordsCn": [
-        "马术化妆包",
-        "骑马爱好者礼物"
+        "伦敦纪念品化妆包",
+        "英国礼物袋",
+        "英国化妆包"
       ],
       "heat": "已验证",
-      "reason": "RISING，英国马术文化可深挖。"
+      "reason": "RISING+SWEET_SPOT，旅游纪念品市场"
     },
     {
       "elements": [
-        "Hair Accessories",
-        "Scrunchies",
-        "Clips"
-      ],
-      "carriers": [
-        "Organiser Bag",
-        "Pouch Case"
-      ],
-      "scenes": [
-        "Teenage Girls",
-        "Daily Use",
-        "Travel"
-      ],
-      "keywordsEn": [
-        "hair accessories storage bag",
-        "scrunchies pouch",
-        "hair clips case"
-      ],
-      "keywordsCn": [
-        "发饰收纳包",
-        "头绳收纳袋"
-      ],
-      "heat": "已验证",
-      "reason": "STABLE，功能细分刚需。"
-    },
-    {
-      "elements": [
-        "Emergency Snack",
-        "Reusable",
-        "Food"
-      ],
-      "carriers": [
-        "Canvas Snack Bag",
-        "Portable Pouch"
-      ],
-      "scenes": [
-        "Travel",
-        "Gym",
-        "Hiking"
-      ],
-      "keywordsEn": [
-        "reusable snack bag",
-        "emergency food pouch",
-        "canvas snack pouch"
-      ],
-      "keywordsCn": [
-        "应急零食袋",
-        "可重复使用食品袋"
-      ],
-      "heat": "已验证",
-      "reason": "RISING+STABLE，但注意DECLINING比例，需优化设计。"
-    },
-    {
-      "elements": [
-        "Kpop",
-        "Korean Girl Group",
+        "K-pop",
         "Stray Kids"
       ],
       "carriers": [
-        "Cosmetic Bag",
-        "Linen Pouch"
+        "Makeup Bag",
+        "Cosmetic Pouch"
       ],
       "scenes": [
-        "Kpop Fans",
-        "Concert Gifts"
+        "Kpop Fan Gift",
+        "Concert"
       ],
       "keywordsEn": [
-        "kpop cosmetic bag",
-        "stray kids pouch",
-        "korean girl group makeup bag"
+        "stray kids makeup bag",
+        "kpop cosmetic pouch",
+        "skzoo bag"
       ],
       "keywordsCn": [
-        "Kpop化妆包",
-        "Stray Kids收纳袋"
+        "Stray Kids化妆包",
+        "韩流化妆袋",
+        "SKZOO包"
       ],
-      "heat": "已验证",
-      "reason": "RISING+DECLINING并存，粉丝忠诚度高但需紧跟潮流。"
+      "heat": "新兴",
+      "reason": "RISING，特定粉丝群体"
     },
     {
       "elements": [
         "Skull",
-        "Gothic",
-        "Dark Aesthetic"
+        "Gothic"
       ],
       "carriers": [
-        "Canvas Tote",
+        "Tote Bag",
         "Makeup Bag"
       ],
       "scenes": [
-        "Book Readers",
-        "Gothic Lovers"
+        "Gift for Alt Style",
+        "Halloween"
       ],
       "keywordsEn": [
-        "skull makeup bag",
-        "gothic cosmetic pouch",
-        "dark aesthetic toiletry bag"
+        "skull tote bag",
+        "gothic makeup bag",
+        "dark aesthetic pouch"
       ],
       "keywordsCn": [
-        "骷髅化妆包",
-        "哥特风收纳袋"
+        "骷髅手提包",
+        "哥特化妆包",
+        "暗黑风袋"
       ],
-      "heat": "已验证",
-      "reason": "RISING+SWEET_SPOT，小众但高溢价。"
-    },
-    {
-      "elements": [
-        "Dachshund",
-        "Wiener Dog"
-      ],
-      "carriers": [
-        "Cosmetic Bag",
-        "Travel Toiletry Organiser"
-      ],
-      "scenes": [
-        "Dog Lover Gifts"
-      ],
-      "keywordsEn": [
-        "dachshund cosmetic bag",
-        "wiener dog pouch",
-        "dog lover gift"
-      ],
-      "keywordsCn": [
-        "腊肠犬化妆包",
-        "狗主人礼物"
-      ],
-      "heat": "已验证",
-      "reason": "RISING，特定犬种可复制到其他热门品种。"
+      "heat": "新兴",
+      "reason": "RISING+SWEET_SPOT，可延伸万圣节"
     },
     {
       "elements": [
         "Bible",
-        "Christian",
-        "Religious"
+        "Christian"
       ],
       "carriers": [
-        "Canvas Cosmetic Bags",
-        "Small Makeup Bag"
+        "Cosmetic Bag",
+        "Makeup Pouch"
       ],
       "scenes": [
-        "Church Gifts",
-        "Christian Women"
+        "Church Gift",
+        "Religious"
       ],
       "keywordsEn": [
-        "bible makeup bag",
+        "bible verse makeup bag",
         "christian cosmetic pouch",
-        "religious gift for her"
+        "faith gift"
       ],
       "keywordsCn": [
-        "圣经化妆包",
-        "基督教礼物"
+        "圣经经文化妆包",
+        "基督教化妆袋",
+        "信仰礼物"
       ],
       "heat": "待观察",
-      "reason": "DECLINING但Sweet Spot，信仰类固定需求，可结合经文印刷。"
+      "reason": "DECLINING但甜蜜点，需求稳定"
     },
     {
       "elements": [
-        "World Travel",
-        "Souvenir",
-        "I Haven't Been Everywhere"
+        "Hair Accessories",
+        "Scrunchies"
       ],
       "carriers": [
-        "Zipper Pouch",
-        "Cosmetic Bag"
+        "Organizer Bag",
+        "Storage Pouch"
       ],
       "scenes": [
-        "Travel Lover",
-        "Birthday Gift"
+        "Teenage Girls",
+        "Everyday"
       ],
       "keywordsEn": [
-        "world travel cosmetic bag",
-        "I haven't been everywhere pouch",
-        "travel souvenir gift"
+        "hair accessories organizer",
+        "scrunchies storage bag",
+        "hair stuff pouch"
       ],
       "keywordsCn": [
-        "世界旅行收纳包",
-        "旅游爱好者礼物"
+        "发饰收纳包",
+        "发圈储存袋",
+        "发饰袋"
       ],
       "heat": "已验证",
-      "reason": "STABLE，经典旅行主题。"
+      "reason": "STABLE，功能性强"
     },
     {
       "elements": [
         "Dragon",
-        "Mythical"
+        "Fantasy"
       ],
       "carriers": [
         "Makeup Bag",
-        "Cosmetic bag"
+        "Cosmetic Bag"
       ],
       "scenes": [
-        "Fantasy Lovers",
-        "Gifts for Her"
+        "Fantasy Lover Gift",
+        "Daily Use"
       ],
       "keywordsEn": [
         "dragon makeup bag",
-        "mythical creature cosmetic pouch"
+        "fantasy cosmetic pouch",
+        "dragon lover gift"
       ],
       "keywordsCn": [
         "龙化妆包",
-        "神话生物收纳袋"
+        "奇幻化妆袋",
+        "龙爱好者礼物"
       ],
       "heat": "待观察",
-      "reason": "DECLINING但可更换更受欢迎的奇幻IP（如独角兽）。"
-    },
-    {
-      "elements": [
-        "Highland Cow",
-        "Scottish"
-      ],
-      "carriers": [
-        "Cosmetic Bag",
-        "Pencil Case"
-      ],
-      "scenes": [
-        "Scottish Gifts",
-        "Animal Lovers"
-      ],
-      "keywordsEn": [
-        "highland cow cosmetic bag",
-        "scottish cow pouch"
-      ],
-      "keywordsCn": [
-        "高地牛化妆包",
-        "苏格兰礼物"
-      ],
-      "heat": "待观察",
-      "reason": "DECLINING频现，但可结合苏格兰旅游场景复活。"
+      "reason": "DECLINING，但可结合其他神话生物"
     },
     {
       "elements": [
@@ -1420,176 +1161,216 @@
         "Wedding"
       ],
       "carriers": [
-        "Small Makeup Bag",
+        "Makeup Bag",
         "Toiletry Pouch"
       ],
       "scenes": [
-        "Wedding Party",
-        "Bridesmaid"
+        "Bridal Party",
+        "Proposal Gift"
       ],
       "keywordsEn": [
         "flower girl makeup bag",
-        "wedding toiletry pouch",
-        "bridesmaid gift bag"
+        "bridesmaid gift pouch",
+        "wedding cosmetic bag"
       ],
       "keywordsCn": [
         "花童化妆包",
-        "婚礼伴娘礼物袋"
+        "伴娘礼物袋",
+        "婚礼化妆品包"
       ],
       "heat": "已验证",
-      "reason": "RISING+SWEET_SPOT，婚礼场景季节性强。"
+      "reason": "RISING+SWEET_SPOT，婚庆市场"
     },
     {
       "elements": [
-        "Bubu Dudu",
-        "Kawaii",
-        "Cartoon"
+        "World Travel",
+        "Souvenir"
       ],
       "carriers": [
-        "Makeup Bag",
+        "Zipper Pouch",
         "Cosmetic Bag"
       ],
       "scenes": [
-        "Kawaii Lovers",
-        "Valentine's Day"
+        "Vacation Gift",
+        "Travel Lover"
       ],
       "keywordsEn": [
-        "Bubu Dudu cosmetic bag",
-        "kawaii makeup pouch",
-        "cute cartoon bag"
+        "world travel cosmetic bag",
+        "souvenir zipper pouch",
+        "travel lover gift"
       ],
       "keywordsCn": [
-        "Bubu Dudu化妆包",
-        "可爱卡通收纳袋"
+        "世界旅行化妆包",
+        "纪念品拉链袋",
+        "旅行爱好者礼物"
       ],
       "heat": "已验证",
-      "reason": "RISING，但依赖IP热度，需快速跟进。"
+      "reason": "STABLE，通用旅行主题"
     }
   ],
   "searchKeywords": {
     "en": [
-      "novelty makeup bag",
-      "canvas cosmetic pouch",
-      "funny toiletry bag",
-      "gifts for music lovers",
-      "racing themed cosmetic bag",
-      "capybara makeup pouch",
-      "musical theatre gift bag",
-      "book lover cosmetics pouch",
-      "medicine storage bag",
-      "hair accessories organizer bag",
-      "friendship gift pouch",
-      "London souvenir makeup bag",
+      "funny makeup bag",
+      "travel toiletry pouch",
+      "gift for music lover",
+      "racing cosmetic bag",
+      "broadway makeup bag",
+      "capybara pouch",
       "highland cow cosmetic bag",
-      "crochet knitter gift bag",
-      "emergency snack bag travel",
-      "kpop fan makeup bag",
-      "skull gothic toiletry bag",
-      "dachshund dog lover pouch",
-      "bible canvas cosmetic bag",
-      "world travel zipper pouch"
+      "crochet lover gift",
+      "friendship makeup bag",
+      "emergency snack bag",
+      "medicine pouch travel",
+      "book lover cosmetic bag",
+      "dog themed makeup bag",
+      "kpop makeup bag",
+      "hair accessories organizer bag",
+      "christian cosmetic bag",
+      "bible verse makeup bag",
+      "souvenir makeup bag london",
+      "horse lover pencil case",
+      "skull makeup bag",
+      "stitch cosmetic bag",
+      "dachshund makeup bag",
+      "dragon makeup bag",
+      "flower girl bag",
+      "world travel pouch"
     ],
     "cn": [
-      "创意化妆包",
-      "帆布收纳袋",
+      "搞笑化妆包",
       "旅行洗漱包",
-      "礼物化妆包",
-      "卡皮巴拉包",
-      "音乐剧周边化妆包",
-      "赛车粉丝礼物袋",
-      "阅读主题化妆袋",
-      "药品收纳包",
-      "发饰收纳袋",
-      "闺蜜礼物包",
-      "伦敦纪念品包",
+      "音乐爱好者礼物",
+      "赛车化妆包",
+      "百老汇化妆包",
+      "水豚化妆包",
       "高地牛化妆包",
-      "钩针编织礼物袋",
+      "钩针礼物化妆包",
+      "友谊化妆包",
       "应急零食袋",
-      "Kpop粉丝收纳包",
-      "哥特风化妆包",
-      "腊肠犬包",
+      "药包旅行",
+      "书本爱好者化妆包",
+      "狗主题化妆包",
+      "韩流化妆包",
+      "发饰收纳包",
+      "基督教化妆包",
       "圣经化妆包",
-      "世界旅行纪念袋"
+      "伦敦纪念品化妆包",
+      "马术笔袋",
+      "骷髅化妆包",
+      "史迪仔化妆包",
+      "腊肠犬化妆包",
+      "龙化妆包",
+      "花童化妆包",
+      "世界旅行纪念品袋"
     ]
   },
   "priceGaps": [
     {
       "range": "£2.50 - £3.50",
-      "opportunity": "现有多个£3.99品，但£2.79-3.39区间仅少数，可尝试低价小包装引流。"
+      "opportunity": "最低价区有2.79价格点，但样本无覆盖，可尝试£2.99便携小袋（如零食袋）"
     },
     {
-      "range": "£4.50 - £5.50",
-      "opportunity": "甜蜜点下限附近，已有4.79/4.99品但数量有限，可增加差异化款式填补。"
+      "range": "£7.00 - £8.50",
+      "opportunity": "甜蜜点上限附近，现有11.99偏高，可开发£7.99-8.49的高质量礼盒装"
     },
     {
-      "range": "£7.00 - £8.00",
-      "opportunity": "当前多集中于£5.99-6.99和£8.99+，£7-8区间有空白，可推中等容量/套装。"
-    },
-    {
-      "range": "£10.00 - £12.00",
-      "opportunity": "伦敦礼品（£11.99）和Tote+Bag套装（£11.38）成功，证明此价位可行，可开发高端材料或IP联名。"
+      "range": "£10.00 - £11.00",
+      "opportunity": "目前高价品集中在11.99和11.38，中间有空白，可推出£10.99的大容量套装"
     }
   ],
-  "lightweightSummary": "所有商品均为轻小件，平均重量73g，FBA均价£1.7，非常适合泛欧FBA及小包直邮，物流成本优势明显，可大胆扩展变体。",
+  "lightweightSummary": "平均重量73g，绝大多数品为轻小件（<150g），适合FBA低成本配送，建议优先开发便携式袋类产品。",
+  "filterRules": [
+    {
+      "conditions": [
+        {
+          "field": "listingDays",
+          "op": "le",
+          "value": 90
+        },
+        {
+          "field": "units",
+          "op": "gt",
+          "value": 50
+        }
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "field": "weightG",
+          "op": "le",
+          "value": 150
+        }
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "field": "listingDays",
+          "op": "le",
+          "value": 30
+        },
+        {
+          "field": "units",
+          "op": "gt",
+          "value": 20
+        }
+      ]
+    }
+  ],
   "goodProducts": [
     {
       "asin": "B0FL7BK1RR",
       "elements": [
-        "Emergency",
-        "Snack",
-        "Funny",
-        "Reusable"
+        "Emergency Snack",
+        "Funny"
       ],
       "carriers": [
         "Canvas Zipper Pouch",
-        "Travel Toiletry Bag",
-        "Makeup Bag"
+        "Makeup Bag",
+        "Cosmetic Bag"
       ],
       "scenes": [
         "Travel",
-        "Emergency",
-        "Daily Use"
+        "Unisex"
       ],
       "keywordsEn": [
         "emergency snack bag",
-        "canvas zipper pouch",
         "funny makeup bag",
-        "reusable snack bag"
+        "travel toiletry pouch"
       ],
       "keywordsCn": [
-        "应急零食包",
-        "帆布拉链袋",
-        "趣味化妆包"
+        "应急零食袋",
+        "搞笑化妆包",
+        "旅行洗漱包"
       ],
       "lightweight": "True"
     },
     {
       "asin": "B0G7Z4QW47",
       "elements": [
-        "Colorful",
-        "Medicine",
+        "Colorful Canvas",
         "Vibrant Designs"
       ],
       "carriers": [
-        "Canvas Medicine Storage Pouch",
-        "Zippered Medical Organizer",
-        "Cosmetic Storage Bag"
+        "Medicine Storage Pouch",
+        "Medical Organizer",
+        "Medication Bag"
       ],
       "scenes": [
-        "Daily Use",
+        "Daily",
         "Travel",
         "Medical"
       ],
       "keywordsEn": [
         "colorful medicine pouch",
-        "canvas medication bag",
-        "zippered medical organizer",
-        "medicine storage bag"
+        "vibrant medication bag",
+        "medical organizer"
       ],
       "keywordsCn": [
         "彩色药袋",
-        "帆布药品收纳包",
-        "拉链医药包"
+        "鲜艳用药收纳包",
+        "医疗用品包"
       ],
       "lightweight": "True"
     },
@@ -1598,28 +1379,25 @@
       "elements": [
         "Mum to Be",
         "New Mum",
-        "Maternity",
-        "Thoughtful"
+        "Pregnancy"
       ],
       "carriers": [
         "Canvas Bag Set",
         "Zipper Pouch"
       ],
       "scenes": [
-        "Pregnancy",
-        "Baby Shower",
-        "After Birth"
+        "Pregnancy Gift",
+        "Maternity"
       ],
       "keywordsEn": [
-        "mum to be gifts",
-        "new mum canvas bag",
+        "mum to be gift",
         "pregnancy present",
-        "maternity essential pouch"
+        "new mum bag set"
       ],
       "keywordsCn": [
         "准妈妈礼物",
-        "新手妈妈帆布袋",
-        "孕期必需品包"
+        "怀孕礼物",
+        "新手妈妈包"
       ],
       "lightweight": "True"
     },
@@ -1631,29 +1409,26 @@
         "Watercolour Graffiti"
       ],
       "carriers": [
-        "Travel Makeup Bag",
-        "Cosmetic Bags",
+        "Makeup Bag",
+        "Cosmetic Bag",
         "Zipper Pouch",
         "Toiletry Organizer"
       ],
       "scenes": [
-        "London Trip",
         "Vacation",
-        "Souvenir",
-        "Christmas Birthday Gift"
+        "Gift for Women"
       ],
       "keywordsEn": [
-        "London souvenir makeup bag",
-        "British cosmetics bag",
-        "watercolour graffiti pouch",
-        "UK travel toiletry bag"
+        "london souvenir makeup bag",
+        "british gift",
+        "watercolour graffiti cosmetic bag"
       ],
       "keywordsCn": [
         "伦敦纪念品化妆包",
-        "英国风格收纳包",
-        "水彩涂鸦旅行包"
+        "英国礼物",
+        "水彩涂鸦化妆包"
       ],
-      "lightweight": "True"
+      "lightweight": "False"
     },
     {
       "asin": "B0G4FTLVBY",
@@ -1664,25 +1439,24 @@
       ],
       "carriers": [
         "Makeup Bag",
-        "Travel Toiletry Pouch",
+        "Toiletry Pouch",
         "Cosmetic Bag",
         "Pencil Case"
       ],
       "scenes": [
-        "Horse Lover Gifts",
-        "Christmas Birthday",
-        "Graduation"
+        "Travel",
+        "Gift for Daughter",
+        "Gift for Friend"
       ],
       "keywordsEn": [
-        "horse makeup bag",
-        "equestrian cosmetic pouch",
-        "cowgirl toiletry bag",
-        "horse lover gifts"
+        "horse lover makeup bag",
+        "equestrian gift",
+        "cowgirl cosmetic bag"
       ],
       "keywordsCn": [
-        "马术化妆包",
-        "牛仔风格收纳袋",
-        "爱马人士礼物"
+        "马爱好者化妆包",
+        "马术礼物",
+        "牛仔化妆包"
       ],
       "lightweight": "True"
     },
@@ -1695,54 +1469,48 @@
       ],
       "carriers": [
         "Makeup Bag",
-        "Cosmetic Bag",
-        "Pencil Case"
+        "Cosmetic Bag"
       ],
       "scenes": [
-        "Capybara Lovers",
-        "Gifts for Girls",
-        "Daily Use"
+        "Gift for Girls"
       ],
       "keywordsEn": [
         "capybara makeup bag",
-        "capybara cosmetic pouch",
-        "cute capybara bag",
-        "capybara gifts"
+        "cute cosmetic bag",
+        "capybara lover gift"
       ],
       "keywordsCn": [
-        "卡皮巴拉化妆包",
-        "水豚包",
-        "可爱动物化妆袋"
+        "水豚化妆包",
+        "可爱化妆品袋",
+        "水豚爱好者礼物"
       ],
       "lightweight": "True"
     },
     {
       "asin": "B0DP4SZVJW",
       "elements": [
-        "Music Lovers",
         "Pink",
+        "Music Lovers",
         "Singer Fans"
       ],
       "carriers": [
-        "Travel Cosmetic Bag",
-        "Canvas Make Up Bag",
+        "Makeup Bag",
+        "Cosmetic Bag",
         "Cosmetic Makeup Organizer"
       ],
       "scenes": [
-        "Music Concert",
-        "Gifts for Fans",
-        "Travel"
+        "Travel",
+        "Gift for Fans"
       ],
       "keywordsEn": [
         "music lover makeup bag",
-        "singer fan cosmetic pouch",
-        "pink canvas makeup bag",
-        "concert gift"
+        "singer fan gift",
+        "pink cosmetic bag"
       ],
       "keywordsCn": [
         "音乐爱好者化妆包",
-        "粉丝礼物收纳袋",
-        "粉色帆布包"
+        "歌手粉丝礼物",
+        "粉色化妆包"
       ],
       "lightweight": "True"
     },
@@ -1750,85 +1518,78 @@
       "asin": "B0F8QKSRF5",
       "elements": [
         "Racing",
-        "Racing Aesthetic",
-        "Talent"
+        "Racing Aesthetic"
       ],
       "carriers": [
         "Cosmetic Bag",
-        "Zipper Pouch Bag"
+        "Makeup Bag",
+        "Zipper Pouch"
       ],
       "scenes": [
-        "Racing Fans",
-        "Gifts for Women",
-        "Merchandise"
+        "Gift for Women",
+        "Racing Fans"
       ],
       "keywordsEn": [
-        "racing cosmetic bag",
-        "F1 makeup pouch",
-        "racing fan gift",
-        "talent makeup bag"
+        "racing fan cosmetic bag",
+        "racing lover gift",
+        "f1 makeup bag"
       ],
       "keywordsCn": [
-        "赛车化妆包",
-        "F1粉丝礼物",
-        "赛车美学收纳袋"
+        "赛车粉丝化妆包",
+        "赛车爱好者礼物",
+        "F1化妆包"
       ],
       "lightweight": "True"
     },
     {
       "asin": "B0GFDHS598",
       "elements": [
-        "Beige Capybara",
-        "Water Resistant",
-        "Kapibala"
+        "Capybara",
+        "Beige"
       ],
       "carriers": [
         "Make Up Bag",
-        "Makeup Pouch",
-        "Polyester Bag"
+        "Makeup Pouch"
       ],
       "scenes": [
-        "Gifts for Kapibala Lovers",
-        "Girls"
+        "Gift for Girls"
       ],
       "keywordsEn": [
-        "beige capybara makeup bag",
-        "water resistant pouch",
-        "kapibala cosmetic bag"
+        "beige capybara bag",
+        "kapibala lover gift",
+        "water resistant makeup pouch"
       ],
       "keywordsCn": [
-        "米色水豚化妆包",
-        "防水卡皮巴拉包",
-        "卡皮巴拉礼物"
+        "米色水豚包",
+        "卡皮巴拉爱好者礼物",
+        "防水化妆袋"
       ],
       "lightweight": "True"
     },
     {
       "asin": "B0GFCVZRL1",
       "elements": [
-        "30 40 50 60th Birthday",
         "Rainbow",
-        "Flower"
+        "Flower",
+        "Birthday (milestone age)"
       ],
       "carriers": [
         "Makeup Bag",
-        "Portable Cosmetic Bags"
+        "Cosmetic Bag"
       ],
       "scenes": [
         "Birthday Gift",
-        "Milestone Age",
-        "Women"
+        "Travel"
       ],
       "keywordsEn": [
-        "30th birthday makeup bag",
-        "rainbow cosmetics pouch",
-        "flower birthday card bag",
-        "milestone age gift"
+        "40th birthday makeup bag",
+        "rainbow cosmetic bag",
+        "milestone birthday gift"
       ],
       "keywordsCn": [
-        "30岁生日化妆包",
-        "彩虹花束包",
-        "生日礼物套装"
+        "40岁生日化妆包",
+        "彩虹化妆包",
+        "里程碑生日礼物"
       ],
       "lightweight": "True"
     },
@@ -1836,29 +1597,26 @@
       "asin": "B0G4VZ8K6J",
       "elements": [
         "Friendship",
-        "Beautiful",
-        "Waterproof"
+        "Beautiful"
       ],
       "carriers": [
-        "Makeup Bags",
-        "Linen Travel Toiletry Bag",
-        "Portable Pouch Bag"
+        "Makeup Bag",
+        "Cosmetic Bag",
+        "Travel Toiletry Bag"
       ],
       "scenes": [
-        "Best Friend",
-        "Birthday",
-        "Lady"
+        "Gift for Best Friend",
+        "Birthday"
       ],
       "keywordsEn": [
-        "friendship makeup bag",
-        "best friend cosmetic pouch",
-        "linen travel toiletry bag",
-        "bestie gift"
+        "friendship gift makeup bag",
+        "best friend cosmetic bag",
+        "waterproof linen toiletry bag"
       ],
       "keywordsCn": [
-        "友谊化妆包",
-        "闺蜜旅行收纳袋",
-        "亚麻材质包"
+        "友谊礼物化妆包",
+        "闺蜜化妆包",
+        "防水亚麻洗漱包"
       ],
       "lightweight": "True"
     },
@@ -1866,27 +1624,26 @@
       "asin": "B0DSW1GR1T",
       "elements": [
         "Racing",
-        "Racing Aesthetic",
-        "Talent"
+        "Racing Aesthetic"
       ],
       "carriers": [
         "Cosmetic Bag",
-        "Zipper Pouch Bag"
+        "Makeup Bag",
+        "Zipper Pouch"
       ],
       "scenes": [
-        "Racing Fans",
-        "Gifts for Women",
-        "Merchandise"
+        "Gift for Women",
+        "Racing Fans"
       ],
       "keywordsEn": [
-        "racing makeup bag",
-        "F1 pouch",
+        "racing fan cosmetic bag",
         "racing lover gift",
-        "talent bag"
+        "f1 makeup bag"
       ],
       "keywordsCn": [
-        "赛车化妆包",
-        "F1粉丝礼物袋"
+        "赛车粉丝化妆包",
+        "赛车爱好者礼物",
+        "F1化妆包"
       ],
       "lightweight": "True"
     },
@@ -1895,27 +1652,27 @@
       "elements": [
         "Crochet",
         "Knitting",
+        "Sewing",
         "Funny"
       ],
       "carriers": [
         "Makeup Bag",
-        "Travel Cosmetic Pouch"
+        "Cosmetic Pouch"
       ],
       "scenes": [
-        "Crochet Lovers",
-        "Crafting",
-        "Mother's Day Birthday"
+        "Gift for Crochet Lovers",
+        "Travel",
+        "Mother's Day"
       ],
       "keywordsEn": [
-        "crochet makeup bag",
-        "knitting cosmetic pouch",
-        "crochet lover gifts",
-        "crafting storage bag"
+        "crochet lover makeup bag",
+        "knitting gift cosmetic pouch",
+        "sewing bag"
       ],
       "keywordsCn": [
-        "钩针化妆包",
-        "编织工具收纳袋",
-        "手工爱好者礼物"
+        "钩针爱好者化妆包",
+        "编织礼物化妆袋",
+        "缝纫包"
       ],
       "lightweight": "True"
     },
@@ -1932,20 +1689,17 @@
         "Zipper Makeup Pouch"
       ],
       "scenes": [
-        "Theatre Lovers",
-        "Gifts for Performers",
-        "Broadway Merchandise"
+        "Gift for Musical Lovers"
       ],
       "keywordsEn": [
-        "Broadway makeup bag",
-        "musical theatre pouch",
-        "performer cosmetic bag",
-        "theatre fan gift"
+        "broadway makeup bag",
+        "musical theatre gift",
+        "performer cosmetic bag"
       ],
       "keywordsCn": [
         "百老汇化妆包",
-        "音乐剧收纳袋",
-        "演出者礼物"
+        "音乐剧礼物",
+        "表演者化妆包"
       ],
       "lightweight": "True"
     },
@@ -1962,16 +1716,17 @@
       "scenes": [
         "Daily Use",
         "Travel",
-        "Musical Lovers"
+        "Gift for Musical Lovers"
       ],
       "keywordsEn": [
-        "musical theatre tote bag",
-        "Broadway makeup bag set",
-        "musical lover gift"
+        "musical theatre gift set",
+        "broadway tote bag",
+        "theatre lover gift"
       ],
       "keywordsCn": [
-        "音乐剧托特包套装",
-        "百老汇化妆包"
+        "音乐剧礼物套装",
+        "百老汇手提包",
+        "戏剧爱好者礼物"
       ],
       "lightweight": "False"
     },
@@ -1979,31 +1734,30 @@
       "asin": "B0FZ8C6KRD",
       "elements": [
         "Pill Print",
-        "Medicine",
         "First Aid",
         "Diabetic"
       ],
       "carriers": [
-        "Travel Medicine Bag",
-        "Canvas Medicine Organiser Bag",
-        "Portable Compact Medicine Storage Bag"
+        "Medicine Bag",
+        "Medicine Organiser Bag",
+        "Storage Bag"
       ],
       "scenes": [
         "Travel",
         "Camping",
-        "Home",
-        "Health"
+        "Home"
       ],
       "keywordsEn": [
-        "pill print medicine bag",
-        "canvas medicine organizer",
-        "diabetic supply pouch",
-        "first aid travel bag"
+        "medicine bag travel",
+        "pill print pouch",
+        "diabetic supplies bag",
+        "first aid organizer"
       ],
       "keywordsCn": [
-        "药丸印花药袋",
-        "帆布药品收纳包",
-        "急救旅行包"
+        "药袋旅行",
+        "药丸图案小包",
+        "糖尿病用品包",
+        "急救收纳包"
       ],
       "lightweight": "True"
     },
@@ -2011,58 +1765,52 @@
       "asin": "B0FZH1T4ZN",
       "elements": [
         "Book Lover",
-        "Novelty",
-        "Reading Theme",
-        "Waterproof"
+        "Reading Theme"
       ],
       "carriers": [
         "Makeup Bag",
-        "Linen Make Up Organiser Bag",
+        "Cosmetic Bag",
+        "Make Up Organiser Bag",
         "Toiletry Pouch"
       ],
       "scenes": [
-        "Book Lovers",
-        "Reading",
-        "Travel"
+        "Gift for Book Lovers"
       ],
       "keywordsEn": [
         "book lover makeup bag",
-        "novelty cosmetic pouch",
-        "reading theme toiletry bag",
-        "waterproof linen pouch"
+        "reading theme cosmetic bag",
+        "waterproof linen organizer"
       ],
       "keywordsCn": [
-        "书虫化妆包",
-        "阅读主题收纳袋",
-        "防水亚麻 pouch"
+        "书本爱好者化妆包",
+        "阅读主题化妆包",
+        "防水亚麻收纳袋"
       ],
       "lightweight": "True"
     },
     {
       "asin": "B0FK2CPW84",
       "elements": [
-        "Small Snack",
+        "Snack",
         "Friendship"
       ],
       "carriers": [
-        "Canvas Zipper Snack Bags",
+        "Snack Bag",
         "Toiletry Bag"
       ],
       "scenes": [
-        "Gifts for Female Friend",
-        "Coworker",
+        "Gift for Female Friend",
         "Christmas Birthday"
       ],
       "keywordsEn": [
         "snack bag for women",
-        "canvas zipper snack pouch",
-        "friend gift toiletry bag",
-        "small snack bag"
+        "friendship toiletry bag",
+        "canvas zipper snack bag"
       ],
       "keywordsCn": [
-        "女友零食包",
-        "帆布拉链零食袋",
-        "闺蜜礼物"
+        "零食袋女士",
+        "友谊洗漱包",
+        "帆布拉链零食包"
       ],
       "lightweight": "True"
     },
@@ -2070,44 +1818,40 @@
       "asin": "B0FSSG9QPJ",
       "elements": [
         "Stitch",
-        "Cartoon",
-        "Cute"
+        "Cartoon"
       ],
       "carriers": [
         "Toiletry Bag",
-        "Cosmetic Bag",
-        "Portable Cosmetic Bag"
+        "Makeup Bag",
+        "Cosmetic Bag"
       ],
       "scenes": [
-        "Cartoon Lover Gifts",
         "Travel",
         "Vacation",
-        "Camping"
+        "Camping",
+        "Gift for Cartoon Lovers"
       ],
       "keywordsEn": [
-        "Stitch toiletry bag",
-        "cartoon makeup pouch",
-        "Disney stitch cosmetic bag",
-        "cute travel bag"
+        "stitch makeup bag",
+        "cartoon cosmetic bag",
+        "disney toiletry bag"
       ],
       "keywordsCn": [
-        "史迪奇洗漱包",
+        "史迪仔化妆包",
         "卡通化妆包",
-        "迪士尼周边包"
+        "迪士尼洗漱包"
       ],
       "lightweight": "True"
     },
     {
       "asin": "B0GCRY7LGS",
       "elements": [
-        "Emergency Snacks",
-        "Reusable",
-        "Personalised"
+        "Emergency Snacks"
       ],
       "carriers": [
-        "Portable Canvas Snack Bags",
-        "Makeup Bags",
-        "Food Storage Bag"
+        "Snack Bags",
+        "Food Storage Bag",
+        "Makeup Bags"
       ],
       "scenes": [
         "Travel",
@@ -2116,14 +1860,13 @@
       ],
       "keywordsEn": [
         "emergency snacks bag",
-        "canvas snack pouch",
-        "reusable food storage bag",
-        "personalised makeup bag"
+        "portable snack pouch",
+        "canvas snack bag"
       ],
       "keywordsCn": [
-        "应急零食包",
-        "帆布食品袋",
-        "可重复使用收纳袋"
+        "应急零食袋",
+        "便携零食袋",
+        "帆布零食包"
       ],
       "lightweight": "True"
     }

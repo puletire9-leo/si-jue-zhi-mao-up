@@ -2,8 +2,6 @@
 
 import com.sjzm.common.Result;
 import com.sjzm.product.entity.ProductLineGuidance;
-import com.sjzm.product.mapper.CompetitorProductMapper;
-import com.sjzm.product.mapper.DengZongShopMapper;
 import com.sjzm.product.service.DengZongShopService;
 import com.sjzm.product.service.ProductLineGuidanceService;
 import com.sjzm.product.service.ProductLineTreeService;
@@ -13,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * 品线选品指导意见控制器。
@@ -32,10 +29,6 @@ public class ProductLineController {
     private final ProductLineGuidanceService guidanceService;
 
     private final DengZongShopService dengZongShopService;
-
-    private final CompetitorProductMapper competitorProductMapper;
-
-    private final DengZongShopMapper dengZongShopMapper;
 
     private final ProductLineTreeService productLineTreeService;
 
@@ -94,29 +87,6 @@ public class ProductLineController {
     public Result<Map<String, Object>> getTree(
             @RequestParam(defaultValue = "UK") String marketplace,
             @RequestParam String month) {
-        List<Map<String, Object>> l2Rows = competitorProductMapper.countByNodeId(marketplace, month);
-        // 郑总盘子：只按最新 batch_date（铁律#8，与竞品 month 解耦）
-        String zhengBatchDate = dengZongShopService.getMaxBatchDate(marketplace);
-
-        Map<String, Integer> zhengCounts = new HashMap<>();
-        if (zhengBatchDate != null) {
-            for (Map<String, Object> row : dengZongShopMapper.selectZhengNodeCounts(marketplace, zhengBatchDate)) {
-                String key = (String) row.get("composite_key");
-                Integer count = row.get("product_count") instanceof Number
-                        ? ((Number) row.get("product_count")).intValue() : 0;
-                if (key != null) zhengCounts.put(key, count);
-            }
-        }
-        List<String> zhengBsrIdOrder = new ArrayList<>();
-        if (zhengBatchDate != null) {
-            zhengBsrIdOrder = dengZongShopMapper.selectZhengBsrIdsOrdered(marketplace, zhengBatchDate)
-                    .stream().map(r -> (String) r.get("bsrId")).collect(Collectors.toList());
-        }
-
-        Map<String, Object> tree = productLineTreeService.buildTree(l2Rows, zhengCounts, zhengBsrIdOrder);
-        tree.put("marketplace", marketplace);
-        tree.put("month", month);
-        tree.put("zhengBatchDate", zhengBatchDate);
-        return Result.success(tree);
+        return Result.success(productLineTreeService.getTree(marketplace, month));
     }
 }

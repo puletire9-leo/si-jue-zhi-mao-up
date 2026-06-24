@@ -1,5 +1,7 @@
 package com.sjzm.product.service;
 
+import com.sjzm.product.mapper.CompetitorProductMapper;
+import com.sjzm.product.mapper.DengZongShopMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -13,6 +15,23 @@ public class ProductLineTreeService {
     static final int MIN_ZENG = 3;
 
     private final ForbiddenCategoryService forbiddenCategoryService;
+    private final CompetitorProductMapper competitorProductMapper;
+    private final DengZongShopMapper dengZongShopMapper;
+    private final DengZongShopService dengZongShopService;
+
+    public Map<String, Object> getTree(String marketplace, String month) {
+        List<Map<String, Object>> l2Rows = competitorProductMapper.countByNodeId(marketplace, month);
+        String zhengBatchDate = dengZongShopService.getMaxBatchDate(marketplace);
+
+        Map<String, Integer> zhengCounts = loadZhengCounts(marketplace, zhengBatchDate);
+        List<String> zhengBsrIdOrder = loadZhengBsrIdOrder(marketplace, zhengBatchDate);
+
+        Map<String, Object> tree = buildTree(l2Rows, zhengCounts, zhengBsrIdOrder);
+        tree.put("marketplace", marketplace);
+        tree.put("month", month);
+        tree.put("zhengBatchDate", zhengBatchDate);
+        return tree;
+    }
 
     /**
      * 构建品线树。
@@ -81,6 +100,34 @@ public class ProductLineTreeService {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("productLines", lines);
         return result;
+    }
+
+    private Map<String, Integer> loadZhengCounts(String marketplace, String zhengBatchDate) {
+        if (zhengBatchDate == null) {
+            return new HashMap<>();
+        }
+
+        Map<String, Integer> zhengCounts = new HashMap<>();
+        for (Map<String, Object> row : dengZongShopMapper.selectZhengNodeCounts(marketplace, zhengBatchDate)) {
+            String key = (String) row.get("composite_key");
+            Integer count = row.get("product_count") instanceof Number
+                    ? ((Number) row.get("product_count")).intValue() : 0;
+            if (key != null) {
+                zhengCounts.put(key, count);
+            }
+        }
+        return zhengCounts;
+    }
+
+    private List<String> loadZhengBsrIdOrder(String marketplace, String zhengBatchDate) {
+        if (zhengBatchDate == null) {
+            return new ArrayList<>();
+        }
+
+        return dengZongShopMapper.selectZhengBsrIdsOrdered(marketplace, zhengBatchDate).stream()
+                .map(row -> (String) row.get("bsrId"))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
     }
 
     private String firstSegment(String path) {

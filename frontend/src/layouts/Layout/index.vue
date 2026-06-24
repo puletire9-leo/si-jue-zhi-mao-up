@@ -7,7 +7,8 @@ import LayTags from "./components/lay-tags/index.vue";
 import LayContent from "./components/lay-content/index.vue";
 import LayPanel from "./components/lay-panel/index.vue";
 import LaySetting from "./components/lay-setting/index.vue";
-import SelectionAgentFloat from "@/components/SelectionAgentFloat/index.vue";
+// AI 选品助手悬浮球：暂时隐藏（见 template 注释）。保留备查，恢复时连同 template 一起启用。
+// import SelectionAgentFloat from "@/components/SelectionAgentFloat/index.vue";
 
 const appStore = useAppStore();
 
@@ -45,7 +46,9 @@ const handleToggleSidebar = () => {
       <LaySetting />
     </LayPanel>
 
-    <SelectionAgentFloat />
+    <!-- AI 选品助手悬浮球：暂时隐藏。模块代码/store/API 全保留作参考，
+         系统后续改为对接外部 agent 的模型接口。如需恢复，取消下面注释即可。 -->
+    <!-- <SelectionAgentFloat /> -->
   </div>
 </template>
 

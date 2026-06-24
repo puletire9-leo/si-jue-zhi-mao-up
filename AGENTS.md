@@ -52,8 +52,14 @@
 ## 快速命令
 
 ```bash
-# 开发环境启动
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+# 开发环境启动（默认最小集，更快）
+docker compose -f docker-compose.dev.yml up -d
+
+# 联调网关（可选）
+docker compose -f docker-compose.dev.yml --profile gateway up -d gateway
+
+# 验证注册中心（可选）
+docker compose -f docker-compose.dev.yml --profile nacos up -d nacos
 
 # 生产环境启动
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d

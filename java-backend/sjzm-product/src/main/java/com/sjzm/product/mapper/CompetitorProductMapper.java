@@ -72,6 +72,13 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
     @Select("SELECT DISTINCT bsr_id FROM competitor_products WHERE marketplace = #{marketplace}")
     Set<String> selectDistinctBsrIdByMarketplace(@Param("marketplace") String marketplace);
 
+    @Select("<script>" +
+            "SELECT MAX(month) FROM competitor_products " +
+            "WHERE month IS NOT NULL AND month != '' " +
+            "<if test='marketplace != null and marketplace != \"\"'> AND marketplace = #{marketplace}</if>" +
+            "</script>")
+    String selectLatestMonth(@Param("marketplace") String marketplace);
+
     /**
      * 实时按 created_at 计算入库周次（ISO 周），返回每周条数与起止日期，按周倒序（第一条即最新批次）。
      * 不依赖 week_tag / is_current / month 列。source 用 LIKE 以兼容存量来源文案。

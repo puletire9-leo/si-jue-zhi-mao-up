@@ -23,7 +23,7 @@
 
 | 服务 | Dev | Prod |
 |------|-----|------|
-| MySQL | 3307 | 3310 |
+| MySQL | 3410 | 3310 |
 | Redis | 6379 | 6383 |
 | Nacos | 8848 / 9848 | 8852 / 9852 |
 | Python Backend | 8090 | 7093 |
@@ -117,7 +117,8 @@ Vite 只做构建，运行时由 Nginx (`nginx.prod.conf`) 接管所有路由：
 ### Dev 环境须知
 
 - Vite 通过 `--host 0.0.0.0 --port 8179` 暴露，**不是** `localhost:8179`
-- `VITE_USE_GATEWAY=true` 时前端走 Gateway 代理（接近生产路由），**开发新 API 时必须在 Gateway 模式下测试**
+- 默认 `VITE_USE_GATEWAY=false`，前端直连 Java / Python / selection-agent，日常开发更快
+- `VITE_USE_GATEWAY=true` 时前端走 Gateway 代理，用于联调网关或验证更接近生产的路由链路
 - 环境变量在 `frontend/.env` 设置，`VITE_*` 前缀才会注入客户端代码
 
 ### Prod 构建须知
@@ -144,7 +145,7 @@ Vite 只做构建，运行时由 Nginx (`nginx.prod.conf`) 接管所有路由：
 
 - Dev 环境下 API 可以**不带 Token 直接调用**，生产不行
 - 前端开发时如果 `VITE_USE_GATEWAY=false`（直连 Java），**完全不走 Gateway 鉴权**
-- **切换 `VITE_USE_GATEWAY=true` 后必须登录才能调用 API**
+- 切换 `VITE_USE_GATEWAY=true` 后可以验证 Gateway 路由，但开发环境默认仍是 `GATEWAY_AUTH_ENABLED=false`
 
 ---
 
@@ -187,7 +188,7 @@ Vite 只做构建，运行时由 Nginx (`nginx.prod.conf`) 接管所有路由：
 - [ ] **Java 侧**：`application.yml` Gateway routes 中注册了路径
 - [ ] **Nginx**：如果走 Java → `nginx.prod.conf` 正则中添加路径前缀
 - [ ] **Nginx**：如果走 Python → 确认路径不在 Java 正则中（否则会被误路由到 Gateway）
-- [ ] **Dev 测试**：`VITE_USE_GATEWAY=true` 模式下验证路由正确
+- [ ] **Dev 测试**：默认先验证 `localhost:8179` 直连链路；涉及 Gateway / 生产链路时，再用 `VITE_USE_GATEWAY=true` 验证
 - [ ] **前端**：API 路径不硬编码 Base URL，使用相对路径 `/api/v1/...`
 - [ ] **鉴权**：公开接口需要在 Gateway `SecurityConfig` 中添加白名单
 - [ ] **Prod 验证**：部署后浏览器 F12 网络面板确认请求路由到正确后端

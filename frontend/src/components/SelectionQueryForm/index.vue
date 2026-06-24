@@ -11,7 +11,6 @@ import {
   Refresh,
   Picture,
   List,
-  Filter,
 } from "@element-plus/icons-vue";
 import type {
   SelectionQueryParams,
@@ -33,6 +32,7 @@ const props = withDefaults(defineProps<SelectionQueryFormProps>(), {
   showCompactMode: false,
   showAdvancedSearch: false,
   showFilter: false,
+  hideInlineFilters: false,
   searchTypeOptions: () => defaultSearchTypeOptions,
   showSort: false,
   showDateRange: false,
@@ -91,9 +91,6 @@ const loadSellers = async (marketplace?: string) => {
 // 多项精确搜索对话框
 const advancedSearchDialogVisible = ref(false);
 const advancedSearchContent = ref("");
-
-// 筛选对话框
-const filterDialogVisible = ref(false);
 
 // 国家选项（值必须与数据库中存储的值一致）
 const countryOptions = [
@@ -280,8 +277,8 @@ const handleReset = () => {
   dateRange.value = [];
   // 重置上架时间范围
   listingDateRange.value = [];
-  // 关闭筛选对话框（如果在对话框中）
-  filterDialogVisible.value = false;
+  // 关闭多项精确搜索对话框（如果在对话框中）
+  advancedSearchDialogVisible.value = false;
   // 触发重置事件
   emit("reset");
   // 触发搜索（重置后重新加载数据）
@@ -371,46 +368,6 @@ const handleAdvancedSearch = () => {
 };
 
 /**
- * 打开筛选对话框
- */
-const openFilterDialog = () => {
-  filterDialogVisible.value = true;
-};
-
-/**
- * 关闭筛选对话框
- */
-const closeFilterDialog = () => {
-  filterDialogVisible.value = false;
-};
-
-/**
- * 应用筛选
- */
-const applyFilter = () => {
-  emit("search", { ...formData });
-  filterDialogVisible.value = false;
-};
-
-/**
- * 切换等级筛选
- */
-const handleGradeToggle = (grade: string) => {
-  const grades = formData.grade
-    ? formData.grade.split(",").filter((g) => g)
-    : [];
-  const index = grades.indexOf(grade);
-  if (index >= 0) {
-    grades.splice(index, 1);
-  } else {
-    grades.push(grade);
-  }
-  formData.grade = grades.join(",");
-  // 不立即关闭对话框，让用户可以继续选择其他筛选条件
-  // applyFilter()
-};
-
-/**
  * 获取当前查询参数
  */
 const getQueryParams = (): SelectionQueryParams => {
@@ -448,7 +405,6 @@ defineExpose({
   handleSearch,
   handleReset,
   openAdvancedSearchDialog,
-  openFilterDialog,
 });
 </script>
 
@@ -464,7 +420,7 @@ defineExpose({
 
     <!-- 紧凑模式（单行布局） -->
     <div v-if="config.showCompactMode" class="compact-search-bar">
-      <div class="search-filters-row">
+      <div v-if="!hideInlineFilters" class="search-filters-row">
         <!-- 国家选择器 -->
         <el-select
           v-model="formData.country"
@@ -589,18 +545,6 @@ defineExpose({
           title="多项精确搜索"
         />
 
-        <!-- 筛选按钮 -->
-        <el-button
-          v-if="config.showFilter"
-          :icon="Filter"
-          size="default"
-          @click="openFilterDialog"
-          class="filter-btn"
-          title="筛选条件"
-        >
-          筛选
-        </el-button>
-
         <el-button
           :icon="Refresh"
           size="default"
@@ -715,31 +659,6 @@ defineExpose({
         </el-select>
       </el-form-item>
 
-      <!-- 排序字段和排序方式 -->
-      <el-form-item v-if="config.showSort" label="排序">
-        <el-select
-          v-model="formData.sortField"
-          placeholder="排序字段"
-          clearable
-          style="width: 120px"
-        >
-          <el-option label="销量" value="salesVolume" />
-          <el-option label="BSR" value="bsr" />
-          <el-option label="价格" value="price" />
-          <el-option label="上架时间" value="listingDate" />
-          <el-option label="创建时间" value="createdAt" />
-        </el-select>
-        <el-select
-          v-model="formData.sortOrder"
-          placeholder="排序方式"
-          clearable
-          style="width: 100px; margin-left: 8px"
-        >
-          <el-option label="降序" value="desc" />
-          <el-option label="升序" value="asc" />
-        </el-select>
-      </el-form-item>
-
       <!-- 日期范围 (回收站) -->
       <el-form-item v-if="config.showDateRange" label="删除时间">
         <el-date-picker
@@ -818,167 +737,6 @@ defineExpose({
           <el-button type="primary" @click="handleAdvancedSearch">
             搜索
           </el-button>
-        </span>
-      </template>
-    </el-dialog>
-
-    <!-- 筛选对话框 -->
-    <el-dialog
-      v-model="filterDialogVisible"
-      title="筛选条件"
-      width="600px"
-      destroy-on-close
-    >
-      <div class="filter-panel">
-        <!-- 国家筛选 -->
-        <div class="filter-section">
-          <div class="filter-label">国家</div>
-          <el-select
-            v-model="formData.country"
-            placeholder="请选择国家"
-            clearable
-            style="width: 100%"
-          >
-            <el-option
-              v-for="option in countryOptions"
-              :key="option.value"
-              :label="option.label"
-              :value="option.value"
-            />
-          </el-select>
-        </div>
-
-        <!-- 上架时间范围筛选：按筛选重构计划隐藏，上架时间统一收进面板 -->
-        <div v-if="false" class="filter-section">
-          <div class="filter-label">上架时间范围</div>
-          <el-date-picker
-            v-model="listingDateRange"
-            type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
-            value-format="YYYY-MM-DD"
-            style="width: 100%"
-          />
-        </div>
-
-        <!-- 数据筛选模式 -->
-        <div v-if="false" class="filter-section">
-          <div class="filter-label">数据筛选模式</div>
-          <el-select
-            v-model="formData.dataFilterMode"
-            placeholder="请选择数据筛选模式"
-            clearable
-            style="width: 100%"
-          >
-            <el-option
-              v-for="option in dataFilterModeOptions"
-              :key="option.value"
-              :label="option.label"
-              :value="option.value"
-            />
-          </el-select>
-        </div>
-
-        <!-- 来源筛选 -->
-        <div class="filter-section">
-          <div class="filter-label">来源</div>
-          <el-select
-            v-model="formData.productType"
-            placeholder="请选择来源"
-            clearable
-            style="width: 100%"
-          >
-            <el-option label="全部" value="" />
-            <el-option label="新品榜" value="new" />
-            <el-option label="竞品店铺" value="reference" />
-            <el-option label="郑总店铺" value="zheng" />
-          </el-select>
-        </div>
-
-        <!-- 大类榜单筛选 -->
-        <div class="filter-section">
-          <div class="filter-label">大类榜单</div>
-          <el-select
-            v-model="formData.category"
-            placeholder="请选择大类榜单"
-            clearable
-            multiple
-            collapse-tags
-            collapse-tags-tooltip
-            style="width: 100%"
-            @change="handleSearch"
-          >
-            <el-option
-              v-for="cat in categories"
-              :key="cat.category"
-              :label="`${cat.category} (${cat.count})`"
-              :value="cat.category"
-            />
-          </el-select>
-        </div>
-
-        <!-- 等级筛选 -->
-        <div class="filter-section">
-          <div class="filter-label">等级</div>
-          <div class="grade-filter-group">
-            <el-check-tag
-              v-for="g in gradeOptions"
-              :key="g.value"
-              :checked="formData.grade.split(',').includes(g.value)"
-              :style="{ '--el-color-primary': g.color }"
-              @change="handleGradeToggle(g.value)"
-            >
-              {{ g.label }}
-            </el-check-tag>
-          </div>
-        </div>
-
-        <!-- 本周/往期筛选 -->
-        <div class="filter-section">
-          <div class="filter-label">数据时效</div>
-          <el-radio-group v-model="formData.isCurrent">
-            <el-radio-button label="">全部</el-radio-button>
-            <el-radio-button label="1">本周上架</el-radio-button>
-            <el-radio-button label="0">往期上架</el-radio-button>
-          </el-radio-group>
-        </div>
-
-        <!-- 排序 -->
-        <div class="filter-section">
-          <div class="filter-label">排序</div>
-          <div class="sort-row">
-            <el-select
-              v-model="formData.sortField"
-              placeholder="排序字段"
-              clearable
-              style="width: 150px"
-            >
-              <el-option label="评分" value="score" />
-              <el-option label="销量" value="salesVolume" />
-              <el-option label="BSR" value="bsr" />
-              <el-option label="价格" value="price" />
-              <el-option label="上架时间" value="listingDate" />
-              <el-option label="创建时间" value="createdAt" />
-            </el-select>
-            <el-select
-              v-model="formData.sortOrder"
-              placeholder="排序方式"
-              clearable
-              style="width: 120px; margin-left: 12px"
-            >
-              <el-option label="降序" value="desc" />
-              <el-option label="升序" value="asc" />
-            </el-select>
-          </div>
-        </div>
-      </div>
-
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="handleReset"> 重置 </el-button>
-          <el-button @click="closeFilterDialog"> 关闭 </el-button>
-          <el-button type="primary" @click="applyFilter"> 应用 </el-button>
         </span>
       </template>
     </el-dialog>
@@ -1150,34 +908,6 @@ defineExpose({
     .search-content-area {
       .el-textarea {
         width: 100%;
-      }
-    }
-  }
-
-  // 筛选面板样式
-  .filter-panel {
-    .filter-section {
-      margin-bottom: 20px;
-
-      &:last-child {
-        margin-bottom: 0;
-      }
-
-      .filter-label {
-        font-weight: 500;
-        color: #606266;
-        margin-bottom: 8px;
-      }
-
-      .sort-row {
-        display: flex;
-        align-items: center;
-      }
-
-      .grade-filter-group {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
       }
     }
   }

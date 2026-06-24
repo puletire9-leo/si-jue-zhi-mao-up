@@ -9,7 +9,7 @@ services:
     container_name: dev-mysql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     ports:
-      - "3307:3306"
+      - "3410:3306"
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       MYSQL_USER: sijue
@@ -132,8 +132,8 @@ services:
       # 选品 Agent SSE 服务（容器间通信）
       VITE_SELECTION_AGENT_HOST: selection-agent-v2
       VITE_SELECTION_AGENT_PORT: "8011"
-      # 走网关代理时取消下面注释，并注释上面两行
-      VITE_USE_GATEWAY: "true"
+      # 开发环境默认直连各服务；仅在联调网关时改为 true
+      VITE_USE_GATEWAY: "false"
       VITE_GATEWAY_HOST: gateway
       VITE_GATEWAY_PORT: "9000"
     ports:
@@ -146,7 +146,7 @@ services:
     depends_on:
       - backend
 
-  # ── Java 微服务 ──
+  # ── Java 微服务（开发默认不走 gateway / nacos） ──
 
   java-product:
     image: maven:3.9-eclipse-temurin-21
@@ -156,6 +156,7 @@ services:
       - "8002:8002"
     volumes:
       - ./java-backend:/app
+      - ./docs:/docs:ro
       - java-m2:/root/.m2
     command: >
       sh -c "cd sjzm-product &&
@@ -163,8 +164,8 @@ services:
       -Dspring-boot.run.jvmArguments='-Xms256m -Xmx1024m'
       -Dspring-boot.run.arguments='--server.port=8002'"
     environment:
-      NACOS_ENABLED: "true"
-      NACOS_SERVER_ADDR: nacos:8848
+      # 开发默认直连服务，关闭注册中心依赖以加快启动
+      NACOS_ENABLED: "false"
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_DATABASE: sijuelishi_dev
@@ -180,12 +181,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      nacos:
-        condition: service_started
 
   gateway:
     image: maven:3.9-eclipse-temurin-21
     container_name: dev-gateway
+    profiles:
+      - gateway
     working_dir: /app
     restart: unless-stopped
     ports:
@@ -198,8 +199,7 @@ services:
       mvn spring-boot:run -DskipTests
       -Dspring-boot.run.jvmArguments='-Xms128m -Xmx256m'"
     environment:
-      NACOS_ENABLED: "true"
-      NACOS_SERVER_ADDR: nacos:8848
+      NACOS_ENABLED: "false"
       SJZM_USER_URI: http://java-user:8001
       SJZM_PRODUCT_URI: http://java-product:8002
       GATEWAY_AUTH_ENABLED: "false"  # 开发环境关闭JWT认证
@@ -207,7 +207,6 @@ services:
     depends_on:
       - java-user
       - java-product
-      - nacos
 
   java-user:
     image: maven:3.9-eclipse-temurin-21
@@ -224,8 +223,7 @@ services:
       -Dspring-boot.run.jvmArguments='-Xms128m -Xmx256m'
       -Dspring-boot.run.arguments='--server.port=8001'"
     environment:
-      NACOS_ENABLED: "true"
-      NACOS_SERVER_ADDR: nacos:8848
+      NACOS_ENABLED: "false"
       MYSQL_HOST: mysql
       MYSQL_PORT: 3306
       MYSQL_DATABASE: sijuelishi_dev
@@ -240,12 +238,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      nacos:
-        condition: service_started
 
   nacos:
     image: nacos/nacos-server:v2.3.1
     container_name: dev-nacos
+    profiles:
+      - nacos
     ports:
       - "8993:8848"
       - "9848:9848"
@@ -271,6 +269,7 @@ services:
       - JAVA_BASE_URL=http://java-product:8002
       - HERMES_HOME=/root/.hermes
       - PYTHONPATH=/app
+      - JWT_SECRET=${JWT_SECRET:-sjzm-dev-jwt-secret-change-in-production}
     ports:
       - "8012:8011"
     volumes:

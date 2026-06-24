@@ -10,6 +10,7 @@ import shutil
 from ..models.file_link import FileUploadResponse
 from .file_link_service import FileLinkService
 from ..repositories.mysql_repo import get_mysql_repo
+from ..config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +18,8 @@ logger = logging.getLogger(__name__)
 class FileUploadService:
     """文件上传服务类"""
     
-    def __init__(self, upload_dir: str = "uploads", file_link_service: FileLinkService = None):
-        self.upload_dir = upload_dir
+    def __init__(self, upload_dir: Optional[str] = None, file_link_service: FileLinkService = None):
+        self.upload_dir = upload_dir or settings.UPLOAD_DIR
         self.file_link_service = file_link_service
         
         # 确保上传目录存在

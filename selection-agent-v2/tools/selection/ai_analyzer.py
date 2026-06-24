@@ -82,6 +82,38 @@ class ProvenElement:
     insight: str = ""
 
 
+VALID_FILTER_FIELDS = {"listingDays", "weightG", "units", "bsr"}
+VALID_FILTER_OPS = {"lt", "le", "eq", "ge", "gt"}
+
+
+def _validate_filter_rules(rules: list) -> list:
+    """Validate filter_rules against whitelist, discard invalid items."""
+    validated = []
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        conditions = rule.get("conditions", [])
+        if not isinstance(conditions, list) or not conditions:
+            continue
+        valid_conds = []
+        for cond in conditions:
+            if not isinstance(cond, dict):
+                continue
+            field = cond.get("field")
+            op = cond.get("op")
+            value = cond.get("value")
+            if field not in VALID_FILTER_FIELDS:
+                continue
+            if op not in VALID_FILTER_OPS:
+                continue
+            if not isinstance(value, (int, float)):
+                continue
+            valid_conds.append({"field": field, "op": op, "value": value})
+        if valid_conds:
+            validated.append({"conditions": valid_conds})
+    return validated
+
+
 @dataclass
 class AIResult:
     """AI 品线模型 — 只含AI判断和创造，数值引用脚本预计算"""
@@ -95,10 +127,11 @@ class AIResult:
     carrier_detail: list[dict] = field(default_factory=list)
     emerging_elements: list[dict] = field(default_factory=list)
     recommended_combos: list[RecommendedCombo] = field(default_factory=list)
-    search_keywords: dict = field(default_factory=dict)  # {en: [...], cn: [...]}
+    search_keywords: dict = field(default_factory=dict)
     element_saturation: list[dict] = field(default_factory=list)
     price_gaps: list[dict] = field(default_factory=list)
     lightweight_summary: str = ""
+    filter_rules: list[dict] = field(default_factory=list)
     raw_response: str = ""
 
 
@@ -159,10 +192,23 @@ keywords_en 用于亚马逊搜索，keywords_cn 用于理解买家意图
 ### 10. lightweight_summary
 基于商品列表中的实际重量+FBA数据，一句话总结轻小件特征
 
+### 11. filter_rules (自动筛选规则)
+将分析结果转化为可执行的筛选规则。每条规则内条件为 AND 关系，规则之间为 OR 关系。
+字段仅限: listingDays(上架天数), weightG(重量g), units(月销量), bsr(BSR排名)
+运算符仅限: lt(<), le(≤), eq(=), ge(≥), gt(>)
+value 必须为数字。
+
+示例:
+"filter_rules": [
+  {"conditions": [{"field": "listingDays", "op": "le", "value": 90}, {"field": "units", "op": "gt", "value": 50}]},
+  {"conditions": [{"field": "weightG", "op": "le", "value": 500}]}
+]
+
 ## 约束
 - 元素/载体/场景保留英文原文，keywords_en/keywords_cn 是独立的搜索词
 - 不在DEAD品中提取元素推荐
 - 数值引用脚本预计算数据，不要自己重算
+- filter_rules 只使用白名单字段(4个)和运算符(5个)，value 为数字
 - 输出严格JSON，不要markdown包裹"""
 
 
@@ -266,6 +312,7 @@ def parse_ai_response(raw: str) -> AIResult:
         element_saturation=element_saturation,
         price_gaps=price_gaps,
         lightweight_summary=data.get("lightweight_summary", ""),
+        filter_rules=_validate_filter_rules(data.get("filter_rules", [])),
         raw_response=raw,
     )
     # 归一化后的列表附加到结果

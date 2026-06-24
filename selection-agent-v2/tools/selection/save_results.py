@@ -305,6 +305,8 @@ def generate_model_json(analysis: SubCategoryAnalysis, ai_result: AIResult) -> d
         "priceGaps": ai_result.price_gaps,
         # 11. 轻小件总结
         "lightweightSummary": ai_result.lightweight_summary,
+        # 12. 自动筛选规则
+        "filterRules": getattr(ai_result, "filter_rules", []),
         # 12. 好品清单 (前20)
         "goodProducts": [
             {

@@ -32,14 +32,6 @@ export function getAggregatedData(marketplace: string, month: string) {
   });
 }
 
-export function getAllCategories(marketplace: string, month: string) {
-  return request({
-    url: "/api/v1/product-line/all-categories",
-    method: "get",
-    params: { marketplace, month },
-  });
-}
-
 export function getTree(marketplace: string, month: string) {
   return request.get(`${MODEL_BASE}/tree`, { params: { marketplace, month } });
 }

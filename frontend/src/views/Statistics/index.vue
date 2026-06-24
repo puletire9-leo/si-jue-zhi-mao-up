@@ -188,7 +188,6 @@ import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
 import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import { statisticsApi } from '@/api/statistics'
-import { getProductTypeTag } from '@/types/utils'
 
 const loading = ref(true)
 const hasLoaded = ref(false)

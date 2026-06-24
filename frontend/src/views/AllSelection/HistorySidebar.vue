@@ -206,7 +206,7 @@ async function loadData() {
       asinImportApi.history(),
       competitorApi.getQuota()
     ])
-    if (histRes?.data) items.value = histRes.data
+    if (histRes) items.value = histRes
     if (quotaRes?.data) {
       quotaUsed.value = quotaRes.data.monthUsed || 0
       quotaMax.value = quotaRes.data.maxPerMonth || 200
