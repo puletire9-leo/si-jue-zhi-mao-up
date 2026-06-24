@@ -1,5 +1,15 @@
 # 开发规范
 
+> 本文同时描述“当前必须遵守的规则”和“迁移期附加规则”。
+>
+> 若文档与实现冲突，以代码事实为准：模块约束先看对应 `AGENTS.md`，开发态路由先看 `frontend/vite.config.js`，再回写本文档。
+
+## 规则分级
+
+- 当前规则：今天改代码时就必须遵守。
+- 迁移规则：系统处于 Java / Python / Selection Agent 并存阶段时必须遵守。
+- 目标规则：仅能作为演进方向，不能当作已经落地的现状。
+
 ## 编码规范
 
 ### Java 后端
@@ -8,13 +18,14 @@
 |------|------|
 | 包名 | `com.sjzm.{layer}`，layer = common/config/controller/service/mapper/entity/security/util |
 | 命名空间 | 全部使用 `jakarta.*`，禁止 `javax.*` |
-| Controller | `@RestController` + `@RequestMapping("/api/{resource}")` |
+| Controller | `@RestController` + `@RequestMapping(...)`；当前仓库 Java 接口以前缀 `/api/v1/...` 为主，新增接口必须与所属模块现有前缀保持一致 |
 | Service | 接口 + Impl 实现类，Impl 加 `@Service` |
 | Mapper | 继承 `BaseMapper<T>`，加 `@Mapper` |
 | Entity | `@TableName` + `@TableId(type=ASSIGN_ID)` + `@TableLogic` |
 | 响应格式 | 统一使用 `Result<T>`，禁止直接返回裸数据 |
 | 异常 | 业务异常抛 `BusinessException`，禁止捕获后吞掉 |
 | 配置 | 所有外部值走 `${ENV_VAR:defaultValue}` |
+| 分层依赖 | 只能 `Controller -> Service -> Mapper`，禁止 Controller 直接注入 Mapper |
 
 ### Python 后端
 
@@ -31,10 +42,34 @@
 | 规则 | 说明 |
 |------|------|
 | 组件 | PascalCase 命名，单文件组件 |
-| API 文件 | `src/api/{module}.ts`，使用封装的 axios 实例 |
+| API 文件 | `src/api/{module}.ts`，使用封装的 axios 实例；默认一个文件只面向一个后端拥有者 |
 | 类型 | `src/types/` 定义共享类型 |
 | 状态 | Pinia store，`src/stores/{name}.ts` |
 | 样式 | SCSS，变量在 `src/styles/variables.scss` |
+
+## 迁移期附加规则
+
+### 路由与拥有者
+
+1. 开发态请求去向以 `frontend/vite.config.js` 为准，不以 README 口头说明为准。
+2. 新增前端接口前，必须先确认它属于 `Java`、`Python` 还是 `Selection Agent`。
+3. 只有当 `vite.config.js`、`src/api/*.ts`、后端真实路由三者一致时，接口才算接入完成。
+4. 新增精确代理规则时，必须同时补上真实后端实现，禁止只配代理不落接口。
+
+### 前端 API 设计
+
+1. 一个 `src/api/*.ts` 文件尽量只服务一个后端拥有者。
+2. 如果一个文件必须混合多个后端，文件头必须注明：
+   - 默认拥有者
+   - 例外路径
+   - 迁移目标
+3. 同一业务域不得长期保留两套主语义并行的 API 封装；兼容层要标注清楚并安排收口。
+
+### 文档同步
+
+1. 改代理规则时同步更新 `docs/api/README.md`。
+2. 改分层规则或工具链约束时同步更新本文。
+3. 代码事实与文档冲突时，先修代码或修文档，不能把冲突状态长期保留。
 
 ## Git 提交规范
 
@@ -78,6 +113,23 @@ Mapper 层：   数据访问，只做 SQL 操作，禁止业务判断
 ```
 
 依赖方向严格单向：`Controller → Service → Mapper`
+
+迁移期不得新增任何越层写法；历史遗留越层调用在重构时应优先回收。
+
+## 工具链与检查
+
+当前仓库已具备的检查入口：
+
+- 前端：`lint`、`type-check`、`vitest`
+- Java：Maven 构建与测试入口
+- Python：README 提供 `pytest` 运行方式
+
+当前仍需继续补齐的守门能力：
+
+- 统一的 CI 检查入口
+- Python 项目级 lint/type-check 配置
+- Java 静态检查或更明确的最小测试门槛
+- 更严格的 TypeScript 编译约束
 
 ## 安全规范
 

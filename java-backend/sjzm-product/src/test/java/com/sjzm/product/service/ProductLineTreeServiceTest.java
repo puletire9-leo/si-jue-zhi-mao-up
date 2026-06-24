@@ -1,5 +1,7 @@
 package com.sjzm.product.service;
 
+import com.sjzm.product.mapper.CompetitorProductMapper;
+import com.sjzm.product.mapper.DengZongShopMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -17,6 +19,15 @@ class ProductLineTreeServiceTest {
 
     @Mock
     ForbiddenCategoryService forbiddenCategoryService;
+
+    @Mock
+    CompetitorProductMapper competitorProductMapper;
+
+    @Mock
+    DengZongShopMapper dengZongShopMapper;
+
+    @Mock
+    DengZongShopService dengZongShopService;
 
     @InjectMocks
     ProductLineTreeService service;
@@ -74,5 +85,34 @@ class ProductLineTreeServiceTest {
     void emptyRowsYieldEmptyLines() {
         Map<String, Object> result = service.buildTree(List.of(), Map.of(), List.of());
         assertThat((List<Map<String, Object>>) result.get("productLines")).isEmpty();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void getTreeLoadsDataThroughServiceLayer() {
+        lenient().when(forbiddenCategoryService.isForbidden(org.mockito.ArgumentMatchers.anyString())).thenReturn(false);
+        when(competitorProductMapper.countByNodeId("UK", "202506"))
+                .thenReturn(List.of(row("zh", 21L, "Home & Garden:Wall Art", 10)));
+        when(dengZongShopService.getMaxBatchDate("UK")).thenReturn("20250624");
+
+        Map<String, Object> zhengCountRow = new HashMap<>();
+        zhengCountRow.put("composite_key", "zh_21");
+        zhengCountRow.put("product_count", 5);
+        when(dengZongShopMapper.selectZhengNodeCounts("UK", "20250624"))
+                .thenReturn(List.of(zhengCountRow));
+
+        when(dengZongShopMapper.selectZhengBsrIdsOrdered("UK", "20250624"))
+                .thenReturn(List.of(Map.of("bsrId", "zh", "productCount", 1)));
+
+        Map<String, Object> result = service.getTree("UK", "202506");
+
+        assertThat(result.get("marketplace")).isEqualTo("UK");
+        assertThat(result.get("month")).isEqualTo("202506");
+        assertThat(result.get("zhengBatchDate")).isEqualTo("20250624");
+
+        List<Map<String, Object>> lines = (List<Map<String, Object>>) result.get("productLines");
+        assertThat(lines).hasSize(1);
+        assertThat(lines.get(0).get("bsrId")).isEqualTo("zh");
+        assertThat(lines.get(0).get("isZheng")).isEqualTo(true);
     }
 }

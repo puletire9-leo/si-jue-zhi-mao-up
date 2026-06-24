@@ -5,6 +5,7 @@ from typing import List, Optional, Dict, Any
 from urllib.parse import urlparse
 import requests
 import asyncio
+from pathlib import PurePosixPath
 
 from ..models.file_link import FileLink, FileLinkCreate, FileLinkUpdate, FileLinkList, FileLinkStatus, FileLinkType
 from ..repositories.mysql_repo import MySQLRepository, get_mysql_repo
@@ -194,7 +195,7 @@ class FileLinkService:
         
         try:
             # 异步检查链接状态
-            status_code, response_time, error_message = await self._check_url_status(file_link.url)
+            status_code, response_time, error_message, content_type = await self._check_url_status(file_link.url)
             
             # 更新链接状态
             if status_code == 200:
@@ -207,7 +208,8 @@ class FileLinkService:
             check_result = {
                 'status_code': status_code,
                 'response_time': response_time,
-                'error_message': error_message
+                'error_message': error_message,
+                'content_type': content_type
             }
             
             await self.db_repo.execute_update(
@@ -222,6 +224,7 @@ class FileLinkService:
                 'status_code': status_code,
                 'response_time': response_time,
                 'error_message': error_message,
+                'content_type': content_type,
                 'last_checked': datetime.now()
             }
             
@@ -251,6 +254,26 @@ class FileLinkService:
         
         results = await self.db_repo.execute_query(query, (library_type,))
         return [row['category'] for row in results if row['category']]
+
+    async def validate_url(self, url: str) -> Dict[str, Any]:
+        """校验任意URL的可访问性"""
+        status_code, _, error_message, content_type = await self._check_url_status(url)
+        return {
+            'is_valid': status_code is not None and 200 <= status_code < 400,
+            'status_code': status_code,
+            'content_type': content_type or '',
+            'error_message': error_message,
+            'checked_at': datetime.now()
+        }
+
+    async def get_preview_info(self, link_id: int) -> Dict[str, Any]:
+        """构造前端可消费的预览信息"""
+        file_link = await self.get_file_link(link_id)
+        return {
+            'preview_url': self._normalize_preview_url(file_link.url),
+            'is_valid': file_link.status != FileLinkStatus.ERROR,
+            'last_checked': file_link.last_checked or file_link.updated_at
+        }
     
     def _validate_link_type(self, url: str, link_type: FileLinkType):
         """验证链接类型"""
@@ -278,11 +301,22 @@ class FileLinkService:
             
             end_time = datetime.now()
             response_time = (end_time - start_time).total_seconds()
+            content_type = response.headers.get('Content-Type')
             
-            return response.status_code, response_time, None
+            return response.status_code, response_time, None, content_type
             
         except requests.exceptions.RequestException as e:
-            return None, None, str(e)
+            return None, None, str(e), None
+
+    def _normalize_preview_url(self, url: str) -> str:
+        """标准化相对预览路径"""
+        if not url:
+            return url
+        if url.startswith(('http://', 'https://')):
+            return url
+        if url.startswith('/'):
+            return str(PurePosixPath(url))
+        return str(PurePosixPath('/') / url)
     
     def _row_to_file_link(self, row) -> FileLink:
         """将数据库行转换为FileLink对象"""

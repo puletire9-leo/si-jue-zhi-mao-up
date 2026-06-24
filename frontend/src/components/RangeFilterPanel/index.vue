@@ -24,6 +24,8 @@ const props = withDefaults(
   defineProps<{
     modelValue?: RangeFilterValue;
     country?: string;
+    /** 嵌入抽屉/卡片时为 true：去掉自身灰底边框，与外层风格统一 */
+    embedded?: boolean;
   }>(),
   {
     modelValue: () => ({
@@ -43,6 +45,7 @@ const props = withDefaults(
       listingPreset: null,
     }),
     country: "US",
+    embedded: false,
   },
 );
 
@@ -165,7 +168,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="rfp">
+  <div class="rfp" :class="{ 'rfp--embedded': embedded }">
     <div class="rfp__week-row">
       <div class="rfp__field">
         <label class="rfp__label">入库批次（周）</label>
@@ -430,6 +433,16 @@ onMounted(async () => {
     flex-direction: column;
     gap: $space-lg;
   }
+}
+
+// 嵌入抽屉时：去掉灰底/边框/内边距，列改为纵向堆叠，风格与其他分区一致
+.rfp--embedded {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  flex-direction: column;
+  gap: $space-lg;
 }
 
 .rfp__week-row {

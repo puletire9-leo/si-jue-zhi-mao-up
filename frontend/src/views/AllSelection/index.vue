@@ -99,7 +99,7 @@
             page-type="all"
             :show-compact-mode="true"
             :show-advanced-search="true"
-            :show-filter="true"
+            :hide-inline-filters="true"
             :show-image-search="true"
             :show-title="true"
             :show-total="true"
@@ -110,13 +110,76 @@
             @image-search="handleSearchByImage"
           />
 
-          <!-- 筛选预设（新品榜，紧贴搜索栏下方） -->
-          <FilterPresetSelector
-            v-show="activeTab === 'new'"
-            class="preset-bar"
-            :current-config="getCurrentFilterConfig"
-            @apply="handlePresetApply"
-          />
+          <!-- 统一筛选入口：站点/大类常驻 + 筛选按钮 + 已选条件标签 -->
+          <div class="unified-filter-bar">
+            <label class="ufb-field">
+              <span class="ufb-field-label">站点</span>
+              <el-select
+                v-model="activeFilters.country"
+                placeholder="全部站点"
+                clearable
+                style="width: 110px"
+                @change="onBarCountryChange"
+              >
+                <el-option label="美国" value="US" />
+                <el-option label="英国" value="UK" />
+                <el-option label="德国" value="DE" />
+              </el-select>
+            </label>
+            <label class="ufb-field">
+              <span class="ufb-field-label">大类榜单</span>
+              <el-select
+                v-model="activeFilters.category"
+                placeholder="全部大类"
+                clearable
+                multiple
+                collapse-tags
+                collapse-tags-tooltip
+                style="width: 200px"
+                @change="onBarCategoryChange"
+              >
+                <el-option
+                  v-for="cat in categories"
+                  :key="cat.category"
+                  :label="`${cat.category} (${cat.count})`"
+                  :value="cat.category"
+                />
+              </el-select>
+            </label>
+            <el-button
+              :icon="Filter"
+              type="primary"
+              plain
+              @click="openFilterDrawer"
+            >
+              更多筛选
+              <el-badge
+                v-if="activeFilterChips.length"
+                :value="activeFilterChips.length"
+                class="filter-count-badge"
+              />
+            </el-button>
+            <div class="filter-chips">
+              <el-tag
+                v-for="chip in activeFilterChips"
+                :key="chip.key"
+                closable
+                size="small"
+                type="info"
+                @close="removeChip(chip.key)"
+              >
+                {{ chip.label }}
+              </el-tag>
+              <el-button
+                v-if="activeFilterChips.length"
+                link
+                size="small"
+                @click="clearAllFilters"
+              >
+                清除全部
+              </el-button>
+            </div>
+          </div>
 
           <!-- 合格规则筛选：按筛选重构计划隐藏，筛选统一走面板 AND 语义（保留组件便于回滚） -->
           <QualifyRuleFilter
@@ -128,15 +191,6 @@
 
           <!-- 评分配置面板 -->
           <ScoringConfigPanel v-if="activeTab === 'all'" />
-
-          <!-- 卖家精灵风格筛选面板 -->
-          <RangeFilterPanel
-            v-model="rangeFilter"
-            :country="
-              (queryFormRef as any)?.getQueryParams?.()?.country || 'US'
-            "
-            @update:model-value="handleRangeFilterChange"
-          />
 
           <!-- 置顶开关 -->
           <div class="variant-filter-bar">
@@ -185,6 +239,82 @@
             @current-change="handlePageChange"
           />
         </el-card>
+
+        <!-- 统一筛选抽屉 -->
+        <FilterDrawer
+          v-model:visible="filterDrawerVisible"
+          title="更多筛选"
+          :size="520"
+          @reset="handleDrawerReset"
+          @confirm="handleDrawerConfirm"
+        >
+          <!-- 卖家 -->
+          <div class="fd-section">
+            <div class="fd-label">卖家</div>
+            <el-select
+              v-model="draftFilters.sellerSelect"
+              placeholder="全部卖家"
+              clearable
+              filterable
+              style="width: 100%"
+              :loading="drawerSellerLoading"
+            >
+              <el-option
+                v-for="seller in drawerSellerOptions"
+                :key="seller.id"
+                :label="seller.sellerName"
+                :value="seller.sellerName"
+              />
+            </el-select>
+          </div>
+
+          <!-- 排序 -->
+          <div class="fd-section">
+            <div class="fd-label">排序</div>
+            <div class="fd-sort-row">
+              <el-select
+                v-model="draftFilters.sortField"
+                placeholder="排序字段"
+                clearable
+                style="width: 150px"
+              >
+                <el-option label="评分" value="score" />
+                <el-option label="销量" value="salesVolume" />
+                <el-option label="BSR" value="bsr" />
+                <el-option label="价格" value="price" />
+                <el-option label="上架时间" value="listingDate" />
+                <el-option label="创建时间" value="createdAt" />
+              </el-select>
+              <el-select
+                v-model="draftFilters.sortOrder"
+                placeholder="排序方式"
+                clearable
+                style="width: 120px; margin-left: 12px"
+              >
+                <el-option label="降序" value="desc" />
+                <el-option label="升序" value="asc" />
+              </el-select>
+            </div>
+          </div>
+
+          <!-- 区间筛选面板（绑定 draftFilters.range，不即时查询；周批次依站点联动） -->
+          <div class="fd-section">
+            <div class="fd-label">区间与维度</div>
+            <RangeFilterPanel
+              v-model="draftFilters.range"
+              :country="activeFilters.country || 'UK'"
+              embedded
+            />
+          </div>
+
+          <!-- 我的筛选预设 -->
+          <div class="fd-section">
+            <FilterPresetSelector
+              :current-config="getCurrentFilterConfig"
+              @apply="handlePresetApply"
+            />
+          </div>
+        </FilterDrawer>
 
         <!-- 导入Excel对话框 -->
         <el-dialog
@@ -662,6 +792,7 @@ import {
   Top,
   Bottom,
   MoreFilled,
+  Filter,
 } from "@element-plus/icons-vue";
 import type { FormInstance, FormRules, UploadFile } from "element-plus";
 import UniversalCard from "@/components/UniversalCard/index.vue";
@@ -672,6 +803,7 @@ import ScoringConfigPanel from "./ScoringConfigPanel.vue";
 import FilterPresetSelector from "@/components/FilterPresetSelector/index.vue";
 import QualifyRuleFilter from "@/components/QualifyRuleFilter/index.vue";
 import RangeFilterPanel from "@/components/RangeFilterPanel/index.vue";
+import FilterDrawer from "@/components/FilterDrawer/index.vue";
 import type { RangeFilterValue } from "@/components/RangeFilterPanel/index.vue";
 import type { SelectionQueryParams } from "@/components/SelectionQueryForm/types";
 import { selectionApi } from "@/api/selection";
@@ -826,22 +958,76 @@ const searchImageFile = ref(null);
 const searchImagePreview = ref("");
 const categories = ref([]);
 
-const rangeFilter = ref<RangeFilterValue>({
-  priceMin: null,
-  priceMax: null,
-  unitsMin: null,
-  unitsMax: null,
-  listingDaysMin: null,
-  listingDaysMax: null,
-  bsrMax: null,
-  weightMax: null,
-  variantCountMax: null,
-  fulfillment: [],
-  createdWeeks: [],
+// ===== 统一筛选状态：activeFilters(已生效) + draftFilters(抽屉草稿) =====
+interface FilterState {
+  country: string;
+  sellerSelect: string;
+  category: string[];
+  sortField: string;
+  sortOrder: "desc" | "asc";
+  range: RangeFilterValue;
+}
+
+function emptyRange(): RangeFilterValue {
+  return {
+    priceMin: null,
+    priceMax: null,
+    unitsMin: null,
+    unitsMax: null,
+    listingDaysMin: null,
+    listingDaysMax: null,
+    bsrMax: null,
+    weightMax: null,
+    variantCountMax: null,
+    fulfillment: [],
+    createdWeeks: [],
+    category: [],
+    grade: [],
+    listingPreset: null,
+  };
+}
+
+function cloneRange(r: RangeFilterValue): RangeFilterValue {
+  return {
+    ...r,
+    fulfillment: [...(r.fulfillment ?? [])],
+    createdWeeks: [...(r.createdWeeks ?? [])],
+    category: [...(r.category ?? [])],
+    grade: [...(r.grade ?? [])],
+  };
+}
+
+function cloneFilterState(s: FilterState): FilterState {
+  return {
+    ...s,
+    category: [...s.category],
+    range: cloneRange(s.range),
+  };
+}
+
+const activeFilters = ref<FilterState>({
+  country: "UK",
+  sellerSelect: "",
   category: [],
-  grade: [],
-  listingPreset: null,
+  sortField: "score",
+  sortOrder: "desc",
+  range: emptyRange(),
 });
+
+const draftFilters = ref<FilterState>({
+  country: "UK",
+  sellerSelect: "",
+  category: [],
+  sortField: "score",
+  sortOrder: "desc",
+  range: emptyRange(),
+});
+
+const filterDrawerVisible = ref(false);
+const drawerSellerOptions = ref<
+  { id: number; marketplace: string; sellerName: string; storeUrl: string }[]
+>([]);
+const drawerSellerLoading = ref(false);
 
 const addForm = reactive({
   asin: "",
@@ -971,7 +1157,7 @@ const loadProducts = async (params?: SelectionQueryParams) => {
         source: source || undefined,
       };
       // 面板区间直接映射为请求字段
-      const rf = rangeFilter.value;
+      const rf = activeFilters.value.range;
       if (rf) {
         if (rf.unitsMin != null) competitorParams.unitsMin = rf.unitsMin;
         if (rf.unitsMax != null) competitorParams.unitsMax = rf.unitsMax;
@@ -1067,22 +1253,21 @@ function buildApiParams(
   const params: Record<string, any> = {
     page: pagination.page,
     size: pagination.size,
-    sortOrder: queryParams?.sortOrder || "desc",
+    marketplace: activeFilters.value.country || undefined,
+    sortBy: activeFilters.value.sortField || "score",
+    sortOrder: activeFilters.value.sortOrder || "desc",
   };
-  // 自动映射所有筛选字段（空字符串跳过）
+  // 搜索字段映射
   const filterFields = [
     "asin",
     "productTitle",
     "storeName",
     "sellerSelect",
     "category",
-    "country",
-    "dataFilterMode",
     "grade",
     "weekTag",
     "listingDateStart",
     "listingDateEnd",
-    "sortField",
   ];
   for (const field of filterFields) {
     const val = queryParams?.[field as keyof SelectionQueryParams];
@@ -1091,23 +1276,11 @@ function buildApiParams(
       params[apiKey] = Array.isArray(val) ? val.join(",") : val;
     }
   }
-  // isCurrent 需要转换为整数类型
-  if (queryParams?.isCurrent !== undefined && queryParams?.isCurrent !== "") {
-    params.isCurrent = parseInt(queryParams.isCurrent as string, 10);
-  }
-  // 排序字段：前端语汇 → 后端 applySort 白名单值
-  if (params.sortBy) {
-    const SORT_VALUE_MAP: Record<string, string> = {
-      salesVolume: "units",
-      listingDate: "listingDays",
-    };
-    params.sortBy = SORT_VALUE_MAP[params.sortBy] || params.sortBy;
-  }
   return params;
 }
 
 const loadSelections = async () => {
-  const marketplace = queryFormRef.value?.getQueryParams()?.country || "UK";
+  const marketplace = activeFilters.value.country || "UK";
   mySelections.value = await fetchMySelections(marketplace);
 
   const asins = productList.value.map((p: any) => p.asin).filter(Boolean);
@@ -1126,8 +1299,8 @@ const refreshSelectionUsers = async () => {
     const userStore = useUserStore();
     const currentUserId = Number(userStore.userInfo?.id) || 1;
     const currentUserName =
-      userStore.userInfo?.username || userStore.userInfo?.realName || "我";
-    const marketplace = queryFormRef.value?.getQueryParams()?.country || "UK";
+      userStore.userInfo?.username || userStore.userInfo?.name || "我";
+    const marketplace = activeFilters.value.country || "UK";
 
     try {
       const queriedAsins = productList.value
@@ -1188,10 +1361,10 @@ const handleToggleSelect = async (asin: string, selected: boolean) => {
     const currentUser = {
       userId: Number(userStore.userInfo?.id) || 1,
       userName:
-        userStore.userInfo?.username || userStore.userInfo?.realName || "我",
+        userStore.userInfo?.username || userStore.userInfo?.name || "我",
     };
 
-    const marketplace = queryFormRef.value?.getQueryParams()?.country || "UK";
+    const marketplace = activeFilters.value.country || "UK";
     const product = productList.value.find((p: any) => p.asin === asin);
     const action = selected ? "select" : "unselect";
 
@@ -1310,46 +1483,204 @@ const handleSearch = (params: SelectionQueryParams) => {
 };
 
 const handleReset = () => {
-  rangeFilter.value = {
-    priceMin: null,
-    priceMax: null,
-    unitsMin: null,
-    unitsMax: null,
-    listingDaysMin: null,
-    listingDaysMax: null,
-    bsrMax: null,
-    weightMax: null,
-    variantCountMax: null,
-    fulfillment: [],
-    createdWeeks: [],
+  activeFilters.value.range = emptyRange();
+  pagination.page = 1;
+  loadProducts();
+};
+
+// ===== 统一筛选抽屉逻辑 =====
+const loadDrawerSellers = async (marketplace?: string) => {
+  drawerSellerLoading.value = true;
+  try {
+    const res = await competitorApi.getDengZongShopSellers(
+      marketplace ? { marketplace } : undefined,
+    );
+    drawerSellerOptions.value = res.data || [];
+  } catch {
+    drawerSellerOptions.value = [];
+  } finally {
+    drawerSellerLoading.value = false;
+  }
+};
+
+// 主栏站点切换（即时生效）：清卖家、重载卖家列表、重载大类、查询
+const onBarCountryChange = (val: string) => {
+  activeFilters.value.sellerSelect = "";
+  loadDrawerSellers(val || undefined);
+  loadCategories();
+  pagination.page = 1;
+  loadProducts();
+};
+
+// 主栏大类切换（即时生效）
+const onBarCategoryChange = () => {
+  pagination.page = 1;
+  loadProducts();
+};
+
+// 打开抽屉：activeFilters → draftFilters（草稿拷贝，未确认不影响查询）
+const openFilterDrawer = () => {
+  draftFilters.value = cloneFilterState(activeFilters.value);
+  loadDrawerSellers(activeFilters.value.country || undefined);
+  filterDrawerVisible.value = true;
+};
+
+// 确认筛选：draftFilters → activeFilters，触发查询
+const handleDrawerConfirm = () => {
+  activeFilters.value = cloneFilterState(draftFilters.value);
+  filterDrawerVisible.value = false;
+  pagination.page = 1;
+  loadProducts();
+};
+
+// 抽屉内重置：仅清空草稿，不查询（用户需再点确认）
+const handleDrawerReset = () => {
+  draftFilters.value = {
+    country: activeFilters.value.country,
+    sellerSelect: "",
+    category: [...activeFilters.value.category],
+    sortField: "score",
+    sortOrder: "desc",
+    range: emptyRange(),
+  };
+};
+
+// 已选条件标签
+interface FilterChip {
+  key: string;
+  label: string;
+}
+const COUNTRY_LABEL: Record<string, string> = {
+  US: "美国",
+  UK: "英国",
+  DE: "德国",
+};
+const activeFilterChips = computed<FilterChip[]>(() => {
+  const chips: FilterChip[] = [];
+  const af = activeFilters.value;
+  if (af.country)
+    chips.push({
+      key: "country",
+      label: `站点: ${COUNTRY_LABEL[af.country] || af.country}`,
+    });
+  if (af.sellerSelect)
+    chips.push({ key: "seller", label: `卖家: ${af.sellerSelect}` });
+  if (af.category.length)
+    chips.push({
+      key: "category",
+      label: `大类: ${af.category.length}项`,
+    });
+  const rf = af.range;
+  if (rf.priceMin != null || rf.priceMax != null)
+    chips.push({
+      key: "price",
+      label: `价格: ${rf.priceMin ?? "·"}~${rf.priceMax ?? "·"}`,
+    });
+  if (rf.unitsMin != null || rf.unitsMax != null)
+    chips.push({
+      key: "units",
+      label: `月销: ${rf.unitsMin ?? "·"}~${rf.unitsMax ?? "·"}`,
+    });
+  if (rf.listingDaysMin != null || rf.listingDaysMax != null)
+    chips.push({
+      key: "listingDays",
+      label: `上架天数: ${rf.listingDaysMin ?? "·"}~${rf.listingDaysMax ?? "·"}`,
+    });
+  if (rf.bsrMax != null)
+    chips.push({ key: "bsrMax", label: `BSR≤${rf.bsrMax}` });
+  if (rf.weightMax != null)
+    chips.push({ key: "weightMax", label: `重量≤${rf.weightMax}g` });
+  if (rf.variantCountMax != null)
+    chips.push({ key: "variantCountMax", label: `变体≤${rf.variantCountMax}` });
+  if (rf.fulfillment.length)
+    chips.push({
+      key: "fulfillment",
+      label: `配送: ${rf.fulfillment.join("/")}`,
+    });
+  if (rf.grade.length)
+    chips.push({ key: "grade", label: `评级: ${rf.grade.join("/")}` });
+  if (rf.createdWeeks.length)
+    chips.push({
+      key: "createdWeeks",
+      label: `周批次: ${rf.createdWeeks.length}项`,
+    });
+  return chips;
+});
+
+// 删除单个已选条件（即时生效）
+const removeChip = (key: string) => {
+  const af = cloneFilterState(activeFilters.value);
+  const rf = af.range;
+  switch (key) {
+    case "country":
+      af.country = "";
+      break;
+    case "seller":
+      af.sellerSelect = "";
+      break;
+    case "category":
+      af.category = [];
+      break;
+    case "price":
+      rf.priceMin = null;
+      rf.priceMax = null;
+      break;
+    case "units":
+      rf.unitsMin = null;
+      rf.unitsMax = null;
+      break;
+    case "listingDays":
+      rf.listingDaysMin = null;
+      rf.listingDaysMax = null;
+      rf.listingPreset = null;
+      break;
+    case "bsrMax":
+      rf.bsrMax = null;
+      break;
+    case "weightMax":
+      rf.weightMax = null;
+      break;
+    case "variantCountMax":
+      rf.variantCountMax = null;
+      break;
+    case "fulfillment":
+      rf.fulfillment = [];
+      break;
+    case "grade":
+      rf.grade = [];
+      break;
+    case "createdWeeks":
+      rf.createdWeeks = [];
+      break;
+  }
+  activeFilters.value = af;
+  pagination.page = 1;
+  loadProducts();
+};
+
+// 清除全部筛选（即时生效）
+const clearAllFilters = () => {
+  activeFilters.value = {
+    country: activeFilters.value.country,
+    sellerSelect: "",
     category: [],
-    grade: [],
-    listingPreset: null,
+    sortField: "score",
+    sortOrder: "desc",
+    range: emptyRange(),
   };
   pagination.page = 1;
   loadProducts();
 };
 
-const handleRangeFilterChange = () => {
-  pagination.page = 1;
-  loadProducts();
-};
-
 const getCurrentFilterConfig = (): Record<string, any> => {
-  const params = (queryFormRef.value?.getQueryParams() || {}) as Record<
-    string,
-    any
-  >;
+  const af = activeFilters.value;
   return {
-    ...rangeFilter.value,
-    // 筛选条件（与筛选弹窗字段一一对应）
-    country: params.country || "",
-    listingDateStart: params.listingDateStart || "",
-    listingDateEnd: params.listingDateEnd || "",
-    dataFilterMode: params.dataFilterMode || "",
-    isCurrent: params.isCurrent || "",
-    sortField: params.sortField || "score",
-    sortOrder: params.sortOrder || "desc",
+    ...af.range,
+    // 筛选条件（统一抽屉字段）
+    country: af.country || "",
+    sellerSelect: af.sellerSelect || "",
+    sortField: af.sortField || "score",
+    sortOrder: af.sortOrder || "desc",
     // 合格规则（新品榜）一并纳入预设
     qualifyRules: newQualifyRules.value,
   };
@@ -1360,23 +1691,34 @@ const handlePresetApply = (config: Record<string, any>) => {
   if (Array.isArray(config?.qualifyRules)) {
     newQualifyRules.value = config.qualifyRules;
   }
-  // 无条件回填面板全字段（存取对称：仅设了 grade/周/上架预设的预设也能恢复）
-  rangeFilter.value = {
-    priceMin: config.priceMin ?? null,
-    priceMax: config.priceMax ?? null,
-    unitsMin: config.unitsMin ?? null,
-    unitsMax: config.unitsMax ?? null,
-    listingDaysMin: config.listingDaysMin ?? null,
-    listingDaysMax: config.listingDaysMax ?? null,
-    bsrMax: config.bsrMax ?? null,
-    weightMax: config.weightMax ?? null,
-    variantCountMax: config.variantCountMax ?? null,
-    fulfillment: config.fulfillment ?? [],
-    createdWeeks: config.createdWeeks ?? [],
-    category: config.category ?? [],
-    grade: config.grade ?? [],
-    listingPreset: config.listingPreset ?? null,
+  // 回填 activeFilters
+  activeFilters.value = {
+    country: config.country ?? "",
+    sellerSelect: config.sellerSelect ?? "",
+    category: Array.isArray(config.category) ? [...config.category] : [],
+    sortField: config.sortField ?? "score",
+    sortOrder: config.sortOrder ?? "desc",
+    range: {
+      priceMin: config.priceMin ?? null,
+      priceMax: config.priceMax ?? null,
+      unitsMin: config.unitsMin ?? null,
+      unitsMax: config.unitsMax ?? null,
+      listingDaysMin: config.listingDaysMin ?? null,
+      listingDaysMax: config.listingDaysMax ?? null,
+      bsrMax: config.bsrMax ?? null,
+      weightMax: config.weightMax ?? null,
+      variantCountMax: config.variantCountMax ?? null,
+      fulfillment: config.fulfillment ?? [],
+      createdWeeks: config.createdWeeks ?? [],
+      category: config.category ?? [],
+      grade: config.grade ?? [],
+      listingPreset: config.listingPreset ?? null,
+    },
   };
+  // 若抽屉开着，同步草稿
+  if (filterDrawerVisible.value) {
+    draftFilters.value = cloneFilterState(activeFilters.value);
+  }
   pagination.page = 1;
   loadProducts();
 };
@@ -1974,6 +2316,9 @@ onMounted(() => {
   if (route.query.marketplace) {
     initParams.country = route.query.marketplace as string;
   }
+  // 同步主栏常驻站点（默认 UK，与新品榜数据口径一致）
+  activeFilters.value.country = initParams.country || "UK";
+  initParams.country = activeFilters.value.country;
   queryFormRef.value?.setQueryParams(initParams);
   // 加载大类榜单列表
   loadCategories();
@@ -2001,10 +2346,70 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
+// 抽屉内分区（drawer append-to-body，需顶层选择器匹配 slotted 元素）
+.fd-section {
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid #f0f2f5;
+
+  &:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+  }
+
+  .fd-label {
+    font-weight: 600;
+    font-size: 14px;
+    color: #303133;
+    margin-bottom: 10px;
+  }
+
+  .fd-sort-row {
+    display: flex;
+    align-items: center;
+  }
+}
+
 .all-selection {
   padding: 20px;
   height: 100%;
   box-sizing: border-box;
+
+  // 统一筛选入口栏
+  .unified-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    background: #fff;
+    border: 1px solid #ebeef5;
+    border-radius: 8px;
+
+    .ufb-field {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #606266;
+
+      .ufb-field-label {
+        white-space: nowrap;
+      }
+    }
+
+    .filter-count-badge {
+      margin-left: 2px;
+    }
+
+    .filter-chips {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+  }
 
   .selection-layout {
     height: 100%;

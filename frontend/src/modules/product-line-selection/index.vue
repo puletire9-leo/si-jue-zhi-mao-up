@@ -53,56 +53,81 @@
       </button>
     </div>
 
-    <!-- 全局筛选栏（卖家/品牌，区间筛选移至下方面板） -->
-    <div class="global-filterbar">
-      <el-input
-        v-model="store.searchSellerName"
-        placeholder="卖家名"
-        clearable
-        size="small"
-        style="width: 140px"
-        @keyup.enter="store.applyBasicFilters()"
-        @clear="store.applyBasicFilters()"
-      />
-      <el-input
-        v-model="store.searchBrand"
-        placeholder="品牌"
-        clearable
-        size="small"
-        style="width: 120px"
-        @keyup.enter="store.applyBasicFilters()"
-        @clear="store.applyBasicFilters()"
-      />
+    <!-- 统一筛选入口：筛选按钮 + 已选条件标签 -->
+    <div class="unified-filter-bar">
       <el-button
+        :icon="Filter"
+        type="primary"
+        plain
         size="small"
-        @click="
-          store.clearBasicFilters();
-          store.applyBasicFilters();
-        "
-        >清除</el-button
+        @click="openFilterDrawer"
       >
+        更多筛选
+        <el-badge
+          v-if="filterChips.length"
+          :value="filterChips.length"
+          class="filter-count-badge"
+        />
+      </el-button>
+      <div class="filter-chips">
+        <el-tag
+          v-for="chip in filterChips"
+          :key="chip.key"
+          closable
+          size="small"
+          type="info"
+          @close="removeChip(chip.key)"
+        >
+          {{ chip.label }}
+        </el-tag>
+        <el-button
+          v-if="filterChips.length"
+          link
+          size="small"
+          @click="clearAllFilters"
+        >
+          清除全部
+        </el-button>
+      </div>
     </div>
 
-    <!-- 统一区间筛选面板（与新品榜一致） -->
-    <RangeFilterPanel
-      :key="store.marketplace"
-      :model-value="store.rangeFilter"
-      :country="store.marketplace"
-      @update:model-value="store.applyRangeFilter"
-    />
-
-    <!-- 预设栏（合格规则编辑器按筛选重构计划隐藏，筛选统一走面板 AND） -->
-    <div class="rule-filterbar">
-      <FilterPresetSelector
-        :current-config="presetConfig"
-        @apply="onPresetApply"
-      />
-      <QualifyRuleFilter
-        v-if="false"
-        :model-value="store.qualifyRules"
-        @apply="store.applyQualifyRules"
-      />
-    </div>
+    <!-- 统一筛选抽屉 -->
+    <FilterDrawer
+      v-model:visible="filterDrawerVisible"
+      title="筛选条件"
+      :size="520"
+      @reset="handleDrawerReset"
+      @confirm="handleDrawerConfirm"
+    >
+      <div class="fd-section">
+        <div class="fd-label">卖家名</div>
+        <el-input v-model="draftSeller" placeholder="卖家名" clearable />
+      </div>
+      <div class="fd-section">
+        <div class="fd-label">品牌</div>
+        <el-input v-model="draftBrand" placeholder="品牌" clearable />
+      </div>
+      <div class="fd-section">
+        <div class="fd-label">区间与维度</div>
+        <RangeFilterPanel
+          :key="store.marketplace"
+          v-model="draftRange"
+          :country="store.marketplace"
+          embedded
+        />
+      </div>
+      <div class="fd-section">
+        <FilterPresetSelector
+          :current-config="presetConfig"
+          @apply="onPresetApply"
+        />
+        <QualifyRuleFilter
+          v-if="false"
+          :model-value="store.qualifyRules"
+          @apply="store.applyQualifyRules"
+        />
+      </div>
+    </FilterDrawer>
 
     <!-- 郑总店铺数据完整性确认 -->
     <div
@@ -354,6 +379,7 @@ import {
   CaretTop,
   CaretBottom,
   WarningFilled,
+  Filter,
 } from "@element-plus/icons-vue";
 import { useProductLineSelectionStore } from "./store";
 import ProductLineTree from "./components/ProductLineTree.vue";
@@ -363,6 +389,8 @@ import MobileActionSheet from "@/components/MobileActionSheet/index.vue";
 import QualifyRuleFilter from "@/components/QualifyRuleFilter/index.vue";
 import FilterPresetSelector from "@/components/FilterPresetSelector/index.vue";
 import RangeFilterPanel from "@/components/RangeFilterPanel/index.vue";
+import FilterDrawer from "@/components/FilterDrawer/index.vue";
+import type { RangeFilterValue } from "@/components/RangeFilterPanel/index.vue";
 import { useSelectionAgentStore } from "@/stores/selectionAgent";
 
 const store = useProductLineSelectionStore();
@@ -402,6 +430,163 @@ function onPresetApply(cfg: Record<string, any>) {
     grade: cfg.grade ?? [],
     listingPreset: cfg.listingPreset ?? null,
   });
+}
+
+// ===== 统一筛选抽屉：draft(草稿) + 已提交(store) 双状态 =====
+function emptyRange(): RangeFilterValue {
+  return {
+    priceMin: null,
+    priceMax: null,
+    unitsMin: null,
+    unitsMax: null,
+    listingDaysMin: null,
+    listingDaysMax: null,
+    bsrMax: null,
+    weightMax: null,
+    variantCountMax: null,
+    fulfillment: [],
+    createdWeeks: [],
+    category: [],
+    grade: [],
+    listingPreset: null,
+  };
+}
+function cloneRange(r: RangeFilterValue): RangeFilterValue {
+  return {
+    ...r,
+    fulfillment: [...(r.fulfillment ?? [])],
+    createdWeeks: [...(r.createdWeeks ?? [])],
+    category: [...(r.category ?? [])],
+    grade: [...(r.grade ?? [])],
+  };
+}
+
+const filterDrawerVisible = ref(false);
+const draftSeller = ref("");
+const draftBrand = ref("");
+const draftRange = ref<RangeFilterValue>(emptyRange());
+
+function openFilterDrawer() {
+  draftSeller.value = store.searchSellerName;
+  draftBrand.value = store.searchBrand;
+  draftRange.value = cloneRange(store.rangeFilter);
+  filterDrawerVisible.value = true;
+}
+
+function handleDrawerConfirm() {
+  store.searchSellerName = draftSeller.value;
+  store.searchBrand = draftBrand.value;
+  // applyRangeFilter 会回填区间并触发一次查询（卖家/品牌已写入 store，随查询带上）
+  store.applyRangeFilter(cloneRange(draftRange.value));
+  filterDrawerVisible.value = false;
+}
+
+function handleDrawerReset() {
+  draftSeller.value = "";
+  draftBrand.value = "";
+  draftRange.value = emptyRange();
+}
+
+// 已选条件标签
+interface FilterChip {
+  key: string;
+  label: string;
+}
+const filterChips = computed<FilterChip[]>(() => {
+  const chips: FilterChip[] = [];
+  const rf = store.rangeFilter;
+  if (store.searchSellerName)
+    chips.push({ key: "seller", label: `卖家: ${store.searchSellerName}` });
+  if (store.searchBrand)
+    chips.push({ key: "brand", label: `品牌: ${store.searchBrand}` });
+  if (rf.priceMin != null || rf.priceMax != null)
+    chips.push({
+      key: "price",
+      label: `价格: ${rf.priceMin ?? "·"}~${rf.priceMax ?? "·"}`,
+    });
+  if (rf.unitsMin != null || rf.unitsMax != null)
+    chips.push({
+      key: "units",
+      label: `月销: ${rf.unitsMin ?? "·"}~${rf.unitsMax ?? "·"}`,
+    });
+  if (rf.listingDaysMin != null || rf.listingDaysMax != null)
+    chips.push({
+      key: "listingDays",
+      label: `上架天数: ${rf.listingDaysMin ?? "·"}~${rf.listingDaysMax ?? "·"}`,
+    });
+  if (rf.bsrMax != null)
+    chips.push({ key: "bsrMax", label: `BSR≤${rf.bsrMax}` });
+  if (rf.weightMax != null)
+    chips.push({ key: "weightMax", label: `重量≤${rf.weightMax}g` });
+  if (rf.variantCountMax != null)
+    chips.push({ key: "variantCountMax", label: `变体≤${rf.variantCountMax}` });
+  if (rf.fulfillment.length)
+    chips.push({
+      key: "fulfillment",
+      label: `配送: ${rf.fulfillment.join("/")}`,
+    });
+  if (rf.grade.length)
+    chips.push({ key: "grade", label: `评级: ${rf.grade.join("/")}` });
+  if (rf.createdWeeks.length)
+    chips.push({
+      key: "createdWeeks",
+      label: `周批次: ${rf.createdWeeks.length}项`,
+    });
+  return chips;
+});
+
+function removeChip(key: string) {
+  if (key === "seller") {
+    store.searchSellerName = "";
+    store.applyBasicFilters();
+    return;
+  }
+  if (key === "brand") {
+    store.searchBrand = "";
+    store.applyBasicFilters();
+    return;
+  }
+  const rf = cloneRange(store.rangeFilter);
+  switch (key) {
+    case "price":
+      rf.priceMin = null;
+      rf.priceMax = null;
+      break;
+    case "units":
+      rf.unitsMin = null;
+      rf.unitsMax = null;
+      break;
+    case "listingDays":
+      rf.listingDaysMin = null;
+      rf.listingDaysMax = null;
+      rf.listingPreset = null;
+      break;
+    case "bsrMax":
+      rf.bsrMax = null;
+      break;
+    case "weightMax":
+      rf.weightMax = null;
+      break;
+    case "variantCountMax":
+      rf.variantCountMax = null;
+      break;
+    case "fulfillment":
+      rf.fulfillment = [];
+      break;
+    case "grade":
+      rf.grade = [];
+      break;
+    case "createdWeeks":
+      rf.createdWeeks = [];
+      break;
+  }
+  store.applyRangeFilter(rf);
+}
+
+function clearAllFilters() {
+  store.searchSellerName = "";
+  store.searchBrand = "";
+  store.applyRangeFilter(emptyRange());
 }
 
 // 补全缺失店铺 → 跳转到店铺总览页自动勾选
@@ -574,6 +759,25 @@ export default { name: "ProductLineSelection" };
 <style lang="scss" scoped>
 @use "@/styles/variables.scss" as *;
 
+// 抽屉内分区（drawer append-to-body，顶层选择器匹配 slotted 元素）
+.fd-section {
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid #f0f2f5;
+
+  &:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+  }
+
+  .fd-label {
+    font-weight: 600;
+    font-size: 14px;
+    color: $text-primary;
+    margin-bottom: 10px;
+  }
+}
+
 .selection-page {
   display: flex;
   flex-direction: column;
@@ -739,6 +943,31 @@ export default { name: "ProductLineSelection" };
   flex-wrap: wrap;
   flex-shrink: 0;
 }
+
+// ---- 统一筛选入口栏 ----
+.unified-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+  background: $bg-color;
+  border-bottom: 1px solid $border-color;
+  flex-shrink: 0;
+
+  .filter-count-badge {
+    margin-left: 2px;
+  }
+
+  .filter-chips {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+}
+
+// ---- 抽屉内分区（drawer append-to-body，需顶层匹配 slotted 元素，见 :global 段）----
 
 // ---- 合格规则 + 预设栏 ----
 .rule-filterbar {

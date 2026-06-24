@@ -680,12 +680,7 @@ export const useProductLineSelectionStore = defineStore(
       zhengBatchDate,
       completeness,
       fetchCompleteness,
-      // AI 选品助手
-      agentDrawerVisible,
-      agentNodeId,
-      agentNodeName,
-      openAgentDrawer,
-      closeAgentDrawer,
+      // AI 选品助手：套用筛选
       applyAiFilterRules,
     };
   },

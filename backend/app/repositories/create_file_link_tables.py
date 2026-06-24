@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 CREATE_FILE_LINKS_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS file_links (
     id INT AUTO_INCREMENT PRIMARY KEY COMMENT '文件链接ID',
-    title VARCHAR(500) NOT NULL COMMENT '链接标题',
+    title VARCHAR(1000) NOT NULL COMMENT '链接标题',
     url TEXT NOT NULL COMMENT '链接地址',
     link_type ENUM('feishu_xlsx', 'standard_url') NOT NULL COMMENT '链接类型：feishu_xlsx(飞书xlsx)/standard_url(标准链接)',
     description TEXT DEFAULT NULL COMMENT '链接描述',

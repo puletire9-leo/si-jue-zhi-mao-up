@@ -3,6 +3,7 @@
  * fire-and-forget: 不 await，静默失败，不阻塞 UI
  */
 import { useUserStore } from '@/stores/user'
+import type { ApiResponse } from '@/types/api'
 import request from '@/utils/request'
 
 export interface ClickLogParams {
@@ -15,7 +16,7 @@ export interface ClickLogParams {
 
 function getUserName(): string {
   const userStore = useUserStore()
-  return userStore.userInfo?.username || userStore.userInfo?.realName || ''
+  return userStore.userInfo?.username || userStore.userInfo?.name || userStore.userInfo?.nickname || ''
 }
 
 export function trackClick(params: ClickLogParams) {
@@ -34,7 +35,7 @@ export async function fetchMySelections(marketplace: string): Promise<Set<string
   try {
     const userStore = useUserStore()
     const userId = Number(userStore.userInfo?.id) || 1
-    const res = await request({
+    const res = await request<ApiResponse<string[]>, ApiResponse<string[]>>({
       url: `/api/v1/click-logs/my-selections`,
       method: 'get',
       params: { marketplace, userId },
@@ -50,7 +51,10 @@ export async function fetchMySelections(marketplace: string): Promise<Set<string
 export async function fetchSelectionUsers(asins: string[], marketplace: string): Promise<Record<string, { userId: number; userName: string }[]>> {
   if (asins.length === 0) return {}
   try {
-    const res = await request({
+    const res = await request<
+      ApiResponse<Record<string, { userId: number; userName: string }[]>>,
+      ApiResponse<Record<string, { userId: number; userName: string }[]>>
+    >({
       url: '/api/v1/click-logs/selection-users',
       method: 'get',
       params: { asins, marketplace },

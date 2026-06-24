@@ -543,6 +543,18 @@ TOOLSETS = {
         "includes": []
     },
 
+    "selection": {
+        "description": "品线选品分析 — 从郑总已验证商品中提取选品模型，生成 qualityBenchmark/provenElements/载体画像/价格空白/推荐组合/自动筛选规则",
+        "tools": [
+            "sel_fetch_product_line",
+            "sel_preprocess",
+            "sel_analyze",
+            "sel_load_model",
+            "sel_save_model",
+        ],
+        "includes": []
+    },
+
     "hermes-gateway": {
         "description": "Gateway toolset - union of all messaging platform tools",
         "tools": [],

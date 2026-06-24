@@ -2,6 +2,7 @@ package com.sjzm.product.controller;
 
 import com.sjzm.common.Result;
 import com.sjzm.product.service.CategoryBaselineService;
+import com.sjzm.product.service.SalesBaselineService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ import java.util.Map;
 public class CategoryBaselineController {
 
     private final CategoryBaselineService baselineService;
+    private final SalesBaselineService salesBaselineService;
 
     /**
      * 查询品类基线百分位数据。
@@ -54,5 +56,61 @@ public class CategoryBaselineController {
             @RequestParam String month) {
         Map<String, Object> result = baselineService.computeBaseline(marketplace, month);
         return Result.success(result);
+    }
+
+    @PostMapping("/compute-bsr")
+    @Operation(summary = "计算 ①线大类 BSR 基线", description = "按 marketplace × bsr_id × bsr_bucket 计算销量基线")
+    public Result<Map<String, Object>> computeBsr(
+            @RequestParam(required = false) String marketplace,
+            @RequestParam(required = false) String month) {
+        return Result.success(salesBaselineService.computeBsrBaseline(month, marketplace));
+    }
+
+    @GetMapping("/bsr-health")
+    @Operation(summary = "查询 ①线大类 BSR 基线", description = "传入 marketplace + bsrId + bsr，自动命中对应 BSR 分桶")
+    public Result<Map<String, Object>> getBsrHealth(
+            @RequestParam String marketplace,
+            @RequestParam(required = false, name = "bsrId") String bsrId,
+            @RequestParam(required = false, name = "bsr_id") String bsrIdSnake,
+            @RequestParam Integer bsr,
+            @RequestParam(required = false) String month) {
+        return Result.success(salesBaselineService.getBsrHealth(
+                marketplace,
+                firstNonBlank(bsrId, bsrIdSnake),
+                bsr,
+                month
+        ));
+    }
+
+    @PostMapping("/compute-subcategory")
+    @Operation(summary = "计算 ①线赢家小类基线", description = "只对 ③线赢家覆盖的小类生成销量基线")
+    public Result<Map<String, Object>> computeSubcategory(
+            @RequestParam(required = false) String marketplace,
+            @RequestParam(required = false) String month) {
+        return Result.success(salesBaselineService.computeSubcategoryBaseline(month, marketplace));
+    }
+
+    @GetMapping("/subcategory-health")
+    @Operation(summary = "查询 ①线赢家小类基线", description = "按 marketplace + subCategory 查询小类销量基线")
+    public Result<Map<String, Object>> getSubcategoryHealth(
+            @RequestParam String marketplace,
+            @RequestParam(required = false, name = "subCategory") String subCategory,
+            @RequestParam(required = false, name = "sub_category") String subCategorySnake,
+            @RequestParam(required = false) String month) {
+        return Result.success(salesBaselineService.getSubcategoryHealth(
+                marketplace,
+                firstNonBlank(subCategory, subCategorySnake),
+                month
+        ));
+    }
+
+    private static String firstNonBlank(String primary, String secondary) {
+        if (primary != null && !primary.isBlank()) {
+            return primary;
+        }
+        if (secondary != null && !secondary.isBlank()) {
+            return secondary;
+        }
+        return null;
     }
 }

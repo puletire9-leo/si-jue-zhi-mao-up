@@ -13,11 +13,15 @@
   uvicorn api_server:app --host 0.0.0.0 --port 8011
 """
 
+import asyncio
 import json
 import logging
 import os
 import re
+from collections.abc import AsyncGenerator
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from queue import Queue
 
 import pymysql
 try:  # FIXED: CRIT-4 pooled connection
@@ -25,8 +29,9 @@ try:  # FIXED: CRIT-4 pooled connection
     _HAS_POOL = True
 except ImportError:
     _HAS_POOL = False
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Body, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 logger = logging.getLogger("api_server")
 
@@ -76,7 +81,7 @@ origins = os.environ.get("CORS_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -429,6 +434,275 @@ async def get_product_line_elements(
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+# ══════════════════════════════════════════════════════════════════
+# Phase 3 — 选品 Agent 对话端点（流式 SSE）
+# ══════════════════════════════════════════════════════════════════
+
+_SELECTION_SYSTEM_PROMPT = """你是一个专业的亚马逊选品分析助手（品线选品 Agent）。
+你的任务是对指定小类执行标准选品分析流程，并向用户展示结果。
+
+## 标准流程
+1. **获取品线数据** — 调用 `sel_fetch_product_line` 了解品线结构
+2. **预处理目标小类** — 调用 `sel_preprocess` 进行去重/取样/打标
+3. **深度分析+保存** — 调用 `sel_analyze` 并传入 batch_id 参数，自动分析并保存结果到数据库
+4. **展示报告** — 向用户展示分析摘要：健康度、质量基准、已验证元素、载体画像、推荐组合、价格空白等
+
+## 重要约束
+- 始终使用 `sel_` 开头的工具执行分析，不要臆测数据
+- 分析完成后用清晰易懂的格式向用户展示结果
+- 如果模型已缓存，告知用户这是缓存结果
+- 用户可以追问细节（如「为什么这个品线机会分高」「再深入看价格带」）
+"""
+
+_AGENT_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="selection-agent")
+_BATCH_SEQ: int = 0
+
+
+def _format_cached_summary(data: dict) -> str:
+    """Format cached model JSON into a readable summary for SSE streaming."""
+    lines: list[str] = []
+    node_name = data.get("nodeName", "未知")
+    health = data.get("overallHealth", "unknown")
+    reason = data.get("healthReason", "")
+
+    lines.append(f"## 📊 {node_name} — 模型分析报告（缓存）\n")
+    lines.append(f"**品类健康度**: {health}")
+    if reason:
+        lines.append(f"> {reason}")
+    lines.append("")
+
+    qb = data.get("qualityBenchmark", {})
+    if qb:
+        lines.append("### 质量基准")
+        lines.append(f"- BSR 中位数: {qb.get('bsr_p50', '?')} | P90: {qb.get('bsr_p90', '?')}")
+        lines.append(f"- 重量中位数: {qb.get('weight_g_median', '?')}g | FBA 中位数: £{qb.get('fba_median', '?')}")
+        lines.append(f"- 上架天数中位数: {qb.get('listing_days_median', '?')}天")
+        lines.append("")
+
+    pb = data.get("priceBand", {})
+    if pb:
+        lines.append("### 价格带")
+        lines.append(f"- 范围: £{pb.get('min', '?')} - £{pb.get('max', '?')} | 均价: £{pb.get('avg', '?')}")
+        lines.append(f"- 甜点区: £{pb.get('sweet_spot_min', '?')} - £{pb.get('sweet_spot_max', '?')}")
+        lines.append("")
+
+    proven = data.get("provenElements", [])
+    if proven:
+        lines.append(f"### 已验证元素 ({len(proven)})")
+        for pe in proven[:8]:
+            lines.append(f"- **{pe.get('name', '')}** (×{pe.get('frequency', 0)}) — {pe.get('insight', '')}")
+        lines.append("")
+
+    combos = data.get("recommendedCombos", [])
+    if combos:
+        lines.append(f"### 推荐组合 ({len(combos)})")
+        for rc in combos[:5]:
+            elements = " + ".join(rc.get("elements", []))
+            carriers = " + ".join(rc.get("carriers", []))
+            lines.append(f"- [{rc.get('heat', '')}] {elements} × {carriers}")
+            lines.append(f"  > {rc.get('reason', '')}")
+        if len(combos) > 5:
+            lines.append(f"  …还有 {len(combos) - 5} 个推荐组合")
+        lines.append("")
+
+    price_gaps = data.get("priceGaps", [])
+    if price_gaps:
+        lines.append("### 价格空白")
+        for pg in price_gaps:
+            lines.append(f"- **{pg.get('range', '')}**: {pg.get('opportunity', '')}")
+        lines.append("")
+
+    filter_rules = data.get("filterRules", [])
+    if filter_rules:
+        lines.append("### 自动筛选规则")
+        for i, rule in enumerate(filter_rules, 1):
+            conds = rule.get("conditions", [])
+            cond_strs = [f"{c['field']} {c['op']} {c['value']}" for c in conds]
+            lines.append(f"- 规则 {i}: {' 且 '.join(cond_strs)}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def _verify_jwt(authorization: str | None) -> dict:
+    """Verify JWT Bearer token. Returns decoded payload or raises 401."""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="缺少 Authorization 头")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(status_code=401, detail="Authorization 格式错误，需 Bearer <token>")
+    try:
+        import jwt
+        secret = os.environ.get("JWT_SECRET", "sjzm-dev-jwt-secret-change-in-production")
+        return jwt.decode(token, secret, algorithms=["HS256"])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token 已过期")
+    except Exception as e:
+        logger.warning(f"JWT 验证失败: {e}")
+        raise HTTPException(status_code=401, detail="Token 无效")
+
+
+async def _selection_chat_stream(
+    node_id: int,
+    marketplace: str,
+    messages: list[dict],
+) -> AsyncGenerator[str, None]:
+    """SSE event generator for selection agent chat.
+
+    Yields ``data: {...}\\n\\n`` SSE frames.
+    """
+    # 1. Cache: 仅在首次请求（messages <= 1）时命中
+    #    追问场景（messages > 1）跳过缓存走 AIAgent
+    is_follow_up = len(messages) > 1
+    model_path = _find_model_file(marketplace, node_id) if not is_follow_up else None
+    if model_path:
+        try:
+            data = json.loads(model_path.read_text(encoding="utf-8"))
+            summary = _format_cached_summary(data)
+            yield f"data: {json.dumps({'type': 'delta', 'content': summary})}\n\n"
+            yield f"data: {json.dumps({'type': 'result', 'model': data, 'filter_rules': data.get('filterRules', [])})}\n\n"
+            return
+        except Exception as e:
+            logger.warning(f"Cache read failed, falling back to agent: {e}")
+
+    # 2. Cache miss or error — run AIAgent
+    _import_selection_agent()
+    from run_agent import AIAgent
+
+    delta_queue: Queue = Queue()
+    _SENTINEL = object()
+
+    def _on_delta(text: str) -> None:
+        delta_queue.put(text)
+
+    def _run_agent() -> str:
+        global _BATCH_SEQ
+        _BATCH_SEQ += 1
+        from datetime import datetime
+        batch_id = f"{marketplace}_chat_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{_BATCH_SEQ}"
+
+        agent = AIAgent(
+            model=os.environ.get("HERMES_MODEL", "deepseek-v4-flash"),
+            provider=os.environ.get("HERMES_PROVIDER", "deepseek"),
+            api_key=os.environ.get("DEEPSEEK_API_KEY", ""),
+            base_url="https://api.deepseek.com",
+            enabled_toolsets=["selection"],
+            ephemeral_system_prompt=_SELECTION_SYSTEM_PROMPT,
+            quiet_mode=True,
+            skip_memory=True,
+            max_iterations=30,
+        )
+        # Inject batch_id + node context into user message so the agent
+        # can pass batch_id to sel_analyze for automatic DB save
+        month_hint = datetime.now().strftime("%Y%m")
+        context_inject = (
+            f"\n\n[上下文] node_id={node_id}, marketplace={marketplace}, "
+            f"month={month_hint}, batch_id={batch_id}"
+        )
+        last_msg = (messages[-1]["content"] if messages else "") + context_inject
+        try:
+            return agent.chat(last_msg, stream_callback=_on_delta)
+        finally:
+            # 哨兵：无论成功/异常都标记 agent 结束，确保消费循环能退出
+            delta_queue.put(_SENTINEL)
+
+    loop = asyncio.get_running_loop()
+    future = loop.run_in_executor(_AGENT_EXECUTOR, _run_agent)
+
+    # 消费循环：把阻塞 get 丢进默认线程池，不堵事件循环；
+    # 见到哨兵即停（哨兵由 _run_agent 的 finally 保证一定入队）
+    while True:
+        delta = await loop.run_in_executor(None, delta_queue.get)
+        if delta is _SENTINEL:
+            break
+        yield f"data: {json.dumps({'type': 'delta', 'content': delta})}\n\n"
+
+    # Agent 已结束（哨兵到达）。取结果 / 捕获异常
+    try:
+        final_response = await future
+    except Exception as exc:
+        logger.error(f"Agent execution failed: {exc}")
+        err_msg = f"\n\n❌ Agent 执行出错: {exc}"
+        yield f"data: {json.dumps({'type': 'delta', 'content': err_msg})}\n\n"
+        yield f"data: {json.dumps({'type': 'result', 'model': None, 'filter_rules': []})}\n\n"
+        return
+
+    # Try to extract filter_rules from model on disk after agent saves
+    filter_rules: list = []
+    model_json: dict | None = None
+    saved_path = _find_model_file(marketplace, node_id)
+    if saved_path:
+        try:
+            model_json = json.loads(saved_path.read_text(encoding="utf-8"))
+            filter_rules = model_json.get("filterRules", [])
+        except Exception:
+            pass
+
+    yield f"data: {json.dumps({'type': 'result', 'model': model_json, 'filter_rules': filter_rules})}\n\n"
+
+
+_agent_imported: bool = False
+
+
+def _import_selection_agent() -> None:
+    """Lazy-import heavy agent dependencies, once."""
+    global _agent_imported
+    if _agent_imported:
+        return
+    try:
+        import model_tools  # noqa: F401 — triggers tool discovery
+        _agent_imported = True
+    except Exception as e:
+        logger.warning(f"model_tools import failed: {e}")
+
+
+@app.post("/api/v1/product-line/agent-chat")
+async def product_line_agent_chat(
+    body: dict = Body(...),
+    authorization: str | None = Header(None),
+):
+    """
+    品线选品 Agent 对话端点（流式 SSE）.
+
+    请求体:
+    ```json
+    {
+      "nodeId": 12345,
+      "marketplace": "UK",
+      "messages": [{"role": "user", "content": "分析这个品线"}]
+    }
+    ```
+
+    响应: ``text/event-stream``，每个 ``data:`` 帧为 JSON。
+    - ``{"type": "delta", "content": "..."}`` — 流式文本增量
+    - ``{"type": "result", "model": {...}, "filter_rules": [...]}`` — 最终结果
+
+    缓存: 首次分析时（messages=1）如果该 node_id 已有模型，直接回放摘要（不调 LLM）。
+    追问: 第二条消息起跳过缓存，走 AIAgent 执行 DeepSeek 推理。
+    鉴权: 依赖网关 JWT（生产经网关转发）或前端直传 Bearer token。
+    """
+    _verify_jwt(authorization)
+
+    node_id = body.get("nodeId")
+    marketplace = body.get("marketplace", "UK")
+    messages = body.get("messages", [])
+
+    if not node_id:
+        raise HTTPException(status_code=400, detail="nodeId 必填")
+    if not isinstance(messages, list):
+        raise HTTPException(status_code=400, detail="messages 必须为数组")
+
+    return StreamingResponse(
+        _selection_chat_stream(node_id, marketplace, messages),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ── 启动 ──────────────────────────────────────────────────────────

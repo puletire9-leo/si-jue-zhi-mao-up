@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Workflow",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '' && echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━' && echo '⚠️  Workflow 已在后台启动' && echo '📢  不要打开 /workflows 对话框！！' && echo '   打开对话框会吞掉任务完成通知。' && echo '   等通知自动弹出来即可。' && echo '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━' && echo ''"
+          }
+        ]
+      }
+    ]
+  }
+}
