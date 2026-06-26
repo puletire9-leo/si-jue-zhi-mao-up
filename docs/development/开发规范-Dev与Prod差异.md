@@ -53,16 +53,18 @@ Vite 开发服务器内置代理，路由逻辑在 `vite.config.js`：
 
 ### 生产模式
 
-Vite 只做构建，运行时由 Nginx (`nginx.prod.conf`) 接管所有路由：
+Vite 只做构建，运行时由 Nginx (`frontend/nginx.conf`) 接管所有路由：
 
 ```
-/api/v1/(auth|users|scoring|competitor|asin-import|deng-zong-shop|...) → prod-gateway:9000
-/api/v1/selection/*                                                     → prod-backend:7090 (Python)
-/api/v1/final-drafts/*                                                  → prod-backend:7090 (Python)
-/api/*                                                                  → prod-backend:7090 (Python 兜底)
+/api/v1/(auth|users)/                 → gateway:9000 → java-user:8001
+/api/v1/(competitor|product-performance|category-baseline|category-dislocation|element-discovery|seller|filter-config|asin-import|scoring|filter-presets|sellersprite-config|click-logs|deng-zong-shop|blue-ocean|clean-layer|subcategory-alias|modules)/
+                                        → gateway:9000 → java-product:8002
+/api/v1/product-line/(aggregated-data|analysis-results|guidance|tree)
+                                        → gateway:9000 → java-product:8002
+/api/*                                  → backend:8090 (Python 兜底)
 ```
 
-**关键规则：新增 Java API 路径必须同步更新两处——Gateway `application.yml` 的路由 + Nginx `nginx.prod.conf` 的 Java 正则。**
+**关键规则：新增 Java API 路径必须同步更新两处——Gateway `application.yml` 的路由 + Nginx `frontend/nginx.conf` 的 Java 正则。**
 
 ---
 
@@ -186,7 +188,7 @@ Vite 只做构建，运行时由 Nginx (`nginx.prod.conf`) 接管所有路由：
 新增一个后端接口时，按以下列表逐项确认：
 
 - [ ] **Java 侧**：`application.yml` Gateway routes 中注册了路径
-- [ ] **Nginx**：如果走 Java → `nginx.prod.conf` 正则中添加路径前缀
+- [ ] **Nginx**：如果走 Java → `frontend/nginx.conf` 正则中添加路径前缀
 - [ ] **Nginx**：如果走 Python → 确认路径不在 Java 正则中（否则会被误路由到 Gateway）
 - [ ] **Dev 测试**：默认先验证 `localhost:8179` 直连链路；涉及 Gateway / 生产链路时，再用 `VITE_USE_GATEWAY=true` 验证
 - [ ] **前端**：API 路径不硬编码 Base URL，使用相对路径 `/api/v1/...`
@@ -198,7 +200,7 @@ Vite 只做构建，运行时由 Nginx (`nginx.prod.conf`) 接管所有路由：
 ## 十一、常见坑
 
 1. **Dev 能跑、Prod 报 401** → 忘记在 Gateway 白名单加公开路径，或前端没带 Token
-2. **Dev 能跑、Prod 报 404** → `nginx.prod.conf` 没添加新路径前缀，请求被路由到错误的后端
+2. **Dev 能跑、Prod 报 404** → `frontend/nginx.conf` 没添加新路径前缀，请求被路由到错误的后端
 3. **修改 Python 依赖后 Dev 不生效** → 忘记重建 `sjzm-python-base` 基础镜像
 4. **Java 接口直连能通、走 Gateway 不通** → Gateway routes 没配或 `NACOS_ENABLED=true` 但 Service 没注册
 5. **前端页面加载但 API 全挂** → Vite 构建时 `VITE_API_BASE_URL` 被错误设为了 localhost，Prod 应留空（用相对路径走 Nginx）
