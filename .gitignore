@@ -18,6 +18,10 @@ static/vue-dist/
 .env.production
 .env.prod.secrets
 
+# Config secrets (集中化后的密钥目录, 只忽略真实 env, 保留 example)
+config/secrets/*.env
+!config/secrets/*.env.example
+
 # Data / Uploads / Cache
 data/
 uploads/
@@ -55,6 +59,9 @@ tmp/
 tmp-m2/
 tmp-maven-settings.xml
 .playwright-mcp/
+*.artifact.json
+hs_err_pid*.log
+*-diff.tmp
 方舟众筹/
 ~$*
 

@@ -16,8 +16,8 @@ services:
     ports:
       - "3310:3306"
     env_file:
-      - .env.prod
-      - .env.prod.secrets
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -74,8 +74,8 @@ services:
     ports:
       - "7093:8090"
     env_file:
-      - .env.prod
-      - .env.prod.secrets
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
     environment:
       - IMAGE_READ_MODE=cloud
     volumes:
@@ -97,8 +97,8 @@ services:
     container_name: prod-celery-download
     command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=10 -Q download_tasks
     env_file:
-      - .env.prod
-      - .env.prod.secrets
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
     volumes:
       - prod-download-cache:/app/下载缓存
       - prod-logs:/app/logs
@@ -127,8 +127,8 @@ services:
     ports:
       - "8014:8001"
     env_file:
-      - .env.prod
-      - .env.prod.secrets
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
     environment:
       SERVICE_MODULE: user
       SPRING_PROFILES_ACTIVE: prod
@@ -152,8 +152,8 @@ services:
     ports:
       - "8025:8002"
     env_file:
-      - .env.prod
-      - .env.prod.secrets
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
     environment:
       SERVICE_MODULE: product
       SPRING_PROFILES_ACTIVE: prod
@@ -177,8 +177,8 @@ services:
     ports:
       - "9003:9000"
     env_file:
-      - .env.prod
-      - .env.prod.secrets
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
     environment:
       SERVICE_MODULE: gateway
       SPRING_PROFILES_ACTIVE: prod
