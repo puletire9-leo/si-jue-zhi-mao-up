@@ -14,6 +14,11 @@ public interface SubcategoryAliasService {
 
     List<Map<String, Object>> listPending(String sourceType, String marketplace, int limit);
 
+    List<Map<String, Object>> listReviewCandidates(String sourceType,
+                                                   String marketplace,
+                                                   int limit,
+                                                   int suggestionLimit);
+
     Map<String, Object> approve(String sourceType,
                                 String marketplace,
                                 String rawSubcategory,

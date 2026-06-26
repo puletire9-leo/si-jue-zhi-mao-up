@@ -64,6 +64,8 @@ public class AsinImportService {
     private final InitialFilterConfigService initialFilterConfig;
     private final SellerspriteConfig sellerspriteConfig;
     private final SellerspriteConfigService sellerspriteConfigService;
+    private final ScoringService scoringService;
+    private final CleanLayerService cleanLayerService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -318,6 +320,16 @@ public class AsinImportService {
             taskMapper.updateById(task);
             log.info("任务 {} 执行完成。成功: {}, 失败: {}, API请求: {}, 父ASIN: {}, 变体: {}",
                     taskId, successCount, failCount, totalApiCalls, totalParentCount, totalVariantCount);
+
+            // 导入完成 → 触发周标记 + 清洗层增量刷新（C-2 集成点）
+            try {
+                String weekTag = scoringService.updateWeekTags();
+                Map<String, Object> cleanResult = cleanLayerService.cleanWeekBatch(task.getMarketplace(), weekTag);
+                log.info("导入后清洗层刷新完成: taskId={}, marketplace={}, weekTag={}, affected={}",
+                        taskId, task.getMarketplace(), weekTag, cleanResult.get("affectedRows"));
+            } catch (Exception cleanEx) {
+                log.error("导入后清洗层刷新失败（不影响主任务）: taskId={}, msg={}", taskId, cleanEx.getMessage(), cleanEx);
+            }
 
         } catch (Exception e) {
             log.error("任务 {} 执行异常: {}", taskId, e.getMessage(), e);
@@ -674,6 +686,17 @@ public class AsinImportService {
             task.setUpdatedAt(LocalDateTime.now());
             taskMapper.updateById(task);
             log.info("卖家导入完成: taskId={}, sellers={}, products={}", taskId, totalSellers, totalProducts);
+
+            // 导入完成 → 触发周标记 + 清洗层增量刷新（C-2 集成点）
+            try {
+                String weekTag = scoringService.updateWeekTags();
+                Map<String, Object> cleanResult = cleanLayerService.cleanWeekBatch(task.getMarketplace(), weekTag);
+                log.info("导入后清洗层刷新完成: taskId={}, marketplace={}, weekTag={}, affected={}",
+                        taskId, task.getMarketplace(), weekTag, cleanResult.get("affectedRows"));
+            } catch (Exception cleanEx) {
+                // 清洗失败不影响主任务标记 DONE；下次手动调 /api/v1/clean-layer/refresh-week-batch 补救
+                log.error("导入后清洗层刷新失败（不影响主任务）: taskId={}, msg={}", taskId, cleanEx.getMessage(), cleanEx);
+            }
         } catch (Exception e) {
             log.error("卖家导入异常: {}", e.getMessage(), e);
             task.setTaskStatus("ERROR");

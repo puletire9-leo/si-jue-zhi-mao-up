@@ -168,6 +168,53 @@ class SubcategoryAliasServiceTest {
         assertThat(preserved.getSampleCount()).isEqualTo(287);
     }
 
+    @Test
+    void listReviewCandidates_returnsSuggestedWinnerDirections() {
+        SubcategoryAliasMap pending = new SubcategoryAliasMap();
+        pending.setSourceType("COMPETITOR");
+        pending.setMarketplace("UK");
+        pending.setRawSubcategory("Sun Catchers");
+        pending.setSampleCount(148);
+        pending.setLatestMonth("202606");
+        pending.setStatus("PENDING");
+
+        SubcategoryAliasMap winnerA = new SubcategoryAliasMap();
+        winnerA.setSourceType("WINNER");
+        winnerA.setMarketplace("ALL");
+        winnerA.setRawSubcategory("Garden Sun Catchers");
+        winnerA.setNormalizedSubcategory("garden sun catchers");
+        winnerA.setCanonicalKey("garden_sun_catchers");
+        winnerA.setCanonicalName("Garden Sun Catchers");
+        winnerA.setCarrierHint("Suncatcher");
+        winnerA.setSampleCount(35);
+        winnerA.setStatus("APPROVED");
+
+        SubcategoryAliasMap winnerB = new SubcategoryAliasMap();
+        winnerB.setSourceType("WINNER");
+        winnerB.setMarketplace("ALL");
+        winnerB.setRawSubcategory("Glass Art & Suncatchers");
+        winnerB.setNormalizedSubcategory("glass art suncatchers");
+        winnerB.setCanonicalKey("glass_art_suncatchers");
+        winnerB.setCanonicalName("Glass Art & Suncatchers");
+        winnerB.setCarrierHint("Suncatcher");
+        winnerB.setSampleCount(4);
+        winnerB.setStatus("APPROVED");
+
+        when(subcategoryAliasMapMapper.selectList(any()))
+                .thenReturn(List.of(pending))
+                .thenReturn(List.of(winnerA, winnerB));
+
+        List<Map<String, Object>> result = service.listReviewCandidates("COMPETITOR", "UK", 10, 3);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).get("rawSubcategory")).isEqualTo("Sun Catchers");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> suggestions = (List<Map<String, Object>>) result.get(0).get("suggestions");
+        assertThat(suggestions).hasSize(2);
+        assertThat(suggestions.get(0).get("canonicalKey")).isEqualTo("garden_sun_catchers");
+        assertThat(suggestions.get(1).get("canonicalKey")).isEqualTo("glass_art_suncatchers");
+    }
+
     private static Map<String, Object> row(Object... kvs) {
         Map<String, Object> row = new java.util.LinkedHashMap<>();
         for (int i = 0; i < kvs.length; i += 2) {

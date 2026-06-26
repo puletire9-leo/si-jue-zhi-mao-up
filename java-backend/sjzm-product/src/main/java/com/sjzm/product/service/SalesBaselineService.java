@@ -10,5 +10,5 @@ public interface SalesBaselineService {
 
     Map<String, Object> computeSubcategoryBaseline(String month, String marketplace);
 
-    Map<String, Object> getSubcategoryHealth(String marketplace, String subCategory, String month);
+    Map<String, Object> getSubcategoryHealth(String marketplace, String bsrId, String subCategory, String month);
 }

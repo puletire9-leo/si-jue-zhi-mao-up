@@ -16,32 +16,18 @@
             sample_size, units_p50, units_p75, units_p90,
             price_p50, confidence, computed_at
         )
-        WITH winner_canonical AS (
-            SELECT DISTINCT canonical_key, canonical_name
-            FROM subcategory_alias_map
-            WHERE source_type = 'WINNER'
-              AND status = 'APPROVED'
-              AND deleted = 0
-              AND canonical_key IS NOT NULL
-        ),
-        filtered AS (
+        WITH filtered AS (
+            -- 数据清洗层：直接消费 competitor_products_clean（已按父 ASIN 去重）
+            -- 见 docs/选品方法库/补充/数据清洗层.md
             SELECT cp.marketplace,
                    cp.bsr_id,
-                   alias.canonical_key,
-                   alias.canonical_name AS sub_category,
+                   TRIM(SUBSTRING_INDEX(cp.node_label_path, ':', -1)) AS sub_category,
                    cp.units,
                    cp.price
-            FROM competitor_products cp
-            INNER JOIN subcategory_alias_map alias
-                    ON alias.source_type = 'COMPETITOR'
-                   AND alias.status = 'APPROVED'
-                   AND alias.deleted = 0
-                   AND alias.marketplace = cp.marketplace
-                   AND alias.raw_subcategory COLLATE utf8mb4_unicode_ci =
-                       TRIM(SUBSTRING_INDEX(cp.node_label_path, ':', -1)) COLLATE utf8mb4_unicode_ci
-            INNER JOIN winner_canonical wc
-                    ON wc.canonical_key = alias.canonical_key
+            FROM competitor_products_clean cp
             WHERE cp.month = #{baselineMonth}
+              AND cp.bsr_id IS NOT NULL
+              AND cp.bsr_id != ''
               AND cp.node_label_path IS NOT NULL
               AND TRIM(SUBSTRING_INDEX(cp.node_label_path, ':', -1)) != ''
               AND LOWER(TRIM(SUBSTRING_INDEX(cp.node_label_path, ':', -1))) != 'null'
@@ -53,22 +39,21 @@
         units_ranked AS (
             SELECT marketplace,
                    bsr_id,
-                   canonical_key,
                    sub_category,
                    units,
                    PERCENT_RANK() OVER (
-                       PARTITION BY marketplace, sub_category
+                       PARTITION BY marketplace, bsr_id, sub_category
                        ORDER BY units
                    ) AS units_pr
             FROM filtered
         ),
         price_ranked AS (
             SELECT marketplace,
-                   canonical_key,
+                   bsr_id,
                    sub_category,
                    price,
                    PERCENT_RANK() OVER (
-                       PARTITION BY marketplace, canonical_key, sub_category
+                       PARTITION BY marketplace, bsr_id, sub_category
                        ORDER BY price
                    ) AS price_pr
             FROM filtered
@@ -76,49 +61,27 @@
         ),
         units_agg AS (
             SELECT marketplace,
-                   canonical_key,
+                   bsr_id,
                    sub_category,
                    COUNT(*) AS sample_size,
                    MAX(CASE WHEN units_pr &lt;= 0.50 THEN units END) AS units_p50,
                    MAX(CASE WHEN units_pr &lt;= 0.75 THEN units END) AS units_p75,
                    MAX(CASE WHEN units_pr &lt;= 0.90 THEN units END) AS units_p90
             FROM units_ranked
-            GROUP BY marketplace, canonical_key, sub_category
+            GROUP BY marketplace, bsr_id, sub_category
             HAVING COUNT(*) &gt;= 30
         ),
         price_agg AS (
             SELECT marketplace,
-                   canonical_key,
+                   bsr_id,
                    sub_category,
                    MAX(CASE WHEN price_pr &lt;= 0.50 THEN price END) AS price_p50
             FROM price_ranked
-            GROUP BY marketplace, canonical_key, sub_category
-        ),
-        dominant_bsr_counts AS (
-            SELECT marketplace,
-                   canonical_key,
-                   sub_category,
-                   bsr_id,
-                   COUNT(*) AS bsr_count
-            FROM filtered
-            WHERE bsr_id IS NOT NULL
-              AND bsr_id != ''
-            GROUP BY marketplace, canonical_key, sub_category, bsr_id
-        ),
-        dominant_bsr AS (
-            SELECT marketplace,
-                   canonical_key,
-                   sub_category,
-                   bsr_id,
-                    ROW_NUMBER() OVER (
-                       PARTITION BY marketplace, canonical_key, sub_category
-                       ORDER BY bsr_count DESC, bsr_id
-                   ) AS rn
-            FROM dominant_bsr_counts
+            GROUP BY marketplace, bsr_id, sub_category
         )
         SELECT ua.marketplace,
-               db.bsr_id,
-               ua.canonical_key,
+               ua.bsr_id,
+               NULL AS canonical_key,
                ua.sub_category,
                #{baselineMonth} AS baseline_month,
                ua.sample_size,
@@ -134,13 +97,11 @@
                NOW() AS computed_at
         FROM units_agg ua
         LEFT JOIN price_agg pa
-               ON pa.marketplace = ua.marketplace
-              AND pa.canonical_key = ua.canonical_key
-              AND pa.sub_category = ua.sub_category
-        LEFT JOIN dominant_bsr db
-               ON db.marketplace = ua.marketplace
-              AND db.canonical_key = ua.canonical_key
-              AND db.sub_category = ua.sub_category
-              AND db.rn = 1
+               ON pa.marketplace COLLATE utf8mb4_unicode_ci =
+                  ua.marketplace COLLATE utf8mb4_unicode_ci
+              AND pa.bsr_id COLLATE utf8mb4_unicode_ci =
+                  ua.bsr_id COLLATE utf8mb4_unicode_ci
+              AND pa.sub_category COLLATE utf8mb4_unicode_ci =
+                  ua.sub_category COLLATE utf8mb4_unicode_ci
     </insert>
 </mapper>

@@ -2,7 +2,6 @@ package com.sjzm.product.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.sjzm.product.dto.SubcategoryAliasResolution;
 import com.sjzm.product.entity.CategoryBsrBaseline;
 import com.sjzm.product.entity.CompetitorProduct;
 import com.sjzm.product.entity.SubcategoryBaseline;
@@ -10,13 +9,11 @@ import com.sjzm.product.mapper.CategoryBsrBaselineMapper;
 import com.sjzm.product.mapper.CompetitorProductMapper;
 import com.sjzm.product.mapper.SubcategoryBaselineMapper;
 import com.sjzm.product.service.SalesBaselineService;
-import com.sjzm.product.service.SubcategoryAliasService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.text.Normalizer;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -29,7 +26,6 @@ public class SalesBaselineServiceImpl implements SalesBaselineService {
     private final CategoryBsrBaselineMapper categoryBsrBaselineMapper;
     private final SubcategoryBaselineMapper subcategoryBaselineMapper;
     private final CompetitorProductMapper competitorProductMapper;
-    private final SubcategoryAliasService subcategoryAliasService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -116,7 +112,12 @@ public class SalesBaselineServiceImpl implements SalesBaselineService {
     public Map<String, Object> computeSubcategoryBaseline(String month, String marketplace) {
         String normalizedMarketplace = normalizeMarketplace(marketplace);
         String baselineMonth = resolveBaselineMonth(month, normalizedMarketplace);
-        Map<String, Object> aliasBootstrap = subcategoryAliasService.bootstrap(baselineMonth, normalizedMarketplace);
+        long eligibleRows = countEligibleSubcategoryRows(baselineMonth, normalizedMarketplace);
+
+        if (eligibleRows == 0) {
+            return buildFailureResult("competitor_products 无可计算的亚马逊小类基线样本",
+                    baselineMonth, normalizedMarketplace);
+        }
 
         int deleted = subcategoryBaselineMapper.deleteByBaselineMonth(baselineMonth, normalizedMarketplace);
         int inserted = subcategoryBaselineMapper.insertComputedSlices(baselineMonth, normalizedMarketplace);
@@ -129,29 +130,28 @@ public class SalesBaselineServiceImpl implements SalesBaselineService {
         result.put("success", inserted > 0);
         result.put("baselineMonth", baselineMonth);
         result.put("marketplace", displayMarketplace(normalizedMarketplace));
-        result.put("aliasBootstrap", aliasBootstrap);
+        result.put("minimumSampleSize", 30);
+        result.put("eligibleCompetitorRows", eligibleRows);
         result.put("deleted", deleted);
         result.put("inserted", inserted);
         result.put("totalRows", totalRows);
         if (inserted == 0) {
-            result.put("message", "没有命中③线赢家子类的小类基线样本");
+            result.put("message", "没有满足样本>=30的亚马逊小类基线样本");
         }
         return result;
     }
 
     @Override
-    public Map<String, Object> getSubcategoryHealth(String marketplace, String subCategory, String month) {
+    public Map<String, Object> getSubcategoryHealth(String marketplace, String bsrId, String subCategory, String month) {
         String normalizedMarketplace = normalizeRequiredMarketplace(marketplace);
+        String normalizedBsrId = requireText(bsrId, "bsrId / bsr_id 不能为空");
         String normalizedSubCategory = requireText(subCategory, "subCategory / sub_category 不能为空");
         String baselineMonth = normalizeMonth(month);
-        String normalizedCanonicalKey = normalizeCanonicalKey(normalizedSubCategory);
 
         LambdaQueryWrapper<SubcategoryBaseline> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SubcategoryBaseline::getMarketplace, normalizedMarketplace)
-                .and(query -> query
-                        .eq(SubcategoryBaseline::getCanonicalKey, normalizedCanonicalKey)
-                        .or()
-                        .eq(SubcategoryBaseline::getSubCategory, normalizedSubCategory));
+                .eq(SubcategoryBaseline::getBsrId, normalizedBsrId)
+                .eq(SubcategoryBaseline::getSubCategory, normalizedSubCategory);
 
         if (baselineMonth != null) {
             wrapper.eq(SubcategoryBaseline::getBaselineMonth, baselineMonth);
@@ -162,34 +162,12 @@ public class SalesBaselineServiceImpl implements SalesBaselineService {
         }
 
         SubcategoryBaseline baseline = subcategoryBaselineMapper.selectOne(wrapper);
-        String resolvedBy = "DIRECT";
-        String matchedRawSubcategory = normalizedSubCategory;
-
-        if (baseline == null) {
-            SubcategoryAliasResolution resolution = subcategoryAliasService.resolve(normalizedMarketplace, normalizedSubCategory);
-            if (resolution != null) {
-                resolvedBy = resolution.matchMethod();
-                matchedRawSubcategory = resolution.matchedRawSubcategory();
-
-                LambdaQueryWrapper<SubcategoryBaseline> canonicalWrapper = new LambdaQueryWrapper<>();
-                canonicalWrapper.eq(SubcategoryBaseline::getMarketplace, normalizedMarketplace)
-                        .eq(SubcategoryBaseline::getCanonicalKey, resolution.canonicalKey());
-
-                if (baselineMonth != null) {
-                    canonicalWrapper.eq(SubcategoryBaseline::getBaselineMonth, baselineMonth);
-                } else {
-                    canonicalWrapper.orderByDesc(SubcategoryBaseline::getBaselineMonth)
-                            .orderByDesc(SubcategoryBaseline::getComputedAt)
-                            .last("LIMIT 1");
-                }
-                baseline = subcategoryBaselineMapper.selectOne(canonicalWrapper);
-            }
-        }
 
         if (baseline == null) {
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("hasBaseline", false);
             result.put("marketplace", normalizedMarketplace);
+            result.put("bsrId", normalizedBsrId);
             result.put("subCategory", normalizedSubCategory);
             result.put("baselineMonth", baselineMonth);
             return result;
@@ -201,9 +179,10 @@ public class SalesBaselineServiceImpl implements SalesBaselineService {
         result.put("bsrId", baseline.getBsrId());
         result.put("canonicalKey", baseline.getCanonicalKey());
         result.put("subCategory", baseline.getSubCategory());
+        result.put("queryBsrId", normalizedBsrId);
         result.put("querySubCategory", normalizedSubCategory);
-        result.put("matchedRawSubCategory", matchedRawSubcategory);
-        result.put("resolvedBy", resolvedBy);
+        result.put("matchedRawSubCategory", baseline.getSubCategory());
+        result.put("resolvedBy", "AMAZON_LEAF");
         result.put("baselineMonth", baseline.getBaselineMonth());
         result.put("sampleSize", baseline.getSampleSize());
         result.put("confidence", baseline.getConfidence());
@@ -231,6 +210,21 @@ public class SalesBaselineServiceImpl implements SalesBaselineService {
                 .isNotNull("bsr_id")
                 .ne("bsr_id", "")
                 .isNotNull("bsr")
+                .isNotNull("units");
+        if (marketplace != null) {
+            wrapper.eq("marketplace", marketplace);
+        }
+        return competitorProductMapper.selectCount(wrapper);
+    }
+
+    private long countEligibleSubcategoryRows(String baselineMonth, String marketplace) {
+        QueryWrapper<CompetitorProduct> wrapper = new QueryWrapper<>();
+        wrapper.eq("month", baselineMonth)
+                .isNotNull("bsr_id")
+                .ne("bsr_id", "")
+                .isNotNull("node_label_path")
+                .apply("TRIM(SUBSTRING_INDEX(node_label_path, ':', -1)) != ''")
+                .apply("LOWER(TRIM(SUBSTRING_INDEX(node_label_path, ':', -1))) != 'null'")
                 .isNotNull("units");
         if (marketplace != null) {
             wrapper.eq("marketplace", marketplace);
@@ -316,14 +310,6 @@ public class SalesBaselineServiceImpl implements SalesBaselineService {
         return normalized;
     }
 
-    private String normalizeCanonicalKey(String value) {
-        String normalized = normalizeText(value);
-        if (normalized == null) {
-            throw new IllegalArgumentException("subCategory 不能为空");
-        }
-        return normalized.replace(' ', '_');
-    }
-
     private String normalizeMonth(String month) {
         String value = trimToNull(month);
         if (value == null) {
@@ -334,19 +320,6 @@ public class SalesBaselineServiceImpl implements SalesBaselineService {
             throw new IllegalArgumentException("month 只支持 yyyyMM 或 yyyy-MM");
         }
         return normalized;
-    }
-
-    private String normalizeText(String value) {
-        String trimmed = trimToNull(value);
-        if (trimmed == null) {
-            return null;
-        }
-        String normalized = Normalizer.normalize(trimmed, Normalizer.Form.NFKC)
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("[^\\p{IsAlphabetic}\\p{IsDigit}]+", " ")
-                .trim()
-                .replaceAll("\\s+", " ");
-        return normalized.isEmpty() ? null : normalized;
     }
 
     private String requireText(String value, String message) {

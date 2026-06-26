@@ -36,11 +36,11 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
             @Param("marketplace") String marketplace,
             @Param("sellerName") String sellerName);
 
-    /** 模式一按卖家聚合候选店铺 */
+    /** 模式一按卖家聚合候选店铺（统计场景：走清洗表，避免变体污染） */
     @Select("<script>" +
         "SELECT cp.seller_name as sellerName, cp.marketplace," +
         "  COUNT(DISTINCT COALESCE(NULLIF(cp.parent_asin,''), cp.asin)) as newProductCount" +
-        " FROM competitor_products cp" +
+        " FROM competitor_products_clean cp" +
         " WHERE cp.title IS NOT NULL AND cp.filter_mode = 'MODE1'" +
         " <if test='marketplace != null'> AND cp.marketplace = #{marketplace}</if>" +
         " GROUP BY cp.seller_name, cp.marketplace" +
@@ -51,18 +51,20 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
             @Param("marketplace") String marketplace,
             @Param("minCount") int minCount);
 
+    /** 统计场景：按 bsr_id 商品数量（走清洗表） */
     @Select("SELECT bsr_id AS bsrId, COUNT(*) AS productCount" +
-            " FROM competitor_products" +
+            " FROM competitor_products_clean" +
             " WHERE marketplace = #{marketplace} AND month = #{month}" +
             " GROUP BY bsr_id" +
             " ORDER BY productCount DESC")
     List<Map<String, Object>> countByBsrId(@Param("marketplace") String marketplace, @Param("month") String month);
 
+    /** 统计场景：按 node_id 商品数量（走清洗表） */
     @Select("SELECT bsr_id AS bsrId, node_id AS nodeId," +
             " MAX(node_label_path) AS nodeFullPath," +
             " SUBSTRING_INDEX(MAX(node_label_path), ':', -1) AS nodeName," +
             " COUNT(*) AS productCount" +
-            " FROM competitor_products" +
+            " FROM competitor_products_clean" +
             " WHERE marketplace = #{marketplace} AND month = #{month}" +
             " AND filter_mode = 'MODE1'" +
             " GROUP BY bsr_id, node_id" +
@@ -95,4 +97,22 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
     List<Map<String, Object>> selectCreatedWeeksWithCount(@Param("marketplace") String marketplace,
                                                           @Param("source") String source,
                                                           @Param("filterMode") String filterMode);
+
+    /**
+     * 数据清洗层：拉取候选商品（走清洗表，已按父 ASIN 去重）
+     * 用于 ④线 ElementDiscovery 的元素发现/载体审计/manual-candidates 接口
+     * 见 docs/选品方法库/补充/数据清洗层.md
+     */
+    @Select("<script>" +
+            "SELECT marketplace, asin, `month`, title, brand, node_label_path, bsr_id, units, bsr, price " +
+            "FROM competitor_products_clean " +
+            "WHERE marketplace = #{marketplace} AND `month` = #{month} " +
+            "AND title IS NOT NULL AND title != '' " +
+            "ORDER BY units DESC, asin ASC " +
+            "LIMIT #{scanLimit}" +
+            "</script>")
+    List<CompetitorProduct> selectCleanCandidatesForDiscovery(
+            @Param("marketplace") String marketplace,
+            @Param("month") String month,
+            @Param("scanLimit") int scanLimit);
 }

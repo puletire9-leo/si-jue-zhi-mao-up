@@ -1,6 +1,7 @@
 package com.sjzm.product.controller;
 
 import com.sjzm.common.Result;
+import com.sjzm.product.service.CategoryAgeTierBaselineService;
 import com.sjzm.product.service.CategoryBaselineService;
 import com.sjzm.product.service.SalesBaselineService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,6 +24,7 @@ public class CategoryBaselineController {
 
     private final CategoryBaselineService baselineService;
     private final SalesBaselineService salesBaselineService;
+    private final CategoryAgeTierBaselineService categoryAgeTierBaselineService;
 
     /**
      * 查询品类基线百分位数据。
@@ -83,7 +85,7 @@ public class CategoryBaselineController {
     }
 
     @PostMapping("/compute-subcategory")
-    @Operation(summary = "计算 ①线赢家小类基线", description = "只对 ③线赢家覆盖的小类生成销量基线")
+    @Operation(summary = "计算 ①线亚马逊小类基线", description = "按 marketplace × bsr_id × 亚马逊末级小类 × month 计算销量基线，样本至少 30")
     public Result<Map<String, Object>> computeSubcategory(
             @RequestParam(required = false) String marketplace,
             @RequestParam(required = false) String month) {
@@ -91,14 +93,17 @@ public class CategoryBaselineController {
     }
 
     @GetMapping("/subcategory-health")
-    @Operation(summary = "查询 ①线赢家小类基线", description = "按 marketplace + subCategory 查询小类销量基线")
+    @Operation(summary = "查询 ①线亚马逊小类基线", description = "按 marketplace + bsrId + subCategory 查询亚马逊末级小类销量基线")
     public Result<Map<String, Object>> getSubcategoryHealth(
             @RequestParam String marketplace,
+            @RequestParam(required = false, name = "bsrId") String bsrId,
+            @RequestParam(required = false, name = "bsr_id") String bsrIdSnake,
             @RequestParam(required = false, name = "subCategory") String subCategory,
             @RequestParam(required = false, name = "sub_category") String subCategorySnake,
             @RequestParam(required = false) String month) {
         return Result.success(salesBaselineService.getSubcategoryHealth(
                 marketplace,
+                firstNonBlank(bsrId, bsrIdSnake),
                 firstNonBlank(subCategory, subCategorySnake),
                 month
         ));
@@ -112,5 +117,26 @@ public class CategoryBaselineController {
             return secondary;
         }
         return null;
+    }
+
+    // ============ M04 · 新品大类销量基础分级 ============
+
+    @PostMapping("/compute-age-tier")
+    @Operation(summary = "计算 M04 新品大类基线 + 全量打标",
+            description = "按 marketplace × bsr_id × age_bucket × month 计算分位基线，并 UPDATE 当月所有 ASIN 的 m04_* 5 列")
+    public Result<Map<String, Object>> computeAgeTier(
+            @RequestParam String month,
+            @RequestParam(required = false) String marketplace) {
+        return Result.success(categoryAgeTierBaselineService.computeAndTagByMonth(month, marketplace));
+    }
+
+    @PostMapping("/tag-asins-by-week")
+    @Operation(summary = "M04 周度增量打标",
+            description = "对指定 week_tag 的本周新行 UPDATE m04_* 5 列（基线不重算，必须先 compute-age-tier 至少一次）")
+    public Result<Map<String, Object>> tagAsinsByWeek(
+            @RequestParam String weekTag,
+            @RequestParam String month,
+            @RequestParam(required = false) String marketplace) {
+        return Result.success(categoryAgeTierBaselineService.tagAsinsByWeek(weekTag, month, marketplace));
     }
 }

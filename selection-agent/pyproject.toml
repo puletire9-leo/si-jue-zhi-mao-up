@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=77.0,<83"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "selection-agent-api"
+version = "0.1.0"
+description = "AI title extraction service for product selection."
+requires-python = ">=3.10,<3.14"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.30,<1",
+  "openai>=1.35,<2",
+  "pydantic>=2.8,<3",
+  "pydantic-settings>=2.3,<3",
+]
+
+[project.optional-dependencies]
+test = [
+  "httpx>=0.27,<1",
+  "pytest>=8.3,<9",
+]
+
+[tool.setuptools.packages.find]
+include = ["app", "app.*"]

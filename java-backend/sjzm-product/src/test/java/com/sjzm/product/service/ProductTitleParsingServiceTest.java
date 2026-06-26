@@ -71,6 +71,26 @@ class ProductTitleParsingServiceTest {
     }
 
     @Test
+    void parse_doesNotTreatEndCapAsCapCarrier() {
+        ProductTitleParseResult result = service.parse(
+                "Pawfly 10 Pcs 1/2 Inch Irrigation End Cap for 1/2 Inch Tubing"
+        );
+
+        assertThat(result.hasCarrier()).isFalse();
+        assertThat(result.element()).isNull();
+    }
+
+    @Test
+    void parse_doesNotTreatBrotdoseAsLunchBagCarrier() {
+        ProductTitleParseResult result = service.parse(
+                "Edelstahl Brotdose, Feste Trennwand und 3 Fächer"
+        );
+
+        assertThat(result.hasCarrier()).isFalse();
+        assertThat(result.element()).isNull();
+    }
+
+    @Test
     void listSupportedCarriers_includesDocumentBootstrapCarriers() {
         assertThat(service.listSupportedCarriers())
                 .contains("Backdrop", "Placemat", "Clear Bag", "Garden Flag");

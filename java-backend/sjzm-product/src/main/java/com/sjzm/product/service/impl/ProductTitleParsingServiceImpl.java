@@ -51,66 +51,106 @@ public class ProductTitleParsingServiceImpl implements ProductTitleParsingServic
     // Bootstrapped from docs/选品方法库/补充/载体元素三语映射表.md.
     // Later this should be replaced by a manually maintained selection carrier table.
     private static final List<CarrierPattern> CARRIER_PATTERNS = List.of(
-            carrier("Canvas Tote", "Canvas Tote"),
-            carrier("Tote Bag", "Tote Bag"),
+            carrier("Canvas Tote", "Canvas Tote", "Baumwolltasche"),
+            carrier("Tote Bag", "Tote Bag", "Tragetasche", "Einkaufstasche", "Stofftasche", "Jutebeutel"),
             carrier("Cosmetic Bag", "Cosmetic Bag", "Makeup Bag", "Make Up Bag", "Toiletry Bag",
                     "Medium Cosmetic Bag", "Large Cosmetic Bag", "Compartment Makeup Bag",
-                    "Multi-pocket Cosmetic Bag", "Clear Makeup Bag"),
+                    "Multi-pocket Cosmetic Bag", "Clear Makeup Bag",
+                    "Kosmetiktasche", "Kulturbeutel", "Schminktasche", "Make-up Tasche"),
             carrier("Suncatcher", "Suncatcher", "Sun Catcher", "Acrylic Ornament", "Hanging Ornament",
                     "Window Ornament", "Stained Glass Suncatcher", "Glass Hanging", "Glass Ornament",
-                    "Wooden Hanging Ornament", "Acrylic Puzzle Ornament", "Puzzle Suncatcher"),
+                    "Wooden Hanging Ornament", "Acrylic Puzzle Ornament", "Puzzle Suncatcher",
+                    "Sonnenfänger", "Fensterbild", "Fensterdeko", "Glasornament", "Glasanhänger"),
             carrier("Metal Sign", "Metal Sign", "Tin Sign", "Metal Plaque", "Metal Wall Art",
-                    "Tin Poster", "Round Metal Sign", "Circle Tin Sign", "Iron Wall Decor"),
-            carrier("Drawstring Bag", "Drawstring Bag", "Gym Bag", "Sports Bag", "Cinch Bag", "Swim Bag"),
-            carrier("Poster", "Poster", "Art Print", "Art Poster", "Canvas Print"),
-            carrier("Paint by Numbers", "Paint by Numbers", "Painting by Numbers", "DIY Painting", "Number Painting"),
-            carrier("Acrylic Stand", "Acrylic Stand", "Standee", "Desk Sign", "Table Sign"),
-            carrier("Lunch Bag", "Lunch Bag", "Lunch Box", "Insulated Lunch Bag", "Cooler Bag",
-                    "Double Layer Lunch Bag", "Insulated Lunch Tote"),
-            carrier("Canvas Wall Art", "Canvas Wall Art", "Framed Canvas", "Canvas Painting", "Oil Painting"),
-            carrier("Book Sleeve", "Book Sleeve", "Book Cover", "Book Pouch", "Book Bag"),
-            carrier("Garden Stake", "Garden Stake", "Acrylic Stake", "Plant Stake"),
-            carrier("Pillow Cover", "Pillow Case", "Pillow Cover", "Cushion Cover", "Throw Pillow Cover"),
+                    "Tin Poster", "Round Metal Sign", "Circle Tin Sign", "Iron Wall Decor",
+                    "Blechschild", "Metallschild", "Retro Schild"),
+            carrier("Drawstring Bag", "Drawstring Bag", "Gym Bag", "Sports Bag", "Cinch Bag", "Swim Bag",
+                    "Turnbeutel", "Sportbeutel", "Zugbeutel", "Schwimmbeutel"),
+            carrier("Poster", "Poster", "Art Print", "Art Poster", "Canvas Print",
+                    "Kunstdruck", "Posterdruck"),
+            carrier("Paint by Numbers", "Paint by Numbers", "Painting by Numbers", "DIY Painting", "Number Painting",
+                    "Malen nach Zahlen", "Zahlenmalerei"),
+            carrier("Acrylic Stand", "Acrylic Stand", "Standee", "Desk Sign", "Table Sign",
+                    "Acrylständer", "Aufsteller", "Tischschild"),
+            carrier("Lunch Bag", "Lunch Bag", "Insulated Lunch Bag", "Cooler Bag",
+                    "Double Layer Lunch Bag", "Insulated Lunch Tote",
+                    "Lunchtasche", "Kühltasche", "Isoliertasche"),
+            carrier("Canvas Wall Art", "Canvas Wall Art", "Framed Canvas", "Canvas Painting", "Oil Painting",
+                    "Leinwandbild", "Wandkunst"),
+            carrier("Book Sleeve", "Book Sleeve", "Book Cover", "Book Pouch", "Book Bag",
+                    "Buchhülle", "Buchumschlag", "Buchtasche"),
+            carrier("Garden Stake", "Garden Stake", "Acrylic Stake", "Plant Stake",
+                    "Gartenstecker", "Acrylstecker", "Pflanzstecker", "Dekostecker"),
+            carrier("Pillow Cover", "Pillow Case", "Pillow Cover", "Cushion Cover", "Throw Pillow Cover",
+                    "Kissenbezug", "Kissenhülle", "Zierkissenbezug"),
             carrier("Tumbler", "Tumbler", "Car Cup", "Travel Mug", "20oz Tumbler", "Stainless Steel Tumbler",
-                    "Reusable Cup", "Party Cup", "Acrylic Cup", "Plastic Cup"),
+                    "Reusable Cup", "Party Cup", "Acrylic Cup", "Plastic Cup",
+                    "Autobecher", "Reisebecher", "Edelstahlbecher", "Plastikbecher",
+                    "Kunststoffbecher", "Mehrwegbecher", "Partybecher", "Acrylbecher"),
             carrier("Keychain", "Keychain", "Keyring", "Key Chain", "Key Ring",
-                    "Keychain Hanging", "Key Ring Ornament", "Key Charm"),
-            carrier("Cap", "Baseball Cap", "Snapback", "Cap", "Hat"),
-            carrier("Bracelet", "Bracelet", "Wristband", "Charm Bracelet"),
-            carrier("Coin Purse", "Coin Purse", "Wallet", "Purse", "Card Holder"),
-            carrier("Figure", "Action Figure", "Toy Figure", "Figurine", "Figure", "Collectible Figure"),
-            carrier("Backpack", "Backpack", "Rucksack", "School Bag", "Daypack"),
-            carrier("Apron", "Apron", "Kitchen Apron", "BBQ Apron", "Cooking Apron"),
-            carrier("Diamond Painting", "Diamond Painting", "Diamond Art", "5D Diamond Painting"),
-            carrier("Beach Towel", "Beach Towel", "Beach Blanket", "Beach Mat"),
-            carrier("Pencil Case", "Pen Case", "Pencil Case", "Pencil Pouch", "Pen Bag", "Stationery Bag"),
+                    "Keychain Hanging", "Key Ring Ornament", "Key Charm",
+                    "Schlüsselanhänger", "Schlüsselring"),
+            // Avoid bare "Cap": it causes many false positives such as end cap / swim cap / dry caps.
+            carrier("Cap", "Baseball Cap", "Snapback", "Hat",
+                    "Baseballkappe", "Kappe", "Schirmmütze", "Basecap"),
+            carrier("Bracelet", "Bracelet", "Wristband", "Charm Bracelet",
+                    "Armband", "Charm Armband"),
+            carrier("Coin Purse", "Coin Purse", "Wallet", "Purse", "Card Holder",
+                    "Geldbörse", "Portemonnaie", "Münzgeldbörse", "Kartenetui"),
+            carrier("Figure", "Action Figure", "Toy Figure", "Figurine", "Figure", "Collectible Figure",
+                    "Figur", "Spielfigur", "Actionfigur", "Sammelfigur"),
+            carrier("Backpack", "Backpack", "Rucksack", "School Bag", "Daypack",
+                    "Schulrucksack", "Reiserucksack", "Laptop Rucksack"),
+            carrier("Apron", "Apron", "Kitchen Apron", "BBQ Apron", "Cooking Apron",
+                    "Schürze", "Kochschürze", "Grillschürze"),
+            carrier("Diamond Painting", "Diamond Painting", "Diamond Art", "5D Diamond Painting",
+                    "Diamantmalerei"),
+            carrier("Beach Towel", "Beach Towel", "Beach Blanket", "Beach Mat",
+                    "Strandtuch", "Stranddecke"),
+            carrier("Pencil Case", "Pen Case", "Pencil Case", "Pencil Pouch", "Pen Bag", "Stationery Bag",
+                    "Federmäppchen", "Stiftetui", "Federtasche"),
             carrier("Glasses Case", "Glasses Case", "Spectacle Case", "Sunglasses Case", "Eyewear Holder"),
             carrier("Mouse Pad", "Mouse Pad", "Mouse Mat", "Desk Mat", "Gaming Mouse Pad",
-                    "Wrist Rest Mouse Pad", "Ergonomic Mouse Pad", "Gel Mouse Pad"),
+                    "Wrist Rest Mouse Pad", "Ergonomic Mouse Pad", "Gel Mouse Pad", "Mauspad"),
             carrier("Water Bottle", "Water Bottle", "Drink Bottle", "Sports Bottle",
-                    "Small Mouth Bottle", "Narrow Neck Bottle"),
+                    "Small Mouth Bottle", "Narrow Neck Bottle",
+                    "Trinkflasche", "Wasserflasche", "Sportflasche"),
             carrier("Sticker", "Sticker", "Decal"),
             carrier("Plush", "Plush", "Stuffed Toy", "Stuffed Animal", "Soft Toy"),
-            carrier("Wooden Ornament", "Wooden Ornament", "Wood Decor", "Wooden Figurine", "Wood Craft", "Wooden Sign"),
-            carrier("Clear Bag", "Clear Bag", "Transparent Pouch", "PVC Bag", "Waterproof Pouch"),
-            carrier("Car Vent Clip", "Car Air Freshener Vent Clip", "Car Vent Clip", "Acrylic Car Clip"),
-            carrier("Storage Basket", "Storage Basket", "Woven Basket", "Storage Bin", "Organizer Basket"),
-            carrier("Shoulder Bag", "Shoulder Bag", "Crossbody Bag", "Tote Shoulder Bag"),
-            carrier("Egg Cup", "Egg Shaped Cup", "Novelty Egg Cup", "Egg Cup"),
-            carrier("Backdrop", "Backdrop", "Photo Backdrop", "Photography Background"),
+            carrier("Wooden Ornament", "Wooden Ornament", "Wood Decor", "Wooden Figurine", "Wood Craft", "Wooden Sign",
+                    "Holzdeko", "Holzfigur", "Holzornament"),
+            carrier("Clear Bag", "Clear Bag", "Transparent Pouch", "PVC Bag", "Waterproof Pouch",
+                    "Klarsichttasche", "Transparente Tasche", "Durchsichtige Kulturtasche"),
+            carrier("Car Vent Clip", "Car Air Freshener Vent Clip", "Car Vent Clip", "Acrylic Car Clip",
+                    "Lüftungsclip", "Duftclip"),
+            carrier("Storage Basket", "Storage Basket", "Woven Basket", "Storage Bin", "Organizer Basket",
+                    "Aufbewahrungskorb", "Flechtkorb", "Ordnungskorb"),
+            carrier("Shoulder Bag", "Shoulder Bag", "Crossbody Bag", "Tote Shoulder Bag",
+                    "Umhängetasche", "Schultertasche"),
+            carrier("Egg Cup", "Egg Shaped Cup", "Novelty Egg Cup", "Egg Cup", "Eierbecher"),
+            carrier("Backdrop", "Backdrop", "Photo Backdrop", "Photography Background",
+                    "Hintergrundtuch", "Fotohintergrund"),
             carrier("Placemat", "Placemat", "Place Mat", "Square Placemat", "Square Table Mat",
-                    "Round Placemat", "Round Table Mat"),
-            carrier("Onesie", "Pregnancy Announcement Onesie", "Baby Announcement Bodysuit", "Onesie", "Bodysuit"),
-            carrier("Handbag", "Small Handbag", "Mini Tote", "Small Purse"),
+                    "Round Placemat", "Round Table Mat",
+                    "Platzdeckchen", "Tischset", "Tischmatte"),
+            carrier("Onesie", "Pregnancy Announcement Onesie", "Baby Announcement Bodysuit", "Onesie", "Bodysuit",
+                    "Strampler", "Baby Body"),
+            carrier("Handbag", "Small Handbag", "Mini Tote", "Small Purse",
+                    "Handtasche", "Mini Tasche"),
             // Keep mug anchors specific. Bare "cup" causes many false positives:
             // World Cup, Cup Holder, Suction Cup, Bracket Cup Tool, etc.
-            carrier("Mug", "Mug", "Coffee Mug", "Ceramic Mug", "Coffee Cup", "Tea Cup"),
+            carrier("Mug", "Mug", "Coffee Mug", "Ceramic Mug", "Coffee Cup", "Tea Cup",
+                    "Kaffeetasse", "Keramiktasse"),
             carrier("Coaster", "Coaster"),
-            carrier("Towel", "Towel", "Hand Towel", "Face Towel", "Tea Towel"),
-            carrier("Jewelry Box", "Jewelry Box", "Jewellery Box", "Jewelry Case", "Trinket Box", "Ring Box"),
-            carrier("Garden Flag", "Garden Flag", "Yard Flag", "House Flag"),
+            carrier("Towel", "Towel", "Hand Towel", "Face Towel", "Tea Towel",
+                    "Handtuch", "Geschirrtuch", "Küchentuch", "Badetuch"),
+            carrier("Jewelry Box", "Jewelry Box", "Jewellery Box", "Jewelry Case", "Trinket Box", "Ring Box",
+                    "Schmuckkästchen", "Schmuckbox", "Ringbox"),
+            carrier("Garden Flag", "Garden Flag", "Yard Flag", "House Flag",
+                    "Gartenfahne", "Gartenflagge", "Hausfahne"),
             carrier("Napkin Holder", "Napkin Holder", "Tissue Holder", "Paper Towel Holder",
-                    "Wooden Tissue Holder", "Wooden Napkin Holder"),
+                    "Wooden Tissue Holder", "Wooden Napkin Holder",
+                    "Serviettenhalter", "Taschentuchhalter", "Küchenrollenhalter"),
             carrier("Challenge Coin", "Challenge Coin", "Commemorative Coin")
     );
 
@@ -122,7 +162,8 @@ public class ProductTitleParsingServiceImpl implements ProductTitleParsingServic
         }
         return new ProductTitleParseResult(
                 carrierMatch.canonical(),
-                extractElement(title, carrierMatch.startIndex())
+                extractElement(title, carrierMatch.startIndex()),
+                carrierMatch.matchedAnchor()
         );
     }
 
@@ -202,11 +243,17 @@ public class ProductTitleParsingServiceImpl implements ProductTitleParsingServic
         CarrierMatch best = null;
         for (CarrierPattern pattern : CARRIER_PATTERNS) {
             for (String variant : pattern.variants()) {
-                MatchPosition matchPosition = findVariantPosition(normalized, normalizeForMatching(variant));
+                String normalizedVariant = normalizeForMatching(variant);
+                MatchPosition matchPosition = findVariantPosition(normalized, normalizedVariant);
                 if (matchPosition == null) {
                     continue;
                 }
-                CarrierMatch current = new CarrierMatch(pattern.canonical(), matchPosition.startIndex(), variant.length());
+                CarrierMatch current = new CarrierMatch(
+                        pattern.canonical(),
+                        matchPosition.startIndex(),
+                        normalizedVariant.length(),
+                        normalizedVariant
+                );
                 if (best == null
                         || current.startIndex() < best.startIndex()
                         || (current.startIndex() == best.startIndex() && current.matchedLength() > best.matchedLength())) {
@@ -218,7 +265,7 @@ public class ProductTitleParsingServiceImpl implements ProductTitleParsingServic
     }
 
     private MatchPosition findVariantPosition(String normalizedText, String normalizedVariant) {
-        Pattern pattern = Pattern.compile("(^|\\s)" + Pattern.quote(normalizedVariant) + "(?:s|es)?(?=\\s|$)");
+        Pattern pattern = Pattern.compile("(^|\\s)" + Pattern.quote(normalizedVariant) + "(?:s|es|n|en)?(?=\\s|$)");
         Matcher matcher = pattern.matcher(normalizedText);
         while (matcher.find()) {
             int start = matcher.start();
@@ -272,7 +319,7 @@ public class ProductTitleParsingServiceImpl implements ProductTitleParsingServic
     private record CarrierPattern(String canonical, List<String> variants) {
     }
 
-    private record CarrierMatch(String canonical, int startIndex, int matchedLength) {
+    private record CarrierMatch(String canonical, int startIndex, int matchedLength, String matchedAnchor) {
     }
 
     private record MatchPosition(int startIndex) {

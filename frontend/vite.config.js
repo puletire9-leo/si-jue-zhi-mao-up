@@ -75,6 +75,13 @@ export default defineConfig(({ mode }) => {
           timeout: 300000,
           logLevel: 'warn'
         },
+        '/api/v1/category-dislocation': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 300000,
+          logLevel: 'warn'
+        },
         '/api/v1/seller': {
           target: javaTarget,
           changeOrigin: true,

@@ -1,0 +1,23 @@
+CREATE TABLE IF NOT EXISTS category_dislocation (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  marketplace VARCHAR(10) NOT NULL COMMENT 'Marketplace UK/DE/US',
+  bsr_id VARCHAR(100) DEFAULT NULL COMMENT 'Dominant top-level category slug',
+  canonical_key VARCHAR(100) NOT NULL COMMENT 'Canonical subcategory key',
+  sub_category VARCHAR(200) NOT NULL COMMENT 'Canonical subcategory name',
+  baseline_month VARCHAR(6) NOT NULL COMMENT 'Baseline month yyyyMM',
+  dengzong_count INT DEFAULT 0 COMMENT 'DengZong peer seller count',
+  other_cn_count INT DEFAULT 0 COMMENT 'Other CN seller count',
+  non_cn_count INT DEFAULT 0 COMMENT 'Non-CN seller count',
+  total_sellers INT DEFAULT 0 COMMENT 'Total sellers excluding unknown nation',
+  product_count INT DEFAULT 0 COMMENT 'Matched product count',
+  avg_units DECIMAL(10,2) DEFAULT NULL COMMENT 'Average monthly units',
+  dz_share DECIMAL(8,4) DEFAULT NULL COMMENT 'DengZong seller share',
+  non_cn_share DECIMAL(8,4) DEFAULT NULL COMMENT 'Non-CN seller share',
+  dislocation_score DECIMAL(8,4) DEFAULT NULL COMMENT 'Dislocation score 0-1',
+  heat_signal VARCHAR(8) DEFAULT NULL COMMENT 'RED/GREEN/YELLOW/COLD',
+  computed_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Computed timestamp',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_slice (marketplace, canonical_key, baseline_month),
+  KEY idx_signal (marketplace, heat_signal, baseline_month),
+  KEY idx_lookup (marketplace, canonical_key, baseline_month)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Line2 subcategory dislocation signal';

@@ -57,4 +57,21 @@ public class ElementDiscoveryController {
                 carrier
         ));
     }
+
+    @GetMapping("/manual-candidates")
+    @Operation(summary = "Manual nonstandard candidates", description = "Output title-matched carrier candidates after coarse nonstandard filtering for manual AI review")
+    public Result<Map<String, Object>> manualCandidates(
+            @RequestParam(defaultValue = "UK") String marketplace,
+            @RequestParam(required = false) String month,
+            @RequestParam(defaultValue = "1000") int scanLimit,
+            @RequestParam(defaultValue = "200") int limit,
+            @RequestParam(required = false) String carrier) {
+        return Result.success(elementDiscoveryService.listManualCandidates(
+                marketplace,
+                month,
+                scanLimit,
+                limit,
+                carrier
+        ));
+    }
 }
