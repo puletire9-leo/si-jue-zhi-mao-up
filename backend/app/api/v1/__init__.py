@@ -1,27 +1,24 @@
 """
-[参考] API路由聚合模块 - 待废弃
-===================================
+API v1 路由聚合 (Python FastAPI)
 
-[WARN] 此模块已迁移到 Java 后端，仅作为参考。
+业务分工:
+- Java 后端 (java-user / java-product): 认证、用户、竞品/选品/评分/M04/筛选预设等
+- Python 后端 (本目录): 产品/选品/定稿/素材/运营商 CRUD, AI 图像, 导入导出, 报表, 领星
 
-迁移状态：
-- [OK] 全部API已迁移到 java-backend/src/main/java/com/sjzm/controller/
-
-最终删除日期：项目稳定运行后
+迁移历史:
+- 2026-06-26 删除已迁移到 Java 的 Python 残留: auth.py / users.py / scoring.py
 """
 
 from fastapi import APIRouter
 from .images import router as images_router
 from .products import router as products_router
 from .statistics import router as statistics_router
-from .users import router as users_router
 from .categories import router as categories_router
 from .tags import router as tags_router
 from .logs import router as logs_router
 from .recycle_bin import router as recycle_bin_router
 from .selection import router as selection_router
 from .selection_recycle import router as selection_recycle_router
-from .auth import router as auth_router
 from .export import router as export_router
 from .import_ import router as import_router
 from .product_recycle import router as product_recycle_router
@@ -46,7 +43,6 @@ except Exception:
 from .reports import router as reports_router
 from .download_tasks import router as download_tasks_router
 from .lingxing import router as lingxing_router
-from .scoring import router as scoring_router
 from .announcement import router as announcement_router
 
 api_router = APIRouter()
@@ -55,14 +51,12 @@ api_router.include_router(health_router)
 api_router.include_router(images_router)
 api_router.include_router(products_router)
 api_router.include_router(statistics_router)
-api_router.include_router(users_router)
 api_router.include_router(categories_router)
 api_router.include_router(tags_router)
 api_router.include_router(logs_router, prefix="/logs")
 api_router.include_router(recycle_bin_router)
 api_router.include_router(selection_router)
 api_router.include_router(selection_recycle_router)
-api_router.include_router(auth_router)
 api_router.include_router(export_router)
 api_router.include_router(import_router)
 api_router.include_router(product_recycle_router)
@@ -76,7 +70,6 @@ api_router.include_router(image_proxy_router)
 api_router.include_router(reports_router, prefix="/reports")
 api_router.include_router(download_tasks_router)
 api_router.include_router(lingxing_router)
-api_router.include_router(scoring_router)
 api_router.include_router(announcement_router)
 
 __all__ = ["api_router"]
