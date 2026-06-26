@@ -6,19 +6,19 @@
 ### 启动
 
 ```powershell
-docker compose -f docker-compose.prod-simple.yml -p sijuelishi-prod up -d
+docker compose -f docker-compose.prod.yml -p sijuelishi-prod up -d
 ```
 
 ### 停止
 
 ```powershell
-docker compose -f docker-compose.prod-simple.yml -p sijuelishi-prod down
+docker compose -f docker-compose.prod.yml -p sijuelishi-prod down
 ```
 
 ### 查看状态
 
 ```powershell
-docker compose -f docker-compose.prod-simple.yml -p sijuelishi-prod ps
+docker compose -f docker-compose.prod.yml -p sijuelishi-prod ps
 docker stats --no-stream
 ```
 
@@ -96,7 +96,7 @@ docker restart prod-backend
 **大改动（依赖变更/多文件）：** 需要重建镜像：
 
 ```powershell
-docker compose -f docker-compose.prod-simple.yml -p sijuelishi-prod up -d --build backend
+docker compose -f docker-compose.prod.yml -p sijuelishi-prod up -d --build backend
 ```
 
 > ⚠️ **禁止无脑 `--build`！** 单文件改动用 `docker cp` + `restart` 秒级完成，`--build` 会重新安装所有依赖，耗时数分钟。

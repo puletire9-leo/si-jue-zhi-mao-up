@@ -8,7 +8,7 @@
 
 | 维度 | 开发 (dev) | 生产 (prod) |
 |------|-----------|------------|
-| Compose 文件 | `docker-compose.dev.yml` | `docker-compose.prod-simple.yml` |
+| Compose 文件 | `docker-compose.dev.yml` | `docker-compose.prod.yml` |
 | 项目名 | 默认 | `sijuelishi-prod` |
 | 数据库 | `sijuelishi_dev` | `sijuelishi` |
 | 容器名前缀 | `dev-` | `prod-` |

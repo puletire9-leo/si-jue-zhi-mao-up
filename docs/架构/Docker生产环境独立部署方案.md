@@ -55,13 +55,13 @@ npm run build
 
 ```powershell
 cd ..
-docker compose -f docker-compose.prod-simple.yml build
+docker compose -f docker-compose.prod.yml build
 ```
 
 ### 步骤 5：启动所有容器
 
 ```powershell
-docker compose -f docker-compose.prod-simple.yml up -d
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 ### 步骤 6：验证
@@ -86,8 +86,8 @@ Copy-Item sjzm-product/target/sjzm-product-1.0.0-SNAPSHOT.jar sjzm-product/targe
 # （改到哪个模块就拷哪个）
 
 cd ..
-docker compose -f docker-compose.prod-simple.yml build --no-cache java-product
-docker compose -f docker-compose.prod-simple.yml up -d java-product
+docker compose -f docker-compose.prod.yml build --no-cache java-product
+docker compose -f docker-compose.prod.yml up -d java-product
 ```
 
 ### 只改了前端代码
@@ -97,15 +97,15 @@ cd frontend
 npm run build
 
 cd ..
-docker compose -f docker-compose.prod-simple.yml build --no-cache frontend
-docker compose -f docker-compose.prod-simple.yml up -d frontend
+docker compose -f docker-compose.prod.yml build --no-cache frontend
+docker compose -f docker-compose.prod.yml up -d frontend
 ```
 
 ### 只改了 Python 代码
 
 ```powershell
-docker compose -f docker-compose.prod-simple.yml build --no-cache backend celery-download
-docker compose -f docker-compose.prod-simple.yml up -d backend celery-download
+docker compose -f docker-compose.prod.yml build --no-cache backend celery-download
+docker compose -f docker-compose.prod.yml up -d backend celery-download
 ```
 
 > Python 基础镜像 (`sjzm-python-base`) 不需要重建，除非 `requirements.txt` 有变更。
@@ -115,8 +115,8 @@ docker compose -f docker-compose.prod-simple.yml up -d backend celery-download
 叠加上述步骤，最后一次性 rebuild + up：
 
 ```powershell
-docker compose -f docker-compose.prod-simple.yml build --no-cache java-product gateway frontend
-docker compose -f docker-compose.prod-simple.yml up -d java-product gateway frontend
+docker compose -f docker-compose.prod.yml build --no-cache java-product gateway frontend
+docker compose -f docker-compose.prod.yml up -d java-product gateway frontend
 ```
 
 ---
@@ -140,7 +140,7 @@ docker compose -f docker-compose.prod-simple.yml up -d java-product gateway fron
 
 ### prod-celery-download 一直 unhealthy
 
-健康检查的 `$HOSTNAME` 在 `CMD` 数组形式中不会被 shell 展开。已在 `docker-compose.prod-simple.yml` 中改为 `CMD-SHELL`：
+健康检查的 `$HOSTNAME` 在 `CMD` 数组形式中不会被 shell 展开。已在 `docker-compose.prod.yml` 中改为 `CMD-SHELL`：
 
 ```yaml
 test: ["CMD-SHELL", "celery -A app.tasks.celery_app inspect ping -d celery@$$HOSTNAME"]

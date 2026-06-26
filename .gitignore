@@ -117,3 +117,7 @@ docs/对话历史/
 
 # 参考设计（体积过大）
 rag参考设计/
+
+# Qoder 代码 wiki 生成物
+.qoder/
+.mimocode/
