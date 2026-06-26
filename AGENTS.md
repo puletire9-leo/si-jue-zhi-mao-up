@@ -62,7 +62,7 @@ docker compose -f docker-compose.dev.yml --profile gateway up -d gateway
 docker compose -f docker-compose.dev.yml --profile nacos up -d nacos
 
 # 生产环境启动
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml -p sijuelishi-prod up -d
 
 # 查看服务状态
 docker compose ps
@@ -74,4 +74,4 @@ docker compose logs -f backend
 
 ## 环境变量
 
-所有环境变量见 [.env.example](.env.example)，敏感信息勿提交 Git。
+所有环境变量见 [config/](config/)，敏感信息勿提交 Git（`config/secrets/*.env` 已被 .gitignore 屏蔽）。

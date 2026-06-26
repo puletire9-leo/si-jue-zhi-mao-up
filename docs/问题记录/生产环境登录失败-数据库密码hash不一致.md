@@ -90,5 +90,5 @@ docker exec prod-mysql mysql -u sijue -psijue123456 sijuelishi -e $sql
 | `java-backend/sjzm-user/.../AuthServiceImpl.java` | 登录业务逻辑 |
 | `java-backend/sjzm-common/.../JwtUtil.java` | JWT 生成 |
 | `frontend/nginx.prod.conf` | 生产 Nginx 路由 |
-| `docker-compose.prod-simple.yml` | 生产 Docker 编排 |
+| `docker-compose.prod.yml` | 生产 Docker 编排 |
 | `backend/backup/prod-init.sql` | 生产数据库初始化脚本 |

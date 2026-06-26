@@ -35,19 +35,7 @@ spring:
             - id: sjzm-product
               uri: http://java-product:8002
               predicates:
-                - Path=/api/v1/products/**,/api/v1/selections/**,/api/v1/competitor/**,/api/v1/product-sales/**,/api/v1/product-performance/**,/api/v1/category-baseline/**,/api/v1/category-dislocation/**,/api/v1/element-discovery/**,/api/v1/seller/**,/api/v1/filter-config/**,/api/v1/asin-import/**,/api/v1/scoring/**,/api/v1/filter-presets/**,/api/v1/sellersprite-config/**,/api/v1/click-logs/**,/api/v1/deng-zong-shop/**,/api/v1/modules/**
-            - id: sjzm-customization
-              uri: http://java-product:8002
-              predicates:
-                - Path=/api/v1/final-drafts/**,/api/v1/materials/**,/api/v1/carriers/**
-            - id: sjzm-image
-              uri: http://java-product:8002
-              predicates:
-                - Path=/api/v1/images/**,/api/v1/image-proxy/**
-            - id: selection-agent
-              uri: http://selection-agent-v2:8011
-              predicates:
-                - Path=/api/v1/product-line/model/**,/api/v1/product-line/elements,/api/v1/product-line/batches,/api/v1/product-line/agent-chat
+                - Path=/api/v1/competitor/**,/api/v1/product-sales/**,/api/v1/product-performance/**,/api/v1/category-baseline/**,/api/v1/category-dislocation/**,/api/v1/element-discovery/**,/api/v1/seller/**,/api/v1/filter-config/**,/api/v1/asin-import/**,/api/v1/scoring/**,/api/v1/filter-presets/**,/api/v1/sellersprite-config/**,/api/v1/click-logs/**,/api/v1/deng-zong-shop/**,/api/v1/blue-ocean/**,/api/v1/clean-layer/**,/api/v1/subcategory-alias/**,/api/v1/modules/**
             - id: product-line-java
               uri: http://java-product:8002
               predicates:

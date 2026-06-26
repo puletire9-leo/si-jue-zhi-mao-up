@@ -1,7 +1,6 @@
 # ============================================
 # 思觉智贸 - 生产环境
-# 启动（基础）: docker compose -f docker-compose.prod.yml -p sijuelishi-prod up -d
-# 启动（全量）: docker compose -f docker-compose.prod.yml -p sijuelishi-prod --profile full up -d
+# 启动: docker compose -f docker-compose.prod.yml -p sijuelishi-prod up -d
 # ============================================
 
 services:
@@ -17,13 +16,8 @@ services:
     ports:
       - "3310:3306"
     env_file:
-      - .env.prod
-      - .env.prod.secrets
-    environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
     volumes:
       - prod-mysql-data:/var/lib/mysql
     healthcheck:
@@ -75,8 +69,8 @@ services:
     ports:
       - "7093:8090"
     env_file:
-      - .env.prod
-      - .env.prod.secrets
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
     environment:
       - IMAGE_READ_MODE=cloud
     volumes:
@@ -98,8 +92,8 @@ services:
     container_name: prod-celery-download
     command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=10 -Q download_tasks
     env_file:
-      - .env.prod
-      - .env.prod.secrets
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
     volumes:
       - prod-download-cache:/app/下载缓存
       - prod-logs:/app/logs
@@ -128,12 +122,11 @@ services:
     ports:
       - "8014:8001"
     env_file:
-      - .env.prod
-      - .env.prod.secrets
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
     environment:
       SERVICE_MODULE: user
       SPRING_PROFILES_ACTIVE: prod
-      MYSQL_USERNAME: ${MYSQL_USER}
       REDISSON_ADDRESS: redis://redis:6379
     depends_on:
       mysql:
@@ -153,12 +146,11 @@ services:
     ports:
       - "8025:8002"
     env_file:
-      - .env.prod
-      - .env.prod.secrets
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
     environment:
       SERVICE_MODULE: product
       SPRING_PROFILES_ACTIVE: prod
-      MYSQL_USERNAME: ${MYSQL_USER}
       REDISSON_ADDRESS: redis://redis:6379
     depends_on:
       mysql:
@@ -178,8 +170,8 @@ services:
     ports:
       - "9003:9000"
     env_file:
-      - .env.prod
-      - .env.prod.secrets
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
     environment:
       SERVICE_MODULE: gateway
       SPRING_PROFILES_ACTIVE: prod
@@ -190,29 +182,6 @@ services:
       java-product:
         condition: service_started
       nacos:
-        condition: service_started
-    restart: unless-stopped
-
-  # ============================================
-  # 选品分析 Agent v2 (可选，需 --profile full)
-  # ============================================
-
-  selection-agent-v2:
-    profiles: [full]
-    build:
-      context: ./selection-agent-v2
-      dockerfile: Dockerfile
-    image: prod-selection-agent-v2
-    container_name: prod-selection-agent-v2
-    env_file:
-      - .env.prod
-      - .env.prod.secrets
-    environment:
-      - JAVA_BASE_URL=http://java-product:8002
-      - PYTHONPATH=/app
-      - HERMES_HOME=/root/.hermes
-    depends_on:
-      java-product:
         condition: service_started
     restart: unless-stopped
 
