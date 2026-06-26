@@ -17,4 +17,10 @@ public interface ElementDiscoveryService {
                                             int topN,
                                             int samplePerCarrier,
                                             String carrier);
+
+    Map<String, Object> listManualCandidates(String marketplace,
+                                             String month,
+                                             int scanLimit,
+                                             int limit,
+                                             String carrier);
 }

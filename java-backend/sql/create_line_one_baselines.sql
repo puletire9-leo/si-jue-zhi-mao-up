@@ -19,8 +19,9 @@ CREATE TABLE IF NOT EXISTS category_bsr_baseline (
 CREATE TABLE IF NOT EXISTS subcategory_baseline (
   id BIGINT NOT NULL AUTO_INCREMENT,
   marketplace VARCHAR(10) NOT NULL COMMENT 'Marketplace UK/DE/US',
-  bsr_id VARCHAR(100) DEFAULT NULL COMMENT 'Dominant category slug',
-  sub_category VARCHAR(200) NOT NULL COMMENT 'Leaf subcategory label',
+  bsr_id VARCHAR(100) NOT NULL COMMENT 'Top-level category slug, partitions the leaf so the same name in two big categories stays separate',
+  canonical_key VARCHAR(100) DEFAULT NULL COMMENT 'Reserved normalized key, not used for alias merge in line1',
+  sub_category VARCHAR(200) NOT NULL COMMENT 'Amazon leaf subcategory label',
   baseline_month VARCHAR(6) NOT NULL COMMENT 'Baseline month yyyyMM',
   sample_size INT NOT NULL DEFAULT 0 COMMENT 'Sample size',
   units_p50 INT DEFAULT NULL COMMENT 'Units P50',
@@ -30,7 +31,8 @@ CREATE TABLE IF NOT EXISTS subcategory_baseline (
   confidence VARCHAR(8) DEFAULT NULL COMMENT 'Confidence high/mid/low',
   computed_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'Computed at',
   PRIMARY KEY (id),
-  UNIQUE KEY uk_slice (marketplace, sub_category, baseline_month),
+  UNIQUE KEY uk_slice (marketplace, bsr_id, sub_category, baseline_month),
   KEY idx_lookup (marketplace, bsr_id, baseline_month),
-  KEY idx_sub_lookup (marketplace, sub_category, baseline_month)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Line1 winner subcategory baseline';
+  KEY idx_sub_lookup (marketplace, sub_category, baseline_month),
+  KEY idx_canonical_lookup (marketplace, canonical_key, baseline_month)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Line1 Amazon leaf subcategory baseline (marketplace x bsr_id x leaf x month)';

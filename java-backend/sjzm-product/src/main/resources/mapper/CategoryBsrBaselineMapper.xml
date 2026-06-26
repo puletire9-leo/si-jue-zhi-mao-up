@@ -17,8 +17,10 @@
             price_avg, confidence, computed_at
         )
         WITH filtered AS (
+            -- 数据清洗层：直接消费 competitor_products_clean（已按父 ASIN 去重）
+            -- 见 docs/选品方法库/补充/数据清洗层.md
             SELECT marketplace, bsr_id, bsr, units, price
-            FROM competitor_products
+            FROM competitor_products_clean
             WHERE month = #{baselineMonth}
               AND bsr_id IS NOT NULL
               AND bsr_id != ''

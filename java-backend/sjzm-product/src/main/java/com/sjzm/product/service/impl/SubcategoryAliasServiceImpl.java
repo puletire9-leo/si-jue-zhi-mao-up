@@ -16,12 +16,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -43,6 +45,14 @@ public class SubcategoryAliasServiceImpl implements SubcategoryAliasService {
     private static final String MATCH_METHOD_WINNER_RAW = "WINNER_RAW";
     private static final String MATCH_METHOD_WINNER_EXACT = "WINNER_EXACT";
     private static final String MATCH_METHOD_CATEGORY_RULE = "CATEGORY_RULE";
+    private static final Set<String> SUGGESTION_STOP_WORDS = Set.of(
+            "and", "for", "the", "with",
+            "women", "woman", "men", "man",
+            "kids", "kid", "toddlers", "toddler",
+            "sets", "set", "kits", "kit",
+            "bags", "bag", "covers", "cover",
+            "outfits", "clothing", "accessories"
+    );
 
     private static final List<CategoryRule> CATEGORY_RULES = List.of(
             rule("Sun Catcher", List.of("suncatcher", "sun catcher", "glass art", "suncatchers")),
@@ -197,32 +207,37 @@ public class SubcategoryAliasServiceImpl implements SubcategoryAliasService {
                 : normalizeMarketplace(marketplace);
         int safeLimit = limit <= 0 ? 50 : Math.min(limit, 200);
 
-        LambdaQueryWrapper<SubcategoryAliasMap> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(SubcategoryAliasMap::getSourceType, normalizedSourceType)
-                .eq(SubcategoryAliasMap::getStatus, STATUS_PENDING);
-        if (normalizedMarketplace != null) {
-            wrapper.eq(SubcategoryAliasMap::getMarketplace, normalizedMarketplace);
-        }
-        wrapper.orderByDesc(SubcategoryAliasMap::getSampleCount)
-                .orderByAsc(SubcategoryAliasMap::getRawSubcategory)
-                .last("LIMIT " + safeLimit);
-
-        List<SubcategoryAliasMap> rows = subcategoryAliasMapMapper.selectList(wrapper);
+        List<SubcategoryAliasMap> rows = queryPendingAliases(normalizedSourceType, normalizedMarketplace, safeLimit);
         List<Map<String, Object>> result = new ArrayList<>(rows.size());
         for (SubcategoryAliasMap row : rows) {
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("sourceType", row.getSourceType());
-            item.put("marketplace", row.getMarketplace());
-            item.put("rawSubcategory", row.getRawSubcategory());
-            item.put("sampleCount", row.getSampleCount());
-            item.put("latestMonth", row.getLatestMonth());
-            item.put("carrierHint", row.getCarrierHint());
-            item.put("canonicalKey", row.getCanonicalKey());
-            item.put("canonicalName", row.getCanonicalName());
-            item.put("notes", row.getNotes());
-            result.add(item);
+            result.add(toPendingItem(row));
         }
         return result;
+    }
+
+    @Override
+    public List<Map<String, Object>> listReviewCandidates(String sourceType,
+                                                          String marketplace,
+                                                          int limit,
+                                                          int suggestionLimit) {
+        String normalizedSourceType = trimToNull(sourceType) == null
+                ? SOURCE_COMPETITOR
+                : normalizeSourceType(sourceType);
+        String normalizedMarketplace = SOURCE_WINNER.equals(normalizedSourceType)
+                ? MARKETPLACE_ALL
+                : normalizeMarketplace(marketplace);
+        int safeLimit = limit <= 0 ? 20 : Math.min(limit, 100);
+        int safeSuggestionLimit = suggestionLimit <= 0 ? 3 : Math.min(suggestionLimit, 5);
+        int scanLimit = Math.min(Math.max(safeLimit * 20, safeLimit), 1000);
+
+        List<SubcategoryAliasMap> pendingAliases = queryPendingAliases(normalizedSourceType, normalizedMarketplace, scanLimit);
+        List<SubcategoryAliasMap> approvedWinnerAliases = listApprovedWinnerAliases();
+
+        return pendingAliases.stream()
+                .map(alias -> toReviewCandidateItem(alias, approvedWinnerAliases, safeSuggestionLimit))
+                .filter(item -> !((List<?>) item.get("suggestions")).isEmpty())
+                .limit(safeLimit)
+                .toList();
     }
 
     @Override
@@ -546,6 +561,163 @@ public class SubcategoryAliasServiceImpl implements SubcategoryAliasService {
         return new WinnerDirectionMatch(matchedWinners.get(0), matchedWinners.size() == 1);
     }
 
+    private List<SubcategoryAliasMap> queryPendingAliases(String sourceType, String marketplace, int limit) {
+        LambdaQueryWrapper<SubcategoryAliasMap> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SubcategoryAliasMap::getSourceType, sourceType)
+                .eq(SubcategoryAliasMap::getStatus, STATUS_PENDING);
+        if (marketplace != null) {
+            wrapper.eq(SubcategoryAliasMap::getMarketplace, marketplace);
+        }
+        wrapper.orderByDesc(SubcategoryAliasMap::getSampleCount)
+                .orderByAsc(SubcategoryAliasMap::getRawSubcategory)
+                .last("LIMIT " + limit);
+        return subcategoryAliasMapMapper.selectList(wrapper);
+    }
+
+    private List<SubcategoryAliasMap> listApprovedWinnerAliases() {
+        return subcategoryAliasMapMapper.selectList(
+                new LambdaQueryWrapper<SubcategoryAliasMap>()
+                        .eq(SubcategoryAliasMap::getSourceType, SOURCE_WINNER)
+                        .eq(SubcategoryAliasMap::getStatus, STATUS_APPROVED)
+                        .eq(SubcategoryAliasMap::getDeleted, 0)
+                        .isNotNull(SubcategoryAliasMap::getCanonicalKey)
+        );
+    }
+
+    private Map<String, Object> toPendingItem(SubcategoryAliasMap row) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("sourceType", row.getSourceType());
+        item.put("marketplace", row.getMarketplace());
+        item.put("rawSubcategory", row.getRawSubcategory());
+        item.put("sampleCount", row.getSampleCount());
+        item.put("latestMonth", row.getLatestMonth());
+        item.put("carrierHint", row.getCarrierHint());
+        item.put("canonicalKey", row.getCanonicalKey());
+        item.put("canonicalName", row.getCanonicalName());
+        item.put("notes", row.getNotes());
+        return item;
+    }
+
+    private Map<String, Object> toReviewCandidateItem(SubcategoryAliasMap row,
+                                                      List<SubcategoryAliasMap> approvedWinnerAliases,
+                                                      int suggestionLimit) {
+        Map<String, Object> item = toPendingItem(row);
+        item.put("suggestions", buildSuggestions(row.getRawSubcategory(), approvedWinnerAliases, suggestionLimit));
+        return item;
+    }
+
+    private List<Map<String, Object>> buildSuggestions(String rawSubcategory,
+                                                       List<SubcategoryAliasMap> approvedWinnerAliases,
+                                                       int suggestionLimit) {
+        String normalizedRaw = normalizeText(rawSubcategory);
+        if (normalizedRaw == null || approvedWinnerAliases == null || approvedWinnerAliases.isEmpty()) {
+            return List.of();
+        }
+
+        CategoryRule categoryRule = matchByCategory(rawSubcategory);
+        Set<String> rawTokens = extractMeaningfulTokens(normalizedRaw);
+
+        return approvedWinnerAliases.stream()
+                .map(alias -> scoreSuggestion(normalizedRaw, rawTokens, categoryRule, alias))
+                .filter(Objects::nonNull)
+                .sorted(Comparator
+                        .comparingInt(SuggestionCandidate::score).reversed()
+                        .thenComparingInt(candidate -> candidate.winnerSampleCount() == null ? 0 : candidate.winnerSampleCount())
+                        .reversed()
+                        .thenComparing(SuggestionCandidate::canonicalName))
+                .limit(suggestionLimit)
+                .map(candidate -> {
+                    Map<String, Object> suggestion = new LinkedHashMap<>();
+                    suggestion.put("canonicalKey", candidate.canonicalKey());
+                    suggestion.put("canonicalName", candidate.canonicalName());
+                    suggestion.put("winnerRawSubcategory", candidate.winnerRawSubcategory());
+                    suggestion.put("winnerCarrierHint", candidate.winnerCarrierHint());
+                    suggestion.put("winnerSampleCount", candidate.winnerSampleCount());
+                    suggestion.put("score", candidate.score());
+                    suggestion.put("reasons", candidate.reasons());
+                    return suggestion;
+                })
+                .toList();
+    }
+
+    private SuggestionCandidate scoreSuggestion(String normalizedRaw,
+                                                Set<String> rawTokens,
+                                                CategoryRule categoryRule,
+                                                SubcategoryAliasMap winnerAlias) {
+        String winnerNormalized = winnerAlias.getNormalizedSubcategory();
+        if (winnerNormalized == null) {
+            return null;
+        }
+
+        int score = 0;
+        List<String> reasons = new ArrayList<>();
+
+        if (normalizedRaw.equals(winnerNormalized)) {
+            score = 100;
+            reasons.add("WINNER_EXACT");
+        }
+
+        if (comparableContains(normalizedRaw, winnerNormalized) || comparableContains(winnerNormalized, normalizedRaw)) {
+            score = Math.max(score, 85);
+            reasons.add("TEXT_CONTAINS");
+        }
+
+        if (categoryRule != null && hasCategoryRuleMatch(categoryRule, winnerNormalized)) {
+            score = Math.max(score, 78);
+            reasons.add("CATEGORY_RULE");
+        }
+
+        int overlapCount = overlapCount(rawTokens, extractMeaningfulTokens(winnerNormalized));
+        if (overlapCount >= 2) {
+            score = Math.max(score, 70 + Math.min(overlapCount, 5));
+            reasons.add("TOKEN_OVERLAP_" + overlapCount);
+        }
+
+        if (score < 60) {
+            return null;
+        }
+
+        return new SuggestionCandidate(
+                winnerAlias.getCanonicalKey(),
+                winnerAlias.getCanonicalName(),
+                winnerAlias.getRawSubcategory(),
+                winnerAlias.getCarrierHint(),
+                winnerAlias.getSampleCount(),
+                score,
+                new ArrayList<>(new LinkedHashSet<>(reasons))
+        );
+    }
+
+    private boolean hasCategoryRuleMatch(CategoryRule categoryRule, String normalizedWinner) {
+        return categoryRule.categoryKeywords().stream()
+                .anyMatch(keyword -> comparableContains(normalizedWinner, keyword));
+    }
+
+    private Set<String> extractMeaningfulTokens(String normalizedText) {
+        if (normalizedText == null) {
+            return Set.of();
+        }
+        return java.util.Arrays.stream(normalizedText.split("\\s+"))
+                .map(String::trim)
+                .filter(token -> !token.isBlank())
+                .filter(token -> token.length() >= 3)
+                .filter(token -> !SUGGESTION_STOP_WORDS.contains(token))
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private int overlapCount(Set<String> left, Set<String> right) {
+        if (left.isEmpty() || right.isEmpty()) {
+            return 0;
+        }
+        int count = 0;
+        for (String token : left) {
+            if (right.contains(token)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     private int countByStatus(List<SubcategoryAliasMap> aliases, String status) {
         return (int) aliases.stream()
                 .filter(alias -> status.equals(alias.getStatus()))
@@ -720,5 +892,14 @@ public class SubcategoryAliasServiceImpl implements SubcategoryAliasService {
     }
 
     private record CanonicalMatch(String canonicalKey, String canonicalName, String matchMethod) {
+    }
+
+    private record SuggestionCandidate(String canonicalKey,
+                                       String canonicalName,
+                                       String winnerRawSubcategory,
+                                       String winnerCarrierHint,
+                                       Integer winnerSampleCount,
+                                       int score,
+                                       List<String> reasons) {
     }
 }

@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.mapper.CategoryAgeTierBaselineMapper">
+
+    <delete id="deleteByBaselineMonth">
+        DELETE FROM category_age_tier_baseline
+        WHERE baseline_month = #{baselineMonth}
+        <if test="marketplace != null and marketplace != ''">
+            AND marketplace = #{marketplace}
+        </if>
+    </delete>
+
+    <!--
+      M04 新品大类×账龄×销量基线计算
+      数据源：competitor_products_clean（已按父 ASIN 去重）
+      硬门槛：listing_days < 90 AND weight_g < 300（M01 镜像）
+      分组：marketplace × bsr_id × age_bucket
+      只保留 sample_size >= 30 的桶
+    -->
+    <insert id="insertComputedSlices">
+        INSERT INTO category_age_tier_baseline (
+            marketplace, bsr_id, age_bucket, baseline_month,
+            sample_size,
+            units_p25, units_p50, units_p75, units_p90,
+            bsr_p10, bsr_p25, bsr_p50, bsr_p75,
+            price_p50, confidence, computed_at
+        )
+        WITH filtered AS (
+            SELECT cp.marketplace, cp.bsr_id, cp.units, cp.bsr, cp.price,
+                   CASE WHEN cp.listing_days &lt; 30 THEN '0_30'
+                        WHEN cp.listing_days &lt; 60 THEN '30_60'
+                        ELSE '60_90' END AS age_bucket
+            FROM competitor_products_clean cp
+            WHERE cp.month = #{baselineMonth}
+              AND cp.listing_days IS NOT NULL AND cp.listing_days &lt; 90
+              AND cp.weight_g IS NOT NULL AND cp.weight_g &lt; 300
+              AND cp.bsr_id IS NOT NULL AND cp.bsr_id != ''
+              AND LOWER(cp.bsr_id) != 'null'
+              AND cp.bsr IS NOT NULL AND cp.bsr &gt; 0
+              AND cp.units IS NOT NULL
+              <if test="marketplace != null and marketplace != ''">
+                  AND cp.marketplace = #{marketplace}
+              </if>
+        ),
+        ranked AS (
+            SELECT marketplace, bsr_id, age_bucket, units, bsr, price,
+                   PERCENT_RANK() OVER (
+                       PARTITION BY marketplace, bsr_id, age_bucket
+                       ORDER BY units ASC
+                   ) AS units_pr,
+                   PERCENT_RANK() OVER (
+                       PARTITION BY marketplace, bsr_id, age_bucket
+                       ORDER BY bsr ASC
+                   ) AS bsr_pr
+            FROM filtered
+        ),
+        agg AS (
+            SELECT marketplace, bsr_id, age_bucket,
+                   COUNT(*) AS sample_size,
+                   MAX(CASE WHEN units_pr &lt;= 0.25 THEN units END) AS units_p25,
+                   MAX(CASE WHEN units_pr &lt;= 0.50 THEN units END) AS units_p50,
+                   MAX(CASE WHEN units_pr &lt;= 0.75 THEN units END) AS units_p75,
+                   MAX(CASE WHEN units_pr &lt;= 0.90 THEN units END) AS units_p90,
+                   MAX(CASE WHEN bsr_pr &lt;= 0.10 THEN bsr END) AS bsr_p10,
+                   MAX(CASE WHEN bsr_pr &lt;= 0.25 THEN bsr END) AS bsr_p25,
+                   MAX(CASE WHEN bsr_pr &lt;= 0.50 THEN bsr END) AS bsr_p50,
+                   MAX(CASE WHEN bsr_pr &lt;= 0.75 THEN bsr END) AS bsr_p75,
+                   ROUND(AVG(price), 2) AS price_p50
+            FROM ranked
+            GROUP BY marketplace, bsr_id, age_bucket
+            HAVING COUNT(*) &gt;= 30
+        )
+        SELECT marketplace, bsr_id, age_bucket,
+               #{baselineMonth} AS baseline_month,
+               sample_size,
+               units_p25, units_p50, units_p75, units_p90,
+               bsr_p10, bsr_p25, bsr_p50, bsr_p75,
+               price_p50,
+               -- confidence: high (≥100 且分位不塌缩), mid (≥50), low (其他/塌缩)
+               CASE
+                   WHEN sample_size &gt;= 100 AND units_p50 != units_p75 AND units_p75 != units_p90 THEN 'high'
+                   WHEN sample_size &gt;= 50 AND units_p50 != units_p75 AND units_p75 != units_p90 THEN 'mid'
+                   ELSE 'low'
+               END AS confidence,
+               NOW() AS computed_at
+        FROM agg
+    </insert>
+
+    <!--
+      周度增量打标：按 week_tag 过滤本周新行，UPDATE m04_* 5 列。
+      不满足 listing_days<90 或 weight_g<300 → m04_tier='out_of_scope'
+      满足 → 查 baseline 算 tier + bsr_pct
+      当前只回写原表 competitor_products；clean 表 m04_* 列已预留，待后续下游明确消费时再同步
+    -->
+    <update id="tagAsinsByWeek">
+        UPDATE competitor_products cp
+        LEFT JOIN category_age_tier_baseline b
+            ON b.marketplace COLLATE utf8mb4_unicode_ci = cp.marketplace COLLATE utf8mb4_unicode_ci
+            AND b.bsr_id COLLATE utf8mb4_unicode_ci = cp.bsr_id COLLATE utf8mb4_unicode_ci
+            AND b.baseline_month = #{baselineMonth}
+            AND b.age_bucket = CASE
+                WHEN cp.listing_days &lt; 30 THEN '0_30'
+                WHEN cp.listing_days &lt; 60 THEN '30_60'
+                WHEN cp.listing_days &lt; 90 THEN '60_90'
+                ELSE NULL
+            END
+        SET
+            cp.m04_age_bucket = CASE
+                WHEN cp.listing_days IS NULL OR cp.weight_g IS NULL
+                  OR cp.listing_days &gt;= 90 OR cp.weight_g &gt;= 300
+                  THEN 'out_of_scope'
+                WHEN cp.listing_days &lt; 30 THEN '0_30'
+                WHEN cp.listing_days &lt; 60 THEN '30_60'
+                ELSE '60_90'
+            END,
+            cp.m04_tier = CASE
+                WHEN cp.listing_days IS NULL OR cp.weight_g IS NULL
+                  OR cp.listing_days &gt;= 90 OR cp.weight_g &gt;= 300
+                  THEN 'out_of_scope'
+                WHEN b.id IS NULL THEN 'unknown'
+                WHEN cp.units &gt;= b.units_p90 THEN 'S'
+                WHEN cp.units &gt;= b.units_p75 THEN 'A'
+                WHEN cp.units &gt;= b.units_p50 THEN 'B'
+                WHEN cp.units &gt;= b.units_p25 THEN 'C'
+                ELSE 'D'
+            END,
+            cp.m04_units_pct = CASE
+                WHEN b.id IS NULL OR cp.units IS NULL THEN NULL
+                WHEN cp.units &gt;= b.units_p90 THEN 0.90
+                WHEN cp.units &gt;= b.units_p75 THEN 0.75
+                WHEN cp.units &gt;= b.units_p50 THEN 0.50
+                WHEN cp.units &gt;= b.units_p25 THEN 0.25
+                ELSE 0.00
+            END,
+            cp.m04_bsr_pct = CASE
+                WHEN b.id IS NULL OR cp.bsr IS NULL OR cp.bsr &lt;= 0 THEN NULL
+                WHEN cp.bsr &lt;= b.bsr_p10 THEN 0.90
+                WHEN cp.bsr &lt;= b.bsr_p25 THEN 0.75
+                WHEN cp.bsr &lt;= b.bsr_p50 THEN 0.50
+                WHEN cp.bsr &lt;= b.bsr_p75 THEN 0.25
+                ELSE 0.00
+            END,
+            cp.m04_computed_at = NOW()
+        WHERE cp.week_tag = #{weekTag}
+            AND cp.month = #{baselineMonth}
+            <if test="marketplace != null and marketplace != ''">
+                AND cp.marketplace = #{marketplace}
+            </if>
+    </update>
+
+    <!--
+      月度全量打标：按 month 过滤当月所有新品，UPDATE m04_* 5 列。
+      用于 baseline 重算后的全量回写打标。
+    -->
+    <update id="tagAsinsByMonth">
+        UPDATE competitor_products cp
+        LEFT JOIN category_age_tier_baseline b
+            ON b.marketplace COLLATE utf8mb4_unicode_ci = cp.marketplace COLLATE utf8mb4_unicode_ci
+            AND b.bsr_id COLLATE utf8mb4_unicode_ci = cp.bsr_id COLLATE utf8mb4_unicode_ci
+            AND b.baseline_month = #{baselineMonth}
+            AND b.age_bucket = CASE
+                WHEN cp.listing_days &lt; 30 THEN '0_30'
+                WHEN cp.listing_days &lt; 60 THEN '30_60'
+                WHEN cp.listing_days &lt; 90 THEN '60_90'
+                ELSE NULL
+            END
+        SET
+            cp.m04_age_bucket = CASE
+                WHEN cp.listing_days IS NULL OR cp.weight_g IS NULL
+                  OR cp.listing_days &gt;= 90 OR cp.weight_g &gt;= 300
+                  THEN 'out_of_scope'
+                WHEN cp.listing_days &lt; 30 THEN '0_30'
+                WHEN cp.listing_days &lt; 60 THEN '30_60'
+                ELSE '60_90'
+            END,
+            cp.m04_tier = CASE
+                WHEN cp.listing_days IS NULL OR cp.weight_g IS NULL
+                  OR cp.listing_days &gt;= 90 OR cp.weight_g &gt;= 300
+                  THEN 'out_of_scope'
+                WHEN b.id IS NULL THEN 'unknown'
+                WHEN cp.units &gt;= b.units_p90 THEN 'S'
+                WHEN cp.units &gt;= b.units_p75 THEN 'A'
+                WHEN cp.units &gt;= b.units_p50 THEN 'B'
+                WHEN cp.units &gt;= b.units_p25 THEN 'C'
+                ELSE 'D'
+            END,
+            cp.m04_units_pct = CASE
+                WHEN b.id IS NULL OR cp.units IS NULL THEN NULL
+                WHEN cp.units &gt;= b.units_p90 THEN 0.90
+                WHEN cp.units &gt;= b.units_p75 THEN 0.75
+                WHEN cp.units &gt;= b.units_p50 THEN 0.50
+                WHEN cp.units &gt;= b.units_p25 THEN 0.25
+                ELSE 0.00
+            END,
+            cp.m04_bsr_pct = CASE
+                WHEN b.id IS NULL OR cp.bsr IS NULL OR cp.bsr &lt;= 0 THEN NULL
+                WHEN cp.bsr &lt;= b.bsr_p10 THEN 0.90
+                WHEN cp.bsr &lt;= b.bsr_p25 THEN 0.75
+                WHEN cp.bsr &lt;= b.bsr_p50 THEN 0.50
+                WHEN cp.bsr &lt;= b.bsr_p75 THEN 0.25
+                ELSE 0.00
+            END,
+            cp.m04_computed_at = NOW()
+        WHERE cp.month = #{baselineMonth}
+            <if test="marketplace != null and marketplace != ''">
+                AND cp.marketplace = #{marketplace}
+            </if>
+    </update>
+
+</mapper>

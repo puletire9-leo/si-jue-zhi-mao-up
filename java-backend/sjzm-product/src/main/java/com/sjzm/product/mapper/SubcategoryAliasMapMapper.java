@@ -76,7 +76,7 @@ public interface SubcategoryAliasMapMapper extends BaseMapper<SubcategoryAliasMa
             "SELECT marketplace, " +
             "TRIM(SUBSTRING_INDEX(node_label_path, ':', -1)) AS rawSubcategory, " +
             "COUNT(*) AS sampleCount " +
-            "FROM competitor_products " +
+            "FROM competitor_products_clean " +
             "WHERE month = #{baselineMonth} " +
             "AND node_label_path IS NOT NULL " +
             "AND TRIM(SUBSTRING_INDEX(node_label_path, ':', -1)) != '' " +

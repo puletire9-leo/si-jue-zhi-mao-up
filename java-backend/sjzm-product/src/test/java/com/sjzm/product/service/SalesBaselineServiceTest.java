@@ -31,9 +31,6 @@ class SalesBaselineServiceTest {
     @Mock
     CompetitorProductMapper competitorProductMapper;
 
-    @Mock
-    SubcategoryAliasService subcategoryAliasService;
-
     @InjectMocks
     SalesBaselineServiceImpl service;
 
@@ -97,7 +94,7 @@ class SalesBaselineServiceTest {
 
     @Test
     void computeSubcategoryBaseline_normalizesDashedMonth() {
-        when(subcategoryAliasService.bootstrap("202606", null)).thenReturn(Map.of("winnerAliases", 12));
+        when(competitorProductMapper.selectCount(any())).thenReturn(520L);
         when(subcategoryBaselineMapper.deleteByBaselineMonth("202606", null)).thenReturn(1);
         when(subcategoryBaselineMapper.insertComputedSlices("202606", null)).thenReturn(9);
         when(subcategoryBaselineMapper.selectCount(any())).thenReturn(9L);
@@ -107,7 +104,8 @@ class SalesBaselineServiceTest {
         assertThat(result.get("success")).isEqualTo(true);
         assertThat(result.get("baselineMonth")).isEqualTo("202606");
         assertThat(result.get("marketplace")).isEqualTo("ALL");
-        assertThat(result.get("aliasBootstrap")).isEqualTo(Map.of("winnerAliases", 12));
+        assertThat(result.get("minimumSampleSize")).isEqualTo(30);
+        assertThat(result.get("eligibleCompetitorRows")).isEqualTo(520L);
         assertThat(result.get("inserted")).isEqualTo(9);
     }
 
@@ -117,6 +115,7 @@ class SalesBaselineServiceTest {
         baseline.setMarketplace("UK");
         baseline.setBsrId("garden/outdoors");
         baseline.setSubCategory("Garden Sun Catchers");
+        baseline.setCanonicalKey(null);
         baseline.setBaselineMonth("202606");
         baseline.setSampleSize(35);
         baseline.setUnitsP50(18);
@@ -126,15 +125,69 @@ class SalesBaselineServiceTest {
         baseline.setConfidence("mid");
         when(subcategoryBaselineMapper.selectOne(any())).thenReturn(baseline);
 
-        Map<String, Object> result = service.getSubcategoryHealth("UK", "Garden Sun Catchers", null);
+        Map<String, Object> result = service.getSubcategoryHealth("UK", "garden/outdoors", "Garden Sun Catchers", null);
 
         assertThat(result.get("hasBaseline")).isEqualTo(true);
         assertThat(result.get("bsrId")).isEqualTo("garden/outdoors");
+        assertThat(result.get("queryBsrId")).isEqualTo("garden/outdoors");
+        assertThat(result.get("resolvedBy")).isEqualTo("AMAZON_LEAF");
+        assertThat(result.get("matchedRawSubCategory")).isEqualTo("Garden Sun Catchers");
         assertThat(result.get("priceP50")).isEqualTo(new BigDecimal("9.99"));
         @SuppressWarnings("unchecked")
         Map<String, Object> units = (Map<String, Object>) result.get("units");
         assertThat(units.get("p50")).isEqualTo(18);
         assertThat(units.get("p75")).isEqualTo(31);
         assertThat(units.get("p90")).isEqualTo(48);
+    }
+
+    @Test
+    void getSubcategoryHealth_requiresBsrIdToSeparateSameLeafInDifferentBigCategories() {
+        // 同 leaf 名 "Glass Art & Suncatchers" 在 home 和 arts-crafts 两个 bsr_id 下都有命中。
+        // 旧粒度会揉成一行；新粒度 4 列 ((marketplace, bsr_id, sub_category, baseline_month))
+        // 让 mapper 必须分别命中两行，不再相互污染。
+        SubcategoryBaseline homeBaseline = new SubcategoryBaseline();
+        homeBaseline.setMarketplace("UK");
+        homeBaseline.setBsrId("home");
+        homeBaseline.setSubCategory("Glass Art & Suncatchers");
+        homeBaseline.setBaselineMonth("202606");
+        homeBaseline.setSampleSize(60);
+        homeBaseline.setUnitsP50(12);
+        homeBaseline.setUnitsP75(20);
+        homeBaseline.setUnitsP90(33);
+        homeBaseline.setPriceP50(new BigDecimal("14.50"));
+        homeBaseline.setConfidence("mid");
+
+        SubcategoryBaseline artsBaseline = new SubcategoryBaseline();
+        artsBaseline.setMarketplace("UK");
+        artsBaseline.setBsrId("arts-crafts");
+        artsBaseline.setSubCategory("Glass Art & Suncatchers");
+        artsBaseline.setBaselineMonth("202606");
+        artsBaseline.setSampleSize(45);
+        artsBaseline.setUnitsP50(5);
+        artsBaseline.setUnitsP75(9);
+        artsBaseline.setUnitsP90(14);
+        artsBaseline.setPriceP50(new BigDecimal("22.00"));
+        artsBaseline.setConfidence("mid");
+
+        when(subcategoryBaselineMapper.selectOne(any()))
+                .thenReturn(homeBaseline)
+                .thenReturn(artsBaseline);
+
+        Map<String, Object> homeResult = service.getSubcategoryHealth(
+                "UK", "home", "Glass Art & Suncatchers", "202606");
+        Map<String, Object> artsResult = service.getSubcategoryHealth(
+                "UK", "arts-crafts", "Glass Art & Suncatchers", "202606");
+
+        assertThat(homeResult.get("bsrId")).isEqualTo("home");
+        assertThat(homeResult.get("sampleSize")).isEqualTo(60);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> homeUnits = (Map<String, Object>) homeResult.get("units");
+        assertThat(homeUnits.get("p50")).isEqualTo(12);
+
+        assertThat(artsResult.get("bsrId")).isEqualTo("arts-crafts");
+        assertThat(artsResult.get("sampleSize")).isEqualTo(45);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> artsUnits = (Map<String, Object>) artsResult.get("units");
+        assertThat(artsUnits.get("p50")).isEqualTo(5);
     }
 }

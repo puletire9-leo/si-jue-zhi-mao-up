@@ -42,6 +42,21 @@ public class SubcategoryAliasController {
         return Result.success(subcategoryAliasService.listPending(sourceType, marketplace, limit));
     }
 
+    @GetMapping("/review-candidates")
+    @Operation(summary = "查看审核建议", description = "返回 pending alias 及其候选赢家方向建议，供 UK 批量审核使用")
+    public Result<List<Map<String, Object>>> reviewCandidates(
+            @RequestParam(required = false) String sourceType,
+            @RequestParam(required = false) String marketplace,
+            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(defaultValue = "3") int suggestionLimit) {
+        return Result.success(subcategoryAliasService.listReviewCandidates(
+                sourceType,
+                marketplace,
+                limit,
+                suggestionLimit
+        ));
+    }
+
     @PostMapping("/approve")
     @Operation(summary = "人工确认别名", description = "手工把 rawSubcategory 绑定到 canonicalKey/canonicalName")
     public Result<Map<String, Object>> approve(
