@@ -2069,13 +2069,11 @@ async def update_final_draft(
         deleted_reference_images = [url for fn, url in old_ref_filenames.items() if fn not in new_ref_filenames]
 
         deleted_all_images = deleted_images + deleted_reference_images
-        
-        # 删除腾讯云COS上的旧图片
+
+        # 删除腾讯云COS上的旧图片（仅删除确认是COS URL的图片）
         if deleted_all_images and cos_service.enabled:
             logger.info(f"开始删除定稿旧图片 - SKU: {sku}, 图片数量: {len(deleted_all_images)}")
-            
-            from ...services.cos_service import cos_service
-            
+
             for image_url in deleted_all_images:
                 try:
                     # 只处理COS URL，跳过代理URL和data URI
@@ -2091,10 +2089,10 @@ async def update_final_draft(
                             logger.info(f"成功删除COS图片 - 对象键: {object_key}, 定稿SKU: {sku}")
                         else:
                             logger.error(f"删除COS图片失败 - 对象键: {object_key}, 定稿SKU: {sku}, 错误: {error_msg}")
-                        
+
                         # 生成所有可能的缩略图对象键
                         thumbnail_keys = _generate_thumbnail_object_keys(object_key)
-                        
+
                         # 删除所有对应的缩略图
                         for thumbnail_key in thumbnail_keys:
                             success, error_msg = await cos_service.delete_image(thumbnail_key)

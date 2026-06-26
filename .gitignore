@@ -56,6 +56,7 @@ tmp-m2/
 tmp-maven-settings.xml
 .playwright-mcp/
 方舟众筹/
+~$*
 
 # Tool binaries (too large)
 tool/node.js/
