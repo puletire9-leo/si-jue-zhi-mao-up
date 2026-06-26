@@ -44,10 +44,6 @@ spring:
               uri: http://java-product:8002
               predicates:
                 - Path=/api/v1/images/**,/api/v1/image-proxy/**
-            - id: selection-agent
-              uri: http://selection-agent-v2:8011
-              predicates:
-                - Path=/api/v1/product-line/model/**,/api/v1/product-line/elements,/api/v1/product-line/batches,/api/v1/product-line/agent-chat
             - id: product-line-java
               uri: http://java-product:8002
               predicates:
