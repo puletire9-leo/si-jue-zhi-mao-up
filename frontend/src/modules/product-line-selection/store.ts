@@ -1,12 +1,11 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { ElMessage } from "element-plus";
-import { getBatches, getTree } from "@/api/product-line";
+import { getTree } from "@/api/product-line";
 import { competitorApi } from "@/api/competitor";
 import { selectionApi } from "@/api/selection";
 import type {
   ProductLineGroup,
-  BatchInfo,
   FilterType,
   TreeGroup,
 } from "@/types/productLine";
@@ -58,7 +57,6 @@ export const useProductLineSelectionStore = defineStore(
       `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
     );
     const batchVersion = ref("v3");
-    const selectedBatchId = ref("");
     const selectedNodeId = ref("");
     const selectedNodeName = ref("");
     const selectedNodeHealth = ref<string>("healthy");
@@ -79,7 +77,6 @@ export const useProductLineSelectionStore = defineStore(
     const competitorPageSize = ref(60);
 
     const treeData = ref<TreeGroup[]>([]);
-    const batches = ref<BatchInfo[]>([]);
 
     // ---- 基础筛选状态（L1/L2 通用） ----
     const searchKeyword = ref("");
@@ -123,10 +120,6 @@ export const useProductLineSelectionStore = defineStore(
     // ---- 计算 ----
     const filterCount = computed(() => activeFilters.value.length);
     const hasFilters = computed(() => activeFilters.value.length > 0);
-    const selectedBatchInfo = computed(
-      () =>
-        batches.value.find((b) => b.batchId === selectedBatchId.value) ?? null,
-    );
 
     const selectedProductList = computed(() =>
       Array.from(selectedProducts.value),
@@ -144,7 +137,7 @@ export const useProductLineSelectionStore = defineStore(
     async function initData() {
       // 切换站点/月份时重置区间筛选（周批次由面板按站点重新拉取并默认最新）
       rangeFilter.value = emptyRangeFilter();
-      await Promise.all([fetchTree(), fetchBatchesList(), fetchCompleteness()]);
+      await Promise.all([fetchTree(), fetchCompleteness()]);
 
       // 默认加载第一个大类的商品
       if (treeData.value.length > 0 && !selectedBsrId.value) {
@@ -193,21 +186,6 @@ export const useProductLineSelectionStore = defineStore(
         ElMessage.error("品线树加载失败，请检查网络或刷新重试");
       } finally {
         treeLoading.value = false;
-      }
-    }
-
-    async function fetchBatchesList() {
-      try {
-        const res = await getBatches(marketplace.value);
-        const raw = res?.data?.batches as BatchInfo[] | undefined;
-        if (raw) {
-          batches.value = raw;
-          if (raw.length > 0 && !selectedBatchId.value) {
-            selectedBatchId.value = raw[0].batchId;
-          }
-        }
-      } catch (err) {
-        ElMessage.error("批次列表加载失败");
       }
     }
 
@@ -618,8 +596,6 @@ export const useProductLineSelectionStore = defineStore(
       selectedNodeHealth,
       selectedBsrId,
       selectedBsrName,
-      selectedBatchId,
-      selectedBatchInfo,
       activeFilters,
       filterCount,
       hasFilters,
@@ -627,7 +603,6 @@ export const useProductLineSelectionStore = defineStore(
       treeLoading,
       competitorLoading,
       treeData,
-      batches,
       currentSubCategories,
       competitorResults,
       competitorTotal,
@@ -647,7 +622,6 @@ export const useProductLineSelectionStore = defineStore(
       searchCompetitors,
       initData,
       fetchTree,
-      fetchBatchesList,
       loadProducts,
       FILTER_LABEL,
       setMarketplace,
