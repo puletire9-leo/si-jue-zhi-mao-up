@@ -22,10 +22,6 @@ export function getProductLineElements(
   });
 }
 
-export function getBatches(marketplace: string) {
-  return request.get(`${MODEL_BASE}/batches`, { params: { marketplace } });
-}
-
 export function getAggregatedData(marketplace: string, month: string) {
   return request.get(`${MODEL_BASE}/aggregated-data`, {
     params: { marketplace, month },
