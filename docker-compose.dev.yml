@@ -45,7 +45,8 @@ services:
     image: dev-backend
     container_name: dev-backend
     env_file:
-      - ./backend/.env
+      - ./config/public/dev.env
+      - ./config/secrets/dev.env
     environment:
       - ENVIRONMENT=development
       - DEBUG=true
@@ -85,7 +86,8 @@ services:
     image: dev-backend
     container_name: dev-celery-worker
     env_file:
-      - ./backend/.env
+      - ./config/public/dev.env
+      - ./config/secrets/dev.env
     environment:
       - ENVIRONMENT=development
       - MYSQL_HOST=mysql
