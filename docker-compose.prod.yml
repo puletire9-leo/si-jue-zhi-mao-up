@@ -1,7 +1,6 @@
 # ============================================
 # 思觉智贸 - 生产环境
-# 启动（基础）: docker compose -f docker-compose.prod.yml -p sijuelishi-prod up -d
-# 启动（全量）: docker compose -f docker-compose.prod.yml -p sijuelishi-prod --profile full up -d
+# 启动: docker compose -f docker-compose.prod.yml -p sijuelishi-prod up -d
 # ============================================
 
 services:
@@ -190,29 +189,6 @@ services:
       java-product:
         condition: service_started
       nacos:
-        condition: service_started
-    restart: unless-stopped
-
-  # ============================================
-  # 选品分析 Agent v2 (可选，需 --profile full)
-  # ============================================
-
-  selection-agent-v2:
-    profiles: [full]
-    build:
-      context: ./selection-agent-v2
-      dockerfile: Dockerfile
-    image: prod-selection-agent-v2
-    container_name: prod-selection-agent-v2
-    env_file:
-      - .env.prod
-      - .env.prod.secrets
-    environment:
-      - JAVA_BASE_URL=http://java-product:8002
-      - PYTHONPATH=/app
-      - HERMES_HOME=/root/.hermes
-    depends_on:
-      java-product:
         condition: service_started
     restart: unless-stopped
 
