@@ -347,7 +347,6 @@ app.add_middleware(
         "/api/v1/images/search": 60.0,  # 搜索请求超时时间更长
         "/api/v1/images/upload": 120.0,  # 上传请求超时时间更长
         "/api/v1/products": 60.0,  # 产品列表请求超时时间更长
-        "/api/v1/users": 60.0,  # 用户列表请求超时时间更长
         "/api/v1/final-drafts/download-zip": 1800.0,  # 定稿下载请求超时30分钟（大文件下载需要更长时间）
         "/api/v1/download-tasks": 300.0,  # 下载任务请求超时5分钟
     },
