@@ -1,0 +1,1810 @@
+{
+  "nodeId": 331991011,
+  "nodeName": "Kitchen-2",
+  "nodeFullPath": "",
+  "bsrId": "kitchen",
+  "stats": {
+    "raw": 202,
+    "total": 155,
+    "sampled": 40
+  },
+  "overallHealth": "healthy",
+  "healthReason": "多数商品处于RISING或STABLE状态，甜点价格区间集中，平均重量轻、FBA费用低，竞争品牌分散，整体品类健康且具备持续增长潜力。",
+  "qualityBenchmark": {
+    "bsr_p50": 127328,
+    "bsr_p90": 198142,
+    "rating_min": 3.8,
+    "ratings_min": 10,
+    "weight_g_median": 70.0,
+    "weight_g_max": 150.0,
+    "fba_median": 1.76,
+    "fba_max": 2.97,
+    "listing_days_median": 266
+  },
+  "priceBand": {
+    "min": 3.99,
+    "max": 13.99,
+    "avg": 7.08,
+    "sweet_spot_min": 5.99,
+    "sweet_spot_max": 8.99,
+    "sweet_spot_ratio": 0.57
+  },
+  "carrierDetail": [
+    {
+      "name": "Art Print Set",
+      "count": 1,
+      "avg_price": 12.99,
+      "avg_weight_g": 150.0,
+      "avg_fba": 3.01,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量150g，符合轻小件"
+    },
+    {
+      "name": "Bathroom Print",
+      "count": 0,
+      "avg_price": 0,
+      "avg_weight_g": 0,
+      "avg_fba": 0,
+      "avg_variants": 0,
+      "variant_strategy": "未知",
+      "lightweight": "?",
+      "lightweight_reason": "无对应好品数据"
+    },
+    {
+      "name": "Bathroom Wall Art",
+      "count": 2,
+      "avg_price": 5.04,
+      "avg_weight_g": 100.0,
+      "avg_fba": 2.46,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量100g，符合轻小件"
+    },
+    {
+      "name": "Canvas",
+      "count": 1,
+      "avg_price": 7.84,
+      "avg_weight_g": 150.0,
+      "avg_fba": 1.76,
+      "avg_variants": 6.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量150g，符合轻小件"
+    },
+    {
+      "name": "Canvas Oil Painting",
+      "count": 1,
+      "avg_price": 5.99,
+      "avg_weight_g": 30.0,
+      "avg_fba": 1.52,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量30g，符合轻小件"
+    },
+    {
+      "name": "Canvas Painting Print",
+      "count": 1,
+      "avg_price": 5.99,
+      "avg_weight_g": 60.0,
+      "avg_fba": 1.54,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量60g，符合轻小件"
+    },
+    {
+      "name": "Canvas Poster",
+      "count": 4,
+      "avg_price": 6.04,
+      "avg_weight_g": 50.0,
+      "avg_fba": 1.9,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量50g，符合轻小件"
+    },
+    {
+      "name": "Canvas Print",
+      "count": 6,
+      "avg_price": 5.51,
+      "avg_weight_g": 50.0,
+      "avg_fba": 2.46,
+      "avg_variants": 3.0,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量50g，符合轻小件"
+    },
+    {
+      "name": "Canvas Wall Art",
+      "count": 13,
+      "avg_price": 7.27,
+      "avg_weight_g": 70.0,
+      "avg_fba": 1.76,
+      "avg_variants": 4.5,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量70g，符合轻小件"
+    },
+    {
+      "name": "Chart Poster",
+      "count": 1,
+      "avg_price": 3.99,
+      "avg_weight_g": 70.0,
+      "avg_fba": 0,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": "unknown",
+      "lightweight_reason": "中位重量70g，符合轻小件"
+    },
+    {
+      "name": "Decor",
+      "count": 1,
+      "avg_price": 4.99,
+      "avg_weight_g": 40.0,
+      "avg_fba": 2.46,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量40g，符合轻小件"
+    },
+    {
+      "name": "Decoration",
+      "count": 1,
+      "avg_price": 9.99,
+      "avg_weight_g": 50.0,
+      "avg_fba": 2.42,
+      "avg_variants": 5.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量50g，符合轻小件"
+    },
+    {
+      "name": "Framed Artwork",
+      "count": 1,
+      "avg_price": 8.35,
+      "avg_weight_g": 195.0,
+      "avg_fba": 1.76,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量195g，符合轻小件"
+    },
+    {
+      "name": "Gamer Wall Art",
+      "count": 1,
+      "avg_price": 5.99,
+      "avg_weight_g": 60.0,
+      "avg_fba": 1.54,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量60g，符合轻小件"
+    },
+    {
+      "name": "Hanger",
+      "count": 1,
+      "avg_price": 7.99,
+      "avg_weight_g": 100.0,
+      "avg_fba": 0,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": "unknown",
+      "lightweight_reason": "中位重量100g，符合轻小件"
+    },
+    {
+      "name": "Hanger Frame",
+      "count": 1,
+      "avg_price": 6.99,
+      "avg_weight_g": 100.0,
+      "avg_fba": 0,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": "unknown",
+      "lightweight_reason": "中位重量100g，符合轻小件"
+    },
+    {
+      "name": "Painting",
+      "count": 1,
+      "avg_price": 7.49,
+      "avg_weight_g": 100.0,
+      "avg_fba": 1.73,
+      "avg_variants": 3.0,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量100g，符合轻小件"
+    },
+    {
+      "name": "Picture",
+      "count": 1,
+      "avg_price": 6.59,
+      "avg_weight_g": 130.0,
+      "avg_fba": 1.76,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量130g，符合轻小件"
+    },
+    {
+      "name": "Poster",
+      "count": 23,
+      "avg_price": 7.41,
+      "avg_weight_g": 60.0,
+      "avg_fba": 1.75,
+      "avg_variants": 4.2,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量60g，符合轻小件"
+    },
+    {
+      "name": "Poster Set",
+      "count": 3,
+      "avg_price": 7.06,
+      "avg_weight_g": 110.0,
+      "avg_fba": 1.52,
+      "avg_variants": 4.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量110g，符合轻小件"
+    },
+    {
+      "name": "Print",
+      "count": 6,
+      "avg_price": 6.97,
+      "avg_weight_g": 70.0,
+      "avg_fba": 1.7,
+      "avg_variants": 4.5,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量70g，符合轻小件"
+    },
+    {
+      "name": "Sign",
+      "count": 1,
+      "avg_price": 7.99,
+      "avg_weight_g": 80.0,
+      "avg_fba": 2.98,
+      "avg_variants": 4.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量80g，符合轻小件"
+    },
+    {
+      "name": "Wall Art",
+      "count": 14,
+      "avg_price": 6.74,
+      "avg_weight_g": 50.0,
+      "avg_fba": 1.76,
+      "avg_variants": 3.8,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量50g，符合轻小件"
+    },
+    {
+      "name": "Wall Art Poster",
+      "count": 1,
+      "avg_price": 5.99,
+      "avg_weight_g": 30.0,
+      "avg_fba": 1.52,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量30g，符合轻小件"
+    },
+    {
+      "name": "Wall Art Print",
+      "count": 2,
+      "avg_price": 11.09,
+      "avg_weight_g": 180.0,
+      "avg_fba": 1.75,
+      "avg_variants": 5.0,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量180g，符合轻小件"
+    },
+    {
+      "name": "Wall Decor",
+      "count": 2,
+      "avg_price": 8.99,
+      "avg_weight_g": 150.0,
+      "avg_fba": 3.01,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量150g，符合轻小件"
+    },
+    {
+      "name": "Wall Print",
+      "count": 0,
+      "avg_price": 0,
+      "avg_weight_g": 0,
+      "avg_fba": 0,
+      "avg_variants": 0,
+      "variant_strategy": "未知",
+      "lightweight": "?",
+      "lightweight_reason": "无对应好品数据"
+    },
+    {
+      "name": "Wooden Canvas Poster",
+      "count": 1,
+      "avg_price": 7.99,
+      "avg_weight_g": 100.0,
+      "avg_fba": 0,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": "unknown",
+      "lightweight_reason": "中位重量100g，符合轻小件"
+    },
+    {
+      "name": "Wooden Hanger",
+      "count": 0,
+      "avg_price": 0,
+      "avg_weight_g": 0,
+      "avg_fba": 0,
+      "avg_variants": 0,
+      "variant_strategy": "未知",
+      "lightweight": "?",
+      "lightweight_reason": "无对应好品数据"
+    }
+  ],
+  "provenElements": [
+    {
+      "name": "Car",
+      "frequency": 12,
+      "carriers": [
+        "Poster",
+        "Canvas Wall Art",
+        "Wall Print"
+      ],
+      "signalTags": [
+        "RISING",
+        "STABLE",
+        "SWEET_SPOT",
+        "VARIANT"
+      ],
+      "insight": "赛车/超跑主题在多个载体上持续稳定增长，是已验证的核心爆款元素"
+    },
+    {
+      "name": "Motivational",
+      "frequency": 7,
+      "carriers": [
+        "Wall Art",
+        "Canvas Print",
+        "Poster",
+        "Wooden Hanger"
+      ],
+      "signalTags": [
+        "RISING",
+        "STABLE",
+        "DECLINING"
+      ],
+      "insight": "励志名言类通用性强，与木质/报纸/波西米亚风格结合可差异化"
+    },
+    {
+      "name": "Funny",
+      "frequency": 5,
+      "carriers": [
+        "Canvas Poster",
+        "Wall Art",
+        "Print"
+      ],
+      "signalTags": [
+        "RISING",
+        "DECLINING",
+        "SWEET_SPOT"
+      ],
+      "insight": "幽默恶搞主题（如Mona Lisa、动物厕所）在浴室场景中走量"
+    },
+    {
+      "name": "Gaming",
+      "frequency": 4,
+      "carriers": [
+        "Poster",
+        "Canvas Print",
+        "Wall Art"
+      ],
+      "signalTags": [
+        "RISING",
+        "DECLINING",
+        "SWEET_SPOT"
+      ],
+      "insight": "游戏/霓虹主题在青少年卧室场景中热度不减，可扩展水彩或复古风格"
+    },
+    {
+      "name": "Leopard",
+      "frequency": 3,
+      "carriers": [
+        "Canvas Wall Art",
+        "Poster Set"
+      ],
+      "signalTags": [
+        "RISING",
+        "STABLE",
+        "SWEET_SPOT"
+      ],
+      "insight": "豹纹/猎豹作为时尚元素可跨风格（Vogue、斯德哥尔摩）复用"
+    },
+    {
+      "name": "Pink",
+      "frequency": 3,
+      "carriers": [
+        "Canvas Wall Art",
+        "Poster Set"
+      ],
+      "signalTags": [
+        "RISING",
+        "DECLINING"
+      ],
+      "insight": "粉色+时尚配饰（口红、高跟鞋、蝴蝶结）在少女装饰市场有验证需求"
+    },
+    {
+      "name": "Highland Cow",
+      "frequency": 2,
+      "carriers": [
+        "Bathroom Print",
+        "Canvas"
+      ],
+      "signalTags": [
+        "RISING",
+        "DECLINING"
+      ],
+      "insight": "高地牛作为动物IP在浴室厕所场景中表现突出"
+    },
+    {
+      "name": "Mona Lisa",
+      "frequency": 2,
+      "carriers": [
+        "Canvas Poster",
+        "Wall Art"
+      ],
+      "signalTags": [
+        "RISING",
+        "DECLINING",
+        "SWEET_SPOT"
+      ],
+      "insight": "经典名画幽默化（捏鼻子）在浴室场景中反复验证"
+    },
+    {
+      "name": "Boho",
+      "frequency": 2,
+      "carriers": [
+        "Canvas Print",
+        "Sign",
+        "Wall Art"
+      ],
+      "signalTags": [
+        "STABLE",
+        "DECLINING"
+      ],
+      "insight": "波西米亚风格与植物、几何、励志语录组合可覆盖多种场景"
+    },
+    {
+      "name": "Retro",
+      "frequency": 3,
+      "carriers": [
+        "Poster",
+        "Canvas Print",
+        "Wall Art"
+      ],
+      "signalTags": [
+        "RISING",
+        "STABLE"
+      ],
+      "insight": "复古风格（报纸、音乐、游戏）可结合水彩、日式等元素持续创新"
+    }
+  ],
+  "elementSaturation": [
+    {
+      "element": "Car",
+      "frequency": 12,
+      "saturation": "high",
+      "insight": "已跨3种载体验证，可优先投入"
+    },
+    {
+      "element": "Motivational",
+      "frequency": 7,
+      "saturation": "high",
+      "insight": "已跨4种载体验证，可优先投入"
+    },
+    {
+      "element": "Funny",
+      "frequency": 5,
+      "saturation": "high",
+      "insight": "已跨3种载体验证，可优先投入"
+    },
+    {
+      "element": "Gaming",
+      "frequency": 4,
+      "saturation": "medium",
+      "insight": "出现在4个商品中，值得持续观察"
+    },
+    {
+      "element": "Leopard",
+      "frequency": 3,
+      "saturation": "medium",
+      "insight": "出现在3个商品中，值得持续观察"
+    },
+    {
+      "element": "Pink",
+      "frequency": 3,
+      "saturation": "medium",
+      "insight": "出现在3个商品中，值得持续观察"
+    },
+    {
+      "element": "Highland Cow",
+      "frequency": 2,
+      "saturation": "medium",
+      "insight": "出现在2个商品中，值得持续观察"
+    },
+    {
+      "element": "Mona Lisa",
+      "frequency": 2,
+      "saturation": "medium",
+      "insight": "出现在2个商品中，值得持续观察"
+    },
+    {
+      "element": "Boho",
+      "frequency": 2,
+      "saturation": "medium",
+      "insight": "出现在2个商品中，值得持续观察"
+    },
+    {
+      "element": "Retro",
+      "frequency": 3,
+      "saturation": "medium",
+      "insight": "出现在3个商品中，值得持续观察"
+    }
+  ],
+  "emergingElements": [
+    {
+      "element": "Cocktails",
+      "asin": "B0FQ4YBBNP",
+      "signal": "RISING",
+      "opportunity": "鸡尾酒主题结合retro风格，可拓展酒吧、厨房场景，先发优势明显"
+    },
+    {
+      "element": "Rock Band",
+      "asin": "B0FXFKMT2C",
+      "signal": "RISING",
+      "opportunity": "摇滚乐队签名海报在Man Cave场景中回升，可结合知名乐队复刻"
+    },
+    {
+      "element": "F1 / Formula 1",
+      "asin": "B0FVDPPWB1",
+      "signal": "RISING",
+      "opportunity": "F1热度近年飙升，签名海报及车队周边有强需求，适合男性礼品"
+    },
+    {
+      "element": "Mental Health / Positive Affirmation",
+      "asin": "B0FKBHNMS8",
+      "signal": "RISING",
+      "opportunity": "心理健康主题在社会工作者、心理咨询室场景中快速增长，蓝海市场"
+    },
+    {
+      "element": "Japanese Style",
+      "asin": "B0GLG6PVVL",
+      "signal": "RISING",
+      "opportunity": "日式+音乐元素融合（Record Player+Japanese Text）在文艺家居市场有潜力"
+    },
+    {
+      "element": "New York Trends Newspaper",
+      "asin": "B0FVWWP6GZ",
+      "signal": "RISING",
+      "opportunity": "纽约+报纸风格兼具时尚与复古，在大学生公寓场景中易出爆款"
+    },
+    {
+      "element": "Funny Animal Toilet Set",
+      "asin": "B0FK1CQMSL",
+      "signal": "RISING",
+      "opportunity": "高地牛/狗/长颈鹿坐马桶看报纸系列，新奇幽默，适合做套装"
+    }
+  ],
+  "recommendedCombos": [
+    {
+      "elements": [
+        "Car",
+        "Racing"
+      ],
+      "carriers": [
+        "Poster",
+        "Canvas Wall Art"
+      ],
+      "scenes": [
+        "Man Cave",
+        "Boys Bedroom"
+      ],
+      "keywordsEn": [
+        "car racing poster man cave",
+        "supercar canvas boys room"
+      ],
+      "keywordsCn": [
+        "赛车海报男子洞穴",
+        "超跑帆布男孩房间"
+      ],
+      "heat": "已验证",
+      "reason": "Car元素在12个商品中高频成功，RISING/STABLE信号强"
+    },
+    {
+      "elements": [
+        "Leopard",
+        "Fashion"
+      ],
+      "carriers": [
+        "Canvas Print",
+        "Poster Set"
+      ],
+      "scenes": [
+        "Living Room",
+        "Bedroom"
+      ],
+      "keywordsEn": [
+        "leopard fashion canvas print",
+        "cheetah poster set living room"
+      ],
+      "keywordsCn": [
+        "豹纹时尚帆布画",
+        "猎豹海报套装客厅"
+      ],
+      "heat": "已验证",
+      "reason": "Leopard在STABLE和RISING中多次出现，载体和场景成熟"
+    },
+    {
+      "elements": [
+        "Funny",
+        "Mona Lisa",
+        "Vintage"
+      ],
+      "carriers": [
+        "Canvas Poster"
+      ],
+      "scenes": [
+        "Bathroom",
+        "Toilet"
+      ],
+      "keywordsEn": [
+        "funny mona lisa bathroom art",
+        "vintage mona lisa holding nose"
+      ],
+      "keywordsCn": [
+        "搞笑蒙娜丽莎浴室画",
+        "复古蒙娜丽莎捏鼻子"
+      ],
+      "heat": "已验证",
+      "reason": "两个Mona Lisa商品均获RISING或SWEET_SPOT，浴室场景已验证"
+    },
+    {
+      "elements": [
+        "Motivational",
+        "Boho",
+        "Inspirational Quote"
+      ],
+      "carriers": [
+        "Wooden Hanger Frame",
+        "Canvas Print"
+      ],
+      "scenes": [
+        "Office",
+        "Living Room"
+      ],
+      "keywordsEn": [
+        "boho motivational wooden sign",
+        "inspirational quote canvas office"
+      ],
+      "keywordsCn": [
+        "波西米亚励志木质挂画",
+        "名言帆布办公室"
+      ],
+      "heat": "已验证",
+      "reason": "Motivational+Boho组合在STABLE/DECLINING中仍有低价竞争力"
+    },
+    {
+      "elements": [
+        "Gaming",
+        "Neon",
+        "Watercolor"
+      ],
+      "carriers": [
+        "Poster",
+        "Canvas Print"
+      ],
+      "scenes": [
+        "Teen Bedroom",
+        "Playroom"
+      ],
+      "keywordsEn": [
+        "neon gaming watercolor poster",
+        "video game canvas teen room"
+      ],
+      "keywordsCn": [
+        "霓虹游戏水彩海报",
+        "电子游戏帆布少年房"
+      ],
+      "heat": "已验证",
+      "reason": "Gaming元素多种变体（Neon/Watercolor）均获RISING信号"
+    },
+    {
+      "elements": [
+        "Pink",
+        "Preppy",
+        "Lipstick",
+        "High Heels"
+      ],
+      "carriers": [
+        "Poster Set",
+        "Canvas Wall Art"
+      ],
+      "scenes": [
+        "Girls Bedroom",
+        "Teen Room Decor"
+      ],
+      "keywordsEn": [
+        "pink preppy lipstick poster set",
+        "high heel canvas girl room"
+      ],
+      "keywordsCn": [
+        "粉色学院风口红海报套装",
+        "高跟鞋帆布女孩房间"
+      ],
+      "heat": "已验证",
+      "reason": "Pink元素在RISING和DECLINING中均有，价格甜点区走量"
+    },
+    {
+      "elements": [
+        "Highland Cow",
+        "Funny Animal"
+      ],
+      "carriers": [
+        "Bathroom Print",
+        "Canvas"
+      ],
+      "scenes": [
+        "Bathroom",
+        "Toilet"
+      ],
+      "keywordsEn": [
+        "highland cow funny bathroom print",
+        "scottish cow toilet art"
+      ],
+      "keywordsCn": [
+        "高地牛搞笑浴室印刷",
+        "苏格兰牛厕所装饰"
+      ],
+      "heat": "已验证",
+      "reason": "高地牛在浴室场景获RISING信号，可拓展动物系列"
+    },
+    {
+      "elements": [
+        "Retro",
+        "Music",
+        "Album Cover"
+      ],
+      "carriers": [
+        "Canvas Wall Art",
+        "Poster"
+      ],
+      "scenes": [
+        "Man Cave",
+        "Music Room"
+      ],
+      "keywordsEn": [
+        "retro music album cover canvas",
+        "rock band poster man cave"
+      ],
+      "keywordsCn": [
+        "复古音乐专辑封面帆布",
+        "摇滚乐队海报男子洞穴"
+      ],
+      "heat": "已验证",
+      "reason": "Rock Band/Rock Music元素RISING，趋势向上"
+    },
+    {
+      "elements": [
+        "F1",
+        "Racing",
+        "Signed"
+      ],
+      "carriers": [
+        "Poster"
+      ],
+      "scenes": [
+        "Sports Room",
+        "Gift for Men"
+      ],
+      "keywordsEn": [
+        "f1 signed poster gift",
+        "formula 1 wall art sports room"
+      ],
+      "keywordsCn": [
+        "F1签名海报礼物",
+        "一级方程式墙画运动房"
+      ],
+      "heat": "新兴",
+      "reason": "F1元素RISING，受赛事热度驱动，先发优势"
+    },
+    {
+      "elements": [
+        "Cocktails",
+        "Retro"
+      ],
+      "carriers": [
+        "Canvas Wall Art"
+      ],
+      "scenes": [
+        "Kitchen",
+        "Home Bar"
+      ],
+      "keywordsEn": [
+        "retro cocktail canvas kitchen",
+        "cocktail poster bar decor"
+      ],
+      "keywordsCn": [
+        "复古鸡尾酒帆布厨房",
+        "鸡尾酒海报酒吧装饰"
+      ],
+      "heat": "新兴",
+      "reason": "Cocktails元素RISING，厨房/吧台场景差异化"
+    },
+    {
+      "elements": [
+        "Mental Health",
+        "Positive Affirmation"
+      ],
+      "carriers": [
+        "Canvas Print",
+        "Poster"
+      ],
+      "scenes": [
+        "Counseling Office",
+        "Home Office"
+      ],
+      "keywordsEn": [
+        "mental health positivity canvas",
+        "counseling office poster quote"
+      ],
+      "keywordsCn": [
+        "心理健康积极肯定帆布",
+        "咨询室名言海报"
+      ],
+      "heat": "新兴",
+      "reason": "新兴刚需，RISING信号强，竞争少"
+    },
+    {
+      "elements": [
+        "Japanese Style",
+        "Record Player"
+      ],
+      "carriers": [
+        "Canvas Print"
+      ],
+      "scenes": [
+        "Living Room",
+        "Study"
+      ],
+      "keywordsEn": [
+        "japanese record player wall art",
+        "retro japanese canvas living room"
+      ],
+      "keywordsCn": [
+        "日式唱片机墙画",
+        "复古日式帆布客厅"
+      ],
+      "heat": "新兴",
+      "reason": "日本风格+音乐融合，RISING信号，文艺市场青睐"
+    },
+    {
+      "elements": [
+        "New York Trends",
+        "Newspaper Style"
+      ],
+      "carriers": [
+        "Poster"
+      ],
+      "scenes": [
+        "Dorm",
+        "Apartment"
+      ],
+      "keywordsEn": [
+        "new york newspaper poster dorm",
+        "black white new york wall art apartment"
+      ],
+      "keywordsCn": [
+        "纽约报纸海报宿舍",
+        "黑白纽约墙画公寓"
+      ],
+      "heat": "新兴",
+      "reason": "RISING，学生公寓装饰需求旺盛"
+    },
+    {
+      "elements": [
+        "Football",
+        "Soccer",
+        "Superstar"
+      ],
+      "carriers": [
+        "Canvas Print",
+        "Poster"
+      ],
+      "scenes": [
+        "Boys Bedroom",
+        "Gaming Room"
+      ],
+      "keywordsEn": [
+        "football superstar canvas print",
+        "soccer poster boys bedroom"
+      ],
+      "keywordsCn": [
+        "足球球星帆布画",
+        "足球海报男孩卧室"
+      ],
+      "heat": "已验证",
+      "reason": "Football元素有RISING和SWEET_SPOT信号，稳定出单"
+    },
+    {
+      "elements": [
+        "Fodmap",
+        "Food Guide",
+        "Diet"
+      ],
+      "carriers": [
+        "Chart Poster"
+      ],
+      "scenes": [
+        "Kitchen",
+        "Home"
+      ],
+      "keywordsEn": [
+        "fodmap chart poster kitchen",
+        "low diet food list wall art"
+      ],
+      "keywordsCn": [
+        "FODMAP图表海报厨房",
+        "低饮食食物清单墙画"
+      ],
+      "heat": "已验证",
+      "reason": "STABLE，健康饮食教育类刚需，长尾关键词"
+    },
+    {
+      "elements": [
+        "Darts",
+        "Scoreboard"
+      ],
+      "carriers": [
+        "Canvas Wall Art"
+      ],
+      "scenes": [
+        "Game Room",
+        "Bar"
+      ],
+      "keywordsEn": [
+        "darts scoreboard canvas",
+        "dart checkout chart bar decor"
+      ],
+      "keywordsCn": [
+        "飞镖记分牌帆布",
+        "飞镖结表酒吧装饰"
+      ],
+      "heat": "已验证",
+      "reason": "DECLINING但仍有固定场景需求，适合低价引流"
+    },
+    {
+      "elements": [
+        "Boho",
+        "Geometric",
+        "Plant"
+      ],
+      "carriers": [
+        "Canvas Print"
+      ],
+      "scenes": [
+        "Living Room",
+        "Bedroom"
+      ],
+      "keywordsEn": [
+        "boho plant canvas print",
+        "geometric botanical wall art"
+      ],
+      "keywordsCn": [
+        "波西米亚植物帆布画",
+        "几何植物墙画"
+      ],
+      "heat": "已验证",
+      "reason": "波西米亚自然风DECLINING，但搭配Sage Green等颜值款仍有市场"
+    },
+    {
+      "elements": [
+        "Superhero",
+        "Motivational"
+      ],
+      "carriers": [
+        "Poster",
+        "Canvas"
+      ],
+      "scenes": [
+        "Boys Room",
+        "Playroom"
+      ],
+      "keywordsEn": [
+        "superhero motivational poster",
+        "hulk spiderman inspirational canvas"
+      ],
+      "keywordsCn": [
+        "超级英雄励志海报",
+        "绿巨蜘蛛侠励志帆布"
+      ],
+      "heat": "待观察",
+      "reason": "DECLINING信号，但若加入Affirmation角度或可焕新"
+    },
+    {
+      "elements": [
+        "Christian",
+        "Bible Verses"
+      ],
+      "carriers": [
+        "Framed Artwork",
+        "Poster"
+      ],
+      "scenes": [
+        "Bedroom",
+        "Gifts for Women"
+      ],
+      "keywordsEn": [
+        "christian bible verse framed",
+        "god says you are poster gift"
+      ],
+      "keywordsCn": [
+        "基督教圣经经文框画",
+        "神说你是海报礼物"
+      ],
+      "heat": "待观察",
+      "reason": "DECLINING但宗教礼品有固定消费群"
+    },
+    {
+      "elements": [
+        "Stockholm Style",
+        "Vogue",
+        "Leopard"
+      ],
+      "carriers": [
+        "Poster Set",
+        "Canvas Wall Art"
+      ],
+      "scenes": [
+        "Living Room",
+        "Dining Room"
+      ],
+      "keywordsEn": [
+        "stockholm style leopard poster set",
+        "vogue canvas dining room"
+      ],
+      "keywordsCn": [
+        "斯德哥尔摩风格豹纹海报套装",
+        "时尚帆布餐厅"
+      ],
+      "heat": "新兴",
+      "reason": "RISING，融合北欧简约与动物纹，新趋势"
+    }
+  ],
+  "searchKeywords": {
+    "en": [
+      "car wall art poster",
+      "motivational canvas print",
+      "funny bathroom decor",
+      "gaming room posters",
+      "leopard print wall art",
+      "highland cow canvas",
+      "mona lisa bathroom art",
+      "boho wall art set",
+      "retro poster set",
+      "pink aesthetic room decor",
+      "football sport poster",
+      "f1 formula 1 wall art",
+      "cocktail kitchen decor",
+      "dart scoreboard sign",
+      "mental health poster office",
+      "japanese style wall art",
+      "new york newspaper poster",
+      "rock band canvas print",
+      "wooden hanging sign wall",
+      "preppy girl room posters"
+    ],
+    "cn": [
+      "汽车墙画海报",
+      "励志帆布画",
+      "搞笑浴室装饰",
+      "游戏房海报",
+      "豹纹墙画",
+      "高地牛帆布画",
+      "蒙娜丽莎浴室画",
+      "波西米亚墙饰套装",
+      "复古海报套装",
+      "粉色少女房间装饰",
+      "足球运动海报",
+      "F1赛车墙画",
+      "鸡尾酒厨房装饰",
+      "飞镖记分牌",
+      "心理健康海报",
+      "日式墙画",
+      "纽约报纸海报",
+      "摇滚乐队帆布画",
+      "木质挂画",
+      "学院风女孩房间海报"
+    ]
+  },
+  "priceGaps": [
+    {
+      "range": "£10.00 - £12.00",
+      "opportunity": "当前样本中9.99-13.99有零星商品，但£10-12区间产品较少（仅2~3个），且缺乏高质量（Rating>4.5）产品。可用多件套装或升级材质（框架、亚克力）填补此空白，定价£11.99，利用价格锚点对比£6.99系列提升利润率"
+    },
+    {
+      "range": "£3.00 - £4.00",
+      "opportunity": "超低价位（£3.99-4.99）已有一些商品，但£3-4区间仅1-2个，可推极小尺寸单品作为引流，搭配£7.99主推款做捆绑销售"
+    },
+    {
+      "range": "£13.00 - £15.99",
+      "opportunity": "最高端区间目前仅有2个商品（12.99和13.99），且不是SWEET_SPOT。若提供大尺寸、带框、礼盒装，可满足送礼需求，竞争小"
+    }
+  ],
+  "lightweightSummary": "所有商品平均重量仅92.3g，最重不超过200g，属于极轻小件，FBA配送费低（平均£1.87），适合多件组合销售以提升客单价，且尺寸小便于仓储和跟卖防守",
+  "filterRules": [
+    {
+      "conditions": [
+        {
+          "field": "listingDays",
+          "op": "le",
+          "value": 90
+        },
+        {
+          "field": "units",
+          "op": "gt",
+          "value": 30
+        }
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "field": "weightG",
+          "op": "le",
+          "value": 150
+        },
+        {
+          "field": "units",
+          "op": "gt",
+          "value": 50
+        }
+      ]
+    },
+    {
+      "conditions": [
+        {
+          "field": "listingDays",
+          "op": "le",
+          "value": 30
+        },
+        {
+          "field": "units",
+          "op": "ge",
+          "value": 10
+        }
+      ]
+    }
+  ],
+  "goodProducts": [
+    {
+      "asin": "B0G1YG2K3C",
+      "elements": [
+        "Leopard",
+        "Skateboard",
+        "Animal",
+        "Fashion"
+      ],
+      "carriers": [
+        "Poster",
+        "Canvas"
+      ],
+      "scenes": [
+        "Living Room",
+        "Bedroom",
+        "Home Decor",
+        "Gift"
+      ],
+      "keywordsEn": [
+        "leopard wall art",
+        "skateboard canvas print",
+        "fashion animal poster"
+      ],
+      "keywordsCn": [
+        "豹纹墙画",
+        "滑板画",
+        "动物时尚海报"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0G1M2V7LZ",
+      "elements": [
+        "Love You Bye",
+        "Boho",
+        "Farmhouse"
+      ],
+      "carriers": [
+        "Sign",
+        "Wall Art"
+      ],
+      "scenes": [
+        "Hallway",
+        "Stairs",
+        "Bedroom",
+        "Living Room",
+        "Entryway"
+      ],
+      "keywordsEn": [
+        "love you bye sign",
+        "boho wall art farmhouse",
+        "above door sign"
+      ],
+      "keywordsCn": [
+        "再见爱口号",
+        "波西米亚墙饰",
+        "门上方标志"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0GFWDY3PL",
+      "elements": [
+        "Car",
+        "Supercar",
+        "Racing",
+        "Modern",
+        "Black and White"
+      ],
+      "carriers": [
+        "Poster",
+        "Wall Art Print"
+      ],
+      "scenes": [
+        "Bedroom",
+        "Boys Room",
+        "Men's Room",
+        "Living Room",
+        "Office",
+        "Dorm",
+        "Man Cave"
+      ],
+      "keywordsEn": [
+        "car posters for bedroom",
+        "supercar wall art",
+        "racing poster set black white"
+      ],
+      "keywordsCn": [
+        "汽车海报卧室",
+        "超级跑车墙画",
+        "黑白赛车装饰"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0FHPDV6DZ",
+      "elements": [
+        "Car",
+        "Super Car",
+        "Sports Cars",
+        "Classic Racing Cars"
+      ],
+      "carriers": [
+        "Poster",
+        "Canvas Wall Art"
+      ],
+      "scenes": [
+        "Man Cave",
+        "Boys Room",
+        "Bedroom",
+        "Aesthetics Decor"
+      ],
+      "keywordsEn": [
+        "car canvas wall art",
+        "classic racing car poster",
+        "man cave decor"
+      ],
+      "keywordsCn": [
+        "汽车帆布画",
+        "经典赛车海报",
+        "男子洞穴装饰"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0FQ4YBBNP",
+      "elements": [
+        "Cocktails",
+        "Retro"
+      ],
+      "carriers": [
+        "Canvas Wall Art",
+        "Poster",
+        "Print"
+      ],
+      "scenes": [
+        "Wedding Gallery",
+        "Apartment",
+        "Bedroom",
+        "Living Room",
+        "Porch",
+        "Kitchen",
+        "Dorm",
+        "Bar Cart Accessories"
+      ],
+      "keywordsEn": [
+        "cocktail poster kitchen",
+        "retro cocktail canvas",
+        "bar cart wall art"
+      ],
+      "keywordsCn": [
+        "鸡尾酒海报",
+        "复古鸡尾酒画",
+        "吧台墙饰"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0FVRCSQFN",
+      "elements": [
+        "Sports Car",
+        "Racing Cars",
+        "Supercar",
+        "Vehicle"
+      ],
+      "carriers": [
+        "Poster",
+        "Wall Art",
+        "Painting"
+      ],
+      "scenes": [
+        "Bedroom",
+        "Boys Room",
+        "Street Wall Decor",
+        "Racing Enthusiasts"
+      ],
+      "keywordsEn": [
+        "sports car wall art",
+        "racing car poster",
+        "vehicle print for boys"
+      ],
+      "keywordsCn": [
+        "跑车墙画",
+        "赛车海报",
+        "车辆装饰男孩房"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0G1S8BF87",
+      "elements": [
+        "Car",
+        "Racing",
+        "GTR R35",
+        "Super Car"
+      ],
+      "carriers": [
+        "Poster"
+      ],
+      "scenes": [
+        "Bedroom",
+        "Boys Room",
+        "Living Room",
+        "Office",
+        "Dorm",
+        "Gift"
+      ],
+      "keywordsEn": [
+        "GTR R35 poster",
+        "jdm car poster",
+        "nissan gtr wall art"
+      ],
+      "keywordsCn": [
+        "GTR R35海报",
+        "JDM汽车海报",
+        "日产GTR墙画"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0F1NBKQ6W",
+      "elements": [
+        "Gaming",
+        "Retro",
+        "Watercolor",
+        "Video Game"
+      ],
+      "carriers": [
+        "Wall Art",
+        "Poster",
+        "Decoration"
+      ],
+      "scenes": [
+        "Teen Bedroom",
+        "Playroom",
+        "Game Room"
+      ],
+      "keywordsEn": [
+        "gaming wall art retro",
+        "watercolor video game poster",
+        "game room decor"
+      ],
+      "keywordsCn": [
+        "游戏房间墙画",
+        "水彩游戏海报",
+        "游戏室装饰"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0GL7H3JXT",
+      "elements": [
+        "Superhero",
+        "Motivational",
+        "Positive Affirmation",
+        "Educational",
+        "Hulk",
+        "Spiderman"
+      ],
+      "carriers": [
+        "Poster",
+        "Canvas Wall Art"
+      ],
+      "scenes": [
+        "Boys Room",
+        "Playroom"
+      ],
+      "keywordsEn": [
+        "superhero motivational poster",
+        "hulk spiderman wall art",
+        "positive affirmation for boys"
+      ],
+      "keywordsCn": [
+        "超级英雄励志海报",
+        "绿巨蜘蛛侠墙画",
+        "儿童鼓励装饰"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0GKG6PTFJ",
+      "elements": [
+        "Cheetah",
+        "Retro",
+        "Vogue",
+        "Black and White"
+      ],
+      "carriers": [
+        "Canvas Wall Art",
+        "Poster Set",
+        "Print"
+      ],
+      "scenes": [
+        "Living Room",
+        "Bedroom",
+        "Study",
+        "Hallway",
+        "Office"
+      ],
+      "keywordsEn": [
+        "cheetah canvas print",
+        "retro vogue poster",
+        "black white animal wall art"
+      ],
+      "keywordsCn": [
+        "猎豹帆布画",
+        "复古时尚海报",
+        "黑白动物墙画"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0FYCZDFG9",
+      "elements": [
+        "Motivational",
+        "Inspirational Quote",
+        "Get 1% Better Everyday"
+      ],
+      "carriers": [
+        "Wall Art",
+        "Canvas Print",
+        "Poster"
+      ],
+      "scenes": [
+        "Home Office",
+        "Bedroom",
+        "Study Room",
+        "Classroom",
+        "Gym",
+        "Studio"
+      ],
+      "keywordsEn": [
+        "motivational wall art",
+        "get 1% better everyday",
+        "inspirational quote canvas"
+      ],
+      "keywordsCn": [
+        "励志墙画",
+        "每天进步1%",
+        "名言帆布画"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0FYF13FBN",
+      "elements": [
+        "Car",
+        "Super Car",
+        "Modern"
+      ],
+      "carriers": [
+        "Poster"
+      ],
+      "scenes": [
+        "Bedroom",
+        "Dorm",
+        "Man Cave",
+        "Living Room",
+        "Gift for Men Boys"
+      ],
+      "keywordsEn": [
+        "super car poster",
+        "modern car wall art",
+        "gift for car lover"
+      ],
+      "keywordsCn": [
+        "超级跑车海报",
+        "现代汽车墙画",
+        "汽车爱好者礼物"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0DWWYX35F",
+      "elements": [
+        "Gaming",
+        "Neon"
+      ],
+      "carriers": [
+        "Poster",
+        "Canvas Painting Print",
+        "Gamer Wall Art"
+      ],
+      "scenes": [
+        "Boys Room",
+        "Kids Bedroom"
+      ],
+      "keywordsEn": [
+        "neon gaming poster",
+        "gamer canvas print",
+        "kids gaming room decor"
+      ],
+      "keywordsCn": [
+        "霓虹游戏海报",
+        "游戏玩家帆布画",
+        "儿童游戏房装饰"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0FWJL2TTF",
+      "elements": [
+        "Sage Green",
+        "Boho",
+        "Geometric Plant"
+      ],
+      "carriers": [
+        "Canvas Print",
+        "Wall Art",
+        "Poster"
+      ],
+      "scenes": [
+        "Living Room",
+        "Bedroom",
+        "Home Decoration"
+      ],
+      "keywordsEn": [
+        "sage green wall art",
+        "boho geometric plant",
+        "aesthetic canvas print"
+      ],
+      "keywordsCn": [
+        "鼠尾绿墙画",
+        "波西米亚几何植物",
+        "美学帆布画"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0GJDJ77F9",
+      "elements": [
+        "Motivational",
+        "Retro Newspaper",
+        "Vintage Inspirational",
+        "It's Already Yours",
+        "The Universe"
+      ],
+      "carriers": [
+        "Wall Art",
+        "Poster"
+      ],
+      "scenes": [
+        "Bedroom",
+        "Home",
+        "Dorm Decor"
+      ],
+      "keywordsEn": [
+        "retro newspaper motivational",
+        "vintage inspirational poster",
+        "universe quote wall art"
+      ],
+      "keywordsCn": [
+        "复古报纸励志",
+        "复古名言海报",
+        "宇宙名言墙画"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0GLG6PVVL",
+      "elements": [
+        "Retro",
+        "Music Themed",
+        "Record Player",
+        "Japanese Text",
+        "Japanese Style"
+      ],
+      "carriers": [
+        "Canvas Wall Art",
+        "Canvas Print"
+      ],
+      "scenes": [
+        "Living Room",
+        "Bedroom",
+        "Office Decor"
+      ],
+      "keywordsEn": [
+        "music canvas wall art",
+        "record player poster japanese",
+        "retro japanese decor"
+      ],
+      "keywordsCn": [
+        "音乐帆布画",
+        "唱片机日式海报",
+        "复古日式装饰"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0GTKHTZ3R",
+      "elements": [
+        "Funny",
+        "Humorous",
+        "Mona Lisa",
+        "Vintage",
+        "Novelty"
+      ],
+      "carriers": [
+        "Wall Art",
+        "Canvas Poster"
+      ],
+      "scenes": [
+        "Bathroom",
+        "Toilet",
+        "Home Bar",
+        "Restroom"
+      ],
+      "keywordsEn": [
+        "funny mona lisa bathroom",
+        "vintage mona lisa holding nose",
+        "humorous toilet art"
+      ],
+      "keywordsCn": [
+        "搞笑蒙娜丽莎浴室",
+        "复古蒙娜丽莎捏鼻子",
+        "幽默厕所装饰"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0FVWWP6GZ",
+      "elements": [
+        "Funky",
+        "Newspaper Style",
+        "Inspirational Quotes",
+        "New York Trends",
+        "Vintage Black White"
+      ],
+      "carriers": [
+        "Canvas Poster",
+        "Wall Decor"
+      ],
+      "scenes": [
+        "Living Room",
+        "Bedroom",
+        "Girls Dorm",
+        "Apartment"
+      ],
+      "keywordsEn": [
+        "new york trends poster",
+        "newspaper style inspirational",
+        "black white funky wall art"
+      ],
+      "keywordsCn": [
+        "纽约潮流海报",
+        "报纸风格励志",
+        "黑白搞怪墙画"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0FYD29B1H",
+      "elements": [
+        "Darts",
+        "Scoreboard",
+        "Dart Checkout Chart",
+        "Funny",
+        "Retro",
+        "Creative",
+        "Cool"
+      ],
+      "carriers": [
+        "Canvas Wall Art",
+        "Decor"
+      ],
+      "scenes": [
+        "Clubs",
+        "Bars",
+        "Boys Game Room",
+        "Home Bar",
+        "Man Cave"
+      ],
+      "keywordsEn": [
+        "darts scoreboard poster",
+        "dart checkout chart",
+        "game room wall art"
+      ],
+      "keywordsCn": [
+        "飞镖记分牌",
+        "飞镖结表海报",
+        "游戏室墙画"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0FKBHNMS8",
+      "elements": [
+        "Positive Affirmation",
+        "Mental Health",
+        "Inspirational Quotes"
+      ],
+      "carriers": [
+        "Poster",
+        "Canvas Print"
+      ],
+      "scenes": [
+        "Psychologists",
+        "Social Workers",
+        "Counseling Office",
+        "Home Decor"
+      ],
+      "keywordsEn": [
+        "mental health poster",
+        "positive affirmation canvas",
+        "counseling office art"
+      ],
+      "keywordsCn": [
+        "心理健康海报",
+        "积极肯定帆布画",
+        "咨询室装饰"
+      ],
+      "lightweight": "True"
+    }
+  ]
+}

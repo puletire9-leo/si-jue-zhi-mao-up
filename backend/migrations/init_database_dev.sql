@@ -150,7 +150,7 @@ CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE COMMENT '用户名',
     password VARCHAR(255) NOT NULL COMMENT '密码（哈希值）',
-    email VARCHAR(100) NOT NULL UNIQUE COMMENT '邮箱',
+    email VARCHAR(100) NULL UNIQUE COMMENT '邮箱（可为空）',
     real_name VARCHAR(100) COMMENT '真实姓名',
     phone VARCHAR(20) COMMENT '手机号码',
     avatar VARCHAR(255) COMMENT '头像地址',

@@ -106,7 +106,7 @@
       </div>
 
       <!-- 卡片网格 -->
-      <div v-loading="loading" class="product-grid-container">
+      <SkeletonWrapper :loading="loading" variant="card-grid" :count="20" :rows="4">
         <div class="product-grid">
           <div
             v-for="item in tableData"
@@ -214,7 +214,7 @@
         </div>
 
         <el-empty v-if="!loading && tableData.length === 0" description="回收站为空" :image-size="200" />
-      </div>
+      </SkeletonWrapper>
 
       <!-- 分页 -->
       <div class="pagination-container">
@@ -561,7 +561,6 @@ onMounted(() => { loadData() })
 }
 
 .search-form { margin-bottom: 20px; }
-.product-grid-container { min-height: 400px; }
 .product-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

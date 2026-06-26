@@ -101,19 +101,19 @@ const getTypeClass = (type: string): 'primary' | 'success' | 'warning' | 'info' 
   margin-bottom: 24px;
   font-size: 18px;
   font-weight: 600;
-  color: #2F281D;
+  color: #1a1a1a;
 }
 
 .log-list {
   background: white;
   border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(124, 97, 212, 0.08);
+  box-shadow: 0 2px 12px rgba(180, 83, 9, 0.08);
   overflow: hidden;
 }
 
 .log-item {
   padding: 20px 24px;
-  border-bottom: 1px solid #F0EBE6;
+  border-bottom: 1px solid #e5e1da;
 
   &:last-child {
     border-bottom: none;
@@ -130,7 +130,7 @@ const getTypeClass = (type: string): 'primary' | 'success' | 'warning' | 'info' 
     display: flex;
     align-items: center;
     gap: 8px;
-    color: #6B5E52;
+    color: #6b7280;
     font-size: 14px;
   }
 
@@ -140,7 +140,7 @@ const getTypeClass = (type: string): 'primary' | 'success' | 'warning' | 'info' 
 }
 
 .log-details {
-  background: #FFFBF7;
+  background: #faf8f5;
   padding: 12px 16px;
   border-radius: 10px;
 
@@ -149,7 +149,7 @@ const getTypeClass = (type: string): 'primary' | 'success' | 'warning' | 'info' 
     align-items: center;
     gap: 8px;
     font-size: 13px;
-    color: #6B5E52;
+    color: #6b7280;
 
     .detail-label {
       color: #9CA3AF;

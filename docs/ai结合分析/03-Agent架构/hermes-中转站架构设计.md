@@ -1,6 +1,9 @@
-# Hermes 中转站架构设计 v1
+# Hermes 中转站架构设计 v1 — ❗已废弃
 
-> **定位**：Java 后端作为「中转站」，连接前端用户界面与 Hermes AI Agent。
+> **❗ 已废弃 (2026-06-08)**：Hermes 通用Agent方案已放弃，选品Agent已独立为 `sijue-selection-agent` 项目。
+> **替代文档**：[选品agent设计.md](./选品agent设计.md) v2.1 + [图.md](../选品算法/图.md) v2.1
+>
+> **历史定位**：Java 后端作为「中转站」，连接前端用户界面与 Hermes AI Agent。
 > **核心原则**：Hermes 是通用 AI 大脑，选品只是第一个 Skill。架构必须支持未来多功能扩展。
 
 ---

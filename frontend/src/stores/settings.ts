@@ -3,7 +3,7 @@ import { ref, reactive } from 'vue'
 
 export const useSettingsStore = defineStore('settings', () => {
   const themeMode = ref<'light' | 'dark' | 'system'>('light')
-  const themeColor = ref('#7C61D4')
+  const themeColor = ref('#b45309')
   const menuLayout = ref<'vertical' | 'horizontal' | 'mix'>('vertical')
   const stretchType = ref<'fixed' | 'custom'>('fixed')
   const customWidth = ref(1440)

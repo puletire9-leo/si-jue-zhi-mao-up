@@ -1,6 +1,7 @@
 package com.sjzm.gateway;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +39,7 @@ public class JwtAuthGatewayFilter implements GlobalFilter, Ordered {
     @Value("${gateway.auth.enabled:true}")
     private boolean authEnabled;
 
-    @Value("${jwt.secret:sjzm-default-secret-key-must-change-in-production-2024}")
+    @Value("${jwt.secret}")
     private String secret;
 
     private final PermissionService permissionService;
@@ -51,49 +52,58 @@ public class JwtAuthGatewayFilter implements GlobalFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
 
-        if (!authEnabled || isPublicPath(path)) {
-            return chain.filter(exchange);
-        }
-
+        // 尝试从 JWT 提取用户信息（无论 auth 是否开启，有 token 就解析）
         String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            try {
+                Claims claims = Jwts.parser()
+                        .verifyWith(getSigningKey())
+                        .build()
+                        .parseSignedClaims(token)
+                        .getPayload();
+
+                String userId = claims.getSubject();
+                String username = claims.get("username", String.class);
+                String role = claims.get("role", String.class);
+
+                // 始终注入 X-User-Id 等头（java-product 依赖这些头）
+                ServerHttpRequest request = exchange.getRequest().mutate()
+                        .header("X-User-Id", userId)
+                        .header("X-Username", username)
+                        .header("X-User-Role", role)
+                        .build();
+                exchange = exchange.mutate().request(request).build();
+
+                // 如果 auth 开启，做权限检查
+                if (authEnabled && !isPublicPath(path)) {
+                    String requiredPermission = permissionService.getRequiredPermission(path);
+                    if (requiredPermission != null) {
+                        if (!permissionService.hasPermission(role, requiredPermission)) {
+                            log.warn("权限不足: user={}, role={}, path={}, required={}",
+                                    username, role, path, requiredPermission);
+                            return forbidden(exchange, "权限不足，无法访问");
+                        }
+                    }
+                }
+            } catch (ExpiredJwtException e) {
+                // FIXED: HIGH-6 — 过期 JWT 不注入请求头
+                if (authEnabled) {
+                    log.warn("JWT 已过期: path={}", path);
+                    return unauthorized(exchange, "认证令牌已过期");
+                }
+            } catch (Exception e) {
+                if (authEnabled) {
+                    log.warn("JWT 验证失败: {} path={}", e.getMessage(), path);
+                    return unauthorized(exchange, "认证令牌无效或已过期");
+                }
+                // auth 关闭时，JWT 解析失败也放行（但不注入头）
+            }
+        } else if (authEnabled && !isPublicPath(path)) {
             return unauthorized(exchange, "缺少认证令牌");
         }
 
-        String token = authHeader.substring(7);
-        try {
-            Claims claims = Jwts.parser()
-                    .verifyWith(getSigningKey())
-                    .build()
-                    .parseSignedClaims(token)
-                    .getPayload();
-
-            String userId = claims.getSubject();
-            String username = claims.get("username", String.class);
-            String role = claims.get("role", String.class);
-
-            // RBAC 权限检查
-            String requiredPermission = permissionService.getRequiredPermission(path);
-            if (requiredPermission != null) {
-                if (!permissionService.hasPermission(role, requiredPermission)) {
-                    log.warn("权限不足: user={}, role={}, path={}, required={}",
-                            username, role, path, requiredPermission);
-                    return forbidden(exchange, "权限不足，无法访问");
-                }
-            }
-
-            ServerHttpRequest request = exchange.getRequest().mutate()
-                    .header("X-User-Id", userId)
-                    .header("X-Username", username)
-                    .header("X-User-Role", role)
-                    .build();
-
-            return chain.filter(exchange.mutate().request(request).build());
-
-        } catch (Exception e) {
-            log.warn("JWT 验证失败: {} path={}", e.getMessage(), path);
-            return unauthorized(exchange, "认证令牌无效或已过期");
-        }
+        return chain.filter(exchange);
     }
 
     private boolean isPublicPath(String path) {

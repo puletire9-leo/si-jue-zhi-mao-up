@@ -59,7 +59,9 @@ export interface LoginData {
 export interface LoginResponse {
   token?: string
   accessToken?: string
+  access_token?: string
   refreshToken?: string
+  refresh_token?: string
   expiresIn?: number
   user?: User
   userInfo?: User
@@ -159,6 +161,7 @@ export interface SelectionProduct {
   thumbPath?: string
   storeName?: string
   storeUrl?: string
+  mainCategoryName?: string
   category?: string
   tags?: string[]
   notes?: string
@@ -247,15 +250,18 @@ export interface DashboardStatistics {
   totalProducts: number
   totalImages: number
   totalUsers: number
-  totalCategories: number
-  totalTags: number
-  recentUploads: number
-  storageUsed: number
-}
-
-export interface ProductTrendData {
-  date: string
-  count: number
+  totalStorageUsedMb: number
+  todayProducts: number
+  todayImages: number
+  productTypeDistribution: Array<{
+    type: string
+    count: number
+  }>
+  recentUsers: Array<{
+    username: string
+    last_login_time?: string
+    lastLoginTime?: string
+  }>
 }
 
 export interface ImageTrendData {
@@ -263,31 +269,19 @@ export interface ImageTrendData {
   count: number
 }
 
-export interface TopProduct {
-  sku: string
-  name: string
-  viewCount: number
-  imageCount: number
-}
-
 export interface StorageStatistics {
-  totalSize: number
-  usedSize: number
-  availableSize: number
-  usagePercentage: number
+  type: string
+  size_mb: number
 }
 
 export interface UserActivityData {
   date: string
-  activeUsers: number
-  actions: number
+  count: number
 }
 
 export interface ImageQualityStatistics {
-  total: number
-  highQuality: number
-  mediumQuality: number
-  lowQuality: number
+  range: string
+  count: number
 }
 
 export interface Store {

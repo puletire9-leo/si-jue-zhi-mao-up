@@ -1,5 +1,8 @@
 <template>
-  <div class="statistics" v-loading="globalLoading">
+  <template v-if="loading && !hasLoaded">
+    <SkeletonWrapper variant="stats" />
+  </template>
+  <div v-else v-loading="refreshing" class="statistics">
     <el-row :gutter="20">
       <el-col
         :xs="24"
@@ -179,15 +182,16 @@
 
 <script setup lang="ts">
 defineOptions({ name: 'Statistics' })
-import { ref, reactive, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { Box, Picture, User, FolderOpened } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import * as echarts from 'echarts'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import { statisticsApi } from '@/api/statistics'
-import { getProductTypeTag } from '@/types/utils'
 
-const loading = ref(false)
-const globalLoading = ref(true)
+const loading = ref(true)
+const hasLoaded = ref(false)
+const refreshing = computed(() => loading.value && hasLoaded.value)
 const statistics = reactive({
   totalProducts: 0,
   totalImages: 0,
@@ -435,7 +439,7 @@ watch(imageTrendDays, () => {
 })
 
 const initializeData = async () => {
-  globalLoading.value = true
+  loading.value = true
   try {
     // 并行加载所有数据
     await Promise.all([
@@ -448,7 +452,8 @@ const initializeData = async () => {
   } catch (error) {
     console.error('初始化数据失败:', error)
   } finally {
-    globalLoading.value = false
+    loading.value = false
+    hasLoaded.value = true
   }
 }
 
@@ -500,5 +505,21 @@ onUnmounted(() => {
 .chart-container {
   width: 100%;
   height: 350px;
+}
+
+// ---- Dark Mode Overrides ----
+html.dark {
+  .stat-card {
+    &:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+    }
+  }
+
+  .card-header {
+    span {
+      color: var(--el-text-color-primary);
+    }
+  }
 }
 </style>

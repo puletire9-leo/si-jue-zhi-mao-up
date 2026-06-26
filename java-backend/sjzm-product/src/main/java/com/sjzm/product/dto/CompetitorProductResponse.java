@@ -86,6 +86,9 @@ public class CompetitorProductResponse {
 
     private Integer variantCount;
 
+    /** 入库时间（yyyy-MM-dd HH:mm:ss） */
+    private String createdAt;
+
     private List<SubcategoryDto> subcategories;
 
     @Data

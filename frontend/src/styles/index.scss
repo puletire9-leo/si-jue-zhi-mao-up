@@ -2,6 +2,11 @@
 @use './mixins.scss' as *;
 
 // ============================================
+// 字体导入 — Amber Classic
+// ============================================
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=Noto+Serif+SC:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+// ============================================
 // 全局样式
 // ============================================
 
@@ -26,6 +31,7 @@ body {
   background: $bg-body;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 // ============================================
@@ -87,6 +93,31 @@ select {
   }
 }
 
+// 输入框占位文字统一色
+::placeholder {
+  color: $text-tertiary;
+  opacity: 1;
+}
+
+// 文本选中色
+::selection {
+  background: rgba($primary-color, 0.15);
+  color: $text-primary;
+}
+
+// 键盘聚焦环统一色
+:focus-visible {
+  outline: 2px solid $primary-color;
+  outline-offset: 2px;
+}
+
+// 表格数字列对齐
+td:has(.num),
+.num {
+  font-variant-numeric: tabular-nums;
+  font-family: $font-family-mono;
+}
+
 // ============================================
 // 表格样式
 // ============================================
@@ -110,9 +141,42 @@ th {
   background: $bg-hover;
 }
 
+// 表格行悬停提高对比度
+.el-table__body {
+  .el-table__row:hover > td {
+    background-color: $bg-hover !important;
+  }
+}
+
+// Element Plus 表格 zebra 行增强
+.el-table--striped .el-table__body tr.el-table__row--striped td {
+  background-color: #fcfaf7;
+}
+
+:deep(html.dark) .el-table--striped .el-table__body tr.el-table__row--striped td {
+  background-color: #1E1E32;
+}
+
+// 统一交互元素过渡动画（按属性声明，避免 display/opacity 等属性触发不必要过渡）
+button, a, .el-card, .el-tag, .el-menu-item {
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.el-button {
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+input, textarea, select {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
 // ============================================
 // 滚动条样式
 // ============================================
+
+// Firefox 兼容
+* {
+  scrollbar-width: thin;
+  scrollbar-color: $border-color $bg-body;
+}
 
 ::-webkit-scrollbar {
   width: 8px;
@@ -272,7 +336,12 @@ th {
 
 .el-card {
   border: 1px solid $border-color;
-  box-shadow: $shadow-md;
+  box-shadow: $shadow-sm;
+  padding: 20px; // 收紧卡片间距，提升信息密度
+}
+
+.el-card__body {
+  padding: 0 !important; // 消除 Element Plus 默认内边距
 }
 
 .el-button {
@@ -376,6 +445,10 @@ html.dark {
   }
 
   // 滚动条
+  * {
+    scrollbar-color: $dark-border-color $dark-bg-body;
+  }
+
   ::-webkit-scrollbar-track {
     background: $dark-bg-body;
   }
@@ -389,60 +462,6 @@ html.dark {
   }
 
   // Element Plus 组件深色主题
-  .el-card {
-    background: $dark-bg-color;
-    border-color: $dark-border-color;
-  }
-
-  .el-input__wrapper {
-    background: $dark-bg-color;
-    border-color: $dark-border-color;
-
-    .el-input__inner {
-      color: $dark-text-primary;
-    }
-  }
-
-  .el-table {
-    background: $dark-bg-color;
-
-    .el-table__header,
-    .el-table__body {
-      .el-table__row {
-        &:hover > td {
-          background: $dark-bg-hover;
-        }
-      }
-    }
-
-    .el-table__header {
-      th {
-        background: $dark-bg-hover;
-        color: $dark-text-secondary;
-        border-color: $dark-border-color;
-      }
-    }
-
-    .el-table__body {
-      td {
-        border-color: $dark-border-color;
-        color: $dark-text-primary;
-      }
-    }
-  }
-
-  .el-dialog {
-    background: $dark-bg-color;
-
-    .el-dialog__header {
-      border-color: $dark-border-color;
-
-      .el-dialog__title {
-        color: $dark-text-primary;
-      }
-    }
-  }
-
   .el-button {
     &.el-button--primary {
       background: $primary-color;
@@ -476,53 +495,69 @@ html.dark {
     }
   }
 
-  .el-dropdown-menu {
-    background: $dark-bg-color;
-    border-color: $dark-border-color;
-
-    .el-dropdown-menu__item {
-      color: $dark-text-primary;
-
-      &:hover {
-        background: $dark-bg-hover;
-      }
-    }
-  }
-
-  .el-tag {
-    background: $dark-bg-hover;
-    border-color: $dark-border-color;
-    color: $dark-text-primary;
-
-    &.el-tag--info {
-      background: rgba($primary-color, 0.2);
-      color: $primary-light;
-    }
-  }
-
-  .el-switch {
-    .el-switch__core {
-      background: $dark-border-color;
-
-      &.is-active {
-        background: $primary-color;
-      }
-    }
-  }
-
-  .el-breadcrumb__item:last-child .el-breadcrumb__inner {
-    color: $dark-text-primary;
-  }
-
-  .el-breadcrumb__inner {
-    color: $dark-text-secondary;
-  }
-
-  .el-avatar {
-    background: $dark-bg-hover;
-  }
 
   .el-scrollbar__wrap {
     background: transparent;
+  }
+
+  // ============================================
+  // 暗黑模式补丁 — 覆盖内联样式白块
+  // ============================================
+
+  // 1. 所有常见面板/容器变深色
+  [class*="panel"],
+  [class*="detail"],
+  [class*="info"],
+  .el-drawer,
+  .el-popper {
+    background: $dark-bg-color !important;
+    border-color: $dark-border-color !important;
+  }
+
+  // 2. 浅色内联背景强制变深色
+  [style*="background: #fff"],
+  [style*="background: white"],
+  [style*="background:#fff"],
+  [style*="background:white"],
+  [style*="background-color: #fff"],
+  [style*="background-color: white"],
+  [style*="background-color:#fff"],
+  [style*="background-color:white"] {
+    background: $dark-bg-color !important;
+  }
+
+  // 3. 边框线变暗
+  [style*="border-bottom: 1px solid #F0"],
+  [style*="border-top: 1px solid #F0"],
+  [style*="border: 1px solid #F0"],
+  [style*="border: 1px solid #E5"],
+  hr,
+  .divider,
+  .el-divider {
+    border-color: $dark-border-color !important;
+  }
+
+  // 4. 弹窗/下拉/选择器全覆盖
+  .el-dialog,
+  .el-dropdown-menu,
+  .el-select-dropdown,
+  .el-picker-panel,
+  .el-message-box,
+  .el-popover {
+    background: $dark-bg-color !important;
+    border-color: $dark-border-color !important;
+  }
+
+  .el-select-dropdown__item,
+  .el-picker-panel__content {
+    color: $dark-text-primary;
+  }
+
+  // 5. 表单标签和描述文字
+  .el-form-item__label,
+  .el-descriptions__title,
+  .el-descriptions__label,
+  .el-descriptions__content {
+    color: $dark-text-secondary;
   }
 }

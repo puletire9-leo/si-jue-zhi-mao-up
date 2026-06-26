@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.mapper.CategoryBsrBaselineMapper">
+
+    <delete id="deleteByBaselineMonth">
+        DELETE FROM category_bsr_baseline
+        WHERE baseline_month = #{baselineMonth}
+        <if test="marketplace != null and marketplace != ''">
+            AND marketplace = #{marketplace}
+        </if>
+    </delete>
+
+    <insert id="insertComputedSlices">
+        INSERT INTO category_bsr_baseline (
+            marketplace, bsr_id, bsr_bucket, baseline_month,
+            sample_size, units_p25, units_p50, units_p75,
+            price_avg, confidence, computed_at
+        )
+        WITH filtered AS (
+            -- 数据清洗层：直接消费 competitor_products_clean（已按父 ASIN 去重）
+            -- 见 docs/选品方法库/补充/数据清洗层.md
+            SELECT marketplace, bsr_id, bsr, units, price
+            FROM competitor_products_clean
+            WHERE month = #{baselineMonth}
+              AND bsr_id IS NOT NULL
+              AND bsr_id != ''
+              AND bsr IS NOT NULL
+              AND units IS NOT NULL
+              <if test="marketplace != null and marketplace != ''">
+                  AND marketplace = #{marketplace}
+              </if>
+        ),
+        ranked AS (
+            SELECT marketplace,
+                   bsr_id,
+                   CASE
+                       WHEN bsr &lt; 5000 THEN 'lt5k'
+                       WHEN bsr &lt; 20000 THEN '5k20k'
+                       WHEN bsr &lt; 50000 THEN '20k50k'
+                       WHEN bsr &lt; 150000 THEN '50k150k'
+                       ELSE 'gt150k'
+                   END AS bsr_bucket,
+                   units,
+                   price,
+                   PERCENT_RANK() OVER (
+                       PARTITION BY marketplace, bsr_id,
+                       CASE
+                           WHEN bsr &lt; 5000 THEN 1
+                           WHEN bsr &lt; 20000 THEN 2
+                           WHEN bsr &lt; 50000 THEN 3
+                           WHEN bsr &lt; 150000 THEN 4
+                           ELSE 5
+                       END
+                       ORDER BY units
+                   ) AS units_pr
+            FROM filtered
+        )
+        SELECT marketplace,
+               bsr_id,
+               bsr_bucket,
+               #{baselineMonth} AS baseline_month,
+               COUNT(*) AS sample_size,
+               MAX(CASE WHEN units_pr &lt;= 0.25 THEN units END) AS units_p25,
+               MAX(CASE WHEN units_pr &lt;= 0.50 THEN units END) AS units_p50,
+               MAX(CASE WHEN units_pr &lt;= 0.75 THEN units END) AS units_p75,
+               ROUND(AVG(price), 2) AS price_avg,
+               CASE
+                   WHEN COUNT(*) &gt;= 100 THEN 'high'
+                   WHEN COUNT(*) &gt;= 30 THEN 'mid'
+                   ELSE 'low'
+               END AS confidence,
+               NOW() AS computed_at
+        FROM ranked
+        GROUP BY marketplace, bsr_id, bsr_bucket
+    </insert>
+</mapper>

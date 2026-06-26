@@ -2,7 +2,7 @@
 schema_version: 1
 locale: zh-CN
 branch: 2号电脑
-exported_at: "2026-06-06T13:40:56Z"
+exported_at: "2026-06-09T11:36:29Z"
 modules:
     "":
         dir_name: 思觉智贸全栈微服务编排中心
@@ -1681,14 +1681,14 @@ modules:
             - backend/
         source_files: []
         children:
-            - backend/system_and_auth
-            - backend/library_domain
-            - backend/product_domain
             - backend/core_infra
-            - backend/download_domain
-            - backend/file_and_image_services
+            - backend/product_domain
             - backend/scoring_domain
+            - backend/download_domain
+            - backend/library_domain
             - backend/selection_domain
+            - backend/file_and_image_services
+            - backend/system_and_auth
         depends_on: []
         related_to:
             - path: java_backend

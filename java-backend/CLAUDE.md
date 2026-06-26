@@ -64,6 +64,7 @@ com.sjzm.product/
 5. **响应统一**: `Result.success(data)` / `Result.error(message)`
 6. **配置**: `${ENV_VAR:default}` 占位，禁止硬编码
 7. **禁止**: Controller 写业务 / Mapper 写判断 / Controller 直接注入 Mapper / 反向调用
+8. **郑总批次唯一真相源**: 郑总盘子(`deng_zong_shop`)的批次解析全系统只走 `DengZongShopService.getMaxBatchDate(marketplace)` 一个口子，未传批次时用 `resolveBatchDate` 回退到最新批次。郑总相关聚合只按 `marketplace + batch_date` 过滤，**禁止再 AND `month`**（`batch_date` 已唯一标识数据快照，叠加独立的 `MAX(month)` 会误杀跨月行）。竞品表 `competitor_products` 才按业务选定的 `month` 过滤——两条线各自单一真相源，互不污染。
 
 ## 版本兼容
 

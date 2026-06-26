@@ -19,7 +19,7 @@ defineProps<{
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: #FFFBF7;
+  background: #faf8f5;
   overflow-y: auto;
 }
 

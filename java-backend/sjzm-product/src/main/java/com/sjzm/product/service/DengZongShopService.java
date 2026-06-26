@@ -1,10 +1,13 @@
 package com.sjzm.product.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sjzm.product.config.SellerspriteConfig;
 import com.sjzm.product.entity.DengZongShop;
+import com.sjzm.product.entity.DengZongShopSeller;
 import com.sjzm.product.mapper.DengZongShopMapper;
+import com.sjzm.product.mapper.DengZongShopSellerMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -15,8 +18,11 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -27,6 +33,7 @@ public class DengZongShopService {
     private final SellerspriteConfig config;
     private final SellerspriteConfigService sellerspriteConfigService;
     private final DengZongShopMapper mapper;
+    private final DengZongShopSellerMapper sellerMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -53,8 +60,8 @@ public class DengZongShopService {
             for (JsonNode item : items) {
                 try {
                     DengZongShop entity = mapToEntity(item, marketplace);
-                    mapper.insert(entity);
-                    inserted++;
+                    int affected = mapper.upsert(entity);
+                    if (affected > 0) inserted++;
                 } catch (Exception e) {
                     log.warn("插入失败: asin={}, error={}", item.path("asin").asText(), e.getMessage());
                 }
@@ -62,7 +69,7 @@ public class DengZongShopService {
 
             if (inserted >= total) break;
             page++;
-            try { Thread.sleep(300); } catch (InterruptedException ignored) {}
+            try { Thread.sleep(300); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         }
 
         log.info("同步完成: sellerName={}, total={}, inserted={}", sellerName, total, inserted);
@@ -159,7 +166,8 @@ public class DengZongShopService {
         if (item.path("availableDate").isNumber()) {
             e.setAvailableDate(item.path("availableDate").longValue());
         }
-        e.setCreatedAt(LocalDateTime.now());
+
+        e.setBatchDate(LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")));
         e.setUpdatedAt(LocalDateTime.now());
         return e;
     }
@@ -173,10 +181,102 @@ public class DengZongShopService {
         return null;
     }
 
+    // ===== MED-6: 委托方法 — Controller 不再直接注入 Mapper =====
+    public long countGroupedByParent(String marketplace, String month, String brand,
+            String sellerName, String title, String category, String bsrId, Long nodeId,
+            java.math.BigDecimal priceMin, java.math.BigDecimal priceMax, Integer bsrMax,
+            java.math.BigDecimal ratingMin, String weightMax, String batchDate) {
+        return mapper.countGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId,
+                priceMin, priceMax, bsrMax, ratingMin, weightMax, batchDate);
+    }
+
+    public List<DengZongShop> selectGroupedByParent(String marketplace, String month, String brand,
+            String sellerName, String title, String category, String bsrId, Long nodeId,
+            java.math.BigDecimal priceMin, java.math.BigDecimal priceMax, Integer bsrMax,
+            java.math.BigDecimal ratingMin, String weightMax, String batchDate,
+            String sortBy, String sortOrder, int offset, int size) {
+        return mapper.selectGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId,
+                priceMin, priceMax, bsrMax, ratingMin, weightMax, batchDate, sortBy, sortOrder, offset, size);
+    }
+
+    public List<DengZongShop> shopSelectList(LambdaQueryWrapper<DengZongShop> qw) {
+        return mapper.selectList(qw);
+    }
+
+    public long shopSelectCount(LambdaQueryWrapper<DengZongShop> qw) {
+        return mapper.selectCount(qw);
+    }
+
+    public List<Map<String, Object>> selectSellerSummary(String marketplace, String batchDate) {
+        return mapper.selectSellerSummary(marketplace, batchDate);
+    }
+
+    public List<DengZongShopSeller> sellerSelectList(LambdaQueryWrapper<DengZongShopSeller> qw) {
+        return sellerMapper.selectList(qw);
+    }
+
+    public int sellerInsert(DengZongShopSeller seller) {
+        return sellerMapper.insert(seller);
+    }
+
+    public int sellerUpdateById(DengZongShopSeller seller) {
+        return sellerMapper.updateById(seller);
+    }
+
+    public int sellerDeleteById(Long id) {
+        return sellerMapper.deleteById(id);
+    }
+
     private String getNestedText(JsonNode node, String parent, String field) {
         JsonNode p = node.path(parent);
         if (p.isMissingNode()) return null;
         JsonNode v = p.path(field);
         return v.isMissingNode() ? null : v.asText(null);
+    }
+
+    public String getMaxMonth(String marketplace) {
+        return mapper.selectMaxMonth(marketplace);
+    }
+
+    public String getMaxBatchDate(String marketplace) {
+        return mapper.selectMaxBatchDate(marketplace);
+    }
+
+    /**
+     * 郑总店铺数据完整性：名单全集 vs 最新批次已抓取，返回缺数据店铺名单。
+     * 缺失判定 = 在 deng_zong_shop_seller 名单中、但最新批次 deng_zong_shop 里没有数据。
+     */
+    public Map<String, Object> getCompleteness(String marketplace) {
+        LambdaQueryWrapper<DengZongShopSeller> qw = new LambdaQueryWrapper<>();
+        qw.eq(DengZongShopSeller::getMarketplace, marketplace);
+        List<DengZongShopSeller> allSellers = sellerMapper.selectList(qw);
+
+        List<String> allNames = allSellers.stream()
+                .map(DengZongShopSeller::getSellerName)
+                .collect(java.util.stream.Collectors.toList());
+
+        String batchDate = getMaxBatchDate(marketplace);
+        java.util.Set<String> fetched = allNames.isEmpty()
+                ? java.util.Collections.emptySet()
+                : new java.util.HashSet<>(mapper.selectFetchedSellerNamesStrict(marketplace, allNames, batchDate));
+
+        List<Map<String, Object>> missing = new java.util.ArrayList<>();
+        for (DengZongShopSeller s : allSellers) {
+            if (!fetched.contains(s.getSellerName())) {
+                Map<String, Object> m = new HashMap<>();
+                m.put("sellerName", s.getSellerName());
+                m.put("storeUrl", s.getStoreUrl());
+                missing.add(m);
+            }
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("marketplace", marketplace);
+        result.put("batchDate", batchDate);
+        result.put("totalSellers", allSellers.size());
+        result.put("fetchedSellers", fetched.size());
+        result.put("missingSellers", missing);
+        result.put("complete", missing.isEmpty() && !allSellers.isEmpty());
+        return result;
     }
 }

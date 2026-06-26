@@ -1,0 +1,1519 @@
+{
+  "nodeId": 1769594031,
+  "nodeName": "Reusable Shopper Bags",
+  "nodeFullPath": "Home & Kitchen:Cooking & Dining:Kitchen Storage & Organisation:Shopping Bags & Baskets:Reusable Shopper Bags",
+  "bsrId": "kitchen",
+  "stats": {
+    "raw": 199,
+    "total": 151,
+    "sampled": 40
+  },
+  "overallHealth": "healthy",
+  "healthReason": "品类信号分布显示BURST(3)、RISING(46)和SWEET_SPOT(61)占比较高，说明市场活跃且有新需求爆发；同时DECLINING(30)和DEAD(48)存在，竞争较激烈，但整体健康度良好。",
+  "qualityBenchmark": {
+    "bsr_p50": 120374,
+    "bsr_p90": 220359,
+    "rating_min": 4.6,
+    "ratings_min": 10,
+    "weight_g_median": 120.0,
+    "weight_g_max": 160.0,
+    "fba_median": 1.75,
+    "fba_max": 2.65,
+    "listing_days_median": 286
+  },
+  "priceBand": {
+    "min": 3.39,
+    "max": 12.69,
+    "avg": 7.25,
+    "sweet_spot_min": 5.99,
+    "sweet_spot_max": 8.99,
+    "sweet_spot_ratio": 0.75
+  },
+  "carrierDetail": [
+    {
+      "name": "Book Tote Bag",
+      "count": 1,
+      "avg_price": 3.99,
+      "avg_weight_g": 144.0,
+      "avg_fba": 1.75,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量144g，符合轻小件"
+    },
+    {
+      "name": "Canvas Bag",
+      "count": 1,
+      "avg_price": 6.99,
+      "avg_weight_g": 100.0,
+      "avg_fba": 1.72,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量100g，符合轻小件"
+    },
+    {
+      "name": "Canvas Book Tote Bag",
+      "count": 2,
+      "avg_price": 6.29,
+      "avg_weight_g": 180.0,
+      "avg_fba": 1.76,
+      "avg_variants": 3.0,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量180g，符合轻小件"
+    },
+    {
+      "name": "Canvas Shopping Bag",
+      "count": 2,
+      "avg_price": 5.49,
+      "avg_weight_g": 130.0,
+      "avg_fba": 2.44,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量130g，符合轻小件"
+    },
+    {
+      "name": "Canvas Shoulder Bag",
+      "count": 1,
+      "avg_price": 6.89,
+      "avg_weight_g": 120.0,
+      "avg_fba": 2.65,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量120g，符合轻小件"
+    },
+    {
+      "name": "Canvas Tote Bag",
+      "count": 25,
+      "avg_price": 7.13,
+      "avg_weight_g": 120.0,
+      "avg_fba": 1.75,
+      "avg_variants": 4.2,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量120g，符合轻小件"
+    },
+    {
+      "name": "Cotton Book Bag",
+      "count": 1,
+      "avg_price": 6.59,
+      "avg_weight_g": 120.0,
+      "avg_fba": 1.76,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量120g，符合轻小件"
+    },
+    {
+      "name": "Cotton Reusable Shopping Bag",
+      "count": 1,
+      "avg_price": 7.99,
+      "avg_weight_g": 120.0,
+      "avg_fba": 1.76,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量120g，符合轻小件"
+    },
+    {
+      "name": "Cotton Shopping Bag",
+      "count": 1,
+      "avg_price": 6.99,
+      "avg_weight_g": 140.0,
+      "avg_fba": 1.75,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量140g，符合轻小件"
+    },
+    {
+      "name": "Cotton Tote Bag",
+      "count": 1,
+      "avg_price": 5.99,
+      "avg_weight_g": 100.0,
+      "avg_fba": 0,
+      "avg_variants": 3.0,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": "unknown",
+      "lightweight_reason": "中位重量100g，符合轻小件"
+    },
+    {
+      "name": "Foldaway Shopping Bag",
+      "count": 1,
+      "avg_price": 9.69,
+      "avg_weight_g": 130.0,
+      "avg_fba": 0,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": "unknown",
+      "lightweight_reason": "中位重量130g，符合轻小件"
+    },
+    {
+      "name": "Gift Bag",
+      "count": 1,
+      "avg_price": 6.99,
+      "avg_weight_g": 100.0,
+      "avg_fba": 1.72,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量100g，符合轻小件"
+    },
+    {
+      "name": "Grocery Bag",
+      "count": 3,
+      "avg_price": 7.66,
+      "avg_weight_g": 120.0,
+      "avg_fba": 1.73,
+      "avg_variants": 3.0,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量120g，符合轻小件"
+    },
+    {
+      "name": "Makeup Bag",
+      "count": 5,
+      "avg_price": 8.93,
+      "avg_weight_g": 160.0,
+      "avg_fba": 1.76,
+      "avg_variants": 1,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量160g，符合轻小件"
+    },
+    {
+      "name": "Reusable Shopping Bag",
+      "count": 1,
+      "avg_price": 6.99,
+      "avg_weight_g": 150.0,
+      "avg_fba": 0,
+      "avg_variants": 3.0,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": "unknown",
+      "lightweight_reason": "中位重量150g，符合轻小件"
+    },
+    {
+      "name": "Shopping Bag",
+      "count": 3,
+      "avg_price": 6.66,
+      "avg_weight_g": 140.0,
+      "avg_fba": 1.75,
+      "avg_variants": 3.0,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量140g，符合轻小件"
+    },
+    {
+      "name": "Shoulder Bag",
+      "count": 3,
+      "avg_price": 5.62,
+      "avg_weight_g": 130.0,
+      "avg_fba": 1.75,
+      "avg_variants": 7.5,
+      "variant_strategy": "中等(4-9)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量130g，符合轻小件"
+    },
+    {
+      "name": "Tote Bag",
+      "count": 19,
+      "avg_price": 7.41,
+      "avg_weight_g": 120.0,
+      "avg_fba": 1.76,
+      "avg_variants": 3.6,
+      "variant_strategy": "低变体(1-3)",
+      "lightweight": true,
+      "lightweight_reason": "中位重量120g，符合轻小件"
+    }
+  ],
+  "provenElements": [
+    {
+      "name": "Highland Cow",
+      "frequency": 9,
+      "carriers": [
+        "Canvas Tote Bag",
+        "Shoulder Bag",
+        "Tote Bag",
+        "Foldaway Shopping Bag"
+      ],
+      "signalTags": [
+        "BURST",
+        "RISING",
+        "SWEET_SPOT",
+        "DECLINING"
+      ],
+      "insight": "高地牛元素在帆布袋上高度验证，覆盖BURST到DECLINING信号，可继续裂变衍生款式但需注意饱和度"
+    },
+    {
+      "name": "Book Lover / Bookish",
+      "frequency": 4,
+      "carriers": [
+        "Tote Bag",
+        "Canvas Book Tote Bag",
+        "Cotton Book Bag"
+      ],
+      "signalTags": [
+        "RISING",
+        "STABLE",
+        "SWEET_SPOT",
+        "DECLINING"
+      ],
+      "insight": "读书人主题稳定，可结合内袋、骷髅等差异化设计"
+    },
+    {
+      "name": "K-Pop / Music",
+      "frequency": 3,
+      "carriers": [
+        "Canvas Tote Bag",
+        "Tote Bag",
+        "Makeup Bag"
+      ],
+      "signalTags": [
+        "BURST",
+        "STABLE",
+        "RISING",
+        "SWEET_SPOT"
+      ],
+      "insight": "K-Pop群体忠诚度高，可追逐热门团体（Stray Kids, Katsye）获取BURST流量"
+    },
+    {
+      "name": "Dog (Dachshund / Cute Dog)",
+      "frequency": 2,
+      "carriers": [
+        "Canvas Tote Bag",
+        "Shoulder Bag"
+      ],
+      "signalTags": [
+        "DECLINING",
+        "RISING",
+        "SWEET_SPOT"
+      ],
+      "insight": "狗品种细分有效，单一品种（腊肠）与通用可爱狗均可"
+    },
+    {
+      "name": "Cat (Black Cat)",
+      "frequency": 2,
+      "carriers": [
+        "Canvas Tote Bag"
+      ],
+      "signalTags": [
+        "DECLINING",
+        "SWEET_SPOT"
+      ],
+      "insight": "黑猫主题稳定，可考虑加入其他猫色或猫品种"
+    },
+    {
+      "name": "Shark",
+      "frequency": 2,
+      "carriers": [
+        "Tote Bag",
+        "Canvas Tote Bag"
+      ],
+      "signalTags": [
+        "RISING",
+        "SWEET_SPOT"
+      ],
+      "insight": "鲨鱼主题RISING，海洋动物需求上升"
+    },
+    {
+      "name": "Christian / Flowers Bible",
+      "frequency": 2,
+      "carriers": [
+        "Tote Bag",
+        "Canvas Tote Bag"
+      ],
+      "signalTags": [
+        "DECLINING",
+        "SWEET_SPOT"
+      ],
+      "insight": "宗教主题虽DECLINING但仍有稳定需求，可做节庆礼品"
+    },
+    {
+      "name": "Theatre / Broadway / Musical",
+      "frequency": 2,
+      "carriers": [
+        "Tote Bag",
+        "Makeup Bag"
+      ],
+      "signalTags": [
+        "RISING",
+        "STABLE",
+        "SWEET_SPOT"
+      ],
+      "insight": "舞台艺术爱好者细分，适合礼品套装"
+    },
+    {
+      "name": "London / British / UK",
+      "frequency": 2,
+      "carriers": [
+        "Canvas Tote Bag",
+        "Cotton Shopping Bag"
+      ],
+      "signalTags": [
+        "STABLE",
+        "RISING",
+        "SWEET_SPOT"
+      ],
+      "insight": "伦敦旅游纪念品稳定需求，可结合地标元素"
+    },
+    {
+      "name": "Funny Leaving Gifts",
+      "frequency": 2,
+      "carriers": [
+        "Canvas Tote Bag"
+      ],
+      "signalTags": [
+        "RISING",
+        "SWEET_SPOT"
+      ],
+      "insight": "职场离别礼物场景已验证，幽默文案可挖掘"
+    }
+  ],
+  "elementSaturation": [
+    {
+      "element": "Highland Cow",
+      "frequency": 9,
+      "saturation": "high",
+      "insight": "已跨4种载体验证，可优先投入"
+    },
+    {
+      "element": "Book Lover / Bookish",
+      "frequency": 4,
+      "saturation": "medium",
+      "insight": "出现在4个商品中，值得持续观察"
+    },
+    {
+      "element": "K-Pop / Music",
+      "frequency": 3,
+      "saturation": "medium",
+      "insight": "出现在3个商品中，值得持续观察"
+    },
+    {
+      "element": "Dog (Dachshund / Cute Dog)",
+      "frequency": 2,
+      "saturation": "medium",
+      "insight": "出现在2个商品中，值得持续观察"
+    },
+    {
+      "element": "Cat (Black Cat)",
+      "frequency": 2,
+      "saturation": "medium",
+      "insight": "出现在2个商品中，值得持续观察"
+    },
+    {
+      "element": "Shark",
+      "frequency": 2,
+      "saturation": "medium",
+      "insight": "出现在2个商品中，值得持续观察"
+    },
+    {
+      "element": "Christian / Flowers Bible",
+      "frequency": 2,
+      "saturation": "medium",
+      "insight": "出现在2个商品中，值得持续观察"
+    },
+    {
+      "element": "Theatre / Broadway / Musical",
+      "frequency": 2,
+      "saturation": "medium",
+      "insight": "出现在2个商品中，值得持续观察"
+    },
+    {
+      "element": "London / British / UK",
+      "frequency": 2,
+      "saturation": "medium",
+      "insight": "出现在2个商品中，值得持续观察"
+    },
+    {
+      "element": "Funny Leaving Gifts",
+      "frequency": 2,
+      "saturation": "medium",
+      "insight": "出现在2个商品中，值得持续观察"
+    }
+  ],
+  "emergingElements": [
+    {
+      "element": "Katsye (K-Pop group)",
+      "asin": "B0GCYRL66L",
+      "signal": "BURST",
+      "opportunity": "K-Pop团体Katsye需求爆发，可快速跟进相关团体（如NewJeans, Aespa）开发系列产品"
+    },
+    {
+      "element": "Capybara",
+      "asin": "B0GCJ1H26X",
+      "signal": "RISING",
+      "opportunity": "水豚网红动物热度上升，可组合其他热门动物（如Panda, Sloth）形成动物系列"
+    },
+    {
+      "element": "Otter",
+      "asin": "B0GDY2MD9M",
+      "signal": "DECLINING",
+      "opportunity": "水獭虽DECLINING，但可搭配其他海洋动物做成礼物套装"
+    },
+    {
+      "element": "Racing / Sports Car",
+      "asin": "B0GTM47XQS",
+      "signal": "RISING",
+      "opportunity": "赛车主题目前仅1款RISING，可拓展F1、赛车女郎等细分"
+    },
+    {
+      "element": "Penguin",
+      "asin": "B0G1YDRZ29",
+      "signal": "RISING",
+      "opportunity": "企鹅主题测试中，可结合冬季或圣诞场景打造季节性爆款"
+    }
+  ],
+  "recommendedCombos": [
+    {
+      "elements": [
+        "Highland Cow",
+        "Checkered Pattern",
+        "Colorful"
+      ],
+      "carriers": [
+        "Canvas Tote Bag"
+      ],
+      "scenes": [
+        "Grocery",
+        "Gift",
+        "Daily Use"
+      ],
+      "keywordsEn": [
+        "highland cow checkered tote bag",
+        "colorful cow shopping bag",
+        "cow lover gift"
+      ],
+      "keywordsCn": [
+        "高地牛格子购物袋",
+        "彩色牛帆布袋"
+      ],
+      "heat": "已验证",
+      "reason": "高地牛+格子设计已有B0FV2SJT84验证，RISING+SWEET_SPOT"
+    },
+    {
+      "elements": [
+        "Book Lover",
+        "Inner Pocket",
+        "Aesthetic"
+      ],
+      "carriers": [
+        "Canvas Tote Bag",
+        "Cotton Tote Bag"
+      ],
+      "scenes": [
+        "School",
+        "Library",
+        "Travel"
+      ],
+      "keywordsEn": [
+        "book lover tote bag with inner pocket",
+        "aesthetic book bag",
+        "bookish gifts for readers"
+      ],
+      "keywordsCn": [
+        "带内袋的书籍爱好者手提袋",
+        "文艺书袋"
+      ],
+      "heat": "已验证",
+      "reason": "B0G2BTPY33有内袋设计，RISING+SWEET_SPOT，可优化口袋布局"
+    },
+    {
+      "elements": [
+        "K-Pop",
+        "Stray Kids",
+        "Double Sided"
+      ],
+      "carriers": [
+        "Canvas Tote Bag",
+        "Makeup Bag Set"
+      ],
+      "scenes": [
+        "Concert",
+        "School",
+        "K-pop Fan Meeting"
+      ],
+      "keywordsEn": [
+        "stray kids tote bag set",
+        "kpop double sided tote",
+        "skz merchandise bag"
+      ],
+      "keywordsCn": [
+        "Stray Kids手提袋套装",
+        "K-Pop周边袋"
+      ],
+      "heat": "已验证",
+      "reason": "B0GLF1DTVS和B0GDD74PCZ验证了K-Pop套装，STABLE+SWEET_SPOT"
+    },
+    {
+      "elements": [
+        "Dog",
+        "Paw Print",
+        "Cute"
+      ],
+      "carriers": [
+        "Canvas Tote Bag",
+        "Foldaway Shopping Bag"
+      ],
+      "scenes": [
+        "Dog Park",
+        "Vet",
+        "Pet Store"
+      ],
+      "keywordsEn": [
+        "dog paw print tote bag",
+        "cute dog shopping bag",
+        "pet lover reusable bag"
+      ],
+      "keywordsCn": [
+        "狗爪印购物袋",
+        "宠物爱好者手提袋"
+      ],
+      "heat": "已验证",
+      "reason": "狗主题已有2款验证，RISING+SWEET_SPOT，可加入专属标签"
+    },
+    {
+      "elements": [
+        "Cat",
+        "Black Cat",
+        "Cute"
+      ],
+      "carriers": [
+        "Canvas Tote Bag",
+        "Shoulder Bag"
+      ],
+      "scenes": [
+        "Cat Cafe",
+        "Home",
+        "Grocery"
+      ],
+      "keywordsEn": [
+        "black cat canvas tote",
+        "cat lover bag",
+        "cute cat shopping tote"
+      ],
+      "keywordsCn": [
+        "黑猫帆布袋",
+        "猫咪爱好者购物袋"
+      ],
+      "heat": "已验证",
+      "reason": "黑猫主题2款DECLINING+SWEET_SPOT，可增加橘猫、英短等品种"
+    },
+    {
+      "elements": [
+        "Shark",
+        "Ocean",
+        "Blue"
+      ],
+      "carriers": [
+        "Canvas Tote Bag",
+        "Beach Bag"
+      ],
+      "scenes": [
+        "Beach",
+        "Swimming",
+        "Travel"
+      ],
+      "keywordsEn": [
+        "shark beach tote bag",
+        "ocean blue canvas bag",
+        "shark lover gifts"
+      ],
+      "keywordsCn": [
+        "鲨鱼海滩手提袋",
+        "海洋主题购物袋"
+      ],
+      "heat": "已验证",
+      "reason": "鲨鱼2款RISING+SWEET_SPOT，海洋主题可扩展鲸鱼、海豚"
+    },
+    {
+      "elements": [
+        "London",
+        "Big Ben",
+        "Union Jack"
+      ],
+      "carriers": [
+        "Cotton Tote Bag",
+        "Canvas Bag"
+      ],
+      "scenes": [
+        "Travel",
+        "Souvenir",
+        "Tourist"
+      ],
+      "keywordsEn": [
+        "london souvenir tote bag",
+        "big ben canvas bag",
+        "union jack shopping bag"
+      ],
+      "keywordsCn": [
+        "伦敦纪念帆布袋",
+        "英国国旗购物袋"
+      ],
+      "heat": "已验证",
+      "reason": "伦敦主题2款STABLE/RISING，可加入具体地标图案"
+    },
+    {
+      "elements": [
+        "Funny Leaving Gifts",
+        "Donut",
+        "Coworker"
+      ],
+      "carriers": [
+        "Canvas Tote Bag",
+        "Cotton Tote"
+      ],
+      "scenes": [
+        "Office",
+        "Farewell Party",
+        "Retirement"
+      ],
+      "keywordsEn": [
+        "funny farewell tote bag",
+        "donut forget us bag",
+        "coworker leaving gift"
+      ],
+      "keywordsCn": [
+        "搞笑离职手提袋",
+        "同事告别礼物袋"
+      ],
+      "heat": "已验证",
+      "reason": "B0GKV6GRF2验证了幽默祝福，RISING+SWEET_SPOT，可增加其他食物造型"
+    },
+    {
+      "elements": [
+        "Theatre",
+        "Broadway",
+        "Hamlet"
+      ],
+      "carriers": [
+        "Tote Bag",
+        "Makeup Bag Set"
+      ],
+      "scenes": [
+        "Theatre",
+        "Drama Class",
+        "Gift"
+      ],
+      "keywordsEn": [
+        "broadway theatre tote",
+        "musical lover gift set",
+        "drama canvas bag"
+      ],
+      "keywordsCn": [
+        "百老汇手提袋套装",
+        "戏剧爱好者礼物"
+      ],
+      "heat": "已验证",
+      "reason": "B0F2F19JCQ和B0DRVD75KZ验证，STABLE+SWEET_SPOT，可加入热门剧目"
+    },
+    {
+      "elements": [
+        "Flower Girl",
+        "Wedding",
+        "Bridal"
+      ],
+      "carriers": [
+        "Tote Bag",
+        "Gift Bag"
+      ],
+      "scenes": [
+        "Wedding",
+        "Bridal Shower",
+        "Party"
+      ],
+      "keywordsEn": [
+        "flower girl wedding tote",
+        "bridal party gift bag",
+        "cute wedding favor bag"
+      ],
+      "keywordsCn": [
+        "花童婚礼手提袋",
+        "新娘派对礼品袋"
+      ],
+      "heat": "已验证",
+      "reason": "B0FKT55VDF验证，RISING+SWEET_SPOT，可做伴娘套装"
+    },
+    {
+      "elements": [
+        "Motivational Quotes",
+        "Affirmations",
+        "Women Empowerment"
+      ],
+      "carriers": [
+        "Canvas Tote Bag",
+        "Cotton Tote"
+      ],
+      "scenes": [
+        "Gym",
+        "Office",
+        "Daily"
+      ],
+      "keywordsEn": [
+        "motivational quote tote bag",
+        "positive affirmation bag",
+        "empowerment canvas tote"
+      ],
+      "keywordsCn": [
+        "励志语录手提袋",
+        "女性力量购物袋"
+      ],
+      "heat": "已验证",
+      "reason": "B0GTLVKRJR验证，RISING+SWEET_SPOT，可扩展不同金句"
+    },
+    {
+      "elements": [
+        "Vintage Floral",
+        "Wildflower",
+        "Elegant"
+      ],
+      "carriers": [
+        "Canvas Tote Bag",
+        "Cotton Shopping Bag"
+      ],
+      "scenes": [
+        "Work",
+        "Shopping",
+        "Garden"
+      ],
+      "keywordsEn": [
+        "vintage floral tote",
+        "wildflower canvas bag",
+        "elegant shopping tote"
+      ],
+      "keywordsCn": [
+        "复古花卉手提袋",
+        "野花图案购物袋"
+      ],
+      "heat": "已验证",
+      "reason": "B0FZH9G82X验证，RISING+SWEET_SPOT，可搭配不同花束"
+    },
+    {
+      "elements": [
+        "Capybara",
+        "Cute",
+        "Cartoon"
+      ],
+      "carriers": [
+        "Tote Bag",
+        "Grocery Bag"
+      ],
+      "scenes": [
+        "Grocery",
+        "Daily",
+        "Gift"
+      ],
+      "keywordsEn": [
+        "capybara tote bag",
+        "cute capybara shopping bag",
+        "capybara lover gift"
+      ],
+      "keywordsCn": [
+        "水豚手提袋",
+        "卡皮巴拉购物袋"
+      ],
+      "heat": "新兴",
+      "reason": "RISING+SWEET_SPOT，网红动物持续走红，可开发系列动物"
+    },
+    {
+      "elements": [
+        "Racing",
+        "F1",
+        "Checkered Flag"
+      ],
+      "carriers": [
+        "Canvas Tote Bag",
+        "Shoulder Bag"
+      ],
+      "scenes": [
+        "Race Track",
+        "Sports Bar",
+        "Gift"
+      ],
+      "keywordsEn": [
+        "racing tote bag",
+        "f1 checkered bag",
+        "car lover gift for women"
+      ],
+      "keywordsCn": [
+        "赛车手提袋",
+        "F1格子旗购物袋"
+      ],
+      "heat": "新兴",
+      "reason": "仅1款测试中，RISING信号，可结合赛事热点"
+    },
+    {
+      "elements": [
+        "Penguin",
+        "Cute",
+        "Winter"
+      ],
+      "carriers": [
+        "Canvas Tote Bag"
+      ],
+      "scenes": [
+        "Christmas",
+        "Winter",
+        "Zoo"
+      ],
+      "keywordsEn": [
+        "penguin tote bag",
+        "cute winter bag",
+        "penguin lover gift"
+      ],
+      "keywordsCn": [
+        "企鹅手提袋",
+        "冬季主题购物袋"
+      ],
+      "heat": "新兴",
+      "reason": "RISING+SWEET_SPOT，可结合圣诞季推广"
+    }
+  ],
+  "searchKeywords": {
+    "en": [
+      "reusable canvas tote bag",
+      "highland cow shopping bag",
+      "book lover tote bag",
+      "kpop merchandise bag",
+      "funny leaving gift for colleague",
+      "broadway musical tote bag",
+      "black cat canvas bag",
+      "dog lover reusable bag",
+      "shark printed tote",
+      "london souvenir tote bag",
+      "motivational quote shopping bag",
+      "retirement gift for women bag",
+      "flower girl wedding tote",
+      "capybara grocery bag",
+      "vintage floral canvas tote",
+      "double sided printed shopping bag",
+      "teacher gift tote bag",
+      "christian bible verse bag",
+      "animal canvas shoulder bag",
+      "eco friendly cotton tote bag"
+    ],
+    "cn": [
+      "可重复使用帆布购物袋",
+      "高地牛手提袋",
+      "爱书人礼品袋",
+      "K-Pop周边袋",
+      "同事离职礼物手提袋",
+      "百老汇音乐剧手提袋",
+      "黑猫帆布袋",
+      "狗爱好者购物袋",
+      "鲨鱼图案手提袋",
+      "伦敦纪念品布袋",
+      "励志语录购物袋",
+      "退休礼物手提袋",
+      "花童婚礼礼品袋",
+      "水豚购物袋",
+      "复古花束帆布袋",
+      "双面印刷购物袋",
+      "老师礼物袋",
+      "圣经手提袋",
+      "动物图案肩袋",
+      "环保棉布袋"
+    ]
+  },
+  "priceGaps": [
+    {
+      "range": "£2.00 - £3.00",
+      "opportunity": "极低价位存在空白（最低2.99），但利润薄，适合做引流款或捆绑组合"
+    },
+    {
+      "range": "£4.00 - £5.50",
+      "opportunity": "现有3.39/3.99/4.49/4.99产品，但多为BURST/RISING低价款，可考虑该区间做实用基础款"
+    },
+    {
+      "range": "£8.00 - £9.00",
+      "opportunity": "甜蜜点区间外，但8.99有稳定产品销售，9.69和9.99也有，9.00附近略有空白"
+    },
+    {
+      "range": "£10.00 - £12.00",
+      "opportunity": "当前只有12.69的套装产品，10-12区间有空间放置高端单件或精品套装"
+    }
+  ],
+  "lightweightSummary": "所有商品均为帆布/棉质托特包，平均重量133.8g，FBA运费低（平均£1.86），适合轻小件配送，可折叠设计进一步降低成本，建议控制重量在150g以内以维持低运费优势。",
+  "goodProducts": [
+    {
+      "asin": "B0FVLT2PN3",
+      "elements": [
+        "Highland Cow",
+        "Animal",
+        "Farm"
+      ],
+      "carriers": [
+        "Canvas Tote Bag",
+        "Shoulder Bag"
+      ],
+      "scenes": [
+        "Grocery",
+        "School",
+        "Work",
+        "Travel"
+      ],
+      "keywordsEn": [
+        "highland cow tote bag",
+        "double sided canvas bag",
+        "durable animal shopping bag",
+        "highland cow gift for women",
+        "reusable grocery bag"
+      ],
+      "keywordsCn": [
+        "高地牛帆布手提袋",
+        "可重复使用购物袋",
+        "动物图案购物袋"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0FHKPNFHF",
+      "elements": [
+        "Funny",
+        "Leaving Gifts",
+        "Colleagues",
+        "Retirement",
+        "New Job"
+      ],
+      "carriers": [
+        "Canvas Tote Bag"
+      ],
+      "scenes": [
+        "Work",
+        "Farewell",
+        "Office"
+      ],
+      "keywordsEn": [
+        "funny leaving gifts for colleagues",
+        "canvas tote bag for women",
+        "farewell present coworker",
+        "retirement gift bag",
+        "new job congratulations tote"
+      ],
+      "keywordsCn": [
+        "同事离职礼物手提袋",
+        "搞笑离职礼物",
+        "退休礼品袋"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0GCYRL66L",
+      "elements": [
+        "K-Pop",
+        "Katsye",
+        "Music",
+        "Cartoon"
+      ],
+      "carriers": [
+        "Canvas Tote Bag"
+      ],
+      "scenes": [
+        "Fan Gift",
+        "Concert",
+        "Daily Use"
+      ],
+      "keywordsEn": [
+        "kpop tote bag",
+        "katseye merchandise",
+        "kpop canvas bag for women",
+        "kpop fan gift",
+        "double sided printed tote"
+      ],
+      "keywordsCn": [
+        "K-Pop手提袋",
+        "流行音乐周边袋",
+        "粉丝礼物袋"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0FJXVRM8F",
+      "elements": [
+        "Highland Cow",
+        "Animal",
+        "Farm"
+      ],
+      "carriers": [
+        "Tote Bag"
+      ],
+      "scenes": [
+        "Birthday",
+        "Mother's Day",
+        "Christmas",
+        "Gift"
+      ],
+      "keywordsEn": [
+        "highland cow gift for women",
+        "highland cow tote bag with keyring",
+        "animal tote bag",
+        "birthday gift for cow lover"
+      ],
+      "keywordsCn": [
+        "高地牛礼物手提袋",
+        "动物图案礼物袋"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0G2BTPY33",
+      "elements": [
+        "Book Lover",
+        "Bookish",
+        "Aesthetic"
+      ],
+      "carriers": [
+        "Tote Bag",
+        "Grocery Bag"
+      ],
+      "scenes": [
+        "Reading",
+        "School",
+        "Teacher",
+        "Student"
+      ],
+      "keywordsEn": [
+        "book lover gifts for women",
+        "book tote bag",
+        "bookish gifts",
+        "reusable grocery bag with inner pocket",
+        "cute tote bag for readers"
+      ],
+      "keywordsCn": [
+        "爱书人手提袋",
+        "书本图案购物袋",
+        "读者礼物袋"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0GDXPWZRZ",
+      "elements": [
+        "Dachshund",
+        "Dog",
+        "Pet"
+      ],
+      "carriers": [
+        "Canvas Tote Bag",
+        "Shoulder Bag"
+      ],
+      "scenes": [
+        "Work",
+        "Travel",
+        "Grocery",
+        "Beach"
+      ],
+      "keywordsEn": [
+        "dachshund tote bag",
+        "double sided printed dog bag",
+        "reusable shoulder bag",
+        "dachshund gifts for women"
+      ],
+      "keywordsCn": [
+        "腊肠犬手提袋",
+        "狗图案购物袋",
+        "宠物爱好者礼品袋"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0GKNBX87G",
+      "elements": [
+        "Cute Dog",
+        "Aesthetic",
+        "Dog Lover"
+      ],
+      "carriers": [
+        "Canvas Tote Bag",
+        "Reusable Shopping Bag"
+      ],
+      "scenes": [
+        "School",
+        "Work",
+        "Daily",
+        "Travel"
+      ],
+      "keywordsEn": [
+        "cute dog canvas tote bag",
+        "aesthetic reusable shopping bag",
+        "dog lover gifts",
+        "foldable canvas tote for women"
+      ],
+      "keywordsCn": [
+        "可爱狗手提袋",
+        "美学购物袋",
+        "狗爱好者礼物"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0GLF1DTVS",
+      "elements": [
+        "K-Pop",
+        "Stray Kids",
+        "Music"
+      ],
+      "carriers": [
+        "Canvas Tote Bag"
+      ],
+      "scenes": [
+        "School",
+        "Travel",
+        "Picnic",
+        "Work"
+      ],
+      "keywordsEn": [
+        "stray kids tote bag",
+        "kpop boy group gift",
+        "skz canvas bag",
+        "reusable shopping bag for fans"
+      ],
+      "keywordsCn": [
+        "Stray Kids手提袋",
+        "K-Pop粉丝礼物袋"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0GFMX8XZ3",
+      "elements": [
+        "Shark",
+        "Black Shark"
+      ],
+      "carriers": [
+        "Tote Bag",
+        "Canvas Tote Bag"
+      ],
+      "scenes": [
+        "Shopping",
+        "Grocery",
+        "Beach",
+        "School",
+        "Daily"
+      ],
+      "keywordsEn": [
+        "shark tote bag",
+        "double sided printing shopping bag",
+        "shark gifts for women",
+        "reusable canvas tote bag"
+      ],
+      "keywordsCn": [
+        "鲨鱼手提袋",
+        "鲨鱼图案购物袋"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0GLP4WBY9",
+      "elements": [
+        "Black Cat",
+        "Pet",
+        "Cute"
+      ],
+      "carriers": [
+        "Canvas Tote Bag"
+      ],
+      "scenes": [
+        "Picnic",
+        "Camping",
+        "Daily",
+        "Grocery"
+      ],
+      "keywordsEn": [
+        "cute black cat canvas tote",
+        "pet lover gifts tote",
+        "double sided printed canvas bag",
+        "foldable shopping bag for picnics"
+      ],
+      "keywordsCn": [
+        "黑猫帆布手提袋",
+        "宠物爱好者购物袋"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0GCMX7BWW",
+      "elements": [
+        "Book Lover",
+        "Bookish",
+        "Reading"
+      ],
+      "carriers": [
+        "Canvas Book Tote Bag",
+        "Shopping Bag"
+      ],
+      "scenes": [
+        "Gym",
+        "School",
+        "Work",
+        "Travel"
+      ],
+      "keywordsEn": [
+        "book lover bookish gifts",
+        "canvas book tote bag for women",
+        "book lovers reusable shopping bag",
+        "double sided printing book bag"
+      ],
+      "keywordsCn": [
+        "书籍爱好者手提袋",
+        "书虫礼物袋"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0G2LXSCW4",
+      "elements": [
+        "Highland Cow",
+        "Colorful"
+      ],
+      "carriers": [
+        "Tote Bag",
+        "Shoulder Bag"
+      ],
+      "scenes": [
+        "Work",
+        "Travel",
+        "Gym",
+        "College"
+      ],
+      "keywordsEn": [
+        "highland cow tote bag",
+        "reusable shoulder bag",
+        "colorful cow gift for women",
+        "canvas tote for college"
+      ],
+      "keywordsCn": [
+        "高地牛肩包",
+        "彩色牛图案购物袋"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0GTLVKRJR",
+      "elements": [
+        "Motivational",
+        "Positive Affirmations",
+        "Inspirational Quotes"
+      ],
+      "carriers": [
+        "Canvas Tote Bag",
+        "Cotton Tote Bag"
+      ],
+      "scenes": [
+        "Gym",
+        "Shopping",
+        "Work",
+        "Travel"
+      ],
+      "keywordsEn": [
+        "motivational tote bag",
+        "positive affirmations print",
+        "inspirational quotes cotton tote",
+        "reusable grocery cloth bag"
+      ],
+      "keywordsCn": [
+        "励志语录手提袋",
+        "正能量购物袋"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0GDY2MD9M",
+      "elements": [
+        "Otter",
+        "Animal"
+      ],
+      "carriers": [
+        "Tote Bag",
+        "Canvas Tote Bag"
+      ],
+      "scenes": [
+        "Shopping",
+        "Grocery",
+        "Beach",
+        "School",
+        "Daily"
+      ],
+      "keywordsEn": [
+        "otter tote bag",
+        "double sided printed shopping bag",
+        "otter gifts for women",
+        "reusable canvas tote"
+      ],
+      "keywordsCn": [
+        "水獭手提袋",
+        "水獭图案购物袋"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0GCJ1H26X",
+      "elements": [
+        "Capybara",
+        "Cute",
+        "Cartoon"
+      ],
+      "carriers": [
+        "Tote Bag",
+        "Grocery Bag"
+      ],
+      "scenes": [
+        "Grocery",
+        "Daily",
+        "Gift"
+      ],
+      "keywordsEn": [
+        "capybara tote bag",
+        "capybara shopping bag",
+        "just a girl who loves capybaras",
+        "cute capybara canvas tote"
+      ],
+      "keywordsCn": [
+        "水豚手提袋",
+        "卡皮巴拉购物袋"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0GDXXYMT5",
+      "elements": [
+        "Highland Cow",
+        "Animal"
+      ],
+      "carriers": [
+        "Tote Bag",
+        "Canvas Tote Bag"
+      ],
+      "scenes": [
+        "Shopping",
+        "Grocery",
+        "Beach",
+        "School",
+        "Daily"
+      ],
+      "keywordsEn": [
+        "highland cow tote bag",
+        "double sided printing shopping bag",
+        "highland cow gifts for women",
+        "canvas tote bag for girls"
+      ],
+      "keywordsCn": [
+        "高地牛购物袋",
+        "双面印刷手提袋"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0GHQ4WTKG",
+      "elements": [
+        "Flowers Bible",
+        "Christian",
+        "Religious"
+      ],
+      "carriers": [
+        "Tote Bag",
+        "Canvas Tote Bag"
+      ],
+      "scenes": [
+        "Church",
+        "Grocery",
+        "School",
+        "Daily"
+      ],
+      "keywordsEn": [
+        "christian tote bag for women",
+        "bible verse tote",
+        "flowers bible handbag",
+        "reusable shopping bag with bible prints"
+      ],
+      "keywordsCn": [
+        "圣经花朵手提袋",
+        "基督教礼物袋"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0F43PJ3HZ",
+      "elements": [
+        "Flowers Bible",
+        "Christian",
+        "Religious"
+      ],
+      "carriers": [
+        "Canvas Tote Bag"
+      ],
+      "scenes": [
+        "Gift",
+        "Daily"
+      ],
+      "keywordsEn": [
+        "flowers bible tote bag",
+        "christian gifts for women",
+        "religious canvas tote",
+        "reusable canvas bag christian"
+      ],
+      "keywordsCn": [
+        "圣经花卉手提袋",
+        "基督教礼品袋"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0FH4F6XNS",
+      "elements": [
+        "Highland Cow",
+        "Funny"
+      ],
+      "carriers": [
+        "Canvas Tote Bag",
+        "Foldaway Shopping Bag"
+      ],
+      "scenes": [
+        "Shopping",
+        "Travel",
+        "Work",
+        "Daily"
+      ],
+      "keywordsEn": [
+        "highland cow canvas tote bag",
+        "foldaway shopping bag",
+        "funny highland cow design",
+        "cotton tote bag"
+      ],
+      "keywordsCn": [
+        "搞笑高地牛折叠购物袋",
+        "高地牛帆布袋"
+      ],
+      "lightweight": "True"
+    },
+    {
+      "asin": "B0FHGS69JW",
+      "elements": [
+        "Highland Cow",
+        "Farm",
+        "Animal"
+      ],
+      "carriers": [
+        "Canvas Shopping Bag",
+        "Tote Bag"
+      ],
+      "scenes": [
+        "Shopping",
+        "Daily"
+      ],
+      "keywordsEn": [
+        "highland cow tote bag",
+        "animals farm themed canvas bag",
+        "double sided printing pattern",
+        "highland cow gifts"
+      ],
+      "keywordsCn": [
+        "农场动物主题手提袋",
+        "高地牛购物袋"
+      ],
+      "lightweight": "True"
+    }
+  ]
+}

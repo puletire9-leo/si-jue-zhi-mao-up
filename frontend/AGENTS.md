@@ -21,48 +21,53 @@ frontend/src/
 
 ## 页面视图
 
-| 页面 | 路径 | API 文件 | 后端 |
-|------|------|---------|------|
-| 登录 | /login | user.ts | Java |
-| 首页 | / | - | - |
-| 仪表盘 | /dashboard | - | - |
-| 产品管理 | /products | product.ts | Java |
-| 选品管理 | /selection | selection.ts | Java |
-| 全部选品 | /all-selection | selection.ts | Java |
-| 新品 | /new-products | product.ts | Java |
-| 参考产品 | /reference-products | product.ts | Java |
-| 定稿 | /final-drafts | finalDrafts.ts | Java |
-| 素材库 | /material-library | materialLibrary.ts | Java |
-| 运营商库 | /carrier-library | carrierLibrary.ts | Java |
-| 图片管理 | /image-management | image.ts | Python |
-| 导入导出 | /import-export | import_export.ts | Python |
-| 产品数据看板 | /product-data-dashboard | productData.ts | Python |
-| 统计 | /statistics | statistics.ts | Python |
-| 报表 | /report-viewer | report.ts | Python |
-| 领星导入 | /lingxing | lingxing.ts | Python |
-| 文件链接 | /file-links | fileLink.ts | Python |
-| 下载管理 | /download-manager | downloadTask.ts | Python |
-| 用户管理 | /user-management | user.ts | Java |
-| 设置 | /settings | systemConfig.ts | Python |
-| 产品回收站 | /product-recycle | product.ts | Python |
-| 选品回收站 | /selection-recycle | selection.ts | Python |
-| 定稿回收站 | /final-draft-recycle | finalDrafts.ts | Java |
-| 运营商回收站 | /carrier-recycle | carrierLibrary.ts | Python |
+> 页面实际请求去向不要只看页面名判断，先看对应 `src/api/*.ts`，再看 `vite.config.js` 代理规则。
+
+| 页面 | 路径 | API 文件 |
+|------|------|---------|
+| 登录 | /login | user.ts |
+| 首页 | / | - |
+| 仪表盘 | /dashboard | - |
+| 产品管理 | /products | product.ts |
+| 选品管理 | /selection | selection.ts |
+| 全部选品 | /all-selection | selection.ts |
+| 新品 | /new-products | product.ts |
+| 参考产品 | /reference-products | product.ts |
+| 定稿 | /final-drafts | finalDrafts.ts |
+| 素材库 | /material-library | materialLibrary.ts |
+| 运营商库 | /carrier-library | carrierLibrary.ts |
+| 图片管理 | /image-management | image.ts |
+| 导入导出 | /import-export | import_export.ts |
+| 产品数据看板 | /product-data-dashboard | productData.ts |
+| 统计 | /statistics | statistics.ts |
+| 报表 | /report-viewer | report.ts |
+| 领星导入 | /lingxing | lingxing.ts |
+| 文件链接 | /file-links | fileLink.ts |
+| 下载管理 | /download-manager | downloadTask.ts |
+| 用户管理 | /user-management | user.ts |
+| 设置 | /settings | systemConfig.ts |
+| 产品回收站 | /product-recycle | product.ts |
+| 选品回收站 | /selection-recycle | selection.ts |
+| 定稿回收站 | /final-draft-recycle | finalDrafts.ts |
+| 运营商回收站 | /carrier-recycle | carrierLibrary.ts |
 
 ## API 文件 → 后端映射
 
 | API 文件 | 主要调用路径 | 后端 |
 |----------|------------|------|
-| product.ts | `/api/v1/products/` | Python（迁移中→Java） |
-| selection.ts | `/api/v1/selection/` | Python（迁移中→Java） |
-| finalDrafts.ts | `/api/v1/final-drafts/` | Python（迁移中→Java） |
+| product.ts | `/api/v1/products/`、`/api/v1/product-recycle/` | Python（开发态走 `^/api` 兜底） |
+| selection.ts | `/api/v1/selection/`、`/api/v1/scoring/` | 混合：Python 为主，`scoring` 走 Java |
+| finalDrafts.ts | `/api/v1/final-drafts/` | Python（迁移中） |
 | materialLibrary.ts | `/api/v1/material-library/` | Python |
 | carrierLibrary.ts | `/api/v1/carrier-library/` | Python |
 | image.ts | `/api/v1/images/` | Python |
-| user.ts | `/api/v1/users/` | Python |
+| statistics.ts | `/api/v1/statistics/` | Python |
+| fileLink.ts | `/api/v1/file-links/` | Python |
+| user.ts | `/api/v1/auth/`、`/api/v1/users/` | Java |
 | category.ts | `/api/v1/categories/` | Python |
 | tag.ts | `/api/v1/tags/` | Python |
-| systemConfig.ts | `/api/v1/system-config/` | Python |
+| systemConfig.ts | `/api/v1/system-config/`、`/api/v1/sellersprite-config` | 混合：Python 为主，`sellersprite-config` 走 Java |
+| product-line.ts | `/api/v1/product-line/` | 混合：Java 与 Selection Agent 共存，必须结合代理规则判断 |
 
 ## 通用组件
 
@@ -93,4 +98,4 @@ frontend/src/
 3. 新增组件放 `components/` 下，PascalCase 命名
 4. 新增类型放 `types/` 下，禁止使用 `any`
 5. 样式用 SCSS，变量在 `styles/variables.scss`
-6. 注意：API 路径正在从 `/api/v1/` 迁移到 `/api/`（Java 后端），新增调用优先用新路径
+6. 注意：开发态真实请求去向优先看 `vite.config.js`；混合模块（如 `selection.ts`、`systemConfig.ts`、`product-line.ts`）必须结合代理规则判断

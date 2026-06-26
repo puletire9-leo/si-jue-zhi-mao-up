@@ -43,8 +43,8 @@
       </div>
       
       <!-- 一键打开按钮 -->
-      <div v-if="productLink || similarProductsLink" class="card-link-buttons">
-        <div class="card-link-button open-all-link" @click.stop="handleOpenAll" title="一键打开：商品链接 + 相似图片 + 德国相似图片">
+      <div v-if="props.product.asin" class="card-link-buttons">
+        <div class="card-link-button open-link" @click.stop="handleOpenProductLink" title="一键打开">
           <el-icon><Promotion /></el-icon>
           <span class="link-text">一键打开</span>
         </div>
@@ -143,6 +143,7 @@
 import { ref, watch, computed } from 'vue'
 import { Picture, Money, Shop, Folder, View, Delete, TrendCharts, Select, Promotion } from '@element-plus/icons-vue'
 import { trackClick } from '@/api/clickLog'
+import { getProductType } from '@/api/competitor'
 
 interface Props {
   product: Record<string, any>
@@ -218,23 +219,20 @@ const titleText = computed(() => {
 const showMeta = computed(() => modeConfig.value.showMeta)
 const price = computed(() => props.product.price)
 const storeName = computed(() => props.product.storeName || props.product.sellerName || '')
-const category = computed(() => props.product.category)
+const category = computed(() => props.product.mainCategoryName || props.product.category)
 const showTags = computed(() => modeConfig.value.showTags)
 const tags = computed(() => props.product.tags)
 const productType = computed(() => {
   const raw = props.product[modeConfig.value.typeField]
   if (raw) return raw
-  // 从 source 字段推断
-  const src = props.product.source || ''
-  if (src.includes('新品')) return 'new'
-  if (src.includes('竞品')) return 'reference'
-  if (src.includes('郑总')) return 'zheng'
-  return ''
+  return getProductType(props.product.source || '')
 })
 const typeBadgeText = computed(() => {
   if (props.mode === 'selection') {
     const pt = productType.value || props.product.productType
-    return pt === 'new' ? '新品' : '竞品'
+    if (pt === 'new') return '新品'
+    if (pt === 'zheng') return '郑总'
+    return '竞品'
   }
   return ''
 })
@@ -246,8 +244,23 @@ const createTime = computed(() => props.product.createdAt || props.product.creat
 const showViewButton = computed(() => modeConfig.value.showViewButton)
 const showSalesVolume = computed(() => modeConfig.value.showSalesVolume)
 const salesVolume = computed(() => props.product.salesVolume || props.product.units || 0)
-const showProductLink = computed(() => modeConfig.value.showProductLink)
-const productLink = computed(() => props.product.productLink || props.product.productUrl || '')
+const productLink = computed(() => {
+  const raw = props.product.productLink || props.product.productUrl || ''
+  if (raw) return raw
+  // 从 ASIN + 站点生成 Amazon 链接
+  const asin = props.product.asin
+  const mkp = props.product.marketplace
+  if (asin && mkp) {
+    const domains: Record<string, string> = {
+      US: 'www.amazon.com', UK: 'www.amazon.co.uk', DE: 'www.amazon.de',
+      CA: 'www.amazon.ca', JP: 'www.amazon.co.jp', FR: 'www.amazon.fr',
+      IT: 'www.amazon.it', ES: 'www.amazon.es',
+    }
+    return `https://${domains[mkp] || 'www.amazon.com'}/dp/${asin}`
+  }
+  return ''
+})
+
 const similarProductsLink = computed(() => props.product.similarProducts || props.product.similarUrl || '')
 
 const visibleTags = computed(() => (props.product.tags || []).slice(0, 3))
@@ -292,7 +305,7 @@ const timeTag = computed(() => {
   const created = new Date(createdAt)
 
   // 调试信息（开发时使用）
-  // console.log('时效标签调试:', { createdAt, created: created.toISOString(), now: now.toISOString() })
+  // FIXED: MED-9 — 删除遗留 console.log
 
   // 计算本周一（ISO 周，周一开始）
   const dayOfWeek = now.getDay() || 7 // 周日=7
@@ -437,25 +450,16 @@ const handleDelete = (): void => {
   emit('delete', props.product)
 }
 
-const handleOpenAll = (): void => {
-  // 1. 打开商品链接
+const handleOpenProductLink = (): void => {
+  // 打开商品链接
   if (productLink.value) {
     window.open(productLink.value, '_blank')
   }
-
-  // 2. 打开相似图片链接（similarProducts 可能是逗号分隔的多个链接）
+  // 同时打开所有相似链接
   const raw = similarProductsLink.value
   if (raw) {
-    const links = raw.split(',').map(l => l.trim()).filter(Boolean)
-    links.forEach(link => window.open(link, '_blank'))
-
-    // 3. 打开对方国家的相似图片（英国↔德国互转）
-    links.forEach(link => {
-      if (link.includes('amazon.co.uk')) {
-        window.open(link.replace('amazon.co.uk', 'amazon.de'), '_blank')
-      } else if (link.includes('amazon.de')) {
-        window.open(link.replace('amazon.de', 'amazon.co.uk'), '_blank')
-      }
+    raw.split(',').map(l => l.trim()).filter(Boolean).forEach(url => {
+      window.open(url, '_blank')
     })
   }
 }
@@ -536,6 +540,10 @@ const handleOpenAll = (): void => {
 
     &.new {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    &.zheng {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
     }
 
     &.reference {
@@ -653,7 +661,7 @@ const handleOpenAll = (): void => {
     }
 
     // 一键打开按钮样式
-    &.open-all-link {
+    &.open-link {
       background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
       box-shadow: 0 4px 12px rgba(240, 147, 251, 0.4);
 

@@ -71,7 +71,10 @@
           />
 
           <!-- 产品列表 -->
-          <div v-loading="loading" class="products-grid">
+          <template v-if="loading && !hasLoaded">
+            <SkeletonWrapper variant="card-grid" :count="12" />
+          </template>
+          <div v-else v-loading="refreshing" class="products-grid">
             <UniversalCard
               v-for="product in productList"
               :key="product.id"
@@ -83,7 +86,7 @@
               @view="handleView"
               @delete="handleDelete"
             />
-            
+
             <el-empty
               v-if="!loading && productList.length === 0"
               description="暂无选品数据"
@@ -110,7 +113,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -123,6 +126,7 @@ import {
   CircleClose
 } from '@element-plus/icons-vue'
 import UniversalCard from '@/components/UniversalCard/index.vue'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import SelectionQueryForm from '@/components/SelectionQueryForm/index.vue'
 import type { SelectionQueryParams } from '@/components/SelectionQueryForm/types'
 import { selectionApi } from '@/api/selection'
@@ -136,6 +140,8 @@ const selectedIds = ref<string[]>([])
 const categories = ref([])
 const loading = ref(false)
 const exporting = ref(false)
+const hasLoaded = ref(false)
+const refreshing = computed(() => loading.value && hasLoaded.value)
 
 const pagination = reactive({
   page: 1,
@@ -179,6 +185,7 @@ const loadProducts = async (params?: SelectionQueryParams) => {
     console.error('加载选品列表失败:', error)
     ElMessage.error('加载选品列表失败')
   } finally {
+    hasLoaded.value = true
     loading.value = false
   }
 }
@@ -384,6 +391,30 @@ onMounted(() => {
   .el-pagination {
     margin-top: 20px;
     justify-content: flex-end;
+  }
+}
+
+// ========== 暗黑模式适配 ==========
+:deep(html.dark) {
+  .products-grid {
+    background: var(--el-bg-color);
+  }
+  .card-header {
+    span {
+      color: var(--el-text-color-primary);
+    }
+  }
+  .el-empty {
+    --el-empty-fill-color-0: var(--el-bg-color);
+    --el-empty-fill-color-1: var(--el-border-color);
+    --el-empty-fill-color-2: var(--el-bg-color-page);
+    --el-empty-fill-color-3: var(--el-border-color);
+    --el-empty-fill-color-4: var(--el-bg-color);
+    --el-empty-fill-color-5: var(--el-border-color-lighter);
+    --el-empty-fill-color-6: var(--el-bg-color);
+    --el-empty-fill-color-7: var(--el-fill-color);
+    --el-empty-fill-color-8: var(--el-text-color-secondary);
+    --el-empty-fill-color-9: var(--el-text-color-placeholder);
   }
 }
 </style>

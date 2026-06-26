@@ -1,0 +1,359 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.mapper.CategoryDislocationMapper">
+
+    <delete id="deleteByBaselineMonth">
+        DELETE FROM category_dislocation
+        WHERE baseline_month = #{baselineMonth}
+        <if test="marketplace != null and marketplace != ''">
+            AND marketplace = #{marketplace}
+        </if>
+    </delete>
+
+    <insert id="insertComputedSlices">
+        INSERT INTO category_dislocation (
+            marketplace, bsr_id, canonical_key, sub_category, baseline_month,
+            dengzong_count, other_cn_count, non_cn_count, total_sellers,
+            product_count, avg_units, dz_share, non_cn_share,
+            dislocation_score, heat_signal, computed_at
+        )
+        WITH approved_alias AS (
+            SELECT marketplace,
+                   raw_subcategory,
+                   canonical_key,
+                   canonical_name
+            FROM subcategory_alias_map
+            WHERE source_type = 'COMPETITOR'
+              AND status = 'APPROVED'
+              AND deleted = 0
+              AND canonical_key IS NOT NULL
+              <if test="marketplace != null and marketplace != ''">
+                  AND marketplace = #{marketplace}
+              </if>
+        ),
+        dengzong_sellers AS (
+            SELECT DISTINCT marketplace, seller_id
+            FROM deng_zong_shop
+            WHERE seller_id IS NOT NULL
+              AND seller_id != ''
+              <if test="marketplace != null and marketplace != ''">
+                  AND marketplace = #{marketplace}
+              </if>
+        ),
+        filtered AS (
+            -- 数据清洗层：直接消费 competitor_products_clean（已按父 ASIN 去重）
+            -- 见 docs/选品方法库/补充/数据清洗层.md
+            SELECT cp.marketplace,
+                   cp.bsr_id,
+                   alias.canonical_key,
+                   alias.canonical_name AS sub_category,
+                   cp.seller_id,
+                   cp.seller_nation,
+                   cp.units
+            FROM competitor_products_clean cp
+            INNER JOIN approved_alias alias
+                    ON alias.marketplace = cp.marketplace
+                   AND alias.raw_subcategory COLLATE utf8mb4_unicode_ci =
+                       TRIM(SUBSTRING_INDEX(cp.node_label_path, ':', -1)) COLLATE utf8mb4_unicode_ci
+            WHERE cp.month = #{baselineMonth}
+              AND cp.node_label_path IS NOT NULL
+              AND TRIM(SUBSTRING_INDEX(cp.node_label_path, ':', -1)) != ''
+              AND LOWER(TRIM(SUBSTRING_INDEX(cp.node_label_path, ':', -1))) != 'null'
+              AND cp.seller_id IS NOT NULL
+              AND cp.seller_id != ''
+              AND cp.units IS NOT NULL
+              <if test="marketplace != null and marketplace != ''">
+                  AND cp.marketplace = #{marketplace}
+              </if>
+        ),
+        seller_labeled AS (
+            SELECT filtered.marketplace,
+                   filtered.bsr_id,
+                   filtered.canonical_key,
+                   filtered.sub_category,
+                   filtered.seller_id,
+                   CASE
+                       WHEN dz.seller_id IS NOT NULL THEN 'DENGZONG'
+                       WHEN filtered.seller_nation IS NULL
+                         OR TRIM(filtered.seller_nation) = ''
+                         OR LOWER(TRIM(filtered.seller_nation)) = 'null' THEN 'UNKNOWN'
+                       WHEN UPPER(TRIM(filtered.seller_nation)) IN ('CN', 'HK') THEN 'OTHER_CN'
+                       ELSE 'NON_CN'
+                   END AS seller_bucket
+            FROM filtered
+            LEFT JOIN dengzong_sellers dz
+                   ON dz.marketplace = filtered.marketplace
+                  AND dz.seller_id COLLATE utf8mb4_unicode_ci =
+                      filtered.seller_id COLLATE utf8mb4_unicode_ci
+        ),
+        seller_agg AS (
+            SELECT marketplace,
+                   canonical_key,
+                   sub_category,
+                   COUNT(DISTINCT CASE WHEN seller_bucket = 'DENGZONG' THEN seller_id END) AS dengzong_count,
+                   COUNT(DISTINCT CASE WHEN seller_bucket = 'OTHER_CN' THEN seller_id END) AS other_cn_count,
+                   COUNT(DISTINCT CASE WHEN seller_bucket = 'NON_CN' THEN seller_id END) AS non_cn_count
+            FROM seller_labeled
+            GROUP BY marketplace, canonical_key, sub_category
+        ),
+        product_agg AS (
+            SELECT marketplace,
+                   canonical_key,
+                   sub_category,
+                   COUNT(*) AS product_count,
+                   ROUND(AVG(units), 2) AS avg_units
+            FROM filtered
+            GROUP BY marketplace, canonical_key, sub_category
+        ),
+        dominant_bsr_counts AS (
+            SELECT marketplace,
+                   canonical_key,
+                   sub_category,
+                   bsr_id,
+                   COUNT(*) AS bsr_count
+            FROM filtered
+            WHERE bsr_id IS NOT NULL
+              AND bsr_id != ''
+            GROUP BY marketplace, canonical_key, sub_category, bsr_id
+        ),
+        dominant_bsr AS (
+            SELECT marketplace,
+                   canonical_key,
+                   sub_category,
+                   bsr_id,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY marketplace, canonical_key, sub_category
+                       ORDER BY bsr_count DESC, bsr_id
+                   ) AS rn
+            FROM dominant_bsr_counts
+        ),
+        combined AS (
+            SELECT sa.marketplace,
+                   db.bsr_id,
+                   sa.canonical_key,
+                   sa.sub_category,
+                   sa.dengzong_count,
+                   sa.other_cn_count,
+                   sa.non_cn_count,
+                   sa.dengzong_count + sa.other_cn_count + sa.non_cn_count AS total_sellers,
+                   pa.product_count,
+                   pa.avg_units
+            FROM seller_agg sa
+            INNER JOIN product_agg pa
+                    ON pa.marketplace = sa.marketplace
+                   AND pa.canonical_key = sa.canonical_key
+                   AND pa.sub_category = sa.sub_category
+            LEFT JOIN dominant_bsr db
+                   ON db.marketplace = sa.marketplace
+                  AND db.canonical_key = sa.canonical_key
+                  AND db.sub_category = sa.sub_category
+                  AND db.rn = 1
+        )
+        SELECT marketplace,
+               bsr_id,
+               canonical_key,
+               sub_category,
+               #{baselineMonth} AS baseline_month,
+               dengzong_count,
+               other_cn_count,
+               non_cn_count,
+               total_sellers,
+               product_count,
+               avg_units,
+               dz_share,
+               non_cn_share,
+               CASE
+                   WHEN total_sellers = 0 OR avg_units IS NULL OR avg_units &lt;= 0 OR max_avg_units IS NULL OR max_avg_units &lt;= 0 THEN 0
+                   ELSE ROUND(non_cn_share * LN(avg_units + 1) / LN(max_avg_units + 1), 4)
+               END AS dislocation_score,
+               CASE
+                   WHEN total_sellers &lt; 3 THEN 'COLD'
+                   WHEN non_cn_share &gt; 0.30 AND dz_share = 0 THEN 'GREEN'
+                   WHEN dz_share &gt; 0.20 THEN 'RED'
+                   WHEN dz_share &gt; 0 AND non_cn_share &lt; 0.15 THEN 'RED'
+                   WHEN dz_share &gt;= 0.01 AND dz_share &lt;= 0.20 THEN 'YELLOW'
+                   ELSE 'COLD'
+               END AS heat_signal,
+               NOW() AS computed_at
+        FROM (
+            SELECT marketplace,
+                   bsr_id,
+                   canonical_key,
+                   sub_category,
+                   dengzong_count,
+                   other_cn_count,
+                   non_cn_count,
+                   total_sellers,
+                   product_count,
+                   avg_units,
+                   CASE
+                       WHEN total_sellers = 0 THEN 0
+                       ELSE ROUND(dengzong_count / total_sellers, 4)
+                   END AS dz_share,
+                   CASE
+                       WHEN total_sellers = 0 THEN 0
+                       ELSE ROUND(non_cn_count / total_sellers, 4)
+                   END AS non_cn_share,
+                   MAX(avg_units) OVER () AS max_avg_units
+            FROM combined
+        ) scored
+    </insert>
+
+    <select id="selectActionableSlices" resultType="com.sjzm.product.entity.CategoryDislocation">
+        WITH winner_canonical AS (
+            SELECT DISTINCT canonical_key
+            FROM subcategory_alias_map
+            WHERE source_type = 'WINNER'
+              AND status = 'APPROVED'
+              AND deleted = 0
+              AND canonical_key IS NOT NULL
+        )
+        SELECT cd.*
+        FROM category_dislocation cd
+        INNER JOIN winner_canonical wc
+                ON wc.canonical_key COLLATE utf8mb4_0900_ai_ci =
+                   cd.canonical_key COLLATE utf8mb4_0900_ai_ci
+        WHERE cd.marketplace = #{marketplace}
+          AND cd.baseline_month = #{baselineMonth}
+          <if test="heatSignal != null and heatSignal != '' and heatSignal != 'ALL'">
+              AND cd.heat_signal = #{heatSignal}
+          </if>
+        ORDER BY cd.dislocation_score DESC, cd.non_cn_share DESC, cd.avg_units DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectWinnerTypeSummaries" resultType="com.sjzm.product.dto.WinnerTypeSummary">
+        WITH winner_alias AS (
+            SELECT raw_subcategory,
+                   canonical_key,
+                   canonical_name
+            FROM subcategory_alias_map
+            WHERE source_type = 'WINNER'
+              AND status = 'APPROVED'
+              AND deleted = 0
+              AND canonical_key IS NOT NULL
+              AND canonical_key IN
+              <foreach collection="canonicalKeys" item="canonicalKey" open="(" separator="," close=")">
+                  #{canonicalKey}
+              </foreach>
+        ),
+        winner_base AS (
+            SELECT alias.canonical_key,
+                   alias.canonical_name,
+                   p.marketplace,
+                   COALESCE(NULLIF(TRIM(p.archetype), ''), 'UNKNOWN') AS archetype,
+                   NULLIF(TRIM(p.carrier), '') AS carrier,
+                   NULLIF(TRIM(p.element), '') AS element,
+                   COALESCE(p.is_green, 0) AS is_green,
+                   COALESCE(p.is_eliminated, 0) AS is_eliminated
+            FROM product_performance_actual p
+            INNER JOIN winner_alias alias
+                    ON alias.raw_subcategory COLLATE utf8mb4_unicode_ci =
+                       p.category_sub COLLATE utf8mb4_unicode_ci
+            WHERE p.category_sub IS NOT NULL
+              AND TRIM(p.category_sub) != ''
+              AND LOWER(TRIM(p.category_sub)) != 'null'
+        ),
+        winner_summary AS (
+            SELECT canonical_key,
+                   MAX(canonical_name) AS canonical_name,
+                   COUNT(*) AS winner_count,
+                   SUM(CASE WHEN is_green = 1 THEN 1 ELSE 0 END) AS green_count,
+                   SUM(CASE WHEN is_eliminated = 1 THEN 1 ELSE 0 END) AS eliminated_count,
+                   GROUP_CONCAT(DISTINCT marketplace ORDER BY marketplace SEPARATOR ',') AS winner_marketplaces
+            FROM winner_base
+            GROUP BY canonical_key
+        ),
+        archetype_ranked AS (
+            SELECT canonical_key,
+                   archetype,
+                   stat_count,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY canonical_key
+                       ORDER BY stat_count DESC, archetype
+                   ) AS rn
+            FROM (
+                SELECT canonical_key,
+                       archetype,
+                       COUNT(*) AS stat_count
+                FROM winner_base
+                GROUP BY canonical_key, archetype
+            ) grouped
+        ),
+        archetype_agg AS (
+            SELECT canonical_key,
+                   GROUP_CONCAT(CONCAT(archetype, ':', stat_count)
+                                ORDER BY stat_count DESC, archetype SEPARATOR '|') AS top_archetypes
+            FROM archetype_ranked
+            WHERE rn &lt;= 3
+            GROUP BY canonical_key
+        ),
+        carrier_ranked AS (
+            SELECT canonical_key,
+                   carrier,
+                   stat_count,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY canonical_key
+                       ORDER BY stat_count DESC, carrier
+                   ) AS rn
+            FROM (
+                SELECT canonical_key,
+                       carrier,
+                       COUNT(*) AS stat_count
+                FROM winner_base
+                WHERE carrier IS NOT NULL
+                GROUP BY canonical_key, carrier
+            ) grouped
+        ),
+        carrier_agg AS (
+            SELECT canonical_key,
+                   GROUP_CONCAT(CONCAT(carrier, ':', stat_count)
+                                ORDER BY stat_count DESC, carrier SEPARATOR '|') AS top_carriers
+            FROM carrier_ranked
+            WHERE rn &lt;= 3
+            GROUP BY canonical_key
+        ),
+        element_ranked AS (
+            SELECT canonical_key,
+                   element,
+                   stat_count,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY canonical_key
+                       ORDER BY stat_count DESC, element
+                   ) AS rn
+            FROM (
+                SELECT canonical_key,
+                       element,
+                       COUNT(*) AS stat_count
+                FROM winner_base
+                WHERE element IS NOT NULL
+                GROUP BY canonical_key, element
+            ) grouped
+        ),
+        element_agg AS (
+            SELECT canonical_key,
+                   GROUP_CONCAT(CONCAT(element, ':', stat_count)
+                                ORDER BY stat_count DESC, element SEPARATOR '|') AS top_elements
+            FROM element_ranked
+            WHERE rn &lt;= 3
+            GROUP BY canonical_key
+        )
+        SELECT summary.canonical_key AS canonicalKey,
+               summary.canonical_name AS canonicalName,
+               summary.winner_count AS winnerCount,
+               summary.green_count AS greenCount,
+               summary.eliminated_count AS eliminatedCount,
+               summary.winner_marketplaces AS winnerMarketplaces,
+               archetype.top_archetypes AS topArchetypes,
+               carrier.top_carriers AS topCarriers,
+               element.top_elements AS topElements
+        FROM winner_summary summary
+        LEFT JOIN archetype_agg archetype
+               ON archetype.canonical_key = summary.canonical_key
+        LEFT JOIN carrier_agg carrier
+               ON carrier.canonical_key = summary.canonical_key
+        LEFT JOIN element_agg element
+               ON element.canonical_key = summary.canonical_key
+        ORDER BY summary.winner_count DESC, summary.canonical_key
+    </select>
+</mapper>

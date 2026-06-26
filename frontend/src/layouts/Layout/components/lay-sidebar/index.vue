@@ -2,15 +2,7 @@
 import { computed, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  Odometer,
-  Star,
-  Picture,
-  Brush,
-  Upload,
-  TrendCharts,
-  Download,
-  User,
-  Setting
+  Odometer
 } from '@element-plus/icons-vue'
 import { getAllModules } from '@/modules'
 
@@ -52,11 +44,15 @@ const menuItems = computed<MenuItem[]>(() => {
   topLevel.push({ index: '/dashboard', title: '首页', icon: Odometer, order: 0 })
 
   for (const mod of modules) {
+    // 隐藏项不出现在菜单中
+    if (mod.hiddenInMenu) continue
+
     const item: MenuItem = {
       index: `/${mod.route.path}`,
       title: mod.name,
       icon: resolveIcon(mod.icon),
-      order: mod.menuOrder ?? 99
+      order: mod.menuOrder ?? 99,
+      external: mod.external
     }
     if (mod.menuGroup) {
       if (!groups.has(mod.menuGroup)) {
@@ -80,71 +76,11 @@ const menuItems = computed<MenuItem[]>(() => {
     }))
     .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
 
-  // 以下为尚未迁移到模块的菜单项（逐步迁移后会消失）
-  const legacyGroups: MenuItem[] = [
-    {
-      index: 'legacy-selection',
-      title: '选品中心',
-      icon: Star,
-      order: 10,
-      children: [
-        { index: '/all-selection', title: '总选品管理', icon: Star },
-        { index: '/new-products', title: '新品榜', icon: Star },
-        { index: '/reference-products', title: '竞品店铺', icon: Star },
-        { index: '/zheng-products', title: '郑总店铺上新', icon: Star },
-        { index: '/asin-import', title: '卖家精灵数据获取', icon: Star }
-      ]
-    },
-    {
-      index: 'legacy-resources',
-      title: '资料集',
-      icon: Picture,
-      order: 30,
-      children: [
-        { index: '/prompt-library', title: '提示词库', icon: Picture },
-        { index: '/resource-library', title: '资料库', icon: Picture },
-        { index: '/resource-collection', title: '图片管理', icon: Picture }
-      ]
-    },
-    {
-      index: 'legacy-customization',
-      title: '微定制',
-      icon: Brush,
-      order: 40,
-      children: [
-        { index: '/final-draft', title: '定稿管理', icon: Brush },
-        { index: '/material-library', title: '素材库', icon: Brush },
-        { index: '/carrier-library', title: '载体库', icon: Brush }
-      ]
-    },
-    {
-      index: 'legacy-lingxing',
-      title: '领星',
-      icon: Upload,
-      order: 50,
-      children: [
-        { index: '/lingxing/import', title: '导入领星', icon: Upload }
-      ]
-    },
-    {
-      index: 'legacy-dashboards',
-      title: '数据看板',
-      icon: TrendCharts,
-      order: 60,
-      children: [
-        { index: '/product-data', title: '产品数据看板', icon: TrendCharts },
-        { index: '/dashboards/product_sales_dashboard_v2.html', title: '销量追踪', icon: TrendCharts, external: true },
-        { index: '/dashboards/product_comparison_dashboard.html', title: '双周期对比', icon: TrendCharts, external: true },
-        { index: '/dashboards/product_decline_analysis.html', title: '销量下滑分析', icon: TrendCharts, external: true }
-      ]
-    },
-    { index: '/download-manager', title: '下载管理', icon: Download, order: 200 },
-    { index: '/users', title: '用户管理', icon: User, order: 210 },
-    { index: '/account-settings', title: '账号设置', icon: User, order: 220 },
-    { index: '/settings', title: '系统设置', icon: Setting, order: 230 }
-  ]
+  // 按 menuOrder 拆分：重要项（<100）放前面，系统管理项（>=100）放最后
+  const importantTop = topLevel.filter(i => (i.order ?? 99) < 100)
+  const adminTop = topLevel.filter(i => (i.order ?? 99) >= 100)
 
-  return [...topLevel, ...groupMenus, ...legacyGroups]
+  return [...importantTop, ...groupMenus, ...adminTop]
 })
 
 const activeIndex = computed(() => route.path)
@@ -228,15 +164,15 @@ const handleSelect = (index: string) => {
     gap: 12px;
     height: 64px;
     padding: 0 20px;
-    background: linear-gradient(135deg, #FFFBF7, #F8F4FF);
-    border-bottom: 1px solid #F0EBE6;
+    background: linear-gradient(135deg, #faf8f5, #f5f0eb);
+    border-bottom: 1px solid #e5e1da;
     flex-shrink: 0;
 
     .logo-icon {
       width: 36px;
       height: 36px;
       min-width: 36px;
-      background: linear-gradient(135deg, #7C61D4, #9F85E0);
+      background: linear-gradient(135deg, #b45309, #d97706);
       border-radius: 10px;
       display: flex;
       align-items: center;
@@ -244,13 +180,13 @@ const handleSelect = (index: string) => {
       color: white;
       font-weight: 700;
       font-size: 18px;
-      box-shadow: 0 2px 8px rgba(124, 97, 212, 0.3);
+      box-shadow: 0 2px 8px rgba(180, 83, 9, 0.3);
     }
 
     .logo-text {
       font-size: 17px;
       font-weight: 600;
-      color: #2F281D;
+      color: #1a1a1a;
       white-space: nowrap;
     }
   }
@@ -275,18 +211,18 @@ const handleSelect = (index: string) => {
       line-height: 44px;
       margin-bottom: 4px;
       border-radius: 10px;
-      color: #6B5E52;
+      color: #6b7280;
       transition: all 0.2s ease;
 
       &:hover {
-        background: #F8F4FF;
-        color: #7C61D4;
+        background: #f5f0eb;
+        color: #b45309;
       }
 
       &.is-active {
-        background: linear-gradient(135deg, #7C61D4, #9F85E0);
+        background: linear-gradient(135deg, #b45309, #d97706);
         color: white;
-        box-shadow: 0 4px 12px rgba(124, 97, 212, 0.3);
+        box-shadow: 0 4px 12px rgba(180, 83, 9, 0.3);
       }
     }
 
@@ -296,12 +232,12 @@ const handleSelect = (index: string) => {
         line-height: 44px;
         margin-bottom: 4px;
         border-radius: 10px;
-        color: #6B5E52;
+        color: #6b7280;
         transition: all 0.2s ease;
 
         &:hover {
-          background: #F8F4FF;
-          color: #7C61D4;
+          background: #f5f0eb;
+          color: #b45309;
         }
       }
 
@@ -313,8 +249,8 @@ const handleSelect = (index: string) => {
           font-size: 13px;
 
           &.is-active {
-            background: rgba(124, 97, 212, 0.15);
-            color: #7C61D4;
+            background: rgba(180, 83, 9, 0.15);
+            color: #b45309;
             box-shadow: none;
           }
         }
@@ -343,11 +279,11 @@ const handleSelect = (index: string) => {
 
         &:hover {
           background: #252540;
-          color: #9F85E0;
+          color: #d97706;
         }
 
         &.is-active {
-          background: linear-gradient(135deg, #7C61D4, #9F85E0);
+          background: linear-gradient(135deg, #b45309, #d97706);
           color: white;
         }
       }
@@ -358,15 +294,15 @@ const handleSelect = (index: string) => {
 
           &:hover {
             background: #252540;
-            color: #9F85E0;
+            color: #d97706;
           }
         }
 
         :deep(.el-menu) {
           .el-menu-item {
             &.is-active {
-              background: rgba(124, 97, 212, 0.2);
-              color: #9F85E0;
+              background: rgba(180, 83, 9, 0.2);
+              color: #d97706;
             }
           }
         }

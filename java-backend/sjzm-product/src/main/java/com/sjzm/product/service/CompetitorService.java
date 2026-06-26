@@ -24,6 +24,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Slf4j
 @Service
@@ -136,6 +137,8 @@ public class CompetitorService {
                 break;
             }
             page++;
+            // 翻页间隔，避免突发请求触发卖家精灵频率限制（与批量导入一致）
+            try { Thread.sleep(2000); } catch (InterruptedException ignored) {}
         }
 
         // 批量写入子类别：先批量删除，再批量插入
@@ -332,51 +335,7 @@ public class CompetitorService {
     }
 
 
-    private PageResult<CompetitorProductResponse> queryGroupedByParent(CompetitorQueryRequest request) {
-        int offset = (request.getPage() - 1) * request.getSize();
-        // 校验排序方向，防止 SQL 注入
-        String sortOrder = "asc".equalsIgnoreCase(request.getSortOrder()) ? "ASC" : "DESC";
-        List<CompetitorProduct> records = productMapper.selectGroupedByParent(
-                request.getMarketplace(), request.getMonth(), request.getSource(),
-                request.getFilterMode(), request.getBrand(), request.getSellerName(),
-                request.getTitle(), request.getGrade(), request.getWeekTag(),
-                request.getIsCurrent(), request.getMaxVariantCount(), request.getCategory(),
-                request.getSortBy(), sortOrder, offset, request.getSize());
-
-        long total = productMapper.countGroupedByParent(
-                request.getMarketplace(), request.getMonth(), request.getSource(), request.getFilterMode(),
-                request.getBrand(), request.getSellerName(), request.getTitle(),
-                request.getGrade(), request.getWeekTag(), request.getIsCurrent(),
-                request.getMaxVariantCount(), request.getCategory());
-
-        // 批量查子类目，避免 N+1
-        List<Long> productIds = records.stream().map(CompetitorProduct::getId).collect(Collectors.toList());
-        Map<Long, List<CompetitorSubcategory>> subMap = productIds.isEmpty()
-                ? Map.of()
-                : subcategoryMapper.selectByProductIds(productIds).stream()
-                        .collect(Collectors.groupingBy(CompetitorSubcategory::getProductId));
-
-        List<CompetitorProductResponse> list = records.stream()
-                .map(p -> {
-                    List<CompetitorSubcategory> subs = subMap.getOrDefault(p.getId(), List.of());
-                    List<CompetitorProductResponse.SubcategoryDto> subDtos = subs.stream()
-                            .map(s -> CompetitorProductResponse.SubcategoryDto.builder()
-                                    .code(s.getCode()).rankValue(s.getRankValue()).label(s.getLabel()).build())
-                            .collect(Collectors.toList());
-                    CompetitorProductResponse resp = toResponse(p, subDtos);
-                    resp.setVariantCount(p.getVariantCount());
-                    return resp;
-                }).collect(Collectors.toList());
-
-        return PageResult.of(list, total, (long) request.getPage(), (long) request.getSize());
-    }
-
     public PageResult<CompetitorProductResponse> queryFromDb(CompetitorQueryRequest request) {
-
-        // 按 parent_asin 去重
-        if (Boolean.TRUE.equals(request.getGroupByParent())) {
-            return queryGroupedByParent(request);
-        }
 
         LambdaQueryWrapper<CompetitorProduct> wrapper = new LambdaQueryWrapper<>();
         // 排除空壳追踪记录
@@ -396,6 +355,12 @@ public class CompetitorService {
         if (StringUtils.hasText(request.getFilterMode())) {
             wrapper.eq(CompetitorProduct::getFilterMode, request.getFilterMode());
         }
+        if (StringUtils.hasText(request.getBsrId())) {
+            wrapper.eq(CompetitorProduct::getBsrId, request.getBsrId());
+        }
+        if (request.getNodeId() != null) {
+            wrapper.eq(CompetitorProduct::getNodeId, request.getNodeId());
+        }
         if (StringUtils.hasText(request.getBrand())) {
             wrapper.like(CompetitorProduct::getBrand, request.getBrand());
         }
@@ -414,11 +379,75 @@ public class CompetitorService {
             }
         }
         if (StringUtils.hasText(request.getWeekTag())) {
-            wrapper.eq(CompetitorProduct::getWeekTag, request.getWeekTag());
+            wrapper.apply("FIND_IN_SET(week_tag, {0})", request.getWeekTag());
+        }
+        if (StringUtils.hasText(request.getCreatedAtStart())) {
+            wrapper.apply("created_at >= {0}", request.getCreatedAtStart());
+        }
+        if (StringUtils.hasText(request.getCreatedAtEnd())) {
+            wrapper.apply("created_at <= {0}", request.getCreatedAtEnd() + " 23:59:59");
         }
         if (request.getIsCurrent() != null) {
             wrapper.eq(CompetitorProduct::getIsCurrent, request.getIsCurrent());
         }
+
+        // ── 品线模型筛选（P5 新增）──
+        if (request.getPriceMin() != null) {
+            wrapper.ge(CompetitorProduct::getPrice, request.getPriceMin());
+        }
+        if (request.getPriceMax() != null) {
+            wrapper.le(CompetitorProduct::getPrice, request.getPriceMax());
+        }
+        if (request.getBsrMax() != null) {
+            wrapper.gt(CompetitorProduct::getBsr, 0);
+            wrapper.le(CompetitorProduct::getBsr, request.getBsrMax());
+        }
+        if (request.getRatingMin() != null) {
+            wrapper.ge(CompetitorProduct::getRating, request.getRatingMin());
+        }
+        if (request.getWeightMax() != null) {
+            wrapper.le(CompetitorProduct::getWeightG, request.getWeightMax());
+        }
+        if (StringUtils.hasText(request.getKeywords())) {
+            // 逗号分隔多词，所有词需同时匹配标题（AND 语义）
+            String[] words = request.getKeywords().split(",");
+            for (String word : words) {
+                String trimmed = word.strip();
+                if (!trimmed.isEmpty()) {
+                    wrapper.like(CompetitorProduct::getTitle, trimmed);
+                }
+            }
+        }
+
+        // ── 筛选重构新增：面板区间直连 wrapper ──
+        if (request.getUnitsMin() != null) {
+            wrapper.ge(CompetitorProduct::getUnits, request.getUnitsMin());
+        }
+        if (request.getUnitsMax() != null) {
+            wrapper.le(CompetitorProduct::getUnits, request.getUnitsMax());
+        }
+        if (request.getListingDaysMin() != null) {
+            wrapper.ge(CompetitorProduct::getListingDays, request.getListingDaysMin());
+        }
+        if (request.getListingDaysMax() != null) {
+            wrapper.le(CompetitorProduct::getListingDays, request.getListingDaysMax());
+        }
+        if (request.getFulfillment() != null && !request.getFulfillment().isEmpty()) {
+            wrapper.in(CompetitorProduct::getFulfillment, request.getFulfillment());
+        }
+        if (request.getCreatedWeeks() != null && !request.getCreatedWeeks().isEmpty()) {
+            List<String> weeks = request.getCreatedWeeks();
+            String placeholders = IntStream.range(0, weeks.size())
+                    .mapToObj(i -> "{" + i + "}")
+                    .collect(Collectors.joining(","));
+            wrapper.apply("DATE_FORMAT(created_at,'%x-W%v') IN (" + placeholders + ")", weeks.toArray());
+        } else if (StringUtils.hasText(request.getCreatedWeek())) {
+            // backward compatibility with single week
+            wrapper.apply("DATE_FORMAT(created_at,'%x-W%v') = {0}", request.getCreatedWeek());
+        }
+
+        // ── 灵活合格规则（规则间 OR：满足任一即合格，取代写死的 MODE1 过滤）──
+        applyQualifyRules(wrapper, request.getQualifyRules());
 
         // 动态排序（白名单列名）
         applySort(wrapper, request.getSortBy(), request.getSortOrder());
@@ -505,9 +534,77 @@ public class CompetitorService {
                 .weekTag(p.getWeekTag())
                 .isCurrent(p.getIsCurrent())
                 .sellerId(p.getSellerId())
+                .createdAt(p.getCreatedAt() != null ? p.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : null)
                 .shopLink(buildShopLink(p.getSellerId(), p.getMarketplace()))
                 .subcategories(subs)
                 .build();
+    }
+
+    // 合格规则字段/运算符白名单（防注入：列名与运算符只能取这些值）
+    private static final Map<String, String> RULE_COLUMN = Map.of(
+            "listingDays", "listing_days",
+            "weightG", "weight_g",
+            "units", "units",
+            "bsr", "bsr");
+    private static final Map<String, String> RULE_OP = Map.of(
+            "lt", "<", "le", "<=", "ge", ">=", "gt", ">", "eq", "=");
+
+    private boolean isValidCondition(CompetitorQueryRequest.RuleCondition c) {
+        return c != null && c.getValue() != null
+                && c.getField() != null && RULE_COLUMN.containsKey(c.getField())
+                && c.getOp() != null && RULE_OP.containsKey(c.getOp());
+    }
+
+    /** 清洗规则：丢弃无效条件与空规则，返回仅含有效条件的规则列表 */
+    private List<CompetitorQueryRequest.QualifyRule> effectiveRules(List<CompetitorQueryRequest.QualifyRule> rules) {
+        if (rules == null) return List.of();
+        List<CompetitorQueryRequest.QualifyRule> out = new ArrayList<>();
+        for (CompetitorQueryRequest.QualifyRule r : rules) {
+            if (r == null || r.getConditions() == null) continue;
+            List<CompetitorQueryRequest.RuleCondition> valid = r.getConditions().stream()
+                    .filter(this::isValidCondition).collect(Collectors.toList());
+            if (!valid.isEmpty()) {
+                CompetitorQueryRequest.QualifyRule nr = new CompetitorQueryRequest.QualifyRule();
+                nr.setConditions(valid);
+                out.add(nr);
+            }
+        }
+        return out;
+    }
+
+    private void applyCondition(LambdaQueryWrapper<CompetitorProduct> x, CompetitorQueryRequest.RuleCondition c) {
+        String col = RULE_COLUMN.get(c.getField());
+        String op = RULE_OP.get(c.getOp());
+        if (col == null || op == null || c.getValue() == null) return;
+        // 排名守卫：排除无排名(null/0)的记录，避免 "bsr < 5000" 误纳入未上榜商品
+        if ("bsr".equals(c.getField())) x.apply("bsr > 0");
+        // col / op 取自白名单，安全拼接；阈值用 {0} 绑定
+        x.apply(col + " " + op + " {0}", c.getValue());
+    }
+
+    /**
+     * 拼接灵活合格规则：在 base 条件之上 AND 一组「规则间 OR」的约束。
+     * - 规则内部：条件 AND（如 listing_days≤30 AND units>30）
+     * - 规则之间：OR（满足任一即合格）
+     * - 字段/运算符白名单校验，无效条件与空规则已被 effectiveRules 清洗
+     */
+    private void applyQualifyRules(LambdaQueryWrapper<CompetitorProduct> wrapper,
+                                   List<CompetitorQueryRequest.QualifyRule> rules) {
+        List<CompetitorQueryRequest.QualifyRule> effective = effectiveRules(rules);
+        if (effective.isEmpty()) return;
+
+        // wrapper.and(...) 把整组包进一对括号，与外层 base 条件 AND；
+        // 组内用 .nested(规则) 生成 (条件 AND 条件)，相邻规则间用 .or() 切成 OR 连接。
+        wrapper.and(outer -> {
+            boolean first = true;
+            for (CompetitorQueryRequest.QualifyRule r : effective) {
+                if (!first) outer.or();
+                outer.nested(x -> {
+                    for (CompetitorQueryRequest.RuleCondition c : r.getConditions()) applyCondition(x, c);
+                });
+                first = false;
+            }
+        });
     }
 
     private void applySort(LambdaQueryWrapper<CompetitorProduct> wrapper, String sortBy, String sortOrder) {
@@ -519,6 +616,7 @@ public class CompetitorService {
             case "createdAt" -> wrapper.orderBy(true, asc, CompetitorProduct::getCreatedAt);
             case "ratings" -> wrapper.orderBy(true, asc, CompetitorProduct::getRatings);
             case "rating" -> wrapper.orderBy(true, asc, CompetitorProduct::getRating);
+            case "weightG" -> wrapper.orderBy(true, asc, CompetitorProduct::getWeightG);
             case "score" -> wrapper.orderBy(true, asc, CompetitorProduct::getScore);
             default -> wrapper.orderBy(true, asc, CompetitorProduct::getUnits);
         }
@@ -527,6 +625,15 @@ public class CompetitorService {
     public long getProductCount() { return productMapper.selectCount(null); }
     public long getSkipAsinCount() { return skipAsinMapper.selectCount(null); }
     public long getShopCount() { return shopMapper.selectCount(null); }
+
+    /**
+     * 实时按 created_at 计算入库批次（ISO 周）+ 每周条数，按周倒序，第一条即最新批次。
+     * @param source 来源（新品/竞品/郑总），按 LIKE 匹配；null 则不限来源
+     * @param filterMode 筛选模式，null 则不限
+     */
+    public List<Map<String, Object>> getCreatedWeeks(String marketplace, String source, String filterMode) {
+        return productMapper.selectCreatedWeeksWithCount(marketplace, source, filterMode);
+    }
 
     private String buildShopLink(String sellerId, String marketplace) {
         if (sellerId == null || sellerId.isEmpty()) return null;

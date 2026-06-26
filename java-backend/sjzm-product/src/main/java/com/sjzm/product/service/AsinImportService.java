@@ -10,6 +10,7 @@ import com.sjzm.product.dto.CompetitorLookupRequest;
 import com.sjzm.product.entity.AsinImportResult;
 import com.sjzm.product.entity.AsinImportTask;
 import com.sjzm.product.entity.CompetitorProduct;
+import com.sjzm.product.entity.DengZongShop;
 import com.sjzm.product.entity.DengZongShopSeller;
 import com.sjzm.product.entity.SkipAsin;
 import com.sjzm.product.mapper.AsinImportResultMapper;
@@ -46,7 +47,7 @@ public class AsinImportService {
     private static final Pattern PRICE_PATTERN = Pattern.compile("[\\s]*([\\d]+\\.?[\\d]*)");
     private static final Pattern NUMBER_PATTERN = Pattern.compile("[-+]?\\d*\\.?\\d+");
     private static final int BATCH_SIZE = 40;
-
+    private static final long BATCH_API_DELAY_MS = 2000;
     private static final int DB_BATCH_SIZE = 2000; // 每批写入 DB 的行数
     
     private static final long SELLER_API_DELAY_MS = 500;
@@ -58,10 +59,13 @@ public class AsinImportService {
     private final CompetitorProductMapper competitorProductMapper;
     private final SkipAsinMapper skipAsinMapper;
     private final DengZongShopSellerMapper sellerMapper;
+    private final DengZongShopService dengZongShopService;
     private final ApiRateLimitService rateLimitService;
     private final InitialFilterConfigService initialFilterConfig;
     private final SellerspriteConfig sellerspriteConfig;
     private final SellerspriteConfigService sellerspriteConfigService;
+    private final ScoringService scoringService;
+    private final CleanLayerService cleanLayerService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -149,7 +153,7 @@ public class AsinImportService {
         taskMapper.insert(task);
 
         // 5. 保存明细
-        saveResults(task.getId(), filterResult);
+        saveResults(task.getId(), filterResult, marketplace);
 
         // 6. 返回预览
         Map<String, Object> preview = new HashMap<>();
@@ -301,6 +305,11 @@ public class AsinImportService {
                 task.setApiFail(failCount);
                 task.setProgressLog(logBuf.toString());
                 taskMapper.updateById(task);
+
+                // 批次间隔，避免触发卖家精灵频率限制
+                if (i < totalBatches - 1) {
+                    try { Thread.sleep(BATCH_API_DELAY_MS); } catch (InterruptedException ignored) {}
+                }
             }
 
             task.setTaskStatus("DONE");
@@ -311,6 +320,16 @@ public class AsinImportService {
             taskMapper.updateById(task);
             log.info("任务 {} 执行完成。成功: {}, 失败: {}, API请求: {}, 父ASIN: {}, 变体: {}",
                     taskId, successCount, failCount, totalApiCalls, totalParentCount, totalVariantCount);
+
+            // 导入完成 → 触发周标记 + 清洗层增量刷新（C-2 集成点）
+            try {
+                String weekTag = scoringService.updateWeekTags();
+                Map<String, Object> cleanResult = cleanLayerService.cleanWeekBatch(task.getMarketplace(), weekTag);
+                log.info("导入后清洗层刷新完成: taskId={}, marketplace={}, weekTag={}, affected={}",
+                        taskId, task.getMarketplace(), weekTag, cleanResult.get("affectedRows"));
+            } catch (Exception cleanEx) {
+                log.error("导入后清洗层刷新失败（不影响主任务）: taskId={}, msg={}", taskId, cleanEx.getMessage(), cleanEx);
+            }
 
         } catch (Exception e) {
             log.error("任务 {} 执行异常: {}", taskId, e.getMessage(), e);
@@ -524,13 +543,13 @@ public class AsinImportService {
     /**
      * 卖家名批量导入 - 预览
      */
-    public Map<String, Object> sellerPreview(List<String> sellerNames, String marketplace) {
+    public Map<String, Object> sellerPreview(List<String> sellerNames, String marketplace, String target) {
         List<String> cleaned = sellerNames.stream()
                 .map(String::trim)
                 .filter(name -> !name.isEmpty())
                 .distinct()
                 .collect(java.util.stream.Collectors.toList());
-        
+
         if (cleaned.isEmpty()) {
             throw new RuntimeException("没有有效的卖家名");
         }
@@ -542,7 +561,7 @@ public class AsinImportService {
 
         AsinImportTask task = new AsinImportTask();
         task.setMarketplace(marketplace);
-        task.setImportType("SELLER");
+        task.setImportType("SELLER_" + target.toUpperCase());
         task.setTaskStatus("READY");
         task.setTotalCount(cleaned.size());
         task.setPassCount(cleaned.size());
@@ -579,7 +598,7 @@ public class AsinImportService {
      * 卖家名批量导入 - 执行（异步）
      */
     @Async("sellerImportExecutor")
-    public void sellerExecute(Long taskId, String month) {
+    public void sellerExecute(Long taskId, String month, String target) {
         AsinImportTask task = taskMapper.selectById(taskId);
         if (task == null) {
             log.error("卖家导入任务不存在: {}", taskId);
@@ -588,7 +607,7 @@ public class AsinImportService {
 
         Long activeCount = taskMapper.selectCount(
                 new LambdaQueryWrapper<AsinImportTask>()
-                        .eq(AsinImportTask::getImportType, "SELLER")
+                        .eq(AsinImportTask::getImportType, "SELLER_" + target.toUpperCase())
                         .eq(AsinImportTask::getMarketplace, task.getMarketplace())
                         .in(AsinImportTask::getTaskStatus, List.of("RUNNING", "PAUSED")));
         if (activeCount != null && activeCount > 0) {
@@ -612,9 +631,11 @@ public class AsinImportService {
             int totalProducts = 0;
             StringBuilder logBuf = new StringBuilder();
 
+            boolean isDengZong = "deng_zong_shop".equals(target);
+
             for (int i = 0; i < results.size(); i++) {
                 AsinImportResult r = results.get(i);
-                
+
                 if (i % STATUS_CHECK_INTERVAL == 0) {
                     task = taskMapper.selectById(taskId);
                     if ("PAUSED".equals(task.getTaskStatus()) || "CANCELLED".equals(task.getTaskStatus())) {
@@ -630,7 +651,13 @@ public class AsinImportService {
                         currentSeller, totalSellers, sellerName));
 
                 try {
-                    int count = syncProductsBySeller(sellerName, task.getMarketplace(), month);
+                    int count;
+                    if (isDengZong) {
+                        Map<String, Object> syncResult = dengZongShopService.syncBySellerName(sellerName, task.getMarketplace());
+                        count = ((Number) syncResult.getOrDefault("inserted", 0)).intValue();
+                    } else {
+                        count = syncProductsBySeller(sellerName, task.getMarketplace(), month);
+                    }
                     totalProducts += count;
                     appendLog(logBuf, String.format("[%d/%d] %s: 获取 %d 个产品",
                             currentSeller, totalSellers, sellerName, count));
@@ -659,6 +686,17 @@ public class AsinImportService {
             task.setUpdatedAt(LocalDateTime.now());
             taskMapper.updateById(task);
             log.info("卖家导入完成: taskId={}, sellers={}, products={}", taskId, totalSellers, totalProducts);
+
+            // 导入完成 → 触发周标记 + 清洗层增量刷新（C-2 集成点）
+            try {
+                String weekTag = scoringService.updateWeekTags();
+                Map<String, Object> cleanResult = cleanLayerService.cleanWeekBatch(task.getMarketplace(), weekTag);
+                log.info("导入后清洗层刷新完成: taskId={}, marketplace={}, weekTag={}, affected={}",
+                        taskId, task.getMarketplace(), weekTag, cleanResult.get("affectedRows"));
+            } catch (Exception cleanEx) {
+                // 清洗失败不影响主任务标记 DONE；下次手动调 /api/v1/clean-layer/refresh-week-batch 补救
+                log.error("导入后清洗层刷新失败（不影响主任务）: taskId={}, msg={}", taskId, cleanEx.getMessage(), cleanEx);
+            }
         } catch (Exception e) {
             log.error("卖家导入异常: {}", e.getMessage(), e);
             task.setTaskStatus("ERROR");
@@ -942,7 +980,7 @@ public class AsinImportService {
                 price = extractNumeric(priceStr);
             }
             if (rowIdx <= 3) log.info("  ASIN={} priceIdx[3]='{}' extractNumeric={}", asin, getByIndex(row, 3), price);
-            if (price != null && (price < initialFilterConfig.getPriceMin().doubleValue() || price > initialFilterConfig.getPriceMax().doubleValue())) {
+            if (price != null && (price < initialFilterConfig.getPriceMin(marketplace).doubleValue() || price > initialFilterConfig.getPriceMax(marketplace).doubleValue())) {
                 Map<String, String> fail = new LinkedHashMap<>(row);
                 fail.put("asin", asin);
                 fail.put("_price", String.valueOf(price));
@@ -958,7 +996,7 @@ public class AsinImportService {
                 try { reviews = Integer.parseInt(reviewStr.replaceAll("[^0-9]", "")); } catch (Exception ignored) {}
             }
             if (rowIdx <= 3) log.info("  ASIN={} reviewIdx[4]='{}' parseReview={}", asin, getByIndex(row, 4), reviews);
-            if (reviews != null && reviews > initialFilterConfig.getReviewMax()) {
+            if (reviews != null && reviews > initialFilterConfig.getReviewMax(marketplace)) {
                 Map<String, String> fail = new LinkedHashMap<>(row);
                 fail.put("asin", asin);
                 fail.put("_reviews", String.valueOf(reviews));
@@ -976,7 +1014,7 @@ public class AsinImportService {
         return result;
     }
 
-    private void saveResults(Long taskId, Map<String, List<Map<String, String>>> filterResult) {
+    private void saveResults(Long taskId, Map<String, List<Map<String, String>>> filterResult, String marketplace) {
         List<AsinImportResult> batch = new ArrayList<>(DB_BATCH_SIZE);
         for (Map.Entry<String, List<Map<String, String>>> entry : filterResult.entrySet()) {
             String status = entry.getKey();
@@ -987,8 +1025,8 @@ public class AsinImportService {
                 result.setTitle(row.get("标题"));
                 result.setStatus(status);
                 switch (status) {
-                    case "PRICE_FAIL" -> result.setDetail("价格 " + row.get("_price") + " 不在范围 " + initialFilterConfig.getPriceMin() + "-" + initialFilterConfig.getPriceMax());
-                    case "REVIEW_FAIL" -> result.setDetail("评论数 " + row.get("_reviews") + " > " + initialFilterConfig.getReviewMax());
+                    case "PRICE_FAIL" -> result.setDetail("价格 " + row.get("_price") + " 不在范围 " + initialFilterConfig.getPriceMin(marketplace) + "-" + initialFilterConfig.getPriceMax(marketplace));
+                    case "REVIEW_FAIL" -> result.setDetail("评论数 " + row.get("_reviews") + " > " + initialFilterConfig.getReviewMax(marketplace));
                     case "DUPLICATE" -> result.setDetail("文件内重复");
                     case "SKIP_BLACKLIST" -> result.setDetail("硬性淘汰黑名单");
                     case "SKIP_MAIN" -> result.setDetail("主表已有数据");
@@ -1050,12 +1088,12 @@ public class AsinImportService {
         // 收集所有需要跳过的 ASIN
         for (Map<String, String> row : filterResult.getOrDefault("PRICE_FAIL", List.of())) {
             String priceInfo = row.get("_price");
-            row.put("_detail", "初筛: 价格" + (priceInfo != null ? priceInfo : "?") + " 不在 " + initialFilterConfig.getPriceMin() + "~" + initialFilterConfig.getPriceMax() + " 范围");
+            row.put("_detail", "初筛: 价格" + (priceInfo != null ? priceInfo : "?") + " 不在 " + initialFilterConfig.getPriceMin(marketplace) + "~" + initialFilterConfig.getPriceMax(marketplace) + " 范围");
             collectSkipAsinFromRow(row, marketplace, allSkips);
         }
         for (Map<String, String> row : filterResult.getOrDefault("REVIEW_FAIL", List.of())) {
             String reviewInfo = row.get("_reviews");
-            row.put("_detail", "初筛: 评论数" + (reviewInfo != null ? reviewInfo : "?") + " > " + initialFilterConfig.getReviewMax());
+            row.put("_detail", "初筛: 评论数" + (reviewInfo != null ? reviewInfo : "?") + " > " + initialFilterConfig.getReviewMax(marketplace));
             collectSkipAsinFromRow(row, marketplace, allSkips);
         }
         for (Map<String, String> row : filterResult.getOrDefault("SKIP_MAIN", List.of())) {

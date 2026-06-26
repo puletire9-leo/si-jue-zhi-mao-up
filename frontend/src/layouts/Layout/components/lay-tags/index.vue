@@ -83,7 +83,7 @@ const handleCloseAll = () => {
   height: 40px;
   display: flex;
   align-items: center;
-  background: #F8F4FF;
+  background: #f5f0eb;
   border-radius: 10px;
   margin: 0 16px;
   padding: 0 8px;
@@ -122,7 +122,7 @@ const handleCloseAll = () => {
     font-size: 13px;
     border-radius: 8px;
     background: white;
-    color: #6B5E52;
+    color: #6b7280;
     border: 1px solid transparent;
     transition: all 0.2s ease;
     display: flex;
@@ -132,17 +132,17 @@ const handleCloseAll = () => {
 
     &:hover {
       transform: translateY(-1px);
-      box-shadow: 0 2px 8px rgba(124, 97, 212, 0.15);
+      box-shadow: 0 2px 8px rgba(180, 83, 9, 0.15);
     }
 
     &.el-tag--info {
-      background: linear-gradient(135deg, #7C61D4, #9F85E0);
+      background: linear-gradient(135deg, #b45309, #d97706);
       color: white;
       border-color: transparent;
     }
 
     :deep(.el-tag__close) {
-      color: #6B5E52;
+      color: #6b7280;
       margin-left: 4px;
 
       &:hover {
@@ -197,7 +197,7 @@ const handleCloseAll = () => {
       }
 
       &.el-tag--info {
-        background: linear-gradient(135deg, #7C61D4, #9F85E0);
+        background: linear-gradient(135deg, #b45309, #d97706);
         color: white;
       }
 

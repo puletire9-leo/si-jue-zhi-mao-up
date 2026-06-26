@@ -31,7 +31,7 @@
         </div>
       </template>
 
-
+      <SkeletonWrapper :loading="loading && !hasLoaded" variant="table">
 
       <el-form
         :inline="true"
@@ -158,6 +158,7 @@
           @current-change="handleCurrentChange"
         />
       </div>
+      </SkeletonWrapper>
     </el-card>
 
     <!-- 添加/编辑链接对话框 -->
@@ -269,6 +270,7 @@ import {
 import { ElMessage, ElMessageBox, ElLoading, type FormInstance, type FormRules } from 'element-plus'
 import { fileLinkApi } from '@/api/fileLink'
 import type { FileLink, FileLinkCreate, FileLinkListParams } from '@/types/fileLink'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 
 const route = useRoute()
 
@@ -284,6 +286,8 @@ const getPageTitle = computed(() => {
 
 // 响应式数据
 const loading = ref(false)
+const hasLoaded = ref(false)
+const refreshing = computed(() => loading.value && hasLoaded.value)
 const fileLinks = ref<FileLink[]>([])
 const selectedIds = ref<number[]>([])
 const dialogVisible = ref(false)
@@ -360,6 +364,7 @@ const fetchFileLinks = async () => {
       fileLinks.value = response.data.items
       pagination.total = response.data.total
     }
+    hasLoaded.value = true
   } catch (error) {
     ElMessage.error('获取文件链接列表失败')
   } finally {
@@ -721,5 +726,35 @@ onMounted(() => {
 
 .upload-demo {
   width: 100%;
+}
+
+:deep(html.dark) {
+  .file-link-management {
+    background: transparent;
+  }
+
+  .card-header {
+    color: var(--el-text-color-primary);
+  }
+
+  .title-cell {
+    color: var(--el-text-color-primary);
+  }
+
+  .link-icon {
+    color: var(--el-color-primary);
+  }
+
+  .title-text {
+    color: var(--el-text-color-primary);
+  }
+
+  .search-form {
+    background: transparent;
+
+    :deep(.el-form-item__label) {
+      color: var(--el-text-color-secondary);
+    }
+  }
 }
 </style>

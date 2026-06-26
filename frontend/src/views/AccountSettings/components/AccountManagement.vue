@@ -176,13 +176,13 @@ const getDialogTitle = () => {
   margin-bottom: 24px;
   font-size: 18px;
   font-weight: 600;
-  color: #2F281D;
+  color: #1a1a1a;
 }
 
 .management-list {
   background: white;
   border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(124, 97, 212, 0.08);
+  box-shadow: 0 2px 12px rgba(180, 83, 9, 0.08);
   overflow: hidden;
 }
 
@@ -191,14 +191,14 @@ const getDialogTitle = () => {
   align-items: center;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid #F0EBE6;
+  border-bottom: 1px solid #e5e1da;
 
   &:last-child {
     border-bottom: none;
   }
 
   &:hover {
-    background: #FFFBF7;
+    background: #faf8f5;
   }
 }
 
@@ -207,7 +207,7 @@ const getDialogTitle = () => {
 
   .management-title {
     font-weight: 600;
-    color: #2F281D;
+    color: #1a1a1a;
     margin-bottom: 4px;
   }
 
@@ -218,11 +218,11 @@ const getDialogTitle = () => {
 }
 
 .management-button {
-  color: #7C61D4;
-  border-color: #7C61D4;
+  color: #b45309;
+  border-color: #b45309;
 
   &:hover {
-    background: #7C61D4;
+    background: #b45309;
     color: white;
   }
 }

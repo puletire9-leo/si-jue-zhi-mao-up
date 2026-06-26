@@ -1,5 +1,6 @@
 <template>
-  <div class="settings">
+  <div class="settings" v-loading="refreshing">
+    <SkeletonWrapper :loading="loading && !hasLoaded" variant="table">
     <el-card>
       <template #header>
         <span>系统设置</span>
@@ -993,6 +994,7 @@
         </el-tab-pane>
       </el-tabs>
     </el-card>
+    </SkeletonWrapper>
   </div>
 </template>
 
@@ -1114,6 +1116,11 @@ const sellerspriteForm = reactive({
   maxAsinsPerRequest: 0
 })
 const savingSellersprite = ref(false)
+
+// 骨架屏加载状态
+const loading = ref(true)
+const hasLoaded = ref(false)
+const refreshing = ref(false)
 
 const permissionSettings = reactive<PermissionSettings>({
   roles: [],
@@ -2163,6 +2170,9 @@ onMounted(async () => {
     console.log('Settings组件初始化完成')
   } catch (error) {
     console.error('Settings组件初始化失败:', error)
+  } finally {
+    loading.value = false
+    hasLoaded.value = true
   }
 })
 </script>
@@ -2624,4 +2634,95 @@ onMounted(async () => {
   border-top: 1px solid #ebeef5;
 }
 
+/* ====== 暗黑模式 ====== */
+:deep(html.dark) {
+  .settings {
+    background: var(--el-bg-color);
+  }
+
+  .image-size-hint {
+    background-color: var(--el-color-primary-light-9);
+    border-color: var(--el-color-primary-light-8);
+    color: var(--el-color-primary);
+  }
+
+  .developer-tags,
+  .carrier-tags,
+  .role-tags {
+    background-color: var(--el-fill-color-lighter);
+  }
+
+  .backup-section h3 {
+    color: var(--el-text-color-primary);
+    border-bottom-color: var(--el-border-color-light);
+  }
+
+  .no-role-selected {
+    color: var(--el-text-color-secondary);
+    background-color: var(--el-fill-color-lighter);
+  }
+
+  .preview-card {
+    border-color: var(--el-border-color);
+    background-color: var(--el-fill-color-lighter);
+  }
+
+  .preview-content {
+    color: var(--el-text-color-secondary);
+  }
+
+  .preview-size {
+    color: var(--el-text-color-placeholder);
+  }
+
+  :deep(.el-table__header-wrapper .el-table__header th) {
+    background-color: var(--el-fill-color-lighter);
+  }
+
+  :deep(.el-table__body-wrapper .el-table__row:hover) {
+    background-color: var(--el-fill-color-light);
+  }
+
+  :deep(.el-progress .el-progress-bar .el-progress-bar__outer) {
+    background-color: var(--el-fill-color);
+  }
+
+  :deep(.el-collapse-item__content) {
+    background-color: var(--el-bg-color);
+  }
+
+  :deep(.el-dialog__header) {
+    background-color: var(--el-fill-color-lighter);
+    border-bottom-color: var(--el-border-color-light);
+  }
+
+  :deep(.el-dialog__body) {
+    background-color: var(--el-bg-color);
+  }
+
+  :deep(.el-dialog__footer) {
+    border-top-color: var(--el-border-color-light);
+  }
+
+  .requirement-search-form {
+    background-color: var(--el-fill-color-lighter);
+  }
+
+  .requirement-header h3 {
+    color: var(--el-text-color-primary);
+  }
+
+  .doc-content {
+    background-color: var(--el-fill-color-lighter);
+  }
+
+  .doc-content h4 {
+    color: var(--el-text-color-primary);
+  }
+
+  .doc-content p,
+  .doc-content li {
+    color: var(--el-text-color-regular);
+  }
+}
 </style>

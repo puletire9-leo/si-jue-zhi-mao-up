@@ -241,11 +241,11 @@ const navigateTo = (path: string) => {
 .welcome-text {
   font-size: 26px;
   font-weight: 600;
-  color: #2F281D;
+  color: #1a1a1a;
   margin-bottom: 6px;
 
   .highlight {
-    background: linear-gradient(135deg, #7C61D4, #6347C0);
+    background: linear-gradient(135deg, #b45309, #92400e);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -254,7 +254,7 @@ const navigateTo = (path: string) => {
 
 .welcome-sub {
   font-size: 14px;
-  color: #6B5E52;
+  color: #6b7280;
 }
 
 .stats-grid {
@@ -268,7 +268,7 @@ const navigateTo = (path: string) => {
   background: white;
   border-radius: 16px;
   padding: 24px;
-  border: 1px solid #F0EBE6;
+  border: 1px solid #e5e1da;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -277,7 +277,7 @@ const navigateTo = (path: string) => {
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 30px rgba(124, 97, 212, 0.1);
+    box-shadow: 0 8px 30px rgba(180, 83, 9, 0.1);
   }
 }
 
@@ -291,8 +291,8 @@ const navigateTo = (path: string) => {
   flex-shrink: 0;
 
   &.purple {
-    background: linear-gradient(135deg, rgba(124, 97, 212, 0.12), rgba(159, 133, 224, 0.08));
-    color: #7C61D4;
+    background: linear-gradient(135deg, rgba(180, 83, 9, 0.12), rgba(217, 119, 6, 0.08));
+    color: #b45309;
   }
 
   &.orange {
@@ -319,14 +319,14 @@ const navigateTo = (path: string) => {
 .stat-value {
   font-size: 28px;
   font-weight: 700;
-  color: #2F281D;
+  color: #1a1a1a;
   letter-spacing: -0.02em;
   line-height: 1.2;
 }
 
 .stat-label {
   font-size: 13px;
-  color: #6B5E52;
+  color: #6b7280;
   margin-top: 2px;
 }
 
@@ -351,7 +351,7 @@ const navigateTo = (path: string) => {
 .section-title {
   font-size: 18px;
   font-weight: 600;
-  color: #2F281D;
+  color: #1a1a1a;
   margin-bottom: 16px;
 }
 
@@ -366,7 +366,7 @@ const navigateTo = (path: string) => {
   background: white;
   border-radius: 16px;
   padding: 20px;
-  border: 1px solid #F0EBE6;
+  border: 1px solid #e5e1da;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -382,7 +382,7 @@ const navigateTo = (path: string) => {
     left: 0;
     width: 100%;
     height: 3px;
-    background: linear-gradient(90deg, #7C61D4, #EAAE87);
+    background: linear-gradient(90deg, #b45309, #EAAE87);
     transform: scaleX(0);
     transform-origin: left;
     transition: transform 0.25s ease;
@@ -390,7 +390,7 @@ const navigateTo = (path: string) => {
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 30px rgba(124, 97, 212, 0.1);
+    box-shadow: 0 8px 30px rgba(180, 83, 9, 0.1);
 
     &::before {
       transform: scaleX(1);
@@ -412,7 +412,7 @@ const navigateTo = (path: string) => {
   flex-shrink: 0;
 
   &.purple {
-    background: linear-gradient(135deg, #7C61D4, #9F85E0);
+    background: linear-gradient(135deg, #b45309, #d97706);
     color: white;
   }
 
@@ -450,18 +450,18 @@ const navigateTo = (path: string) => {
 .feature-title {
   font-size: 15px;
   font-weight: 600;
-  color: #2F281D;
+  color: #1a1a1a;
   margin-bottom: 4px;
 }
 
 .feature-desc {
   font-size: 12px;
-  color: #6B5E52;
+  color: #6b7280;
 }
 
 .feature-arrow {
   font-size: 18px;
-  color: #7C61D4;
+  color: #b45309;
   transition: transform 0.25s ease;
 }
 
@@ -475,7 +475,7 @@ const navigateTo = (path: string) => {
 .quick-card {
   background: white;
   border-radius: 16px;
-  border: 1px solid #F0EBE6;
+  border: 1px solid #e5e1da;
   overflow: hidden;
 }
 
@@ -484,18 +484,18 @@ const navigateTo = (path: string) => {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid #F0EBE6;
+  border-bottom: 1px solid #e5e1da;
 }
 
 .card-title {
   font-size: 15px;
   font-weight: 600;
-  color: #2F281D;
+  color: #1a1a1a;
 }
 
 .view-all {
   font-size: 13px;
-  color: #7C61D4;
+  color: #b45309;
   cursor: pointer;
 
   &:hover {
@@ -515,7 +515,7 @@ const navigateTo = (path: string) => {
   transition: background 0.15s ease;
 
   &:hover {
-    background: #F8F4FF;
+    background: #f5f0eb;
   }
 }
 
@@ -529,8 +529,8 @@ const navigateTo = (path: string) => {
   flex-shrink: 0;
 
   &.purple {
-    background: rgba(124, 97, 212, 0.1);
-    color: #7C61D4;
+    background: rgba(180, 83, 9, 0.1);
+    color: #b45309;
   }
 
   &.orange {
@@ -557,7 +557,7 @@ const navigateTo = (path: string) => {
 .activity-text {
   font-size: 13px;
   font-weight: 500;
-  color: #2F281D;
+  color: #1a1a1a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -565,7 +565,7 @@ const navigateTo = (path: string) => {
 
 .activity-time {
   font-size: 11px;
-  color: #A89F96;
+  color: #9ca3af;
   margin-top: 2px;
 }
 
@@ -587,8 +587,8 @@ const navigateTo = (path: string) => {
   }
 
   &.info {
-    background: rgba(124, 97, 212, 0.1);
-    color: #7C61D4;
+    background: rgba(180, 83, 9, 0.1);
+    color: #b45309;
   }
 }
 
@@ -606,13 +606,13 @@ const navigateTo = (path: string) => {
   transition: all 0.2s ease;
 
   &:hover {
-    background: #F8F4FF;
+    background: #f5f0eb;
   }
 
   span {
     font-size: 14px;
     font-weight: 500;
-    color: #2F281D;
+    color: #1a1a1a;
   }
 }
 
@@ -626,7 +626,7 @@ const navigateTo = (path: string) => {
   flex-shrink: 0;
 
   &.purple {
-    background: linear-gradient(135deg, #7C61D4, #9F85E0);
+    background: linear-gradient(135deg, #b45309, #d97706);
     color: white;
   }
 

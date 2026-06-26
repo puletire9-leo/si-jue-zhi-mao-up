@@ -53,11 +53,11 @@ public class CompetitorFilterService {
             p.setSource(source);
 
             // 4. 执行模式一筛选
-            List<String> mode1Reasons = checkMode1(p, listingDays, weightG);
+            List<String> mode1Reasons = checkMode1(p, listingDays, weightG, marketplace);
             boolean passedMode1 = mode1Reasons.isEmpty();
 
             // 5. 执行模式二筛选
-            boolean passedMode2 = checkMode2(p);
+            boolean passedMode2 = checkMode2(p, marketplace);
 
             // 6. 设置筛选结果
             if (passedMode1) {
@@ -144,17 +144,17 @@ public class CompetitorFilterService {
         return null;
     }
 
-    private List<String> checkMode1(CompetitorProduct p, int listingDays, BigDecimal weightG) {
+    private List<String> checkMode1(CompetitorProduct p, int listingDays, BigDecimal weightG, String marketplace) {
         List<String> reasons = new ArrayList<>();
 
-        double cfgPriceMin = filterConfig.getPriceMin().doubleValue();
-        double cfgPriceMax = filterConfig.getPriceMax().doubleValue();
-        int cfgListingMax = filterConfig.getListingDaysMax();
-        int cfgBsrMax = filterConfig.getBsrMax();
-        int cfgSalesMin = filterConfig.getSalesMin();
-        int cfgSalesMax = filterConfig.getSalesMax();
-        int cfgWeightMax = filterConfig.getWeightMax();
-        int cfgDeadDays = filterConfig.getDeadDays();
+        double cfgPriceMin = filterConfig.getPriceMin(marketplace).doubleValue();
+        double cfgPriceMax = filterConfig.getPriceMax(marketplace).doubleValue();
+        int cfgListingMax = filterConfig.getListingDaysMax(marketplace);
+        int cfgBsrMax = filterConfig.getBsrMax(marketplace);
+        int cfgSalesMin = filterConfig.getSalesMin(marketplace);
+        int cfgSalesMax = filterConfig.getSalesMax(marketplace);
+        int cfgWeightMax = filterConfig.getWeightMax(marketplace);
+        int cfgDeadDays = filterConfig.getDeadDays(marketplace);
 
         // 价格
         if (p.getPrice() != null && p.getPrice().doubleValue() > 0) {
@@ -202,11 +202,11 @@ public class CompetitorFilterService {
         return reasons;
     }
 
-    private boolean checkMode2(CompetitorProduct p) {
+    private boolean checkMode2(CompetitorProduct p, String marketplace) {
         Integer bsr = p.getBsr();
-        if (bsr != null && bsr < filterConfig.getMode2BsrMax()) return true;
+        if (bsr != null && bsr < filterConfig.getMode2BsrMax(marketplace)) return true;
         Integer units = p.getUnits();
-        return units != null && units > filterConfig.getMode2SalesMin();
+        return units != null && units > filterConfig.getMode2SalesMin(marketplace);
     }
 
     private void collectSkipAsin(CompetitorProduct p, String marketplace, List<SkipAsin> collector) {

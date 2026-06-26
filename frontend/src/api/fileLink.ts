@@ -5,8 +5,7 @@ import type {
   FileLinkUpdate,
   FileLinkListParams,
   FileLinkListResponse,
-  FileUploadResponse,
-  BatchDeleteRequest
+  FileUploadResponse
 } from '@/types/fileLink'
 
 // 文件链接API
@@ -81,7 +80,7 @@ export const fileLinkApi = {
     return request({
       url: '/api/v1/file-links/batch-delete',
       method: 'post',
-      data: { ids }
+      data: ids
     })
   },
 
@@ -89,7 +88,7 @@ export const fileLinkApi = {
   uploadFile(formData: FormData): Promise<{
     code: number
     message: string
-    data: FileUploadResponse
+    data: FileUploadResponse | FileUploadResponse[]
   }> {
     return request({
       url: '/api/v1/file-links/upload',
