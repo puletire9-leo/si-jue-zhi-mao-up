@@ -131,6 +131,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '产品数据看板', icon: 'TrendCharts' }
       },
       {
+        path: 'product-line-analysis',
+        name: 'ProductLineAnalysis',
+        component: () => import('@/views/ProductLineAnalysis/index.vue'),
+        meta: { title: '品线分析', icon: 'DataAnalysis' }
+      },
+      {
         path: 'report-viewer',
         name: 'ReportViewer',
         component: () => import('@/views/ReportViewer/index.vue'),
@@ -234,11 +240,11 @@ router.beforeEach(async (to, from, next) => {
         userStore.setUserInfo(JSON.parse(savedUserInfo))
       }
     } catch {
-      // userInfo 解析失败，尝试从 API 获取
+      // localStorage 中的 userInfo 解析失败，继续走 API
       console.warn('[Router] userInfo 解析失败，尝试从 API 获取')
     }
 
-    // 如果 localStorage 中没有有效 userInfo，从 API 获取
+    // 如果 localStorage 中没有有效 userInfo，从 API 获取（同时获取 role）
     if (!userStore.userInfo) {
       try {
         await userStore.getUserInfo()
@@ -252,17 +258,9 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  // 如果 userInfo 存在但没有 role，尝试从 API 获取完整信息
+  // 仅日志警告：userInfo 存在但缺少 role（非阻塞）
   if (token && userStore.userInfo && !userStore.userInfo.role) {
-    try {
-      await userStore.getUserInfo()
-    } catch {
-      // API 获取失败说明 token 已失效，清除状态跳转登录
-      console.warn('[Router] getUserInfo 失败（role 缺失），清除登录状态')
-      userStore.logout()
-      next('/login')
-      return
-    }
+    console.warn('[Router] userInfo 缺少 role 字段，部分功能可能受限')
   }
 
   next()

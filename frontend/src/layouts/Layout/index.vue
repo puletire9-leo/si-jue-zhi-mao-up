@@ -1,21 +1,25 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useAppStore } from '@/stores/app'
-import LayNavbar from './components/lay-navbar/index.vue'
-import LaySidebar from './components/lay-sidebar/index.vue'
-import LayTags from './components/lay-tags/index.vue'
-import LayContent from './components/lay-content/index.vue'
-import LayPanel from './components/lay-panel/index.vue'
-import LaySetting from './components/lay-setting/index.vue'
+import { computed } from "vue";
+import { useAppStore } from "@/stores/app";
+import LayNavbar from "./components/lay-navbar/index.vue";
+import LaySidebar from "./components/lay-sidebar/index.vue";
+import LayTags from "./components/lay-tags/index.vue";
+import LayContent from "./components/lay-content/index.vue";
+import LayPanel from "./components/lay-panel/index.vue";
+import LaySetting from "./components/lay-setting/index.vue";
+// AI 选品助手悬浮球：暂时隐藏（见 template 注释）。保留备查，恢复时连同 template 一起启用。
+// import SelectionAgentFloat from "@/components/SelectionAgentFloat/index.vue";
 
-const appStore = useAppStore()
+const appStore = useAppStore();
 
-const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
-const sidebarWidth = computed(() => sidebarCollapsed.value ? '64px' : '260px')
+const sidebarCollapsed = computed(() => appStore.sidebarCollapsed);
+const sidebarWidth = computed(() =>
+  sidebarCollapsed.value ? "64px" : "260px",
+);
 
 const handleToggleSidebar = () => {
-  appStore.toggleSidebar()
-}
+  appStore.toggleSidebar();
+};
 </script>
 
 <template>
@@ -41,6 +45,10 @@ const handleToggleSidebar = () => {
     <LayPanel>
       <LaySetting />
     </LayPanel>
+
+    <!-- AI 选品助手悬浮球：暂时隐藏。模块代码/store/API 全保留作参考，
+         系统后续改为对接外部 agent 的模型接口。如需恢复，取消下面注释即可。 -->
+    <!-- <SelectionAgentFloat /> -->
   </div>
 </template>
 
@@ -56,7 +64,7 @@ const handleToggleSidebar = () => {
   flex-shrink: 0;
   height: 100%;
   background: white;
-  box-shadow: 2px 0 12px rgba(124, 97, 212, 0.08);
+  box-shadow: 2px 0 12px rgba(180, 83, 9, 0.08);
   transition: width 0.25s ease;
   z-index: 100;
 }
@@ -65,14 +73,14 @@ const handleToggleSidebar = () => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: #FFFBF7;
+  background: #faf8f5;
   overflow: hidden;
 }
 
 .header {
   height: 64px;
   background: white;
-  border-bottom: 1px solid #F0EBE6;
+  border-bottom: 1px solid #e5e1da;
   flex-shrink: 0;
 }
 
@@ -94,21 +102,21 @@ const handleToggleSidebar = () => {
 // 深色主题
 :deep(html.dark) {
   .sidebar {
-    background: #1A1A2E;
+    background: #1a1a2e;
     box-shadow: 2px 0 12px rgba(0, 0, 0, 0.3);
   }
 
   .main-content {
-    background: #16162A;
+    background: #16162a;
   }
 
   .header {
-    background: #1A1A2E;
-    border-bottom-color: #2D2D44;
+    background: #1a1a2e;
+    border-bottom-color: #2d2d44;
   }
 
   .tags-bar {
-    background: #16162A;
+    background: #16162a;
   }
 }
 </style>

@@ -68,6 +68,15 @@ public class CompetitorController {
         return Result.success(competitorService.getVariants(marketplace, parentAsin));
     }
 
+    @GetMapping("/created-weeks")
+    @Operation(summary = "获取入库批次列表（按 created_at 实时计算 ISO 周 + 每周条数，第一条为最新批次）")
+    public Result<List<Map<String, Object>>> createdWeeks(
+            @RequestParam(defaultValue = "UK") String marketplace,
+            @RequestParam(required = false) String source,
+            @RequestParam(required = false) String filterMode) {
+        return Result.success(competitorService.getCreatedWeeks(marketplace, source, filterMode));
+    }
+
     @GetMapping("/stats")
     @Operation(summary = "数据库统计概览")
     public Result<Map<String, Object>> stats() {

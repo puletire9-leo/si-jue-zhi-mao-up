@@ -228,7 +228,8 @@
         </el-row>
 
         <div class="actions">
-          <el-button type="primary" @click="handleSave" :loading="saving">保存并重新筛选</el-button>
+          <el-button type="primary" @click="handleSave" :loading="saving">保存</el-button>
+          <el-button :disabled="savingReapplying" @click="handleReapply" :loading="savingReapplying">重新筛选</el-button>
           <el-button @click="handleLoad">重置</el-button>
         </div>
       </div>
@@ -237,9 +238,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { competitorApi } from '@/api/competitor'
+
+const props = withDefaults(defineProps<{
+  marketplace?: string
+}>(), {
+  marketplace: 'UK'
+})
 
 interface InitialFilterConfig {
   priceMin: number
@@ -272,7 +279,7 @@ const savingInitial = ref(false)
 
 const handleLoadInitial = async () => {
   try {
-    const res = await competitorApi.getInitialFilterConfig()
+    const res = await competitorApi.getInitialFilterConfig(props.marketplace)
     if (res.code === 200 && res.data) {
       Object.assign(initialConfig, res.data)
     }
@@ -284,7 +291,7 @@ const handleLoadInitial = async () => {
 const handleSaveInitial = async () => {
   savingInitial.value = true
   try {
-    const res = await competitorApi.updateInitialFilterConfig({ ...initialConfig })
+    const res = await competitorApi.updateInitialFilterConfig({ ...initialConfig }, props.marketplace)
     if (res.code === 200) {
       ElMessage.success('初筛配置已保存')
       if (res.data) Object.assign(initialConfig, res.data)
@@ -315,7 +322,7 @@ const saving = ref(false)
 
 const handleLoad = async () => {
   try {
-    const res = await competitorApi.getFilterConfig()
+    const res = await competitorApi.getFilterConfig(props.marketplace)
     if (res.code === 200 && res.data) {
       Object.assign(config, res.data)
     }
@@ -327,9 +334,9 @@ const handleLoad = async () => {
 const handleSave = async () => {
   saving.value = true
   try {
-    const res = await competitorApi.updateFilterConfig({ ...config })
+    const res = await competitorApi.updateFilterConfig({ ...config }, props.marketplace)
     if (res.code === 200) {
-      ElMessage.success('精筛配置已保存，已重新筛选')
+      ElMessage.success('精筛配置已保存')
       if (res.data) Object.assign(config, res.data)
     } else {
       ElMessage.error(res.message || '保存失败')
@@ -340,6 +347,30 @@ const handleSave = async () => {
     saving.value = false
   }
 }
+
+const savingReapplying = ref(false)
+
+const handleReapply = async () => {
+  savingReapplying.value = true
+  try {
+    const res = await competitorApi.reapplyFilter(props.marketplace)
+    if (res.code === 200) {
+      ElMessage.success('重新筛选完成')
+    } else {
+      ElMessage.error(res.message || '重新筛选失败')
+    }
+  } catch (e) {
+    ElMessage.error('重新筛选失败')
+  } finally {
+    savingReapplying.value = false
+  }
+}
+
+// 当 marketplace 变化时，重新加载配置
+watch(() => props.marketplace, () => {
+  handleLoadInitial()
+  handleLoad()
+})
 
 onMounted(() => {
   handleLoadInitial()

@@ -2030,7 +2030,7 @@ async def update_final_draft(
         else:
             new_reference_images = old_reference_images
         
-        # 找出被删除的图片（通过文件名比较，兼容不同URL格式）
+        # 找出被删除的图片（通过文件名比较，兼容COS URL、代理URL、本地路径等格式）
         def _url_to_filename(url: str) -> Optional[str]:
             """从URL提取文件名用于比较，兼容COS URL、代理URL、本地路径等格式"""
             if not url:
@@ -2041,12 +2041,10 @@ async def update_final_draft(
             # 尝试从URL中提取文件名
             # 处理 /api/v1/image-proxy/local?filename=xxx.webp 格式
             if 'filename=' in url:
-                import re
                 m = re.search(r'filename=([^&]+)', url)
                 if m:
                     return m.group(1)
             # 处理标准URL：取路径最后一段
-            from urllib.parse import urlparse
             parsed = urlparse(url)
             basename = os.path.basename(parsed.path)
             if basename:

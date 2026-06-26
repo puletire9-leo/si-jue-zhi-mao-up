@@ -157,14 +157,14 @@ onMounted(() => {
   margin-bottom: 24px;
   font-size: 18px;
   font-weight: 600;
-  color: #2F281D;
+  color: #1a1a1a;
 }
 
 .profile-form {
   background: white;
   padding: 24px;
   border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(124, 97, 212, 0.08);
+  box-shadow: 0 2px 12px rgba(180, 83, 9, 0.08);
 }
 
 .avatar-upload {
@@ -173,12 +173,12 @@ onMounted(() => {
   gap: 16px;
 
   .upload-btn {
-    background: #F8F4FF;
-    color: #7C61D4;
-    border-color: #7C61D4;
+    background: #f5f0eb;
+    color: #b45309;
+    border-color: #b45309;
 
     &:hover {
-      background: #7C61D4;
+      background: #b45309;
       color: white;
     }
   }
@@ -208,12 +208,12 @@ onMounted(() => {
   .dropdown-item {
     padding: 10px 16px;
     cursor: pointer;
-    color: #6B5E52;
+    color: #6b7280;
     transition: background 0.2s;
 
     &:hover {
-      background: #F8F4FF;
-      color: #7C61D4;
+      background: #f5f0eb;
+      color: #b45309;
     }
   }
 }

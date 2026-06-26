@@ -20,7 +20,8 @@
       </div>
 
       <!-- 历史列表 -->
-      <div class="history-list" v-loading="loading">
+      <SkeletonWrapper :loading="loading" variant="list">
+        <div class="history-list">
         <template v-if="groupedHistory.length === 0">
           <el-empty description="暂无导入记录" />
         </template>
@@ -125,7 +126,8 @@
             </div>
           </div>
         </div>
-      </div>
+        </div>
+      </SkeletonWrapper>
     </div>
   </el-drawer>
 </template>
@@ -221,16 +223,16 @@ watch(visible, (v) => { if (v) loadData() })
 .quota-bar {
   margin-bottom: 16px;
   padding: 12px;
-  background: #f5f7fa;
+  background: var(--el-fill-color-light, #f5f7fa);
   border-radius: 8px;
-  .quota-label { font-size: 13px; color: #606266; display: block; margin-bottom: 8px; }
+  .quota-label { font-size: 13px; color: var(--el-text-color-secondary, #606266); display: block; margin-bottom: 8px; }
   .quota-text { font-size: 12px; }
 }
 
 .history-group {
   margin-bottom: 16px;
   .group-label {
-    font-size: 12px; color: #909399; margin-bottom: 8px;
+    font-size: 12px; color: var(--el-text-color-placeholder, #909399); margin-bottom: 8px;
     padding-left: 4px; font-weight: 600;
   }
 }
@@ -238,24 +240,24 @@ watch(visible, (v) => { if (v) loadData() })
 .history-card {
   padding: 10px 12px;
   margin-bottom: 8px;
-  border: 1px solid #e4e7ed;
+  border: 1px solid var(--el-border-color-lighter, #e4e7ed);
   border-radius: 6px;
   cursor: pointer;
   transition: border-color .2s;
-  &:hover { border-color: #409EFF; }
-  &.is-expanded { border-color: #409EFF; background: #f0f5ff; }
+  &:hover { border-color: var(--el-color-primary, #409EFF); }
+  &.is-expanded { border-color: var(--el-color-primary, #409EFF); background: var(--el-color-primary-light-9, #f0f5ff); }
 
   .card-header {
     .card-title {
       display: flex; align-items: center; gap: 8px;
       .card-marketplace { font-weight: 600; font-size: 14px; }
-      .card-time { font-size: 12px; color: #909399; margin-left: auto; }
+      .card-time { font-size: 12px; color: var(--el-text-color-placeholder, #909399); margin-left: auto; }
     }
     .card-summary {
-      margin-top: 6px; font-size: 12px; color: #606266;
-      .sep { margin: 0 4px; color: #dcdfe6; }
-      .pass { color: #67C23A; }
-      .fail { color: #F56C6C; }
+      margin-top: 6px; font-size: 12px; color: var(--el-text-color-secondary, #606266);
+      .sep { margin: 0 4px; color: var(--el-border-color-light, #dcdfe6); }
+      .pass { color: var(--el-color-success, #67C23A); }
+      .fail { color: var(--el-color-danger, #F56C6C); }
     }
   }
 
@@ -263,11 +265,11 @@ watch(visible, (v) => { if (v) loadData() })
     .detail-item {
       display: flex; justify-content: space-between;
       padding: 4px 0; font-size: 12px;
-      .detail-label { color: #909399; }
-      .detail-value { font-weight: 600; color: #303133; text-align: right; }
-      .warning { color: #E6A23C; }
-      .info { color: #909399; }
-      .primary { color: #409EFF; }
+      .detail-label { color: var(--el-text-color-placeholder, #909399); }
+      .detail-value { font-weight: 600; color: var(--el-text-color-primary, #303133); text-align: right; }
+      .warning { color: var(--el-color-warning, #E6A23C); }
+      .info { color: var(--el-text-color-placeholder, #909399); }
+      .primary { color: var(--el-color-primary, #409EFF); }
     }
   }
 }

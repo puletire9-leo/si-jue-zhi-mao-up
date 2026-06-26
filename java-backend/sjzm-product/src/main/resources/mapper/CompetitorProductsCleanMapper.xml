@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.mapper.CompetitorProductsCleanMapper">
+
+    <!--
+      增量清洗：按 (marketplace, effective_week_tag) 单批清洗
+      数据源：competitor_products → competitor_products_clean
+      去重规则：每父群组保留 ROW_NUMBER=1 的代表（listing_days DESC, units DESC, asin ASC）
+      幂等：ON DUPLICATE KEY UPDATE （唯一键 marketplace + effective_week_tag + dedup_key）
+    -->
+    <insert id="refreshBatch">
+        INSERT INTO competitor_products_clean
+            (id, marketplace, asin, month, title, brand, brand_url, image_url, parent_asin, sku,
+             node_id, node_id_path, node_label_path, symbol,
+             units, units_gr, amz_unit, amz_sales, amz_unit_date, revenue,
+             bsr_id, bsr, bsr_cr, bsr_cv,
+             ratings, rating, ratings_rate, ratings_cv, rating_delta,
+             price, prime_price, profit, fba, delivery_price,
+             seller_name, seller_id, seller_nation, sellers,
+             fulfillment, variations, weight, dimension, dimensions_type,
+             pkg_dimensions, pkg_dimension_type, pkg_weight,
+             lqs, available_date,
+             best_seller, amazon_choice, new_release, ebc, video,
+             filter_mode, filter_reasons, listing_days, weight_g,
+             product_url, similar_url, source,
+             created_at, updated_at,
+             score, grade, week_tag, is_current,
+             dedup_key, effective_week_tag, cleaned_at)
+        SELECT
+            ranked.id, ranked.marketplace, ranked.asin, ranked.month, ranked.title, ranked.brand,
+            ranked.brand_url, ranked.image_url, ranked.parent_asin, ranked.sku,
+            ranked.node_id, ranked.node_id_path, ranked.node_label_path, ranked.symbol,
+            ranked.units, ranked.units_gr, ranked.amz_unit, ranked.amz_sales, ranked.amz_unit_date, ranked.revenue,
+            ranked.bsr_id, ranked.bsr, ranked.bsr_cr, ranked.bsr_cv,
+            ranked.ratings, ranked.rating, ranked.ratings_rate, ranked.ratings_cv, ranked.rating_delta,
+            ranked.price, ranked.prime_price, ranked.profit, ranked.fba, ranked.delivery_price,
+            ranked.seller_name, ranked.seller_id, ranked.seller_nation, ranked.sellers,
+            ranked.fulfillment, ranked.variations, ranked.weight, ranked.dimension, ranked.dimensions_type,
+            ranked.pkg_dimensions, ranked.pkg_dimension_type, ranked.pkg_weight,
+            ranked.lqs, ranked.available_date,
+            ranked.best_seller, ranked.amazon_choice, ranked.new_release, ranked.ebc, ranked.video,
+            ranked.filter_mode, ranked.filter_reasons, ranked.listing_days, ranked.weight_g,
+            ranked.product_url, ranked.similar_url, ranked.source,
+            ranked.created_at, ranked.updated_at,
+            ranked.score, ranked.grade, ranked.week_tag, ranked.is_current,
+            COALESCE(NULLIF(ranked.parent_asin, ''), ranked.asin) AS dedup_key,
+            #{effectiveWeekTag} AS effective_week_tag,
+            NOW() AS cleaned_at
+        FROM (
+            SELECT cp.*,
+                ROW_NUMBER() OVER (
+                    PARTITION BY COALESCE(NULLIF(cp.parent_asin, ''), cp.asin)
+                    ORDER BY cp.listing_days DESC, cp.units DESC, cp.asin ASC
+                ) AS variant_rank
+            FROM competitor_products cp
+            WHERE cp.marketplace = #{marketplace}
+              AND COALESCE(cp.week_tag, CONCAT(cp.month, '-W00')) = #{effectiveWeekTag}
+        ) ranked
+        WHERE ranked.variant_rank = 1
+        ON DUPLICATE KEY UPDATE
+            units = VALUES(units),
+            bsr = VALUES(bsr),
+            price = VALUES(price),
+            listing_days = VALUES(listing_days),
+            bsr_id = VALUES(bsr_id),
+            node_label_path = VALUES(node_label_path),
+            rating = VALUES(rating),
+            ratings = VALUES(ratings),
+            parent_asin = VALUES(parent_asin),
+            cleaned_at = NOW()
+    </insert>
+
+    <!--
+      按 week_tag（业务侧 yyyy-Www）触发：内部自动用 week_tag 作为 effective_week_tag。
+      只处理有 week_tag 的新批次，不处理老数据。
+    -->
+    <insert id="refreshByWeekTag">
+        INSERT INTO competitor_products_clean
+            (id, marketplace, asin, month, title, brand, brand_url, image_url, parent_asin, sku,
+             node_id, node_id_path, node_label_path, symbol,
+             units, units_gr, amz_unit, amz_sales, amz_unit_date, revenue,
+             bsr_id, bsr, bsr_cr, bsr_cv,
+             ratings, rating, ratings_rate, ratings_cv, rating_delta,
+             price, prime_price, profit, fba, delivery_price,
+             seller_name, seller_id, seller_nation, sellers,
+             fulfillment, variations, weight, dimension, dimensions_type,
+             pkg_dimensions, pkg_dimension_type, pkg_weight,
+             lqs, available_date,
+             best_seller, amazon_choice, new_release, ebc, video,
+             filter_mode, filter_reasons, listing_days, weight_g,
+             product_url, similar_url, source,
+             created_at, updated_at,
+             score, grade, week_tag, is_current,
+             dedup_key, effective_week_tag, cleaned_at)
+        SELECT
+            ranked.id, ranked.marketplace, ranked.asin, ranked.month, ranked.title, ranked.brand,
+            ranked.brand_url, ranked.image_url, ranked.parent_asin, ranked.sku,
+            ranked.node_id, ranked.node_id_path, ranked.node_label_path, ranked.symbol,
+            ranked.units, ranked.units_gr, ranked.amz_unit, ranked.amz_sales, ranked.amz_unit_date, ranked.revenue,
+            ranked.bsr_id, ranked.bsr, ranked.bsr_cr, ranked.bsr_cv,
+            ranked.ratings, ranked.rating, ranked.ratings_rate, ranked.ratings_cv, ranked.rating_delta,
+            ranked.price, ranked.prime_price, ranked.profit, ranked.fba, ranked.delivery_price,
+            ranked.seller_name, ranked.seller_id, ranked.seller_nation, ranked.sellers,
+            ranked.fulfillment, ranked.variations, ranked.weight, ranked.dimension, ranked.dimensions_type,
+            ranked.pkg_dimensions, ranked.pkg_dimension_type, ranked.pkg_weight,
+            ranked.lqs, ranked.available_date,
+            ranked.best_seller, ranked.amazon_choice, ranked.new_release, ranked.ebc, ranked.video,
+            ranked.filter_mode, ranked.filter_reasons, ranked.listing_days, ranked.weight_g,
+            ranked.product_url, ranked.similar_url, ranked.source,
+            ranked.created_at, ranked.updated_at,
+            ranked.score, ranked.grade, ranked.week_tag, ranked.is_current,
+            COALESCE(NULLIF(ranked.parent_asin, ''), ranked.asin) AS dedup_key,
+            ranked.week_tag AS effective_week_tag,
+            NOW() AS cleaned_at
+        FROM (
+            SELECT cp.*,
+                ROW_NUMBER() OVER (
+                    PARTITION BY COALESCE(NULLIF(cp.parent_asin, ''), cp.asin)
+                    ORDER BY cp.listing_days DESC, cp.units DESC, cp.asin ASC
+                ) AS variant_rank
+            FROM competitor_products cp
+            WHERE cp.marketplace = #{marketplace}
+              AND cp.week_tag = #{weekTag}
+              AND cp.week_tag IS NOT NULL
+        ) ranked
+        WHERE ranked.variant_rank = 1
+        ON DUPLICATE KEY UPDATE
+            units = VALUES(units),
+            bsr = VALUES(bsr),
+            price = VALUES(price),
+            listing_days = VALUES(listing_days),
+            bsr_id = VALUES(bsr_id),
+            node_label_path = VALUES(node_label_path),
+            rating = VALUES(rating),
+            ratings = VALUES(ratings),
+            parent_asin = VALUES(parent_asin),
+            cleaned_at = NOW()
+    </insert>
+
+</mapper>

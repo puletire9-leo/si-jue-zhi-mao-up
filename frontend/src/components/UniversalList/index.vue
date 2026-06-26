@@ -53,7 +53,10 @@
         <slot name="search-form"></slot>
       </el-form>
 
-      <div v-loading="loading" class="list-grid">
+      <div v-if="loading" class="list-grid">
+        <SkeletonWrapper type="card" :count="pagination.size" />
+      </div>
+      <div v-else class="list-grid">
         <UniversalCard
           v-for="item in items"
           :key="getItemKey(item)"
@@ -65,9 +68,9 @@
           @view="handleView"
           @delete="handleDelete"
         />
-        
+
         <el-empty
-          v-if="!loading && items.length === 0"
+          v-if="items.length === 0"
           :description="emptyText"
           :image-size="200"
         />
@@ -101,14 +104,14 @@
       width="500px"
     >
       <!-- 导入模式选择 -->
-      <div style="margin-bottom: 20px; padding: 16px; background-color: #f5f7fa; border-radius: 4px;">
-        <div style="font-weight: 500; margin-bottom: 8px; color: #606266;">导入模式：</div>
-        <select v-model="importMode" style="width: 100%; padding: 8px; border: 1px solid #dcdfe6; border-radius: 4px; font-size: 14px;">
-          <option value="skip">跳过已存在 - 如果ASIN已存在，则跳过该记录</option>
-          <option value="update">更新已存在 - 如果ASIN已存在，则更新该记录</option>
-          <option value="overwrite">覆盖已存在 - 如果ASIN已存在，则删除后重新插入</option>
-        </select>
-        <div style="margin-top: 8px; font-size: 12px; color: #909399;">
+      <div class="import-mode-panel">
+        <div class="import-mode-label">导入模式：</div>
+        <el-select v-model="importMode" class="import-mode-select">
+          <el-option value="skip">跳过已存在 - 如果ASIN已存在，则跳过该记录</el-option>
+          <el-option value="update">更新已存在 - 如果ASIN已存在，则更新该记录</el-option>
+          <el-option value="overwrite">覆盖已存在 - 如果ASIN已存在，则删除后重新插入</el-option>
+        </el-select>
+        <div class="import-mode-hint">
           当前选择：{{ importMode === 'skip' ? '跳过已存在' : importMode === 'update' ? '更新已存在' : '覆盖已存在' }}
         </div>
       </div>
@@ -148,6 +151,7 @@ import { ref, reactive, computed } from 'vue'
 import { Plus, Delete, Upload, Download, Refresh, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import UniversalCard from '@/components/UniversalCard/index.vue'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import type { UploadInstance, UploadFile } from 'element-plus'
 
 interface Props {
@@ -363,16 +367,40 @@ const downloadFile = (blob: Blob, filename: string): void => {
   justify-content: space-between;
   align-items: center;
   margin-top: 20px;
-  
+
   .page-size-selector {
     display: flex;
     align-items: center;
     gap: 8px;
-    
+
     label {
-      color: #606266;
+      color: var(--el-text-color-regular);
       font-size: 14px;
     }
   }
+}
+
+/* 导入模式面板 */
+.import-mode-panel {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--el-fill-color-light);
+  border-radius: 4px;
+}
+
+.import-mode-label {
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--el-text-color-regular);
+}
+
+.import-mode-select {
+  width: 100%;
+}
+
+.import-mode-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 </style>

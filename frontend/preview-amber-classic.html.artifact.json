@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "frontend/preview-amber-classic.html",
+  "entry": "frontend/preview-amber-classic.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-06-09T08:29:17.864Z",
+  "updatedAt": "2026-06-09T08:29:17.864Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

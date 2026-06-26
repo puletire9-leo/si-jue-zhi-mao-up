@@ -598,4 +598,19 @@ const viewSubProduct = (sku) => {
   text-align: center;
   padding: 60px 20px;
 }
+
+:deep(html.dark) {
+  .product-detail { background: var(--el-bg-color); }
+  .product-sku { color: var(--el-text-color-primary); }
+  .product-name { color: var(--el-text-color-primary); border-bottom-color: var(--el-border-color); }
+  .info-item { background: var(--el-fill-color-light); }
+  .info-label { color: var(--el-text-color-secondary); }
+  .info-value { color: var(--el-text-color-primary); }
+  .sub-product-card { background: var(--el-bg-color); border-color: var(--el-border-color); }
+  .sub-card-sku { color: var(--el-text-color-secondary); }
+  .sub-card-name { color: var(--el-text-color-primary); }
+  .main-image { background: var(--el-fill-color-light); }
+  .sub-card-img-wrapper { background: var(--el-fill-color-light); }
+  .image-error { color: var(--el-text-color-placeholder); }
+}
 </style>

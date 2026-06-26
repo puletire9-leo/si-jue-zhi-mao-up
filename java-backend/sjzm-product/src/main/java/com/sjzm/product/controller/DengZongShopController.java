@@ -4,12 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.sjzm.common.Result;
 import com.sjzm.product.entity.DengZongShop;
 import com.sjzm.product.entity.DengZongShopSeller;
-import com.sjzm.product.mapper.DengZongShopMapper;
-import com.sjzm.product.mapper.DengZongShopSellerMapper;
 import com.sjzm.product.service.DengZongShopService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.constraints.Size;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
@@ -23,8 +22,7 @@ import java.util.stream.Collectors;
 @Tag(name = "邓总店铺", description = "邓总店铺产品数据")
 public class DengZongShopController {
 
-    private final DengZongShopMapper mapper;
-    private final DengZongShopSellerMapper sellerMapper;
+    // FIXED: MED-6 — Controller 不再直接注入 Mapper，改用 Service 委托
     private final DengZongShopService dengZongShopService;
 
     @GetMapping("/products")
@@ -36,17 +34,26 @@ public class DengZongShopController {
             @RequestParam(required = false) String sellerName,
             @RequestParam(required = false) String title,
             @RequestParam(required = false) String category,
+            @RequestParam(required = false) String bsrId,
+            @RequestParam(required = false) Long nodeId,
+            @RequestParam(required = false) java.math.BigDecimal priceMin,
+            @RequestParam(required = false) java.math.BigDecimal priceMax,
+            @RequestParam(required = false) Integer bsrMax,
+            @RequestParam(required = false) java.math.BigDecimal ratingMin,
+            @RequestParam(required = false) String weightMax,
+            @RequestParam(required = false) String batchDate,
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String sortOrder,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "60") Integer size) {
 
-        int offset = (page - 1) * size;
+        int safePage = Math.max(1, page == null ? 1 : page);
+        int offset = (safePage - 1) * size;
         // 验证 sortOrder 防止 SQL 注入
         String safeSortOrder = "asc".equalsIgnoreCase(sortOrder) ? "ASC" : "DESC";
-        long total = mapper.countGroupedByParent(marketplace, month, brand, sellerName, title, category);
-        List<DengZongShop> list = mapper.selectGroupedByParent(
-                marketplace, month, brand, sellerName, title, category, sortBy, safeSortOrder, offset, size);
+        long total = dengZongShopService.countGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId, priceMin, priceMax, bsrMax, ratingMin, weightMax, batchDate);
+        List<DengZongShop> list = dengZongShopService.selectGroupedByParent(
+                marketplace, month, brand, sellerName, title, category, bsrId, nodeId, priceMin, priceMax, bsrMax, ratingMin, weightMax, batchDate, sortBy, safeSortOrder, offset, size);
 
         List<Map<String, Object>> items = list.stream().map(this::toResponse).collect(Collectors.toList());
 
@@ -62,24 +69,51 @@ public class DengZongShopController {
     @Operation(summary = "查询某父ASIN下的所有变体")
     public Result<List<Map<String, Object>>> variants(
             @RequestParam String marketplace,
-            @RequestParam String parentAsin) {
+            @RequestParam @Size(min = 10, max = 20) String parentAsin,
+            @RequestParam(required = false) String batchDate) { // FIXED: MED-7
         LambdaQueryWrapper<DengZongShop> qw = new LambdaQueryWrapper<>();
         qw.eq(DengZongShop::getMarketplace, marketplace);
         qw.and(w -> w.eq(DengZongShop::getParentAsin, parentAsin)
                 .or().eq(DengZongShop::getAsin, parentAsin));
         qw.isNotNull(DengZongShop::getTitle);
+        if (batchDate != null) {
+            qw.eq(DengZongShop::getBatchDate, batchDate);
+        }
         qw.orderByAsc(DengZongShop::getBsr);
-        List<DengZongShop> list = mapper.selectList(qw);
+        List<DengZongShop> list = dengZongShopService.shopSelectList(qw);
         List<Map<String, Object>> items = list.stream().map(this::toResponse).collect(Collectors.toList());
         return Result.success(items);
     }
 
     @GetMapping("/stats")
     @Operation(summary = "邓总店铺统计")
-    public Result<Map<String, Object>> stats() {
+    public Result<Map<String, Object>> stats(
+            @RequestParam(required = false) String batchDate) {
         Map<String, Object> stats = new LinkedHashMap<>();
-        stats.put("total", mapper.selectCount(null));
+        LambdaQueryWrapper<DengZongShop> qw = new LambdaQueryWrapper<>();
+        if (batchDate != null) {
+            qw.eq(DengZongShop::getBatchDate, batchDate);
+        }
+        stats.put("total", dengZongShopService.shopSelectCount(qw));
         return Result.success(stats);
+    }
+
+    @GetMapping("/max-month")
+    @Operation(summary = "邓总店铺最新数据月份")
+    public Result<String> maxMonth(@RequestParam(defaultValue = "UK") String marketplace) {
+        return Result.success(dengZongShopService.getMaxMonth(marketplace));
+    }
+
+    @GetMapping("/max-batch-date")
+    @Operation(summary = "邓总店铺最新批次日期")
+    public Result<String> maxBatchDate(@RequestParam(defaultValue = "UK") String marketplace) {
+        return Result.success(dengZongShopService.getMaxBatchDate(marketplace));
+    }
+
+    @GetMapping("/completeness")
+    @Operation(summary = "郑总店铺数据完整性", description = "名单全集 vs 最新批次已抓取，返回缺数据店铺名单")
+    public Result<Map<String, Object>> completeness(@RequestParam(defaultValue = "UK") String marketplace) {
+        return Result.success(dengZongShopService.getCompleteness(marketplace));
     }
 
     // ========== 卖家 CRUD ==========
@@ -87,14 +121,15 @@ public class DengZongShopController {
     @GetMapping("/seller-summary")
     @Operation(summary = "按卖家分组汇总（商品数/营收/评分）")
     public Result<List<Map<String, Object>>> sellerSummary(
-            @RequestParam(required = false) String marketplace) {
-        List<Map<String, Object>> summary = mapper.selectSellerSummary(marketplace);
+            @RequestParam(required = false) String marketplace,
+            @RequestParam(required = false) String batchDate) {
+        List<Map<String, Object>> summary = dengZongShopService.selectSellerSummary(marketplace, batchDate);
         // 合并 seller 表的 storeUrl 和 notes
         LambdaQueryWrapper<DengZongShopSeller> qw = new LambdaQueryWrapper<>();
         if (marketplace != null && !marketplace.isEmpty()) {
             qw.eq(DengZongShopSeller::getMarketplace, marketplace);
         }
-        List<DengZongShopSeller> sellers = sellerMapper.selectList(qw);
+        List<DengZongShopSeller> sellers = dengZongShopService.sellerSelectList(qw);
         Map<String, DengZongShopSeller> sellerMap = sellers.stream()
                 .collect(Collectors.toMap(
                         s -> s.getMarketplace() + ":" + s.getSellerName(),
@@ -124,13 +159,13 @@ public class DengZongShopController {
             qw.eq(DengZongShopSeller::getMarketplace, marketplace);
         }
         qw.orderByAsc(DengZongShopSeller::getMarketplace, DengZongShopSeller::getSellerName);
-        return Result.success(sellerMapper.selectList(qw));
+        return Result.success(dengZongShopService.sellerSelectList(qw));
     }
 
     @PostMapping("/sellers")
     @Operation(summary = "新增卖家")
     public Result<DengZongShopSeller> createSeller(@RequestBody DengZongShopSeller seller) {
-        sellerMapper.insert(seller);
+        dengZongShopService.sellerInsert(seller);
         return Result.success(seller);
     }
 
@@ -138,14 +173,14 @@ public class DengZongShopController {
     @Operation(summary = "更新卖家")
     public Result<DengZongShopSeller> updateSeller(@PathVariable Long id, @RequestBody DengZongShopSeller seller) {
         seller.setId(id);
-        sellerMapper.updateById(seller);
+        dengZongShopService.sellerUpdateById(seller);
         return Result.success(seller);
     }
 
     @DeleteMapping("/sellers/{id}")
     @Operation(summary = "删除卖家")
     public Result<Void> deleteSeller(@PathVariable Long id) {
-        sellerMapper.deleteById(id);
+        dengZongShopService.sellerDeleteById(id);
         return Result.success(null);
     }
 
@@ -217,6 +252,7 @@ public class DengZongShopController {
         m.put("productUrl", d.getProductUrl());
         m.put("similarUrl", d.getSimilarUrl());
         m.put("source", d.getSource());
+        m.put("batchDate", d.getBatchDate());
         m.put("variantCount", d.getVariantCount());
         m.put("availableDate", d.getAvailableDate());
         m.put("createdAt", d.getCreatedAt());

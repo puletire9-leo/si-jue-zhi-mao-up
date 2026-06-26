@@ -141,7 +141,8 @@
     </div>
 
     <!-- 下载任务列表 -->
-    <el-card class="task-list-card" v-loading="loading">
+    <el-card class="task-list-card">
+      <SkeletonWrapper :loading="loading && !hasLoaded" variant="table">
       <el-table
         :data="filteredTasks"
         style="width: 100%"
@@ -301,6 +302,7 @@
           @current-change="handleCurrentChange"
         />
       </div>
+      </SkeletonWrapper>
     </el-card>
 
     <!-- 文件预览弹窗 -->
@@ -424,7 +426,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import {
   Refresh, Download, RefreshRight, Delete, CircleCheck, CircleClose,
   Clock, Loading, Document, FolderOpened, Check, Warning, More, View,
@@ -439,6 +441,7 @@ import {
   retryDownloadTask,
   type DownloadTask as ApiDownloadTask
 } from '@/api/downloadTask'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 
 // 下载任务接口
 interface DownloadFile {
@@ -467,6 +470,14 @@ interface DownloadTask {
 
 // 加载状态
 const loading = ref(false)
+const hasLoaded = ref(false)
+const refreshing = computed(() => loading.value && hasLoaded.value)
+
+watch(loading, (val) => {
+  if (!val && !hasLoaded.value) {
+    hasLoaded.value = true
+  }
+})
 
 // 搜索关键词
 const searchKeyword = ref('')
@@ -1430,6 +1441,220 @@ onUnmounted(() => {
 
   .preview-empty {
     padding: 40px 0;
+  }
+}
+
+// ---- Dark Mode Overrides ----
+html.dark {
+  .stat-card {
+    background: var(--el-bg-color-overlay);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .stat-icon {
+      background: var(--el-fill-color-light);
+      color: var(--el-text-color-secondary);
+    }
+
+    .stat-value {
+      color: var(--el-text-color-primary);
+    }
+
+    .stat-label {
+      color: var(--el-text-color-secondary);
+    }
+
+    &.total .stat-icon {
+      background: var(--el-color-primary-light-9);
+      color: var(--el-color-primary);
+    }
+    &.processing .stat-icon {
+      background: var(--el-color-warning-light-9);
+      color: var(--el-color-warning);
+    }
+    &.completed .stat-icon {
+      background: var(--el-color-success-light-9);
+      color: var(--el-color-success);
+    }
+    &.failed .stat-icon {
+      background: var(--el-color-danger-light-9);
+      color: var(--el-color-danger);
+    }
+    &.pending .stat-icon {
+      background: var(--el-fill-color);
+      color: var(--el-text-color-disabled);
+    }
+    &.storage .stat-icon {
+      background: var(--el-color-info-light-9);
+      color: var(--el-color-info);
+    }
+  }
+
+  .task-list-card {
+    background: var(--el-bg-color-overlay);
+    border-color: var(--el-border-color);
+
+    .task-info-cell {
+      .task-icon {
+        background: var(--el-fill-color-light);
+
+        &.final-draft {
+          background: var(--el-color-success-light-9);
+          color: var(--el-color-success);
+        }
+        &.product {
+          background: var(--el-color-primary-light-9);
+          color: var(--el-color-primary);
+        }
+        &.selection {
+          background: var(--el-color-warning-light-9);
+          color: var(--el-color-warning);
+        }
+        &.material {
+          background: var(--el-color-info-light-9);
+          color: var(--el-color-info);
+        }
+        &.carrier {
+          background: var(--el-color-danger-light-9);
+          color: var(--el-color-danger);
+        }
+        &.system {
+          background: var(--el-fill-color);
+          color: var(--el-text-color-secondary);
+        }
+      }
+
+      .task-detail {
+        .task-name {
+          color: var(--el-text-color-primary);
+        }
+
+        .file-count {
+          color: var(--el-text-color-secondary);
+        }
+      }
+    }
+
+    .status-cell {
+      .success-icon { color: var(--el-color-success); }
+      .error-icon { color: var(--el-color-danger); }
+      .info-icon { color: var(--el-text-color-secondary); }
+    }
+
+    .progress-cell {
+      .progress-text {
+        color: var(--el-text-color-regular);
+      }
+    }
+
+    .success-info { color: var(--el-color-success); }
+    .error-info { color: var(--el-color-danger); }
+    .wait-info { color: var(--el-text-color-secondary); }
+
+    .time-cell {
+      .time-main {
+        color: var(--el-text-color-primary);
+      }
+      .time-sub {
+        color: var(--el-text-color-secondary);
+      }
+    }
+
+    .batch-actions {
+      background: var(--el-fill-color-light);
+
+      .selected-count {
+        color: var(--el-text-color-regular);
+      }
+    }
+
+    .pagination-wrapper {
+      border-top-color: var(--el-border-color);
+    }
+  }
+
+  .task-detail-dialog {
+    .detail-header {
+      border-bottom-color: var(--el-border-color);
+
+      .detail-icon {
+        background: var(--el-fill-color-light);
+
+        &.final-draft {
+          background: var(--el-color-success-light-9);
+          color: var(--el-color-success);
+        }
+        &.product {
+          background: var(--el-color-primary-light-9);
+          color: var(--el-color-primary);
+        }
+        &.selection {
+          background: var(--el-color-warning-light-9);
+          color: var(--el-color-warning);
+        }
+        &.material {
+          background: var(--el-color-info-light-9);
+          color: var(--el-color-info);
+        }
+        &.carrier {
+          background: var(--el-color-danger-light-9);
+          color: var(--el-color-danger);
+        }
+        &.system {
+          background: var(--el-fill-color);
+          color: var(--el-text-color-secondary);
+        }
+      }
+    }
+
+    .error-text {
+      color: var(--el-color-danger);
+    }
+
+    .file-list-section h4 {
+      color: var(--el-text-color-regular);
+    }
+  }
+
+  .preview-dialog {
+    .preview-image-wrapper {
+      background-color: var(--el-fill-color-light);
+    }
+
+    .preview-filename {
+      background-color: var(--el-fill-color-light);
+
+      .filename-text {
+        color: var(--el-text-color-primary);
+      }
+
+      .file-counter {
+        color: var(--el-text-color-secondary);
+      }
+    }
+
+    .preview-thumbnails {
+      background-color: var(--el-fill-color-light);
+
+      .thumbnail-item {
+        .thumbnail-name {
+          background-color: var(--el-bg-color-overlay);
+          color: var(--el-text-color-regular);
+        }
+
+        &.active {
+          border-color: var(--el-color-primary);
+        }
+
+        &:hover {
+          border-color: var(--el-color-primary-light-5);
+        }
+      }
+    }
   }
 }
 </style>

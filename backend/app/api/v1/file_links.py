@@ -7,8 +7,9 @@
 最终删除日期：项目稳定运行后
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Path, Body, UploadFile, File
-from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, Body, UploadFile, File, Form
+from typing import Any, List, Optional
+from pathlib import Path as FilePath
 
 from ...models.file_link import FileLink, FileLinkCreate, FileLinkUpdate, FileLinkList, FileLinkType, FileLinkStatus, FileUploadResponse
 from ...services.file_link_service import FileLinkService
@@ -176,7 +177,7 @@ async def delete_file_link(
 
 @router.post("/batch-delete", summary="批量删除文件链接")
 async def batch_delete_file_links(
-    link_ids: List[int] = Body(..., description="链接ID列表"),
+    payload: Any = Body(..., description="链接ID列表或 { ids: [...] }"),
     current_user: dict = Depends(require_auth),
     service: FileLinkService = Depends(get_file_link_service)
 ):
@@ -186,8 +187,16 @@ async def batch_delete_file_links(
     - **link_ids**: 链接ID列表
     """
     try:
+        if isinstance(payload, dict):
+            link_ids = payload.get("ids") or payload.get("link_ids") or []
+        else:
+            link_ids = payload
+
         if not link_ids:
             raise HTTPException(status_code=400, detail="链接ID列表不能为空")
+
+        if not isinstance(link_ids, list) or any(not isinstance(item, int) for item in link_ids):
+            raise HTTPException(status_code=400, detail="链接ID列表格式无效")
         
         deleted_count = await service.batch_delete_file_links(link_ids)
         return {
@@ -195,6 +204,8 @@ async def batch_delete_file_links(
             "message": f"成功删除 {deleted_count} 个链接",
             "data": {"deleted_count": deleted_count}
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"批量删除失败: {e}")
 
@@ -223,6 +234,57 @@ async def check_link_status(
         raise HTTPException(status_code=500, detail=f"检查失败: {e}")
 
 
+@router.get("/{link_id}/preview", summary="预览文件链接")
+async def preview_file_link(
+    link_id: int = Path(..., ge=1, description="链接ID"),
+    current_user: dict = Depends(require_auth),
+    service: FileLinkService = Depends(get_file_link_service)
+):
+    """返回预览所需的链接信息"""
+    try:
+        result = await service.get_preview_info(link_id)
+        return {
+            "code": 200,
+            "message": "获取成功",
+            "data": {
+                "previewUrl": result["preview_url"],
+                "isValid": result["is_valid"],
+                "lastChecked": result["last_checked"]
+            }
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"预览失败: {e}")
+
+
+@router.post("/validate", summary="校验链接有效性")
+async def validate_link(
+    body: dict = Body(..., description="包含 url 的请求体"),
+    current_user: dict = Depends(require_auth),
+    service: FileLinkService = Depends(get_file_link_service)
+):
+    """校验任意链接是否可访问"""
+    url = body.get("url")
+    if not url:
+        raise HTTPException(status_code=400, detail="url 不能为空")
+
+    try:
+        result = await service.validate_url(url)
+        return {
+            "code": 200,
+            "message": "校验完成",
+            "data": {
+                "isValid": result["is_valid"],
+                "statusCode": result["status_code"],
+                "contentType": result["content_type"],
+                "checkedAt": result["checked_at"]
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"校验失败: {e}")
+
+
 @router.get("/{library_type}/categories", summary="获取分类列表")
 async def get_categories(
     library_type: str = Path(..., description="所属库类型"),
@@ -247,34 +309,53 @@ async def get_categories(
 
 @router.post("/upload", summary="上传文件")
 async def upload_file(
-    file: UploadFile = File(...),
-    title: str = Body(..., description="文件标题"),
-    library_type: str = Body(..., description="所属库类型"),
-    description: Optional[str] = Body(None, description="文件描述"),
-    tags: Optional[List[str]] = Body(None, description="标签列表"),
-    category: Optional[str] = Body(None, description="分类"),
+    file: Optional[UploadFile] = File(None),
+    files: Optional[List[UploadFile]] = File(None),
+    title: Optional[str] = Form(None, description="文件标题"),
+    library_type: str = Form(..., description="所属库类型"),
+    description: Optional[str] = Form(None, description="文件描述"),
+    tags: Optional[List[str]] = Form(None, description="标签列表"),
+    category: Optional[str] = Form(None, description="分类"),
     current_user: dict = Depends(require_auth),
     upload_service: FileUploadService = Depends(get_file_upload_service)
 ):
     """
     上传文件
     
-    - **file**: 上传的文件
-    - **title**: 文件标题
+    - **file / files**: 上传的文件
+    - **title**: 文件标题（单文件可省略，默认取文件名）
     - **library_type**: 所属库类型
     - **description**: 文件描述（可选）
     - **tags**: 标签列表（可选）
     - **category**: 分类（可选）
     """
     try:
-        result = await upload_service.upload_file(
-            file=file,
-            title=title,
-            library_type=library_type,
-            description=description,
-            tags=tags,
-            category=category
-        )
+        upload_files: List[UploadFile] = []
+        if file is not None:
+            upload_files.append(file)
+        if files:
+            upload_files.extend(files)
+
+        if not upload_files:
+            raise HTTPException(status_code=400, detail="至少上传一个文件")
+
+        if len(upload_files) > 1:
+            result = await upload_service.upload_multiple_files(
+                files=upload_files,
+                library_type=library_type,
+                category=category
+            )
+        else:
+            current_file = upload_files[0]
+            resolved_title = title or FilePath(current_file.filename or "uploaded-file").stem
+            result = await upload_service.upload_file(
+                file=current_file,
+                title=resolved_title,
+                library_type=library_type,
+                description=description,
+                tags=tags,
+                category=category
+            )
         return {
             "code": 200,
             "message": "上传成功",

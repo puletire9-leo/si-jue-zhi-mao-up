@@ -1,5 +1,8 @@
 <template>
-  <div class="product-table-wrapper">
+  <template v-if="loading && !hasLoaded">
+    <SkeletonWrapper variant="table" :rows="8" />
+  </template>
+  <div v-else class="product-table-wrapper">
     <el-table
       :data="tableData"
       border
@@ -464,11 +467,12 @@
  * 产品列表表格组件
  * 支持行内编辑、图片上传、删除操作、拖拽排序
  */
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Plus, Rank, InfoFilled, ArrowUp, ArrowDown, Check, Pointer, ZoomIn } from '@element-plus/icons-vue'
 import type { UploadFile } from 'element-plus'
 import { ElDialog } from 'element-plus'
+import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 
 /**
  * 图片预览相关状态
@@ -550,6 +554,15 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<Emits>()
+
+/** 标记是否已完成首次加载，用于区分骨架屏与刷新 loading */
+const hasLoaded = ref(false)
+
+watch(() => props.loading, (newVal, oldVal) => {
+  if (oldVal === true && newVal === false) {
+    hasLoaded.value = true
+  }
+})
 
 /**
  * 当前编辑的单元格
@@ -1213,6 +1226,72 @@ defineExpose({
     object-fit: contain;
     border-radius: 4px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+}
+
+// ====== Dark Mode Overrides ======
+html.dark {
+  .drag-handle {
+    color: var(--el-text-color-secondary);
+
+    &:hover {
+      color: var(--el-color-primary);
+      background-color: var(--el-color-primary-light-9);
+    }
+
+    &.row-selected {
+      background-color: var(--el-color-success-light-9);
+      border-color: var(--el-color-success);
+    }
+
+    &.row-selectable:hover {
+      background-color: var(--el-color-primary-light-9);
+      border-color: var(--el-color-primary);
+    }
+  }
+
+  .editable-cell {
+    &:hover {
+      background-color: var(--el-fill-color-light);
+    }
+  }
+
+  .link-cell .supplier-link {
+    color: var(--el-color-primary);
+  }
+
+  .image-cell {
+    .upload-trigger {
+      border-color: var(--el-border-color-darker);
+    }
+
+    .view-image-btn:hover {
+      color: var(--el-color-primary);
+    }
+  }
+
+  .drag-hint {
+    background-color: var(--el-color-primary-light-9);
+    color: var(--el-color-primary);
+  }
+
+  .table-footer .total-count {
+    color: var(--el-text-color-secondary);
+  }
+
+  .drag-image-preview {
+    background-color: var(--el-bg-color-overlay);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+
+  .scroll-indicator {
+    background-color: var(--el-color-primary-color, rgba(64, 158, 255, 0.85));
+  }
+
+  .image-preview-dialog {
+    .preview-image {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    }
   }
 }
 </style>

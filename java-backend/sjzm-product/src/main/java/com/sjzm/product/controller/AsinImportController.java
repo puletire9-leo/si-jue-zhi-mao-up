@@ -82,20 +82,22 @@ public class AsinImportController {
         @SuppressWarnings("unchecked")
         List<String> sellerNames = (List<String>) body.get("sellerNames");
         String marketplace = (String) body.getOrDefault("marketplace", "UK");
+        String target = (String) body.getOrDefault("target", "competitor_products");
         if (sellerNames == null || sellerNames.isEmpty()) {
             throw new RuntimeException("sellerNames 不能为空");
         }
-        return Result.success(asinImportService.sellerPreview(sellerNames, marketplace));
+        return Result.success(asinImportService.sellerPreview(sellerNames, marketplace, target));
     }
 
     @PostMapping("/seller/execute")
     @Operation(summary = "卖家名批量导入 - 执行（异步）")
     public Result<Map<String, Object>> sellerExecute(
             @RequestParam Long taskId,
-            @RequestParam(defaultValue = "") String month) {
+            @RequestParam(defaultValue = "") String month,
+            @RequestParam(defaultValue = "competitor_products") String target) {
         AsinImportTask task = asinImportService.getTaskById(taskId);
         int batchTotal = task != null && task.getBatchTotal() != null ? task.getBatchTotal() : 0;
-        asinImportService.sellerExecute(taskId, month);
+        asinImportService.sellerExecute(taskId, month, target);
         return Result.success(Map.of("taskId", taskId, "status", "RUNNING", "batchTotal", batchTotal));
     }
 }

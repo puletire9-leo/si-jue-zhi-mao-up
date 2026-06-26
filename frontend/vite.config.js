@@ -61,6 +61,34 @@ export default defineConfig(({ mode }) => {
           timeout: 300000,
           logLevel: 'warn'
         },
+        '/api/v1/product-performance': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 300000,
+          logLevel: 'warn'
+        },
+        '/api/v1/category-baseline': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 300000,
+          logLevel: 'warn'
+        },
+        '/api/v1/category-dislocation': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 300000,
+          logLevel: 'warn'
+        },
+        '/api/v1/seller': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 300000,
+          logLevel: 'warn'
+        },
         '/api/v1/scoring': {
           target: javaTarget,
           changeOrigin: true,
@@ -110,6 +138,37 @@ export default defineConfig(({ mode }) => {
           timeout: 300000,
           logLevel: 'warn'
         },
+        '/api/v1/product-line/aggregated-data': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 30000,
+          logLevel: 'warn'
+        },
+        '/api/v1/product-line/guidance': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 30000,
+          logLevel: 'warn'
+        },
+        '/api/v1/product-line/tree': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 30000,
+          logLevel: 'warn'
+        },
+        // 选品 Agent（通配 — 放在具体路径之后，确保具体路径优先）
+        '/api/v1/product-line': {
+          target: mode === 'development'
+            ? `http://${env.VITE_SELECTION_AGENT_HOST || 'localhost'}:${env.VITE_SELECTION_AGENT_PORT || '8011'}`
+            : (env.VITE_SELECTION_AGENT_URL || 'http://localhost:8011'),
+          changeOrigin: true,
+          secure: false,
+          timeout: 30000,
+          logLevel: 'warn'
+        },
         '/api/v1/auth': {
           target: javaUserTarget,
           changeOrigin: true,
@@ -124,8 +183,27 @@ export default defineConfig(({ mode }) => {
           timeout: 30000,
           logLevel: 'warn'
         },
+        // 选品 Agent SSE 服务（必须在 ^/api 兜底规则之前）
+        '/selection-api': {
+          target: mode === 'development'
+            ? `http://${env.VITE_SELECTION_AGENT_HOST || 'localhost'}:${env.VITE_SELECTION_AGENT_PORT || '8011'}`
+            : (env.VITE_SELECTION_AGENT_URL || 'http://localhost:8011'),
+          changeOrigin: true,
+          secure: false,
+          timeout: 600000,
+          logLevel: 'warn'
+        },
         // Python 后端（兜底）
         '^/api': {
+          target: mode === 'development'
+            ? `http://${env.VITE_BACKEND_HOST || 'localhost'}:${env.VITE_BACKEND_PORT || '8090'}`
+            : (env.VITE_API_BASE_URL || 'http://localhost:8090'),
+          changeOrigin: true,
+          secure: false,
+          timeout: 300000,
+          logLevel: 'warn'
+        },
+        '^/uploads': {
           target: mode === 'development'
             ? `http://${env.VITE_BACKEND_HOST || 'localhost'}:${env.VITE_BACKEND_PORT || '8090'}`
             : (env.VITE_API_BASE_URL || 'http://localhost:8090'),

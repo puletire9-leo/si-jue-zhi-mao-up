@@ -74,14 +74,14 @@
               </div>
 
               <div
-                v-if="product.category"
+                v-if="product.mainCategoryName"
                 class="info-item"
               >
                 <div class="info-label">
                   大类榜单名：
                 </div>
                 <div class="info-value">
-                  {{ product.category }}
+                  {{ product.mainCategoryName }}
                 </div>
               </div>
 
@@ -227,7 +227,7 @@
                 <div class="info-value">
                   <div class="similar-products">
                     <el-link
-                      v-for="(link, index) in product.similarProducts.split(',')"
+                      v-for="(link, index) in (product.similarProducts || '').split(',')"
                       :key="index"
                       :href="link.trim()"
                       target="_blank"
@@ -310,12 +310,13 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Picture, Edit, Delete, TrendCharts } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import type { SelectionProduct } from '@/types/api'
 import { selectionApi } from '@/api/selection'
 
 const route = useRoute()
 const router = useRouter()
 
-const product = ref(null)
+const product = ref<SelectionProduct | null>(null)
 const loading = ref(false)
 
 const loadProductDetail = async () => {
@@ -350,19 +351,7 @@ const getImageUrl = () => {
   return '/images/default.png'
 }
 
-const getPreviewImages = () => {
-  if (!product.value) return []
-  const images = []
-  if (product.value.localPath) {
-    images.push(`/images/${product.value.localPath}`)
-  }
-  if (product.value.imageUrl) {
-    images.push(product.value.imageUrl)
-  }
-  return images
-}
-
-const formatDate = (dateString) => {
+const formatDate = (dateString: string): string => {
   if (!dateString) return '无记录'
   const date = new Date(dateString)
   return date.toLocaleString('zh-CN', {
@@ -374,23 +363,7 @@ const formatDate = (dateString) => {
   })
 }
 
-const formatListingDate = (listingDays) => {
-  if (!listingDays || listingDays <= 0) return '无记录'
-  
-  // 计算上架日期：当前时间减去上架天数
-  const currentDate = new Date()
-  const listingDate = new Date(currentDate.getTime() - listingDays * 24 * 60 * 60 * 1000)
-  
-  return listingDate.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  }) + ` (${listingDays}天前)`
-}
-
-const formatUpdateTime = (createdAt, updatedAt) => {
+const formatUpdateTime = (createdAt: string, updatedAt: string): string => {
   if (!updatedAt) return '无记录'
   
   // 如果更新时间与创建时间相同，说明没有更新过
@@ -407,7 +380,7 @@ const formatUpdateTime = (createdAt, updatedAt) => {
   return formatDate(updatedAt)
 }
 
-const formatSalesVolume = (volume) => {
+const formatSalesVolume = (volume: number): string => {
   if (!volume) return '0'
   if (volume >= 10000) {
     return `${(volume / 10000).toFixed(1)}万`
@@ -610,5 +583,50 @@ onMounted(() => {
 .no-data-card {
   text-align: center;
   padding: 60px 20px;
+}
+
+:deep(html.dark) {
+  .selection-detail {
+    background: var(--el-bg-color-page);
+  }
+
+  .detail-card {
+    background: var(--el-bg-color);
+    border-color: var(--el-border-color);
+  }
+
+  .no-data-card {
+    background: var(--el-bg-color);
+    border-color: var(--el-border-color);
+  }
+
+  .product-asin {
+    color: var(--el-text-color-primary);
+  }
+
+  .product-title {
+    color: var(--el-text-color-primary);
+    border-bottom-color: var(--el-border-color);
+  }
+
+  .info-item {
+    background: var(--el-fill-color-lighter);
+  }
+
+  .info-label {
+    color: var(--el-text-color-secondary);
+  }
+
+  .info-value {
+    color: var(--el-text-color-primary);
+  }
+
+  .image-error {
+    color: var(--el-text-color-placeholder);
+  }
+
+  .main-image {
+    background: linear-gradient(135deg, var(--el-fill-color-lighter) 0%, var(--el-fill-color) 100%);
+  }
 }
 </style>

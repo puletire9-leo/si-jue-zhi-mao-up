@@ -23,6 +23,11 @@ const userInfo = ref({
   nickname: ''
 })
 
+// 骨架屏加载状态
+const loading = ref(false)
+const hasLoaded = ref(true)
+const refreshing = ref(false)
+
 const panes = [
   {
     key: 'profile',
@@ -65,7 +70,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="account-settings">
+  <template v-if="loading && !hasLoaded">
+    <div class="account-settings">
+      <SkeletonWrapper variant="list" />
+    </div>
+  </template>
+  <div v-else v-loading="refreshing" class="account-settings">
     <el-container class="account-container">
       <el-aside class="account-sidebar">
         <el-menu :default-active="activePane" class="account-menu">
@@ -123,7 +133,7 @@ onMounted(() => {
   width: 240px;
   background: white;
   border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(124, 97, 212, 0.08);
+  box-shadow: 0 2px 12px rgba(180, 83, 9, 0.08);
 }
 
 .account-menu {
@@ -137,14 +147,14 @@ onMounted(() => {
     gap: 8px;
     padding: 12px 16px;
     margin-bottom: 24px;
-    color: #6B5E52;
+    color: #6b7280;
     cursor: pointer;
     border-radius: 10px;
     transition: all 0.2s;
 
     &:hover {
-      background: #F8F4FF;
-      color: #7C61D4;
+      background: #f5f0eb;
+      color: #b45309;
     }
   }
 
@@ -155,7 +165,7 @@ onMounted(() => {
     padding: 16px;
     margin-bottom: 16px;
     border-radius: 12px;
-    background: linear-gradient(135deg, #FFFBF7, #F8F4FF);
+    background: linear-gradient(135deg, #faf8f5, #f5f0eb);
 
     .user-detail {
       display: flex;
@@ -163,7 +173,7 @@ onMounted(() => {
 
       .nickname {
         font-weight: 600;
-        color: #2F281D;
+        color: #1a1a1a;
       }
 
       .username {
@@ -178,18 +188,18 @@ onMounted(() => {
     line-height: 44px;
     margin-bottom: 4px;
     border-radius: 10px;
-    color: #6B5E52;
+    color: #6b7280;
     transition: all 0.2s;
 
     &:hover {
-      background: #F8F4FF;
-      color: #7C61D4;
+      background: #f5f0eb;
+      color: #b45309;
     }
 
     &.is-active {
-      background: linear-gradient(135deg, #7C61D4, #9F85E0);
+      background: linear-gradient(135deg, #b45309, #d97706);
       color: white;
-      box-shadow: 0 4px 12px rgba(124, 97, 212, 0.3);
+      box-shadow: 0 4px 12px rgba(180, 83, 9, 0.3);
     }
   }
 }
@@ -197,5 +207,43 @@ onMounted(() => {
 .account-content {
   padding: 24px;
   background: transparent;
+}
+
+/* ====== 暗黑模式 ====== */
+:deep(html.dark) {
+  .account-settings {
+    background: var(--el-bg-color);
+  }
+
+  .account-sidebar {
+    background: var(--el-bg-color-overlay);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  }
+
+  .back-btn {
+    color: var(--el-text-color-secondary);
+
+    &:hover {
+      background: var(--el-fill-color-light);
+      color: var(--el-color-primary);
+    }
+  }
+
+  .user-info {
+    background: var(--el-fill-color-lighter);
+  }
+
+  .user-detail .nickname {
+    color: var(--el-text-color-primary);
+  }
+
+  :deep(.el-menu-item) {
+    color: var(--el-text-color-secondary);
+
+    &:hover {
+      background: var(--el-fill-color-light);
+      color: var(--el-color-primary);
+    }
+  }
 }
 </style>

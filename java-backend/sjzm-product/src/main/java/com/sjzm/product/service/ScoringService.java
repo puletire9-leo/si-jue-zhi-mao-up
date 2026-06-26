@@ -304,7 +304,7 @@ public class ScoringService {
      * 更新周标记：使用 created_at 或 updated_at 判断
      * 如果时间字段为 NULL，视为本周新数据
      */
-    public void updateWeekTags() {
+    public String updateWeekTags() {
         String weekTag = getCurrentWeekTag();
         LocalDate now = LocalDate.now();
         LocalDate monday = now.with(WeekFields.ISO.dayOfWeek(), 1);
@@ -325,9 +325,10 @@ public class ScoringService {
                         .or().isNull(CompetitorProduct::getCreatedAt)));
 
         log.info("周标记已更新: week_tag={}", weekTag);
+        return weekTag;
     }
 
-    private String getCurrentWeekTag() {
+    public String getCurrentWeekTag() {
         java.time.LocalDate now = java.time.LocalDate.now();
         int year = now.get(java.time.temporal.IsoFields.WEEK_BASED_YEAR);
         int week = now.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR);

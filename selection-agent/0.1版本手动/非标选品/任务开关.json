@@ -1,0 +1,23 @@
+{
+  "enabled": true,
+  "action": "prepare_batches",
+  "date_folder": "6.24",
+  "batch_size": 50,
+  "source_file": "F:\\项目\\si-jue-zhi-mao-up\\selection-agent\\0.1版本手动\\非标选品\\系统来源\\6.24\\system_filtered_candidates.csv",
+  "output_dir": "F:\\项目\\si-jue-zhi-mao-up\\selection-agent\\0.1版本手动\\非标选品\\批次输入\\6.24",
+  "clear_existing_batches": true,
+  "write_manifest": true,
+  "required_columns": [
+    "row_id",
+    "asin",
+    "marketplace",
+    "title",
+    "matched_carrier_anchor",
+    "carrier_candidates",
+    "category_hint",
+    "bsr_id",
+    "notes"
+  ],
+  "runner": "F:\\项目\\si-jue-zhi-mao-up\\selection-agent\\.venv\\Scripts\\python.exe",
+  "script_path": "F:\\项目\\si-jue-zhi-mao-up\\selection-agent\\scripts\\prepare_manual_batches.py"
+}
