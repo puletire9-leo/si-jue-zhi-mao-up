@@ -100,6 +100,51 @@
       @confirm="handleDrawerConfirm"
     >
       <div class="fd-section">
+        <div class="fd-label">业务方法卡</div>
+        <div class="method-card method-card--m02">
+          <div class="method-card__body">
+            <div class="method-card__head">
+              <div class="method-card__name">M02 郑总同行品线跟随法</div>
+              <el-tag
+                v-if="store.activeMethodCard?.id === 'M02'"
+                type="success"
+                effect="light"
+                size="small"
+              >
+                已应用
+              </el-tag>
+            </div>
+            <div class="method-card__desc">
+              用郑总同行店铺最新批次作为基准盘子，重排品线树并标记被同行验证过的 L1 / L2。
+            </div>
+            <div class="method-card__meta">
+              <span>适合：同行跟随 / 品线优先级</span>
+              <span>数据源：deng_zong_shop</span>
+              <span v-if="store.zhengBatchDate">批次：{{ store.zhengBatchDate }}</span>
+            </div>
+          </div>
+          <div class="method-card__actions">
+            <el-button
+              type="primary"
+              size="small"
+              :loading="store.treeLoading"
+              @click="applyM02Method"
+            >
+              应用方法
+            </el-button>
+            <el-button
+              v-if="store.activeMethodCard"
+              size="small"
+              link
+              @click="clearMethodCard"
+            >
+              退出方法
+            </el-button>
+          </div>
+        </div>
+      </div>
+
+      <div class="fd-section">
         <div class="fd-label">卖家名</div>
         <el-input v-model="draftSeller" placeholder="卖家名" clearable />
       </div>
@@ -131,7 +176,11 @@
 
     <!-- 郑总店铺数据完整性确认 -->
     <div
-      v-if="store.completeness && !store.completeness.complete"
+      v-if="
+        store.activeMethodCard?.id === 'M02' &&
+        store.completeness &&
+        !store.completeness.complete
+      "
       class="completeness-banner"
     >
       <el-icon class="cb-icon"><WarningFilled /></el-icon>
@@ -235,7 +284,6 @@
               @click="handleL2ItemClick(cat)"
             >
               <span class="l2-item-name">{{ cat.name }}</span>
-              <span v-if="cat.isZheng" class="l2-zheng-tag">郑总</span>
               <span class="l2-item-count">{{
                 cat.productCount?.toLocaleString() || "—"
               }}</span>
@@ -495,6 +543,11 @@ interface FilterChip {
 const filterChips = computed<FilterChip[]>(() => {
   const chips: FilterChip[] = [];
   const rf = store.rangeFilter;
+  if (store.activeMethodCard)
+    chips.push({
+      key: "methodCard",
+      label: `方法: ${store.activeMethodCard.id} ${store.activeMethodCard.name}`,
+    });
   if (store.searchSellerName)
     chips.push({ key: "seller", label: `卖家: ${store.searchSellerName}` });
   if (store.searchBrand)
@@ -536,6 +589,10 @@ const filterChips = computed<FilterChip[]>(() => {
 });
 
 function removeChip(key: string) {
+  if (key === "methodCard") {
+    store.clearMethodCard();
+    return;
+  }
   if (key === "seller") {
     store.searchSellerName = "";
     store.applyBasicFilters();
@@ -583,10 +640,21 @@ function removeChip(key: string) {
   store.applyRangeFilter(rf);
 }
 
-function clearAllFilters() {
+async function clearAllFilters() {
+  await store.clearMethodCard();
   store.searchSellerName = "";
   store.searchBrand = "";
   store.applyRangeFilter(emptyRange());
+}
+
+async function applyM02Method() {
+  await store.applyM02MethodCard();
+  filterDrawerVisible.value = false;
+}
+
+async function clearMethodCard() {
+  await store.clearMethodCard();
+  filterDrawerVisible.value = false;
 }
 
 // 补全缺失店铺 → 跳转到店铺总览页自动勾选
@@ -968,6 +1036,58 @@ export default { name: "ProductLineSelection" };
 }
 
 // ---- 抽屉内分区（drawer append-to-body，需顶层匹配 slotted 元素，见 :global 段）----
+.method-card {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #d8e8df;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f3fbf5 0%, #eef7ff 100%);
+
+  &__body {
+    min-width: 0;
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  &__name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1f2f25;
+  }
+
+  &__desc {
+    margin-top: 6px;
+    color: #52645a;
+    line-height: 1.6;
+    font-size: 13px;
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+    color: #3b8060;
+    font-size: 12px;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+}
 
 // ---- 合格规则 + 预设栏 ----
 .rule-filterbar {
@@ -1154,18 +1274,6 @@ export default { name: "ProductLineSelection" };
   color: $text-tertiary;
   white-space: nowrap;
   font-family: $font-family-mono;
-  flex-shrink: 0;
-}
-
-.l2-zheng-tag {
-  font-size: 10px;
-  background: #e6f7ff;
-  color: #1890ff;
-  border: 1px solid #91d5ff;
-  border-radius: 3px;
-  padding: 0 4px;
-  margin-left: 4px;
-  white-space: nowrap;
   flex-shrink: 0;
 }
 
