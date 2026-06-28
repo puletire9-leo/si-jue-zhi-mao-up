@@ -83,7 +83,7 @@ public class ProductLineController {
     }
 
     @GetMapping("/tree")
-    @Operation(summary = "品线排序树", description = "竞品全量按郑总盘子排序，禁止类目已排除")
+    @Operation(summary = "品线排序树", description = "竞品全量品线树，方法卡候选商品由 /api/v1/method-cards/*/products 独立提供")
     public Result<Map<String, Object>> getTree(
             @RequestParam(defaultValue = "UK") String marketplace,
             @RequestParam String month) {

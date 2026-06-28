@@ -8,6 +8,8 @@ export interface SubCategoryNode {
   nodeName: string
   nodeFullPath: string
   productCount: number
+  methodHit?: boolean
+  methodHitCount?: number
   isZheng?: boolean
 }
 
@@ -18,6 +20,8 @@ export interface ProductLineGroup {
   subCategoryCount: number
   totalProducts: number
   subCategories: SubCategoryNode[]
+  methodHit?: boolean
+  methodHitCount?: number
   isZheng?: boolean
 }
 
@@ -152,6 +156,8 @@ export interface TreeNode {
   nodeId: number | null
   status: NodeStatus
   productCount: number
+  methodHit?: boolean
+  methodHitCount?: number
   isZheng?: boolean
 }
 
@@ -161,6 +167,8 @@ export interface TreeGroup {
   name: string
   icon: string
   expanded: boolean
+  methodHit?: boolean
+  methodHitCount?: number
   isZheng?: boolean
   children: TreeNode[]
 }
