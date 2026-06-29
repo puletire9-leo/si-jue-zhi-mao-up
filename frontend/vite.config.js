@@ -9,18 +9,13 @@ import { resolve } from 'path'
 export default defineConfig(({ mode }) => {
   // 加载环境变量
   const env = loadEnv(mode, process.cwd())
-  // Java 后端代理目标：默认直连 product，设 VITE_USE_GATEWAY=true 走网关
-  const useGateway = env.VITE_USE_GATEWAY === 'true'
-  const javaTarget = useGateway
-    ? `http://${env.VITE_GATEWAY_HOST || 'localhost'}:${env.VITE_GATEWAY_PORT || '9000'}`
-    : mode === 'development'
-      ? `http://${env.VITE_JAVA_HOST || 'localhost'}:${env.VITE_JAVA_PORT || '8002'}`
-      : `http://${env.VITE_JAVA_HOST || 'localhost'}:${env.VITE_JAVA_PORT || '8022'}`
-  const javaUserTarget = useGateway
-    ? `http://${env.VITE_GATEWAY_HOST || 'localhost'}:${env.VITE_GATEWAY_PORT || '9000'}`
-    : mode === 'development'
-      ? `http://${env.VITE_JAVA_USER_HOST || 'java-user'}:${env.VITE_JAVA_USER_PORT || '8001'}`
-      : `http://${env.VITE_JAVA_USER_HOST || 'java-user'}:${env.VITE_JAVA_USER_PORT || '8001'}`
+  // Java 后端代理目标：开发直连 product
+  const javaTarget = mode === 'development'
+    ? `http://${env.VITE_JAVA_HOST || 'localhost'}:${env.VITE_JAVA_PORT || '8002'}`
+    : `http://${env.VITE_JAVA_HOST || 'localhost'}:${env.VITE_JAVA_PORT || '8022'}`
+  const javaUserTarget = mode === 'development'
+    ? `http://${env.VITE_JAVA_USER_HOST || 'java-user'}:${env.VITE_JAVA_USER_PORT || '8001'}`
+    : `http://${env.VITE_JAVA_USER_HOST || 'java-user'}:${env.VITE_JAVA_USER_PORT || '8001'}`
 
   return {
     plugins: [
@@ -168,9 +163,7 @@ export default defineConfig(({ mode }) => {
         },
         // 选品 Agent（通配 — 放在具体路径之后，确保具体路径优先）
         '/api/v1/product-line': {
-          target: mode === 'development'
-            ? `http://${env.VITE_SELECTION_AGENT_HOST || 'localhost'}:${env.VITE_SELECTION_AGENT_PORT || '8011'}`
-            : (env.VITE_SELECTION_AGENT_URL || 'http://localhost:8011'),
+          target: javaTarget,
           changeOrigin: true,
           secure: false,
           timeout: 30000,
@@ -188,16 +181,6 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
           timeout: 30000,
-          logLevel: 'warn'
-        },
-        // 选品 Agent SSE 服务（必须在 ^/api 兜底规则之前）
-        '/selection-api': {
-          target: mode === 'development'
-            ? `http://${env.VITE_SELECTION_AGENT_HOST || 'localhost'}:${env.VITE_SELECTION_AGENT_PORT || '8011'}`
-            : (env.VITE_SELECTION_AGENT_URL || 'http://localhost:8011'),
-          changeOrigin: true,
-          secure: false,
-          timeout: 600000,
           logLevel: 'warn'
         },
         // Python 后端（兜底）
