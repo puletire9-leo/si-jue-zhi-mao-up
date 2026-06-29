@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.mapper.MethodCardMapper">
+
+    <sql id="M01Where">
+        cp.marketplace = #{marketplace}
+        AND cp.title IS NOT NULL
+        AND (
+            cp.source LIKE '%新品%'
+            OR LOWER(cp.source) LIKE '%new%'
+        )
+        <if test="month != null and month != ''">
+            AND cp.month = #{month}
+        </if>
+        <if test="effectiveWeekTag != null and effectiveWeekTag != ''">
+            AND cp.effective_week_tag = #{effectiveWeekTag}
+        </if>
+        <if test="bsrId != null and bsrId != ''">
+            AND cp.bsr_id = #{bsrId}
+        </if>
+        <if test="nodeId != null">
+            AND cp.node_id = #{nodeId}
+        </if>
+        AND cp.price BETWEEN #{priceMin} AND #{priceMax}
+        AND cp.weight_g IS NOT NULL
+        AND cp.weight_g &lt; #{weightMax}
+        AND cp.listing_days IS NOT NULL
+        AND cp.listing_days &lt; #{listingDaysMax}
+        AND (
+            (cp.listing_days &lt;= 30 AND cp.units IS NOT NULL AND cp.units &gt;= #{sales30})
+            OR (cp.listing_days &lt;= 60 AND cp.units IS NOT NULL AND cp.units &gt;= #{sales60})
+            OR (cp.listing_days &lt;= 90 AND cp.units IS NOT NULL AND cp.units &gt;= #{sales90})
+            OR (cp.bsr IS NOT NULL AND cp.bsr &gt; 0 AND cp.bsr &lt; #{bsrMax})
+        )
+    </sql>
+
+    <select id="selectLatestM01EffectiveWeek" resultType="java.lang.String">
+        SELECT cp.effective_week_tag
+        FROM competitor_products_clean cp
+        WHERE cp.marketplace = #{marketplace}
+          AND cp.effective_week_tag IS NOT NULL
+          AND (
+              cp.source LIKE '%新品%'
+              OR LOWER(cp.source) LIKE '%new%'
+          )
+        GROUP BY cp.effective_week_tag
+        ORDER BY MAX(cp.created_at) DESC, cp.effective_week_tag DESC
+        LIMIT 1
+    </select>
+
+    <select id="countM01Products" resultType="long">
+        SELECT COUNT(1)
+        FROM competitor_products_clean cp
+        WHERE <include refid="M01Where" />
+    </select>
+
+    <select id="selectM01Products" resultType="com.sjzm.product.dto.MethodCardProductResponse">
+        SELECT
+            cp.id,
+            cp.marketplace,
+            cp.asin,
+            cp.parent_asin,
+            cp.dedup_key,
+            cp.month,
+            cp.effective_week_tag,
+            cp.effective_week_tag AS created_week,
+            cp.title,
+            cp.brand,
+            cp.image_url,
+            cp.node_id,
+            cp.node_label_path,
+            cp.bsr_id,
+            cp.units,
+            cp.bsr,
+            cp.price,
+            cp.listing_days,
+            cp.weight_g,
+            cp.rating,
+            cp.ratings,
+            cp.fulfillment,
+            cp.source,
+            cp.product_url,
+            cp.similar_url,
+            cp.created_at
+        FROM competitor_products_clean cp
+        WHERE <include refid="M01Where" />
+        ORDER BY
+            CASE WHEN cp.bsr IS NOT NULL AND cp.bsr &gt; 0 THEN 0 ELSE 1 END ASC,
+            cp.bsr ASC,
+            cp.units DESC,
+            cp.asin ASC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <sql id="M02Where">
+        dz.marketplace = #{marketplace}
+        AND dz.asin IS NOT NULL
+        AND dz.title IS NOT NULL
+        <if test="month != null and month != ''">
+            AND dz.month = #{month}
+        </if>
+        <if test="batchDate != null and batchDate != ''">
+            AND dz.batch_date = #{batchDate}
+        </if>
+        <if test="bsrId != null and bsrId != ''">
+            AND dz.bsr_id = #{bsrId}
+        </if>
+        <if test="nodeId != null">
+            AND dz.node_id = #{nodeId}
+        </if>
+    </sql>
+
+    <select id="selectLatestM02BatchDate" resultType="java.lang.String">
+        SELECT MAX(dz.batch_date)
+        FROM deng_zong_shop dz
+        WHERE dz.marketplace = #{marketplace}
+          AND dz.batch_date IS NOT NULL
+    </select>
+
+    <select id="countM02Products" resultType="long">
+        SELECT COUNT(1)
+        FROM (
+            SELECT dz.asin,
+                   ROW_NUMBER() OVER (PARTITION BY dz.asin ORDER BY dz.created_at DESC, dz.id DESC) AS rn
+            FROM deng_zong_shop dz
+            WHERE <include refid="M02Where" />
+        ) t
+        WHERE t.rn = 1
+    </select>
+
+    <select id="selectM02Products" resultType="com.sjzm.product.dto.MethodCardProductResponse">
+        SELECT *
+        FROM (
+            SELECT
+                dz.id,
+                dz.marketplace,
+                dz.asin,
+                dz.parent_asin,
+                NULL AS dedup_key,
+                dz.month,
+                dz.batch_date AS effective_week_tag,
+                dz.batch_date AS created_week,
+                dz.title,
+                dz.brand,
+                dz.image_url,
+                dz.node_id,
+                dz.node_label_path,
+                dz.bsr_id,
+                dz.units,
+                dz.bsr,
+                dz.price,
+                NULL AS listing_days,
+                NULL AS weight_g,
+                dz.rating,
+                dz.ratings,
+                dz.fulfillment,
+                COALESCE(dz.source, '郑总同行') AS source,
+                dz.product_url,
+                dz.similar_url,
+                dz.created_at,
+                ROW_NUMBER() OVER (PARTITION BY dz.asin ORDER BY dz.created_at DESC, dz.id DESC) AS rn
+            FROM deng_zong_shop dz
+            WHERE <include refid="M02Where" />
+        ) t
+        WHERE t.rn = 1
+        ORDER BY
+            CASE WHEN t.units IS NULL THEN 1 ELSE 0 END ASC,
+            t.units DESC,
+            CASE WHEN t.bsr IS NULL OR t.bsr &lt;= 0 THEN 1 ELSE 0 END ASC,
+            t.bsr ASC,
+            t.asin ASC
+        LIMIT #{offset}, #{size}
+    </select>
+
+</mapper>

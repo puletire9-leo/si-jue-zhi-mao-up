@@ -3,6 +3,7 @@ import { ref, computed } from "vue";
 import { ElMessage } from "element-plus";
 import { getTree } from "@/api/product-line";
 import { competitorApi } from "@/api/competitor";
+import { methodCardsApi } from "@/api/methodCards";
 import { selectionApi } from "@/api/selection";
 import type {
   ProductLineGroup,
@@ -36,6 +37,8 @@ interface SubCategoryItem {
   nodeName?: string;
   nodeFullPath?: string;
   productCount?: number;
+  methodHit?: boolean;
+  methodHitCount?: number;
   isZheng?: boolean;
 }
 
@@ -90,8 +93,9 @@ export const useProductLineSelectionStore = defineStore(
 
     // ---- 灵活合格规则（已由面板的上架天数/月销区间承担，默认空=不限）----
     const qualifyRules = ref<QualifyRule[]>([]);
+    const activeMethodCard = ref<{ id: "M02"; name: string } | null>(null);
 
-    // 郑总盘子实际使用的最新批次日期（由 /tree 响应回填，仅展示用）
+    // 方法卡视角使用的证据批次；M02 时为郑总同行盘子最新批次。
     const zhengBatchDate = ref("");
 
     // ---- 郑总店铺数据完整性 ----
@@ -137,7 +141,7 @@ export const useProductLineSelectionStore = defineStore(
     async function initData() {
       // 切换站点/月份时重置区间筛选（周批次由面板按站点重新拉取并默认最新）
       rangeFilter.value = emptyRangeFilter();
-      await Promise.all([fetchTree(), fetchCompleteness()]);
+      await Promise.all([fetchTree(), refreshMethodEvidence()]);
 
       // 默认加载第一个大类的商品
       if (treeData.value.length > 0 && !selectedBsrId.value) {
@@ -152,8 +156,6 @@ export const useProductLineSelectionStore = defineStore(
         const mkp = marketplace.value;
         const mo = month.value.replace("-", "");
         const res = await getTree(mkp, mo);
-        if (res?.data?.zhengBatchDate)
-          zhengBatchDate.value = res.data.zhengBatchDate;
         const raw = res?.data?.productLines as ProductLineGroup[] | undefined;
         if (!raw) {
           treeData.value = [];
@@ -171,14 +173,12 @@ export const useProductLineSelectionStore = defineStore(
             name: l1Name,
             icon: "📦",
             expanded: false,
-            isZheng: g.isZheng,
             children: (g.subCategories || []).map((sc: SubCategoryItem) => ({
               id: `${g.bsrId}_${sc.nodeId}`,
               name: sc.nodeName,
               nodeId: Number(sc.nodeId),
               status: "analyzed" as const,
               productCount: sc.productCount,
-              isZheng: sc.isZheng,
             })),
           };
         });
@@ -238,6 +238,36 @@ export const useProductLineSelectionStore = defineStore(
     function clearBasicFilters() {
       searchSellerName.value = "";
       searchBrand.value = "";
+    }
+
+    async function refreshMethodEvidence() {
+      if (activeMethodCard.value?.id === "M02") {
+        await fetchCompleteness();
+      } else {
+        completeness.value = null;
+      }
+    }
+
+    async function reloadCurrentProducts() {
+      if (!selectedNodeId.value && !selectedBsrId.value) return;
+      await loadProducts({
+        nodeId: selectedNodeId.value ? Number(selectedNodeId.value) : undefined,
+        bsrId: selectedBsrId.value || undefined,
+      });
+    }
+
+    async function applyM02MethodCard() {
+      activeMethodCard.value = { id: "M02", name: "郑总同行品线跟随法" };
+      await Promise.all([fetchTree(), refreshMethodEvidence()]);
+      await reloadCurrentProducts();
+    }
+
+    async function clearMethodCard() {
+      activeMethodCard.value = null;
+      zhengBatchDate.value = "";
+      completeness.value = null;
+      await fetchTree();
+      await reloadCurrentProducts();
     }
 
     // ---- 通用商品加载 ----
@@ -316,14 +346,28 @@ export const useProductLineSelectionStore = defineStore(
         if (qualifyRules.value.length > 0)
           params.qualifyRules = qualifyRules.value;
 
-        const res = await competitorApi.getList({
-          ...params,
-          groupByParent: false,
-        });
+        const res =
+          activeMethodCard.value?.id === "M02"
+            ? await methodCardsApi.getM02Products({
+                marketplace: marketplace.value as "UK" | "DE",
+                bsrId: filter.bsrId,
+                nodeId: filter.nodeId,
+                page: competitorPage.value,
+                size: competitorPageSize.value,
+                batchDate: zhengBatchDate.value || undefined,
+              })
+            : await competitorApi.getList({
+                ...params,
+                groupByParent: false,
+              });
         if (reqId !== _productsReqId) return; // R3.2: 过时请求丢弃
         competitorResults.value = (res?.data?.list ??
           []) as CompetitorProductRaw[];
         competitorTotal.value = res?.data?.total ?? 0;
+        if (activeMethodCard.value?.id === "M02") {
+          const firstSnapshot = res?.data?.list?.[0]?.ruleSnapshot;
+          zhengBatchDate.value = firstSnapshot?.batchDate || zhengBatchDate.value;
+        }
       } catch (err) {
         if (reqId !== _productsReqId) return; // R3.2: 过时请求不弹错
         ElMessage.error("商品数据加载失败，请重试");
@@ -639,6 +683,9 @@ export const useProductLineSelectionStore = defineStore(
       // ---- 合格规则 ----
       qualifyRules,
       applyQualifyRules,
+      activeMethodCard,
+      applyM02MethodCard,
+      clearMethodCard,
       // ---- 统一区间筛选面板 ----
       rangeFilter,
       applyRangeFilter,
