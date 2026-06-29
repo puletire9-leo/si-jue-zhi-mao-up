@@ -453,13 +453,16 @@ public class CompetitorService {
         applySort(wrapper, request.getSortBy(), request.getSortOrder());
 
         // 数据源切换：默认查清洗表（按父 ASIN 去重的代表行）；false 走原始表。
-        // 清洗表场景下 maxVariantCount 无意义（已去重，每父群组只 1 行），交由前端隐藏开关。
         boolean useClean = !Boolean.FALSE.equals(request.getUseCleanTable());
 
-        // maxVariantCount 仅在原始表场景生效：用 dedup_key 子查询限定变体数 ≤ 阈值
-        if (!useClean && request.getMaxVariantCount() != null) {
-            String marketplaceForVc = request.getMarketplace();
-            if (StringUtils.hasText(marketplaceForVc)) {
+        // maxVariantCount 变体数上限筛选：两种场景分别处理
+        if (request.getMaxVariantCount() != null) {
+            if (useClean) {
+                // 清洗表场景：清洗表的 variations 列已存父 ASIN 的变体数,直接 WHERE 过滤
+                // 注意 variations 可能为 NULL（独立品），独立品视为 1 个变体，按需放行
+                wrapper.apply("(variations <= {0} OR variations IS NULL)", request.getMaxVariantCount());
+            } else if (StringUtils.hasText(request.getMarketplace())) {
+                // 原始表场景：用 dedup_key 子查询限定父群组的变体行数 ≤ 阈值
                 wrapper.apply(
                     "COALESCE(NULLIF(parent_asin,''), asin) IN ("
                     + "SELECT t.k FROM ("
@@ -468,7 +471,7 @@ public class CompetitorService {
                     + "  GROUP BY COALESCE(NULLIF(parent_asin,''), asin)"
                     + "  HAVING c <= {1}"
                     + ") t)",
-                    marketplaceForVc, request.getMaxVariantCount());
+                    request.getMarketplace(), request.getMaxVariantCount());
             }
         }
 
