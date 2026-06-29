@@ -1,5 +1,6 @@
 package com.sjzm.product.mapper;
 
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.sjzm.product.entity.CompetitorProduct;
 import org.apache.ibatis.annotations.Mapper;
@@ -115,4 +116,20 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
             @Param("marketplace") String marketplace,
             @Param("month") String month,
             @Param("scanLimit") int scanLimit);
+
+    /**
+     * 清洗表分页查询：复用业务层组装的 LambdaQueryWrapper（其条件列名与 clean 表一致），
+     * 只换 FROM 表名为 competitor_products_clean。
+     */
+    long selectCountFromClean(@Param("ew") Wrapper<CompetitorProduct> wrapper);
+
+    List<CompetitorProduct> selectListFromClean(@Param("ew") Wrapper<CompetitorProduct> wrapper);
+
+    /**
+     * 按 (marketplace, dedupKey) 批量统计原始表 competitor_products 中每个父群组的变体行数。
+     * dedupKey = COALESCE(NULLIF(parent_asin,''), asin)，与清洗表的 dedup_key 一致。
+     * 返回每条 { dedupKey: String, variantCount: Long }。
+     */
+    List<Map<String, Object>> selectVariantCountsByDedupKeys(@Param("marketplace") String marketplace,
+                                                              @Param("keys") List<String> dedupKeys);
 }
