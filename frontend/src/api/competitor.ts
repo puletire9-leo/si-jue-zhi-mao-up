@@ -3,6 +3,7 @@ import type { ApiResponse } from "@/types/api";
 
 export interface CompetitorProductRaw {
   // 基础字段
+  id?: number | string;
   marketplace?: string;
   asin: string;
   month?: string;
@@ -88,6 +89,9 @@ export interface CompetitorProductRaw {
 
   // 批次日期
   batchDate?: string;
+
+  /** 该父群组下的变体行数（清洗表代表行场景下回填，原表场景为单行计数） */
+  variantCount?: number;
 }
 
 export interface CompetitorListParams {
@@ -131,6 +135,11 @@ export interface CompetitorListParams {
    * 每条三字段各自可选：上架天数上限 / 月销量下限(严格大于) / BSR 排名上限。
    */
   qualifyRules?: QualifyRule[];
+  /**
+   * 是否查询清洗表（competitor_products_clean，按父 ASIN 去重后的代表行）。
+   * 默认 true：列表去变体污染；false 走原始 competitor_products，仍可看到所有变体。
+   */
+  useCleanTable?: boolean;
 }
 
 /** 单条合格规则：内部条件 AND 组合 */

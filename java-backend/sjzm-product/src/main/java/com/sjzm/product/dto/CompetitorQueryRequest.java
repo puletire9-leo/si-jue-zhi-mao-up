@@ -78,6 +78,12 @@ public class CompetitorQueryRequest {
     /** 周批次多选（取代单值 createdWeek） */
     private List<String> createdWeeks;
 
+    /**
+     * 是否查询清洗表（competitor_products_clean，按父 ASIN 去重后的代表行）。
+     * 默认 true：列表去变体污染；false 走原始 competitor_products，仍可看到所有变体。
+     */
+    private Boolean useCleanTable = true;
+
     /** 销量区间 */
     @Min(0)
     private Integer unitsMin;

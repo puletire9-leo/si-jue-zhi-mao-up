@@ -192,7 +192,7 @@
           <!-- 评分配置面板 -->
           <ScoringConfigPanel v-if="activeTab === 'all'" />
 
-          <!-- 置顶开关 -->
+          <!-- 置顶开关 + 清洗表开关 -->
           <div class="variant-filter-bar">
             <span class="filter-label">选中置顶</span>
             <el-switch
@@ -200,6 +200,21 @@
               size="small"
               :active-action-icon="Top"
               :inactive-action-icon="Bottom"
+            />
+            <el-tooltip
+              v-if="activeTab !== 'zheng'"
+              placement="top"
+              content="开启后只显示父群组代表行（去变体污染）；关闭后展示原始所有变体"
+            >
+              <span class="filter-label" style="margin-left: 16px">
+                清洗数据
+              </span>
+            </el-tooltip>
+            <el-switch
+              v-if="activeTab !== 'zheng'"
+              v-model="useCleanTable"
+              size="small"
+              @change="onUseCleanTableChange"
             />
           </div>
 
@@ -343,12 +358,13 @@
             </div>
           </div>
 
-          <!-- 区间筛选面板（绑定 draftFilters.range，不即时查询；周批次依站点联动） -->
+          <!-- 区间筛选面板（绑定 draftFilters.range，不即时查询；周批次依站点 + 来源联动） -->
           <div class="fd-section">
             <div class="fd-label">区间与维度</div>
             <RangeFilterPanel
               v-model="draftFilters.range"
               :country="activeFilters.country || 'UK'"
+              :source="currentSource"
               embedded
             />
           </div>
@@ -955,6 +971,26 @@ const getSectionTitle = (): string => {
 const productList = ref([]);
 const selectedIds = ref([]);
 const pinSelected = ref(false);
+/**
+ * 是否查询清洗表（按父 ASIN 去重后的代表行）。
+ * 默认 true：消费 competitor_products_clean，避免变体污染。
+ * zheng tab 走独立接口（deng_zong_shop 自己已去重），开关对它无效。
+ */
+const useCleanTable = ref(true);
+const onUseCleanTableChange = () => {
+  pagination.page = 1;
+  loadProducts();
+};
+/** 当前 tab 对应的 source 字符串（与 sourceMap 保持一致），供 RangeFilterPanel 拉同口径的周列表 */
+const currentSource = computed(() => {
+  const m: Record<string, string> = {
+    new: "新品榜",
+    reference: "竞品店铺",
+    zheng: "郑总店铺",
+    all: "",
+  };
+  return m[activeTab.value] || "";
+});
 const mySelections = ref<Set<string>>(new Set());
 const selectionUsersMap = ref<
   Record<string, { userId: number; userName: string }[]>
@@ -1214,10 +1250,11 @@ const loadProducts = async (params?: SelectionQueryParams) => {
       productList.value = (res.data?.list || []).map(normalizeProduct);
       pagination.total = res.data?.total || 0;
     } else {
-      // 调用 Java 后端 competitor API（扁平路径：一变体一卡，无折叠）
+      // 调用 Java 后端 competitor API（默认按父 ASIN 去重，避免变体污染）
       const competitorParams: any = {
         ...apiParams,
         source: source || undefined,
+        useCleanTable: useCleanTable.value,
       };
       // 面板区间直接映射为请求字段
       const rf = activeFilters.value.range;
@@ -1240,7 +1277,7 @@ const loadProducts = async (params?: SelectionQueryParams) => {
         if (rf.createdWeeks?.length > 0)
           competitorParams.createdWeeks = rf.createdWeeks;
       }
-      // 默认按最新周过滤；若面板已选周则跳过
+      // 默认按最新周过滤；若面板已选周则跳过。批次列表口径与 source 对齐。
       if (
         !competitorParams.createdWeeks &&
         !competitorParams.month &&
