@@ -13,6 +13,8 @@ import java.util.stream.Collectors;
 public class ProductLineTreeService {
 
     static final int MIN_ZENG = 3;
+    static final String ZHENG_METHOD_ID = "M02";
+    static final String ZHENG_METHOD_NAME = "郑总同行品线跟随法";
 
     private final ForbiddenCategoryService forbiddenCategoryService;
     private final CompetitorProductMapper competitorProductMapper;
@@ -21,15 +23,9 @@ public class ProductLineTreeService {
 
     public Map<String, Object> getTree(String marketplace, String month) {
         List<Map<String, Object>> l2Rows = competitorProductMapper.countByNodeId(marketplace, month);
-        String zhengBatchDate = dengZongShopService.getMaxBatchDate(marketplace);
-
-        Map<String, Integer> zhengCounts = loadZhengCounts(marketplace, zhengBatchDate);
-        List<String> zhengBsrIdOrder = loadZhengBsrIdOrder(marketplace, zhengBatchDate);
-
-        Map<String, Object> tree = buildTree(l2Rows, zhengCounts, zhengBsrIdOrder);
+        Map<String, Object> tree = buildTree(l2Rows, new HashMap<>(), new ArrayList<>(), false);
         tree.put("marketplace", marketplace);
         tree.put("month", month);
-        tree.put("zhengBatchDate", zhengBatchDate);
         return tree;
     }
 
@@ -42,7 +38,8 @@ public class ProductLineTreeService {
     public Map<String, Object> buildTree(
             List<Map<String, Object>> l2Rows,
             Map<String, Integer> zhengCounts,
-            List<String> zhengBsrIdOrder) {
+            List<String> zhengBsrIdOrder,
+            boolean useZhengMethod) {
 
         List<Map<String, Object>> rows = l2Rows.stream()
                 .filter(r -> r.get("bsrId") != null)
@@ -62,15 +59,17 @@ public class ProductLineTreeService {
             children.sort((a, b) -> {
                 int aZc = zhengCounts.getOrDefault(bsrId + "_" + a.get("nodeId"), 0);
                 int bZc = zhengCounts.getOrDefault(bsrId + "_" + b.get("nodeId"), 0);
-                if (aZc != bZc) return Integer.compare(bZc, aZc);
+                if (useZhengMethod && aZc != bZc) return Integer.compare(bZc, aZc);
                 int countA = ((Number) a.get("productCount")).intValue();
                 int countB = ((Number) b.get("productCount")).intValue();
                 return Integer.compare(countB, countA);
             });
             children.forEach(child -> {
-                int zc = zhengCounts.getOrDefault(bsrId + "_" + child.get("nodeId"), 0);
-                child.put("isZheng", zc >= MIN_ZENG);
-                child.put("zhengCount", zc);
+                if (useZhengMethod) {
+                    int zc = zhengCounts.getOrDefault(bsrId + "_" + child.get("nodeId"), 0);
+                    child.put("methodHit", zc >= MIN_ZENG);
+                    child.put("methodHitCount", zc);
+                }
             });
 
             Map<String, Object> line = new LinkedHashMap<>();
@@ -80,18 +79,20 @@ public class ProductLineTreeService {
             line.put("subCategories", children);
             boolean lineHasZheng = children.stream().anyMatch(c ->
                     zhengCounts.getOrDefault(bsrId + "_" + c.get("nodeId"), 0) >= MIN_ZENG);
-            line.put("isZheng", lineHasZheng);
-            line.put("zhengCount", children.stream()
-                    .mapToInt(c -> zhengCounts.getOrDefault(bsrId + "_" + c.get("nodeId"), 0)).sum());
+            if (useZhengMethod) {
+                line.put("methodHit", lineHasZheng);
+                line.put("methodHitCount",
+                        children.stream().mapToInt(c -> zhengCounts.getOrDefault(bsrId + "_" + c.get("nodeId"), 0)).sum());
+            }
             lines.add(line);
         }
 
         lines.sort((a, b) -> {
             int aIdx = zhengBsrIdOrder.indexOf((String) a.get("bsrId"));
             int bIdx = zhengBsrIdOrder.indexOf((String) b.get("bsrId"));
-            if (aIdx >= 0 && bIdx >= 0) return Integer.compare(aIdx, bIdx);
-            if (aIdx >= 0) return -1;
-            if (bIdx >= 0) return 1;
+            if (useZhengMethod && aIdx >= 0 && bIdx >= 0) return Integer.compare(aIdx, bIdx);
+            if (useZhengMethod && aIdx >= 0) return -1;
+            if (useZhengMethod && bIdx >= 0) return 1;
             int countA = ((Number) a.get("productCount")).intValue();
             int countB = ((Number) b.get("productCount")).intValue();
             return Integer.compare(countB, countA);

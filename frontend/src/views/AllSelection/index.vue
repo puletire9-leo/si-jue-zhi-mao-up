@@ -248,6 +248,52 @@
           @reset="handleDrawerReset"
           @confirm="handleDrawerConfirm"
         >
+          <!-- 业务筛选方法 -->
+          <div class="fd-section">
+            <div class="fd-label">业务筛选方法</div>
+            <div class="method-card method-card--m01">
+              <div class="method-card__body">
+                <div class="method-card__head">
+                  <div class="method-card__name">M01 新品榜加速法</div>
+                  <el-tag
+                    v-if="activeMethodCard?.id === 'M01'"
+                    type="success"
+                    effect="light"
+                    size="small"
+                  >
+                    已应用
+                  </el-tag>
+                </div>
+                <div class="method-card__desc">
+                  clean 表去变体污染后，按价格带、重量、上架天数、销量分段或 BSR 代理筛出新品候选。
+                </div>
+                <div class="method-card__meta">
+                  <span>适合：新品榜快筛</span>
+                  <span>站点：UK / DE</span>
+                  <span>输出：候选 + 命中原因</span>
+                </div>
+              </div>
+              <div class="method-card__actions">
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="loading && activeMethodCard?.id === 'M01'"
+                  @click="applyM01Method"
+                >
+                  应用方法
+                </el-button>
+                <el-button
+                  v-if="activeMethodCard"
+                  size="small"
+                  link
+                  @click="clearMethodCard"
+                >
+                  退出方法
+                </el-button>
+              </div>
+            </div>
+          </div>
+
           <!-- 卖家 -->
           <div class="fd-section">
             <div class="fd-label">卖家</div>
@@ -812,6 +858,7 @@ import {
   normalizeProduct,
   getCreatedWeeks,
 } from "@/api/competitor";
+import { methodCardsApi } from "@/api/methodCards";
 import type { QualifyRule } from "@/api/competitor";
 import {
   fetchMySelections,
@@ -840,6 +887,7 @@ const NEW_TAB_DEFAULT_RULES: QualifyRule[] = [
   },
 ];
 const newQualifyRules = ref<QualifyRule[]>([...NEW_TAB_DEFAULT_RULES]);
+const activeMethodCard = ref<{ id: "M01"; name: string } | null>(null);
 
 // 应用新品榜规则并重新加载
 const onNewRulesApply = (rules: QualifyRule[]) => {
@@ -1134,6 +1182,21 @@ const loadProducts = async (params?: SelectionQueryParams) => {
     };
     const source = sourceMap[activeTab.value] || "";
 
+    if (activeMethodCard.value?.id === "M01") {
+      const marketplace = normalizeM01Marketplace(
+        apiParams.marketplace || activeFilters.value.country,
+      );
+      const res = await methodCardsApi.getM01Products({
+        marketplace,
+        page: pagination.page,
+        size: pagination.size,
+      });
+      productList.value = (res.data?.list || []).map(normalizeProduct);
+      pagination.total = res.data?.total || 0;
+      await loadSelections();
+      return;
+    }
+
     // 郑总店铺走独立接口（deng_zong_shop 表）
     if (activeTab.value === "zheng") {
       const dengParams: any = {
@@ -1234,6 +1297,26 @@ const loadProducts = async (params?: SelectionQueryParams) => {
     loading.value = false;
     hasLoaded.value = true;
   }
+};
+
+const normalizeM01Marketplace = (value?: string): "UK" | "DE" => {
+  return value === "DE" ? "DE" : "UK";
+};
+
+const applyM01Method = () => {
+  activeMethodCard.value = { id: "M01", name: "新品榜加速法" };
+  activeTab.value = "new";
+  activeFilters.value.country = normalizeM01Marketplace(activeFilters.value.country);
+  filterDrawerVisible.value = false;
+  pagination.page = 1;
+  loadProducts();
+};
+
+const clearMethodCard = () => {
+  activeMethodCard.value = null;
+  filterDrawerVisible.value = false;
+  pagination.page = 1;
+  loadProducts();
 };
 
 /**
@@ -1558,6 +1641,11 @@ const COUNTRY_LABEL: Record<string, string> = {
 const activeFilterChips = computed<FilterChip[]>(() => {
   const chips: FilterChip[] = [];
   const af = activeFilters.value;
+  if (activeMethodCard.value)
+    chips.push({
+      key: "methodCard",
+      label: `方法: M01 ${activeMethodCard.value.name}`,
+    });
   if (af.country)
     chips.push({
       key: "country",
@@ -1612,6 +1700,9 @@ const removeChip = (key: string) => {
   const af = cloneFilterState(activeFilters.value);
   const rf = af.range;
   switch (key) {
+    case "methodCard":
+      activeMethodCard.value = null;
+      break;
     case "country":
       af.country = "";
       break;
@@ -1660,6 +1751,7 @@ const removeChip = (key: string) => {
 
 // 清除全部筛选（即时生效）
 const clearAllFilters = () => {
+  activeMethodCard.value = null;
   activeFilters.value = {
     country: activeFilters.value.country,
     sellerSelect: "",
@@ -2367,6 +2459,59 @@ onUnmounted(() => {
   .fd-sort-row {
     display: flex;
     align-items: center;
+  }
+}
+
+.method-card {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #d8e8df;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f3fbf5 0%, #eef7ff 100%);
+
+  &__body {
+    min-width: 0;
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  &__name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1f2f25;
+  }
+
+  &__desc {
+    margin-top: 6px;
+    color: #52645a;
+    line-height: 1.6;
+    font-size: 13px;
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+    color: #3b8060;
+    font-size: 12px;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 8px;
+    flex-direction: column;
+    flex-shrink: 0;
   }
 }
 
