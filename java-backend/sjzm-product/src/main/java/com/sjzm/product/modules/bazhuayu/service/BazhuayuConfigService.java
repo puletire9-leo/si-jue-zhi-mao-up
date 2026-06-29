@@ -48,10 +48,14 @@ public class BazhuayuConfigService {
      * 多个任务组的站点条目会合并（同站点后者覆盖前者）。
      */
     public Map<String, String> getMarketplaceTaskMap() {
+        // DB(api_config) 优先，缺失时回退配置文件(env)
         String json = readConfig(KEY_TASK_MAPPING);
+        if (json == null || json.isBlank()) {
+            json = config.getTaskMappingJson();
+        }
         Map<String, String> flat = new LinkedHashMap<>();
         if (json == null || json.isBlank()) {
-            log.warn("八爪鱼任务映射未配置（api_config.{}），无法自动采集", KEY_TASK_MAPPING);
+            log.warn("八爪鱼任务映射未配置（api_config.{} 或 BAZHUAYU_TASKGROUP_MAPPING），无法自动采集", KEY_TASK_MAPPING);
             return flat;
         }
         try {
