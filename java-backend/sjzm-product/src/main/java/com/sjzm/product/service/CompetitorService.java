@@ -452,13 +452,64 @@ public class CompetitorService {
         // 动态排序（白名单列名）
         applySort(wrapper, request.getSortBy(), request.getSortOrder());
 
+        // 数据源切换：默认查清洗表（按父 ASIN 去重的代表行）；false 走原始表。
+        // 清洗表场景下 maxVariantCount 无意义（已去重，每父群组只 1 行），交由前端隐藏开关。
+        boolean useClean = !Boolean.FALSE.equals(request.getUseCleanTable());
+
+        // maxVariantCount 仅在原始表场景生效：用 dedup_key 子查询限定变体数 ≤ 阈值
+        if (!useClean && request.getMaxVariantCount() != null) {
+            String marketplaceForVc = request.getMarketplace();
+            if (StringUtils.hasText(marketplaceForVc)) {
+                wrapper.apply(
+                    "COALESCE(NULLIF(parent_asin,''), asin) IN ("
+                    + "SELECT t.k FROM ("
+                    + "  SELECT COALESCE(NULLIF(parent_asin,''), asin) AS k, COUNT(*) AS c"
+                    + "  FROM competitor_products WHERE marketplace = {0} AND title IS NOT NULL"
+                    + "  GROUP BY COALESCE(NULLIF(parent_asin,''), asin)"
+                    + "  HAVING c <= {1}"
+                    + ") t)",
+                    marketplaceForVc, request.getMaxVariantCount());
+            }
+        }
+
         // 手动分页（避免 MyBatis-Plus count 查询问题）
-        long total = productMapper.selectCount(wrapper);
+        long total;
         int offset = (request.getPage() - 1) * request.getSize();
         int size = Math.max(1, Math.min(request.getSize(), 100)); // 限制最大100
-        wrapper.last("LIMIT " + offset + "," + size);
+        List<CompetitorProduct> records;
+        if (useClean) {
+            total = productMapper.selectCountFromClean(wrapper);
+            wrapper.last("LIMIT " + offset + "," + size);
+            records = productMapper.selectListFromClean(wrapper);
+        } else {
+            total = productMapper.selectCount(wrapper);
+            wrapper.last("LIMIT " + offset + "," + size);
+            records = productMapper.selectList(wrapper);
+        }
 
-        List<CompetitorProduct> records = productMapper.selectList(wrapper);
+        // 回填变体数：用 (marketplace, dedup_key) 批量统计原表中每个父群组下的变体行数。
+        // 清洗表场景下这是用户最关心的信息（一行代表 vs 实际 N 个变体）。
+        if (!records.isEmpty() && StringUtils.hasText(request.getMarketplace())) {
+            List<String> dedupKeys = records.stream()
+                    .map(p -> {
+                        String parent = p.getParentAsin();
+                        return (parent == null || parent.isEmpty()) ? p.getAsin() : parent;
+                    })
+                    .distinct()
+                    .collect(Collectors.toList());
+            Map<String, Long> variantCountMap = productMapper.selectVariantCountsByDedupKeys(
+                            request.getMarketplace(), dedupKeys)
+                    .stream()
+                    .collect(Collectors.toMap(
+                            row -> String.valueOf(row.get("dedupKey")),
+                            row -> ((Number) row.get("variantCount")).longValue()));
+            for (CompetitorProduct p : records) {
+                String parent = p.getParentAsin();
+                String key = (parent == null || parent.isEmpty()) ? p.getAsin() : parent;
+                Long cnt = variantCountMap.get(key);
+                p.setVariantCount(cnt != null ? cnt.intValue() : 1);
+            }
+        }
 
         // 批量查子类目，避免 N+1
         List<Long> productIds = records.stream().map(CompetitorProduct::getId).collect(Collectors.toList());
@@ -536,6 +587,7 @@ public class CompetitorService {
                 .sellerId(p.getSellerId())
                 .createdAt(p.getCreatedAt() != null ? p.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : null)
                 .shopLink(buildShopLink(p.getSellerId(), p.getMarketplace()))
+                .variantCount(p.getVariantCount())
                 .subcategories(subs)
                 .build();
     }
