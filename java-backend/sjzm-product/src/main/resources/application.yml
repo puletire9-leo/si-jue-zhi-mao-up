@@ -74,6 +74,7 @@ bazhuayu:
   status-poll-interval-seconds: ${BAZHUAYU_POLL_INTERVAL:5}
   extraction-timeout-minutes: ${BAZHUAYU_EXTRACT_TIMEOUT:60}
   data-page-size: ${BAZHUAYU_PAGE_SIZE:1000}
+  drain-max-rows: ${BAZHUAYU_DRAIN_MAX_ROWS:100000}
   task-mapping-json: ${BAZHUAYU_TASKGROUP_MAPPING:}
 
 management:

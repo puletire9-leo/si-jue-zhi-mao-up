@@ -7,6 +7,7 @@ import com.sjzm.product.entity.AsinImportTask;
 import com.sjzm.product.mapper.AsinImportTaskMapper;
 import com.sjzm.product.mapper.BazhuayuWeeklyRawMapper;
 import com.sjzm.product.modules.bazhuayu.entity.BazhuayuWeeklyRaw;
+import com.sjzm.product.modules.bazhuayu.service.BazhuayuClient;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuConfigService;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuScheduledService;
 import com.sjzm.product.service.ScoringService;
@@ -33,6 +34,7 @@ public class BazhuayuController {
 
     private final BazhuayuScheduledService scheduledService;
     private final BazhuayuConfigService configService;
+    private final BazhuayuClient client;
     private final BazhuayuWeeklyRawMapper rawMapper;
     private final AsinImportTaskMapper taskMapper;
     private final ScoringService scoringService;
@@ -108,6 +110,18 @@ public class BazhuayuController {
             throw new IllegalArgumentException("映射序列化失败: " + e.getMessage());
         }
         return Result.success();
+    }
+
+    @PostMapping("/mark-all-exported")
+    @Operation(summary = "清积压(方案Y)：把历史未导出数据全标记已导出，不入库。⚠️不可逆")
+    public Result<Map<String, Object>> markAllExported(@RequestParam String marketplace) {
+        Map<String, String> taskMap = configService.getMarketplaceTaskMap();
+        String taskId = taskMap.get(marketplace);
+        if (taskId == null) {
+            throw new IllegalArgumentException("站点 " + marketplace + " 未在八爪鱼任务映射中配置");
+        }
+        int marked = client.markAllExported(taskId);
+        return Result.success(Map.of("marketplace", marketplace, "markedRows", marked));
     }
 
     /** 本周一 00:00（用于按创建时间过滤本周任务） */

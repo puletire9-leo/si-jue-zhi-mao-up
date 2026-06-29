@@ -3,6 +3,7 @@ package com.sjzm.product.modules.bazhuayu.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.toolkit.Db;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.sjzm.product.modules.bazhuayu.config.BazhuayuConfig;
 import com.sjzm.product.modules.bazhuayu.entity.BazhuayuWeeklyRaw;
 import com.sjzm.product.mapper.BazhuayuWeeklyRawMapper;
 import com.sjzm.product.service.AsinImportService;
@@ -35,6 +36,7 @@ public class BazhuayuScheduledService {
 
     private final BazhuayuClient client;
     private final BazhuayuConfigService configService;
+    private final BazhuayuConfig config;
     private final BazhuayuWeeklyRawMapper rawMapper;
     private final AsinImportService asinImportService;
     private final ScoringService scoringService;
@@ -42,12 +44,14 @@ public class BazhuayuScheduledService {
 
     public BazhuayuScheduledService(BazhuayuClient client,
                                     BazhuayuConfigService configService,
+                                    BazhuayuConfig config,
                                     BazhuayuWeeklyRawMapper rawMapper,
                                     AsinImportService asinImportService,
                                     ScoringService scoringService,
                                     @Qualifier("sellerImportExecutor") ThreadPoolTaskExecutor executor) {
         this.client = client;
         this.configService = configService;
+        this.config = config;
         this.rawMapper = rawMapper;
         this.asinImportService = asinImportService;
         this.scoringService = scoringService;
@@ -118,14 +122,11 @@ public class BazhuayuScheduledService {
         return Map.of("weekTag", weekTag, "results", results);
     }
 
-    /** 单站点：启动云采集 → 等完成 → 流式拉取(逐页落周表+喂初筛，不堆全量) */
+    /** 单站点：增量 drain 未导出数据(逐页落周表+喂初筛，markexported 游标式增量) */
     private Map<String, Object> collectAndScreen(String mp, String taskId, String weekTag) {
-        log.info("站点 {} 开始采集，八爪鱼任务 {}", mp, taskId);
-        String lotNo = client.startExtraction(taskId);
-        boolean finished = client.waitForExtraction(taskId);
-        if (!finished) {
-            return Map.of("status", "EXTRACT_TIMEOUT", "lotNo", lotNo == null ? "" : lotNo);
-        }
+        log.info("站点 {} 开始增量采集，八爪鱼任务 {}", mp, taskId);
+        // 不再 startExtraction/waitForExtraction —— 八爪鱼云端自带每日定时采集，
+        // 我们只取「未导出」增量（notexported + markexported 游标）。
 
         // 重跑幂等：先删本站点本周旧行，之后逐页追加
         rawMapper.delete(new LambdaQueryWrapper<BazhuayuWeeklyRaw>()
@@ -134,10 +135,9 @@ public class BazhuayuScheduledService {
 
         AsinImportService.StreamingFilterContext ctx =
                 asinImportService.createStreamingTask(mp, IMPORT_TYPE);
-        final String lot = lotNo;
 
-        // 流式：每页 → 写周表(含 raw_json)即丢 + 轻量行喂流式初筛
-        int totalRaw = client.fetchAllDataStreaming(taskId, page -> {
+        // 增量 drain：每页 → 写周表(含 raw_json)即丢 + 轻量行喂流式初筛 → markexported
+        int totalRaw = client.drainNotExported(taskId, page -> {
             List<BazhuayuWeeklyRaw> pageEntities = new ArrayList<>(page.size());
             List<Map<String, String>> shapedRows = new ArrayList<>(page.size());
             Set<String> pageSeen = new HashSet<>();
@@ -157,7 +157,7 @@ public class BazhuayuScheduledService {
                 e.setTitle(title);
                 e.setRawJson(raw.toString());
                 e.setWeekTag(weekTag);
-                e.setLotNo(lot);
+                e.setLotNo(null);   // 增量模式无单批次 lotNo
                 e.setScrapedAt(LocalDateTime.now());
                 pageEntities.add(e);
 
@@ -166,13 +166,12 @@ public class BazhuayuScheduledService {
             if (!pageEntities.isEmpty()) Db.saveBatch(pageEntities, DB_BATCH_SIZE);
             asinImportService.filterPageAndAppend(ctx, shapedRows);
             // page/pageEntities/shapedRows 出作用域即可被 GC，raw_json 不全量驻留
-        });
+        }, config.getDrainMaxRows());
 
         Map<String, Object> preview = asinImportService.finishStreamingTask(ctx);
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("status", "READY");
         r.put("rawCount", totalRaw);
-        r.put("lotNo", lotNo);
         r.putAll(preview);
         return r;
     }

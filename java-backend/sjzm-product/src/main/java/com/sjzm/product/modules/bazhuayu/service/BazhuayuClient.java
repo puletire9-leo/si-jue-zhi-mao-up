@@ -207,6 +207,78 @@ public class BazhuayuClient {
     }
 
     // ============================================================
+    // 增量拉取：notexported + markexported（游标式，只取未导出新数据）
+    // ============================================================
+
+    /**
+     * 拉取一页未导出数据（最旧的 size 条，FIFO）。不自动标记。
+     * @return 该页数据行；总量另查 total（此处只返回行，调用方按空判断停止）
+     */
+    public List<JsonNode> getNotExportedPage(String taskId, int size) {
+        int s = Math.min(1000, Math.max(1, size));
+        JsonNode data = get("/data/notexported?taskId=" + enc(taskId) + "&size=" + s).path("data");
+        List<JsonNode> page = new ArrayList<>();
+        JsonNode rows = data.path("data");
+        if (rows.isArray()) rows.forEach(page::add);
+        return page;
+    }
+
+    /** 标记"刚被 notexported 取走的那批"为已导出（游标前移，下次 notexported 跳过它们）。 */
+    public void markExported(String taskId) {
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("taskId", taskId);
+        post("/data/markexported", body, true);
+    }
+
+    /**
+     * 增量 drain：循环 拉一页未导出 → 处理成功 → markExported → 重复，直到空或达上限。
+     * 内存恒定（每轮只一页），已导出的下次不再返回，天然增量。
+     *
+     * 关键顺序：**先 pageHandler 处理落库成功，再 markExported**。
+     * 处理抛异常则不标记，该页下次重试（at-least-once，靠库内唯一键 + skip_asins 幂等）。
+     *
+     * @param taskId      任务 Id
+     * @param pageHandler 每页处理回调（写周表 + 喂初筛）
+     * @param maxRows     本次最多处理行数，<=0 表示不限（首次清历史积压用）
+     * @return 实际处理行数
+     */
+    public int drainNotExported(String taskId, java.util.function.Consumer<List<JsonNode>> pageHandler, int maxRows) {
+        int size = Math.min(1000, Math.max(1, config.getDataPageSize()));
+        int processed = 0;
+        while (maxRows <= 0 || processed < maxRows) {
+            List<JsonNode> page = getNotExportedPage(taskId, size);
+            if (page.isEmpty()) break;            // 无未导出数据，结束
+            pageHandler.accept(page);             // 先处理落库（失败抛异常，不标记）
+            markExported(taskId);                 // 成功后才标记，游标前移
+            processed += page.size();
+            if (page.size() < size) break;        // 末页（不足整页）
+            sleep2s();                            // 翻页间隔，避免 429
+        }
+        log.info("八爪鱼任务 {} 增量 drain 共处理 {} 行", taskId, processed);
+        return processed;
+    }
+
+    /**
+     * 清积压：循环 notexported→markexported 把历史未导出数据全部标记已导出，**不处理不入库**。
+     * 用于方案 Y——丢弃历史积压，从下一个采集批次起正常增量。
+     * @return 标记掉的行数
+     */
+    public int markAllExported(String taskId) {
+        int size = Math.min(1000, Math.max(1, config.getDataPageSize()));
+        int marked = 0;
+        while (true) {
+            List<JsonNode> page = getNotExportedPage(taskId, size);
+            if (page.isEmpty()) break;
+            markExported(taskId);
+            marked += page.size();
+            if (page.size() < size) break;
+            sleep2s();
+        }
+        log.info("八爪鱼任务 {} 清积压：标记已导出 {} 行", taskId, marked);
+        return marked;
+    }
+
+    // ============================================================
     // HTTP 底层
     // ============================================================
 
@@ -256,7 +328,8 @@ public class BazhuayuClient {
         }
     }
 
-    private void sleep2s() {
+    /** 翻页间隔（package-private 非 final，便于单测 spy 覆盖跳过真实 sleep） */
+    void sleep2s() {
         try {
             Thread.sleep(2000);
         } catch (InterruptedException e) {
