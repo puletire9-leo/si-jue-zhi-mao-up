@@ -307,6 +307,48 @@
                 </el-button>
               </div>
             </div>
+
+            <div class="method-card method-card--m02">
+              <div class="method-card__body">
+                <div class="method-card__head">
+                  <div class="method-card__name">M02 郑总同行品线跟随法</div>
+                  <el-tag
+                    v-if="activeMethodCard?.id === 'M02'"
+                    type="success"
+                    effect="light"
+                    size="small"
+                  >
+                    已应用
+                  </el-tag>
+                </div>
+                <div class="method-card__desc">
+                  用郑总同行店铺最新批次作为基准盘子，筛选同行已经验证过的候选商品。
+                </div>
+                <div class="method-card__meta">
+                  <span>适合：同行跟随 / 选品优先级</span>
+                  <span>数据源：deng_zong_shop</span>
+                  <span>输出：候选 + 命中原因</span>
+                </div>
+              </div>
+              <div class="method-card__actions">
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="loading && activeMethodCard?.id === 'M02'"
+                  @click="applyM02Method"
+                >
+                  应用方法
+                </el-button>
+                <el-button
+                  v-if="activeMethodCard"
+                  size="small"
+                  link
+                  @click="clearMethodCard"
+                >
+                  退出方法
+                </el-button>
+              </div>
+            </div>
           </div>
 
           <!-- 卖家 -->
@@ -903,7 +945,7 @@ const NEW_TAB_DEFAULT_RULES: QualifyRule[] = [
   },
 ];
 const newQualifyRules = ref<QualifyRule[]>([...NEW_TAB_DEFAULT_RULES]);
-const activeMethodCard = ref<{ id: "M01"; name: string } | null>(null);
+const activeMethodCard = ref<{ id: "M01" | "M02"; name: string } | null>(null);
 
 // 应用新品榜规则并重新加载
 const onNewRulesApply = (rules: QualifyRule[]) => {
@@ -1233,6 +1275,21 @@ const loadProducts = async (params?: SelectionQueryParams) => {
       return;
     }
 
+    if (activeMethodCard.value?.id === "M02") {
+      const marketplace = normalizeM01Marketplace(
+        apiParams.marketplace || activeFilters.value.country,
+      );
+      const res = await methodCardsApi.getM02Products({
+        marketplace,
+        page: pagination.page,
+        size: pagination.size,
+      });
+      productList.value = (res.data?.list || []).map(normalizeProduct);
+      pagination.total = res.data?.total || 0;
+      await loadSelections();
+      return;
+    }
+
     // 郑总店铺走独立接口（deng_zong_shop 表）
     if (activeTab.value === "zheng") {
       const dengParams: any = {
@@ -1343,6 +1400,14 @@ const normalizeM01Marketplace = (value?: string): "UK" | "DE" => {
 const applyM01Method = () => {
   activeMethodCard.value = { id: "M01", name: "新品榜加速法" };
   activeTab.value = "new";
+  activeFilters.value.country = normalizeM01Marketplace(activeFilters.value.country);
+  filterDrawerVisible.value = false;
+  pagination.page = 1;
+  loadProducts();
+};
+
+const applyM02Method = () => {
+  activeMethodCard.value = { id: "M02", name: "郑总同行品线跟随法" };
   activeFilters.value.country = normalizeM01Marketplace(activeFilters.value.country);
   filterDrawerVisible.value = false;
   pagination.page = 1;
@@ -1681,7 +1746,7 @@ const activeFilterChips = computed<FilterChip[]>(() => {
   if (activeMethodCard.value)
     chips.push({
       key: "methodCard",
-      label: `方法: M01 ${activeMethodCard.value.name}`,
+      label: `方法: ${activeMethodCard.value.id} ${activeMethodCard.value.name}`,
     });
   if (af.country)
     chips.push({
