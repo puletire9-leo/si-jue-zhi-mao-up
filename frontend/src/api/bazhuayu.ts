@@ -41,14 +41,68 @@ export interface BazhuayuTask {
   createdAt: string
 }
 
+/** 一条龙运行阶段 */
+export type BazhuayuPhase =
+  | 'IDLE' | 'STARTING' | 'WAITING_CLOUD' | 'DRAINING'
+  | 'DONE' | 'ERROR' | 'TIMEOUT' | 'STOPPED'
+
+/** 单任务一条龙运行态（后端内存态） */
+export interface BazhuayuRunState {
+  taskKey: string
+  function: string          // 'bangdan' | 'yitushitu'
+  marketplace: string
+  taskId: string
+  phase: BazhuayuPhase
+  lotNo: string | null
+  cloudExtractCount: number
+  drainedRows: number
+  error: string | null
+  cancelRequested: boolean
+  startedAt: number
+  updatedAt: number
+}
+
+/** 启动云端采集结果 */
+export interface StartCollectResp {
+  function: string
+  accepted: string[]   // 已启动的站点
+  skipped: string[]    // 正在跑被跳过
+  missing: string[]    // 未配置 taskId
+}
+
 export const bazhuayuApi = {
-  /** 手动触发一次采集+初筛（异步） */
+  /** 读取已采数据：手动触发一次 drain 增量（异步，不启动云端） */
   trigger(marketplace?: string): Promise<{ status: string; marketplace: string }> {
     return request({
       url: '/api/v1/modules/bazhuayu/trigger',
       method: 'post',
       params: marketplace ? { marketplace } : {}
     })
+  },
+
+  /** 启动云端采集一条龙（启动→等待→榜单则入库初筛，全异步） */
+  startCollect(func: string, marketplace?: string): Promise<StartCollectResp> {
+    return request({
+      url: '/api/v1/modules/bazhuayu/start-collect',
+      method: 'post',
+      params: { function: func, ...(marketplace ? { marketplace } : {}) }
+    })
+  },
+
+  /** 停止采集：协作式取消 + 调云端 stopExtraction */
+  stopCollect(func: string, marketplace: string): Promise<{
+    function: string; marketplace: string; stopped: boolean; cloudStopError?: string
+  }> {
+    return request({
+      url: '/api/v1/modules/bazhuayu/stop-collect',
+      method: 'post',
+      params: { function: func, marketplace }
+    })
+  },
+
+  /** 查询 6 任务一条龙运行态（前端轮询） */
+  runState(): Promise<BazhuayuRunState[]> {
+    return request({ url: '/api/v1/modules/bazhuayu/run-state', method: 'get' })
   },
 
   /** 分页查询本周原始采集数据 */
