@@ -29,8 +29,13 @@ public class BazhuayuConfigService {
 
     private static final String KEY_USERNAME = "bazhuayu_username";
     private static final String KEY_PASSWORD = "bazhuayu_password";
-    /** 任务组→站点→任务ID 映射，JSON：{"<groupId>":{"US":"<taskId>","UK":"...","DE":"..."}} */
+    /** 功能→站点→任务ID 映射，JSON：{"bangdan":{"US":"<taskId>",...},"yitushitu":{...}} */
     private static final String KEY_TASK_MAPPING = "bazhuayu_taskgroup_mapping";
+
+    /** 榜单采集功能键（一条龙 drain 入库初筛 + 现有定时） */
+    public static final String FUNC_BANGDAN = "bangdan";
+    /** 以图识图功能键（本期仅启停/监控，数据管道下一步） */
+    public static final String FUNC_YITUSHITU = "yitushitu";
 
     public String getUsername() {
         String db = readConfig(KEY_USERNAME);
@@ -43,31 +48,49 @@ public class BazhuayuConfigService {
     }
 
     /**
-     * 解析任务映射。返回 marketplace → taskId 的扁平映射。
-     * 配置形如 {"<groupId>":{"US":"<taskId>","UK":"<taskId>","DE":"<taskId>"}}，
-     * 多个任务组的站点条目会合并（同站点后者覆盖前者）。
+     * 解析任务映射。返回 marketplace → taskId 的扁平映射（**仅榜单功能**）。
+     * 现有定时 drain / "读取已采数据" 只针对榜单，故只取 bangdan 组，
+     * 避免以图识图同站点(US/UK/DE) taskId 覆盖榜单。
      */
     public Map<String, String> getMarketplaceTaskMap() {
-        // DB(api_config) 优先，缺失时回退配置文件(env)
+        Map<String, String> bangdan = parseMapping().get(FUNC_BANGDAN);
+        return bangdan != null ? new LinkedHashMap<>(bangdan) : new LinkedHashMap<>();
+    }
+
+    /**
+     * 按功能 + 站点取 taskId。function 为 {@link #FUNC_BANGDAN}/{@link #FUNC_YITUSHITU}。
+     * @return taskId，未配置返回 null
+     */
+    public String getTaskId(String function, String marketplace) {
+        Map<String, String> siteMap = parseMapping().get(function);
+        return siteMap != null ? siteMap.get(marketplace) : null;
+    }
+
+    /** 某功能下已配置的站点→taskId 映射（控制台按功能列任务用），未配置返回空。 */
+    public Map<String, String> getFunctionTaskMap(String function) {
+        Map<String, String> siteMap = parseMapping().get(function);
+        return siteMap != null ? new LinkedHashMap<>(siteMap) : new LinkedHashMap<>();
+    }
+
+    /**
+     * 解析整张映射 {function: {marketplace: taskId}}。DB(api_config) 优先，缺失回退 env。
+     * 解析失败或未配置返回空 map（调用方各自兜底）。
+     */
+    private Map<String, Map<String, String>> parseMapping() {
         String json = readConfig(KEY_TASK_MAPPING);
         if (json == null || json.isBlank()) {
             json = config.getTaskMappingJson();
         }
-        Map<String, String> flat = new LinkedHashMap<>();
         if (json == null || json.isBlank()) {
-            log.warn("八爪鱼任务映射未配置（api_config.{} 或 BAZHUAYU_TASKGROUP_MAPPING），无法自动采集", KEY_TASK_MAPPING);
-            return flat;
+            log.warn("八爪鱼任务映射未配置（api_config.{} 或 BAZHUAYU_TASKGROUP_MAPPING）", KEY_TASK_MAPPING);
+            return new LinkedHashMap<>();
         }
         try {
-            Map<String, Map<String, String>> byGroup =
-                    objectMapper.readValue(json, new TypeReference<>() {});
-            for (Map<String, String> siteMap : byGroup.values()) {
-                if (siteMap != null) flat.putAll(siteMap);
-            }
+            return objectMapper.readValue(json, new TypeReference<>() {});
         } catch (Exception e) {
             log.error("解析八爪鱼任务映射失败: {}", e.getMessage());
+            return new LinkedHashMap<>();
         }
-        return flat;
     }
 
     public void updateCredentials(String username, String password) {

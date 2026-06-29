@@ -116,6 +116,17 @@ public class BazhuayuClient {
         return data.path("lotNo").asText(null);
     }
 
+    /**
+     * 停止云采集（需旗舰+/企业/团队版权限）。
+     * 失败由 send() 抛含错误码+message 的异常，调用方透传给前端，不吞。
+     */
+    public void stopExtraction(String taskId) {
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("taskId", taskId);
+        post("/cloudextraction/stop", body, true);
+        log.info("八爪鱼任务 {} 已请求停止云采集", taskId);
+    }
+
     /** 批量获取任务状态 V2，返回单个任务的状态节点（取第一个匹配） */
     public JsonNode getTaskStatusV2(String taskId) {
         ObjectNode body = objectMapper.createObjectNode();
@@ -131,27 +142,50 @@ public class BazhuayuClient {
      * @return true=Finished, false=超时/停止
      */
     public boolean waitForExtraction(String taskId) {
+        return waitForExtraction(taskId, null, null) == WaitResult.FINISHED;
+    }
+
+    /** 等待结果，区分四种结局供上层置不同终态。 */
+    public enum WaitResult { FINISHED, TIMEOUT, STOPPED, CANCELLED }
+
+    /**
+     * 阻塞等待采集完成，带云端进度回调 + 协作式取消检查。
+     * 每轮把 currentTotalExtractCount 喂给 onProgress；每轮检查 cancelled，置位即提前返回 CANCELLED。
+     * @param onProgress 云端实时已采条数回调（可空）
+     * @param cancelled  取消标志查询（可空）；返回 true 则停止等待
+     */
+    public WaitResult waitForExtraction(String taskId,
+                                        java.util.function.IntConsumer onProgress,
+                                        java.util.function.BooleanSupplier cancelled) {
         long deadline = System.currentTimeMillis() + config.getExtractionTimeoutMinutes() * 60_000L;
         long intervalMs = Math.max(1, config.getStatusPollIntervalSeconds()) * 1000L;
         while (System.currentTimeMillis() < deadline) {
+            if (cancelled != null && cancelled.getAsBoolean()) {
+                log.info("八爪鱼任务 {} 等待期间收到取消请求", taskId);
+                return WaitResult.CANCELLED;
+            }
             try {
                 Thread.sleep(intervalMs);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return false;
+                return WaitResult.CANCELLED;
+            }
+            if (cancelled != null && cancelled.getAsBoolean()) {
+                return WaitResult.CANCELLED;
             }
             JsonNode status = getTaskStatusV2(taskId);
             String s = status.path("status").asText("");
-            log.info("八爪鱼任务 {} 状态: {} (已采集 {})", taskId, s,
-                    status.path("currentTotalExtractCount").asInt(0));
-            if ("Finished".equalsIgnoreCase(s)) return true;
+            int count = status.path("currentTotalExtractCount").asInt(0);
+            log.info("八爪鱼任务 {} 状态: {} (已采集 {})", taskId, s, count);
+            if (onProgress != null) onProgress.accept(count);
+            if ("Finished".equalsIgnoreCase(s)) return WaitResult.FINISHED;
             if ("Stopped".equalsIgnoreCase(s)) {
                 log.warn("八爪鱼任务 {} 已停止", taskId);
-                return false;
+                return WaitResult.STOPPED;
             }
         }
         log.warn("八爪鱼任务 {} 采集等待超时（{} 分钟）", taskId, config.getExtractionTimeoutMinutes());
-        return false;
+        return WaitResult.TIMEOUT;
     }
 
     /**
@@ -243,9 +277,23 @@ public class BazhuayuClient {
      * @return 实际处理行数
      */
     public int drainNotExported(String taskId, java.util.function.Consumer<List<JsonNode>> pageHandler, int maxRows) {
+        return drainNotExported(taskId, pageHandler, maxRows, null);
+    }
+
+    /**
+     * 带协作式取消的 drain。每页处理 + markExported 之后检查 cancelled，
+     * 置位即跳出循环——已处理已标记的保留，未拉取的留待下次（at-least-once 不变）。
+     * @param cancelled 取消标志查询（可空）
+     */
+    public int drainNotExported(String taskId, java.util.function.Consumer<List<JsonNode>> pageHandler,
+                                int maxRows, java.util.function.BooleanSupplier cancelled) {
         int size = Math.min(1000, Math.max(1, config.getDataPageSize()));
         int processed = 0;
         while (maxRows <= 0 || processed < maxRows) {
+            if (cancelled != null && cancelled.getAsBoolean()) {
+                log.info("八爪鱼任务 {} drain 收到取消请求，已处理 {} 行后停止", taskId, processed);
+                break;
+            }
             List<JsonNode> page = getNotExportedPage(taskId, size);
             if (page.isEmpty()) break;            // 无未导出数据，结束
             pageHandler.accept(page);             // 先处理落库（失败抛异常，不标记）

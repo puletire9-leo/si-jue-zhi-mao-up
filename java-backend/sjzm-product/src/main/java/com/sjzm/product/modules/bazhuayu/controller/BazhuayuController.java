@@ -9,6 +9,7 @@ import com.sjzm.product.mapper.BazhuayuWeeklyRawMapper;
 import com.sjzm.product.modules.bazhuayu.entity.BazhuayuWeeklyRaw;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuClient;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuConfigService;
+import com.sjzm.product.modules.bazhuayu.service.BazhuayuRunStateService;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuScheduledService;
 import com.sjzm.product.service.ScoringService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -34,6 +36,7 @@ public class BazhuayuController {
 
     private final BazhuayuScheduledService scheduledService;
     private final BazhuayuConfigService configService;
+    private final BazhuayuRunStateService runStateService;
     private final BazhuayuClient client;
     private final BazhuayuWeeklyRawMapper rawMapper;
     private final AsinImportTaskMapper taskMapper;
@@ -41,12 +44,34 @@ public class BazhuayuController {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @PostMapping("/trigger")
-    @Operation(summary = "手动触发一次采集+初筛（异步）")
+    @Operation(summary = "读取已采数据：手动触发一次 drain 增量入库+初筛（异步，不启动云端）")
     public Result<Map<String, Object>> trigger(
             @RequestParam(required = false) String marketplace) {
         scheduledService.triggerAsync(marketplace);
         return Result.success(Map.of("status", "TRIGGERED",
                 "marketplace", marketplace == null ? "ALL" : marketplace));
+    }
+
+    @PostMapping("/start-collect")
+    @Operation(summary = "启动云端采集一条龙（启动→等待采完→榜单则drain入库初筛，全异步）")
+    public Result<Map<String, Object>> startCollect(
+            @RequestParam(defaultValue = "bangdan") String function,
+            @RequestParam(required = false) String marketplace) {
+        return Result.success(scheduledService.startCloudCollect(function, marketplace));
+    }
+
+    @PostMapping("/stop-collect")
+    @Operation(summary = "停止采集：协作式取消 + 调云端 stopExtraction（需团队版权限）")
+    public Result<Map<String, Object>> stopCollect(
+            @RequestParam(defaultValue = "bangdan") String function,
+            @RequestParam String marketplace) {
+        return Result.success(scheduledService.stopTask(function, marketplace));
+    }
+
+    @GetMapping("/run-state")
+    @Operation(summary = "查询 6 任务一条龙运行态（内存，含云端实时进度），供前端轮询")
+    public Result<Collection<BazhuayuRunStateService.RunState>> runState() {
+        return Result.success(runStateService.all());
     }
 
     @GetMapping("/weekly-raw")
