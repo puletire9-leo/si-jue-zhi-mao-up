@@ -4,708 +4,754 @@
     v-model="dialogVisible"
     :title="dialogTitle"
     :class="useDrawer ? 'product-detail-drawer' : 'product-detail-dialog'"
-    v-bind="useDrawer ? { size: '65%', direction: 'rtl', destroyOnClose: true } : { width: '80%', closeOnClickModal: true, closeOnPressEscape: true }"
+    v-bind="
+      useDrawer
+        ? { size: '65%', direction: 'rtl', destroyOnClose: true }
+        : { width: '80%', closeOnClickModal: true, closeOnPressEscape: true }
+    "
     @close="handleClose"
   >
     <SkeletonWrapper :loading="loading" variant="list">
       <div class="dialog-content">
-      <div v-if="product" class="detail-container">
-        <div class="detail-header">
-          <div class="product-image">
-            <el-image
-              :src="getImageUrl(product)"
-              :preview-src-list="getPreviewImages()"
-              fit="cover"
-              class="main-image"
-            >
-              <template #error>
-                <div class="image-error">
-                  <el-icon><Picture /></el-icon>
-                </div>
-              </template>
-            </el-image>
-          </div>
-
-          <div class="product-info">
-            <div class="product-id">
-              {{ productIdText }}
-            </div>
-            <div class="product-name">
-              {{ productNameText }}
-            </div>
-
-            <div class="info-grid">
-              <!-- 选品特有字段 - 放在第一位 -->
-              <div v-if="mode === 'selection' && (product.listingDate || product.availableDate)" class="info-item">
-                <div class="info-label">
-                  上架时间：
-                </div>
-                <div class="info-value">
-                  {{ formatDate(product.listingDate || product.availableDate) }}
-                </div>
-              </div>
-              
-              <div v-if="mode === 'selection' && product.listingDays !== undefined" class="info-item">
-                <div class="info-label">
-                  上架时间(天)：
-                </div>
-                <div class="info-value">
-                  {{ product.listingDays }} 天
-                </div>
-              </div>
-
-              <div v-if="product.type" class="info-item">
-                <div class="info-label">
-                  产品类型：
-                </div>
-                <div class="info-value">
-                  <el-tag :type="getProductTypeTag(product.type)">
-                    {{ product.type }}
-                  </el-tag>
-                </div>
-              </div>
-
-              <div v-if="product.developer" class="info-item">
-                <div class="info-label">
-                  开发负责人：
-                </div>
-                <div class="info-value">
-                  {{ product.developer }}
-                </div>
-              </div>
-
-
-
-              <div v-if="product.price" class="info-item">
-                <div class="info-label">
-                  价格：
-                </div>
-                <div class="info-value price">
-                  ¥{{ product.price }}
-                </div>
-              </div>
-
-              <div v-if="product.salesVolume" class="info-item">
-                <div class="info-label">
-                  销量：
-                </div>
-                <div class="info-value">
-                  {{ formatSalesVolume(product.salesVolume) }}
-                </div>
-              </div>
-
-              <div v-if="product.stock !== undefined" class="info-item">
-                <div class="info-label">
-                  库存：
-                </div>
-                <div class="info-value">
-                  {{ product.stock }}
-                </div>
-              </div>
-
-              <div v-if="product.category" class="info-item">
-                <div class="info-label">
-                  分类：
-                </div>
-                <div class="info-value">
-                  {{ product.category }}
-                </div>
-              </div>
-
-              <div v-if="product.storeName || product.sellerName" class="info-item">
-                <div class="info-label">
-                  店铺名称：
-                </div>
-                <div class="info-value">
-                  {{ product.storeName || product.sellerName }}
-                </div>
-              </div>
-
-              <div v-if="product.imageUrl" class="info-item">
-                <div class="info-label">
-                  网络图片链接：
-                </div>
-                <div class="info-value">
-                  <el-link
-                    :href="product.imageUrl"
-                    target="_blank"
-                    type="primary"
-                  >
-                    点击查看原图
-                  </el-link>
-                </div>
-              </div>
-
-              <div v-if="product.productLink || product.productUrl" class="info-item">
-                <div class="info-label">
-                  产品链接：
-                </div>
-                <div class="info-value">
-                  <el-link
-                    :href="product.productLink || product.productUrl"
-                    target="_blank"
-                    type="primary"
-                  >
-                    点击查看产品
-                  </el-link>
-                </div>
-              </div>
-
-              <!-- 相似商品链接 -->
-              <div v-if="(product.similarProducts || product.similarProductsLink || product.similarUrl)" class="info-item">
-                <div class="info-label">
-                  相似商品链接：
-                </div>
-                <div class="info-value">
-                  <el-link
-                    :href="product.similarProducts || product.similarProductsLink || product.similarUrl"
-                    target="_blank"
-                    type="primary"
-                  >
-                    点击查看相似商品
-                  </el-link>
-                </div>
-              </div>
-
-              <div v-if="mode === 'selection' && product.mainCategoryBsrGrowth" class="info-item">
-                <div class="info-label">
-                  大类BSR增长数：
-                </div>
-                <div class="info-value">
-                  {{ product.mainCategoryBsrGrowth }}
-                </div>
-              </div>
-
-              <div v-if="mode === 'selection' && product.mainCategoryBsrGrowthRate" class="info-item">
-                <div class="info-label">
-                  大类BSR增长率：
-                </div>
-                <div class="info-value">
-                  {{ product.mainCategoryBsrGrowthRate }}%
-                </div>
-              </div>
-
-              <!-- 店铺链接 -->
-              <div v-if="product.storeLink || product.storeUrl || product.shopLink" class="info-item">
-                <div class="info-label">
-                  店铺链接：
-                </div>
-                <div class="info-value">
-                  <el-link
-                    :href="product.storeLink || product.storeUrl || product.shopLink"
-                    target="_blank"
-                    type="primary"
-                  >
-                    点击查看店铺
-                  </el-link>
-                </div>
-              </div>
-
-              <!-- 店铺ID -->
-              <div v-if="product.storeId || product.sellerId" class="info-item">
-                <div class="info-label">
-                  店铺ID：
-                </div>
-                <div class="info-value">
-                  {{ product.storeId || product.sellerId }}
-                </div>
-              </div>
-
-              <!-- 配送方式 -->
-              <div v-if="product.deliveryMethod || product.fulfillment" class="info-item">
-                <div class="info-label">
-                  配送方式：
-                </div>
-                <div class="info-value">
-                  {{ product.deliveryMethod || product.fulfillment }}
-                </div>
-              </div>
-
-              <!-- 品牌 -->
-              <div v-if="product.brand" class="info-item">
-                <div class="info-label">
-                  品牌：
-                </div>
-                <div class="info-value">
-                  {{ product.brand }}
-                </div>
-              </div>
-
-              <!-- BSR -->
-              <div v-if="product.bsr !== undefined && product.bsr !== null" class="info-item">
-                <div class="info-label">
-                  BSR：
-                </div>
-                <div class="info-value">
-                  {{ product.bsr }}
-                </div>
-              </div>
-
-              <!-- 评分 -->
-              <div v-if="product.rating" class="info-item">
-                <div class="info-label">
-                  评分：
-                </div>
-                <div class="info-value">
-                  {{ product.rating }} ({{ product.ratings || 0 }}评)
-                </div>
-              </div>
-
-              <!-- 重量 -->
-              <div v-if="product.weight || product.weightG" class="info-item">
-                <div class="info-label">
-                  重量：
-                </div>
-                <div class="info-value">
-                  {{ product.weight || '' }}{{ product.weightG ? ' (' + product.weightG + 'g)' : '' }}
-                </div>
-              </div>
-
-              <!-- 筛选模式 -->
-              <div v-if="product.filterMode || product.dataFilterMode" class="info-item">
-                <div class="info-label">
-                  筛选结果：
-                </div>
-                <div class="info-value">
-                  <el-tag :type="product.filterMode === 'MODE1' ? 'success' : product.filterMode === 'MODE2' ? 'warning' : 'danger'" size="small">
-                    {{ product.filterMode || product.dataFilterMode }}
-                  </el-tag>
-                  <span v-if="product.filterReasons" style="margin-left: 8px; font-size: 12px; color: #909399;">{{ product.filterReasons }}</span>
-                </div>
-              </div>
-
-              <!-- 新增字段：来源 -->
-              <div v-if="product.source" class="info-item">
-                <div class="info-label">
-                  来源：
-                </div>
-                <div class="info-value">
-                  <el-tag type="info" size="small">{{ product.source }}</el-tag>
-                </div>
-              </div>
-
-              <!-- 新增字段：大类榜单名 -->
-              <div v-if="product.mainCategoryName" class="info-item">
-                <div class="info-label">
-                  大类榜单名：
-                </div>
-                <div class="info-value">
-                  {{ product.mainCategoryName }}
-                </div>
-              </div>
-
-              <!-- 新增字段：榜单排名 -->
-              <div v-if="product.rank" class="info-item">
-                <div class="info-label">
-                  榜单排名：
-                </div>
-                <div class="info-value">
-                  {{ product.rank }}
-                </div>
-              </div>
-
-              <!-- 新增字段：国家 -->
-              <div v-if="product.country" class="info-item">
-                <div class="info-label">
-                  国家：
-                </div>
-                <div class="info-value">
-                  <el-tag type="success" size="small">{{ product.country }}</el-tag>
-                </div>
-              </div>
-
-              <!-- 数据筛选模式 -->
-              <div v-if="product.dataFilterMode || product.filterMode" class="info-item">
-                <div class="info-label">
-                  数据筛选模式：
-                </div>
-                <div class="info-value">
-                  <el-tag type="warning" size="small">{{ product.dataFilterMode || product.filterMode }}</el-tag>
-                </div>
-              </div>
-
-              <div v-if="product.description" class="info-item full-width">
-                <div class="info-label">
-                  产品描述：
-                </div>
-                <div class="info-value">
-                  {{ product.description }}
-                </div>
-              </div>
-
-              <div v-if="product.tags && product.tags.length > 0" class="info-item full-width">
-                <div class="info-label">
-                  标签：
-                </div>
-                <div class="info-value">
-                  <el-tag
-                    v-for="(tag, index) in product.tags"
-                    :key="index"
-                    size="small"
-                    type="info"
-                    effect="plain"
-                    style="margin-right: 8px; margin-bottom: 8px;"
-                  >
-                    {{ tag }}
-                  </el-tag>
-                </div>
-              </div>
-            </div>
-
-            <div class="action-buttons">
-              <el-button
-                type="primary"
-                :icon="Promotion"
-                @click="handleOpenProductLink"
+        <div v-if="product" class="detail-container">
+          <div class="detail-header">
+            <div class="product-image">
+              <el-image
+                :src="getImageUrl(product)"
+                :preview-src-list="getPreviewImages()"
+                fit="cover"
+                class="main-image"
               >
-                一键打开
-              </el-button>
-              <el-button
-                v-if="showEditButton"
-                type="primary"
-                :icon="Edit"
-                @click="handleEdit"
-              >
-                编辑
-              </el-button>
-              <el-button
-                v-if="showDeleteButton"
-                type="danger"
-                :icon="Delete"
-                @click="handleDelete"
-              >
-                删除
-              </el-button>
+                <template #error>
+                  <div class="image-error">
+                    <el-icon><Picture /></el-icon>
+                  </div>
+                </template>
+              </el-image>
             </div>
-          </div>
-        </div>
 
-        <!-- 变体列表 -->
-        <div
-          v-if="variants && variants.length > 1"
-          class="variants-section"
-        >
-          <div class="section-title">
-            变体列表（{{ variants.length }}个 / 父ASIN: {{ product.parentAsin || product.asin }}）
-          </div>
-          <div class="variants-grid">
-            <div
-              v-for="v in variants"
-              :key="v.asin"
-              class="variant-card"
-              :class="{ 'variant-current': v.asin === product.asin }"
-              @click="selectVariant(v)"
-            >
-              <div class="variant-img-wrapper">
-                <el-image
-                  :src="v.imageUrl"
-                  :preview-src-list="[v.imageUrl]"
-                  fit="cover"
-                  class="variant-img"
-                >
-                  <template #error>
-                    <div class="image-error"><el-icon><Picture /></el-icon></div>
-                  </template>
-                </el-image>
+            <div class="product-info">
+              <div class="product-id">
+                {{ productIdText }}
               </div>
-              <div class="variant-info">
-                <div class="variant-title" :title="v.title">{{ v.title }}</div>
-                <div class="variant-meta">
-                  <span v-if="v.price">€{{ v.price }}</span>
-                  <span v-if="v.units">销量 {{ v.units }}</span>
-                  <span v-if="v.bsr">BSR {{ v.bsr }}</span>
-                  <el-tag v-if="v.filterMode" :type="v.filterMode==='MODE1'?'success':'warning'" size="small">{{ v.filterMode }}</el-tag>
-                </div>
+              <div class="product-name">
+                {{ productNameText }}
               </div>
-            </div>
-          </div>
-        </div>
 
-        <div
-          v-if="subProducts && subProducts.length > 0"
-          class="sub-products-section"
-        >
-          <div class="section-title">
-            组合产品包含单品（{{ subProducts.length }}个）
-          </div>
-          <div class="sub-products-grid">
-            <div
-              v-for="sub in subProducts"
-              :key="sub.sku"
-              class="sub-product-card"
-              @click="viewSubProduct(sub)"
-            >
-              <div class="sub-card-img-wrapper">
-                <el-image
-                  :src="getImageUrl(sub)"
-                  :preview-src-list="[getImageUrl(sub)]"
-                  fit="cover"
-                  class="sub-card-img"
-                >
-                  <template #error>
-                    <div class="image-error">
-                      <el-icon><Picture /></el-icon>
-                    </div>
-                  </template>
-                </el-image>
-              </div>
-              <div class="sub-card-content">
-                <div class="sub-card-sku">
-                  SKU：{{ sub.sku }}
-                </div>
+              <div class="info-grid">
+                <!-- 选品特有字段 - 放在第一位 -->
                 <div
-                  class="sub-card-name"
-                  :title="sub.name || '未知名称'"
+                  v-if="
+                    mode === 'selection' &&
+                    (product.listingDate || product.availableDate)
+                  "
+                  class="info-item"
                 >
-                  {{ sub.name || '未知名称' }}
+                  <div class="info-label">上架时间：</div>
+                  <div class="info-value">
+                    {{
+                      formatDate(product.listingDate || product.availableDate)
+                    }}
+                  </div>
+                </div>
+
+                <div
+                  v-if="
+                    mode === 'selection' && product.listingDays !== undefined
+                  "
+                  class="info-item"
+                >
+                  <div class="info-label">上架时间(天)：</div>
+                  <div class="info-value">{{ product.listingDays }} 天</div>
+                </div>
+
+                <div v-if="product.type" class="info-item">
+                  <div class="info-label">产品类型：</div>
+                  <div class="info-value">
+                    <el-tag :type="getProductTypeTag(product.type)">
+                      {{ product.type }}
+                    </el-tag>
+                  </div>
+                </div>
+
+                <div v-if="product.developer" class="info-item">
+                  <div class="info-label">开发负责人：</div>
+                  <div class="info-value">
+                    {{ product.developer }}
+                  </div>
+                </div>
+
+                <div v-if="product.price" class="info-item">
+                  <div class="info-label">价格：</div>
+                  <div class="info-value price">¥{{ product.price }}</div>
+                </div>
+
+                <div v-if="product.salesVolume" class="info-item">
+                  <div class="info-label">销量：</div>
+                  <div class="info-value">
+                    {{ formatSalesVolume(product.salesVolume) }}
+                  </div>
+                </div>
+
+                <div v-if="product.stock !== undefined" class="info-item">
+                  <div class="info-label">库存：</div>
+                  <div class="info-value">
+                    {{ product.stock }}
+                  </div>
+                </div>
+
+                <div v-if="product.category" class="info-item">
+                  <div class="info-label">分类：</div>
+                  <div class="info-value">
+                    {{ product.category }}
+                  </div>
+                </div>
+
+                <div
+                  v-if="product.storeName || product.sellerName"
+                  class="info-item"
+                >
+                  <div class="info-label">店铺名称：</div>
+                  <div class="info-value">
+                    {{ product.storeName || product.sellerName }}
+                  </div>
+                </div>
+
+                <div v-if="product.imageUrl" class="info-item">
+                  <div class="info-label">网络图片链接：</div>
+                  <div class="info-value">
+                    <el-link
+                      :href="product.imageUrl"
+                      target="_blank"
+                      type="primary"
+                    >
+                      点击查看原图
+                    </el-link>
+                  </div>
+                </div>
+
+                <div
+                  v-if="product.productLink || product.productUrl"
+                  class="info-item"
+                >
+                  <div class="info-label">产品链接：</div>
+                  <div class="info-value">
+                    <el-link
+                      :href="product.productLink || product.productUrl"
+                      target="_blank"
+                      type="primary"
+                    >
+                      点击查看产品
+                    </el-link>
+                  </div>
+                </div>
+
+                <!-- 相似商品链接 -->
+                <div
+                  v-if="
+                    product.similarProducts ||
+                    product.similarProductsLink ||
+                    product.similarUrl
+                  "
+                  class="info-item"
+                >
+                  <div class="info-label">相似商品链接：</div>
+                  <div class="info-value">
+                    <el-link
+                      :href="
+                        product.similarProducts ||
+                        product.similarProductsLink ||
+                        product.similarUrl
+                      "
+                      target="_blank"
+                      type="primary"
+                    >
+                      点击查看相似商品
+                    </el-link>
+                  </div>
+                </div>
+
+                <div
+                  v-if="mode === 'selection' && product.mainCategoryBsrGrowth"
+                  class="info-item"
+                >
+                  <div class="info-label">大类BSR增长数：</div>
+                  <div class="info-value">
+                    {{ product.mainCategoryBsrGrowth }}
+                  </div>
+                </div>
+
+                <div
+                  v-if="
+                    mode === 'selection' && product.mainCategoryBsrGrowthRate
+                  "
+                  class="info-item"
+                >
+                  <div class="info-label">大类BSR增长率：</div>
+                  <div class="info-value">
+                    {{ product.mainCategoryBsrGrowthRate }}%
+                  </div>
+                </div>
+
+                <!-- 店铺链接 -->
+                <div
+                  v-if="
+                    product.storeLink || product.storeUrl || product.shopLink
+                  "
+                  class="info-item"
+                >
+                  <div class="info-label">店铺链接：</div>
+                  <div class="info-value">
+                    <el-link
+                      :href="
+                        product.storeLink ||
+                        product.storeUrl ||
+                        product.shopLink
+                      "
+                      target="_blank"
+                      type="primary"
+                    >
+                      点击查看店铺
+                    </el-link>
+                  </div>
+                </div>
+
+                <!-- 店铺ID -->
+                <div
+                  v-if="product.storeId || product.sellerId"
+                  class="info-item"
+                >
+                  <div class="info-label">店铺ID：</div>
+                  <div class="info-value">
+                    {{ product.storeId || product.sellerId }}
+                  </div>
+                </div>
+
+                <!-- 配送方式 -->
+                <div
+                  v-if="product.deliveryMethod || product.fulfillment"
+                  class="info-item"
+                >
+                  <div class="info-label">配送方式：</div>
+                  <div class="info-value">
+                    {{ product.deliveryMethod || product.fulfillment }}
+                  </div>
+                </div>
+
+                <!-- 品牌 -->
+                <div v-if="product.brand" class="info-item">
+                  <div class="info-label">品牌：</div>
+                  <div class="info-value">
+                    {{ product.brand }}
+                  </div>
+                </div>
+
+                <!-- BSR -->
+                <div
+                  v-if="product.bsr !== undefined && product.bsr !== null"
+                  class="info-item"
+                >
+                  <div class="info-label">BSR：</div>
+                  <div class="info-value">
+                    {{ product.bsr }}
+                  </div>
+                </div>
+
+                <!-- 评分 -->
+                <div v-if="product.rating" class="info-item">
+                  <div class="info-label">评分：</div>
+                  <div class="info-value">
+                    {{ product.rating }} ({{ product.ratings || 0 }}评)
+                  </div>
+                </div>
+
+                <!-- 重量 -->
+                <div v-if="product.weight || product.weightG" class="info-item">
+                  <div class="info-label">重量：</div>
+                  <div class="info-value">
+                    {{ product.weight || ""
+                    }}{{ product.weightG ? " (" + product.weightG + "g)" : "" }}
+                  </div>
+                </div>
+
+                <!-- 筛选模式 -->
+                <div
+                  v-if="product.filterMode || product.dataFilterMode"
+                  class="info-item"
+                >
+                  <div class="info-label">筛选结果：</div>
+                  <div class="info-value">
+                    <el-tag
+                      :type="
+                        product.filterMode === 'MODE1'
+                          ? 'success'
+                          : product.filterMode === 'MODE2'
+                            ? 'warning'
+                            : 'danger'
+                      "
+                      size="small"
+                    >
+                      {{ product.filterMode || product.dataFilterMode }}
+                    </el-tag>
+                    <span
+                      v-if="product.filterReasons"
+                      style="margin-left: 8px; font-size: 12px; color: #909399"
+                      >{{ product.filterReasons }}</span
+                    >
+                  </div>
+                </div>
+
+                <!-- 新增字段：来源 -->
+                <div v-if="product.source" class="info-item">
+                  <div class="info-label">来源：</div>
+                  <div class="info-value">
+                    <el-tag type="info" size="small">{{
+                      product.source
+                    }}</el-tag>
+                  </div>
+                </div>
+
+                <!-- 新增字段：大类榜单名 -->
+                <div v-if="product.mainCategoryName" class="info-item">
+                  <div class="info-label">大类榜单名：</div>
+                  <div class="info-value">
+                    {{ product.mainCategoryName }}
+                  </div>
+                </div>
+
+                <!-- 新增字段：榜单排名 -->
+                <div v-if="product.rank" class="info-item">
+                  <div class="info-label">榜单排名：</div>
+                  <div class="info-value">
+                    {{ product.rank }}
+                  </div>
+                </div>
+
+                <!-- 新增字段：国家 -->
+                <div v-if="product.country" class="info-item">
+                  <div class="info-label">国家：</div>
+                  <div class="info-value">
+                    <el-tag type="success" size="small">{{
+                      product.country
+                    }}</el-tag>
+                  </div>
+                </div>
+
+                <!-- 数据筛选模式 -->
+                <div
+                  v-if="product.dataFilterMode || product.filterMode"
+                  class="info-item"
+                >
+                  <div class="info-label">数据筛选模式：</div>
+                  <div class="info-value">
+                    <el-tag type="warning" size="small">{{
+                      product.dataFilterMode || product.filterMode
+                    }}</el-tag>
+                  </div>
+                </div>
+
+                <div v-if="product.description" class="info-item full-width">
+                  <div class="info-label">产品描述：</div>
+                  <div class="info-value">
+                    {{ product.description }}
+                  </div>
+                </div>
+
+                <div
+                  v-if="product.tags && product.tags.length > 0"
+                  class="info-item full-width"
+                >
+                  <div class="info-label">标签：</div>
+                  <div class="info-value">
+                    <el-tag
+                      v-for="(tag, index) in product.tags"
+                      :key="index"
+                      size="small"
+                      type="info"
+                      effect="plain"
+                      style="margin-right: 8px; margin-bottom: 8px"
+                    >
+                      {{ tag }}
+                    </el-tag>
+                  </div>
+                </div>
+              </div>
+
+              <div class="action-buttons">
+                <el-button
+                  type="primary"
+                  :icon="Promotion"
+                  @click="handleOpenProductLink"
+                >
+                  一键打开
+                </el-button>
+                <el-button
+                  v-if="showEditButton"
+                  type="primary"
+                  :icon="Edit"
+                  @click="handleEdit"
+                >
+                  编辑
+                </el-button>
+                <el-button
+                  v-if="showDeleteButton"
+                  type="danger"
+                  :icon="Delete"
+                  @click="handleDelete"
+                >
+                  删除
+                </el-button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 变体列表 -->
+          <div v-if="variants && variants.length >= 1" class="variants-section">
+            <div class="section-title">
+              {{
+                variants.length > 1
+                  ? `变体列表（${variants.length}个 / 父ASIN: ${product.parentAsin || product.asin}）`
+                  : `独立品（无变体 / ASIN: ${product.asin}）`
+              }}
+            </div>
+            <div class="variants-grid">
+              <div
+                v-for="v in variants"
+                :key="v.asin"
+                class="variant-card"
+                :class="{ 'variant-current': v.asin === product.asin }"
+                @click="selectVariant(v)"
+              >
+                <div class="variant-img-wrapper">
+                  <el-image
+                    :src="v.imageUrl"
+                    :preview-src-list="[v.imageUrl]"
+                    fit="cover"
+                    class="variant-img"
+                  >
+                    <template #error>
+                      <div class="image-error">
+                        <el-icon><Picture /></el-icon>
+                      </div>
+                    </template>
+                  </el-image>
+                </div>
+                <div class="variant-info">
+                  <div class="variant-title" :title="v.title">
+                    {{ v.title }}
+                  </div>
+                  <div class="variant-meta">
+                    <span v-if="v.price">€{{ v.price }}</span>
+                    <span v-if="v.units">销量 {{ v.units }}</span>
+                    <span v-if="v.bsr">BSR {{ v.bsr }}</span>
+                    <el-tag
+                      v-if="v.filterMode"
+                      :type="v.filterMode === 'MODE1' ? 'success' : 'warning'"
+                      size="small"
+                      >{{ v.filterMode }}</el-tag
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-if="subProducts && subProducts.length > 0"
+            class="sub-products-section"
+          >
+            <div class="section-title">
+              组合产品包含单品（{{ subProducts.length }}个）
+            </div>
+            <div class="sub-products-grid">
+              <div
+                v-for="sub in subProducts"
+                :key="sub.sku"
+                class="sub-product-card"
+                @click="viewSubProduct(sub)"
+              >
+                <div class="sub-card-img-wrapper">
+                  <el-image
+                    :src="getImageUrl(sub)"
+                    :preview-src-list="[getImageUrl(sub)]"
+                    fit="cover"
+                    class="sub-card-img"
+                  >
+                    <template #error>
+                      <div class="image-error">
+                        <el-icon><Picture /></el-icon>
+                      </div>
+                    </template>
+                  </el-image>
+                </div>
+                <div class="sub-card-content">
+                  <div class="sub-card-sku">SKU：{{ sub.sku }}</div>
+                  <div class="sub-card-name" :title="sub.name || '未知名称'">
+                    {{ sub.name || "未知名称" }}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <el-empty v-else description="暂无详细信息" />
-    </div>
+        <el-empty v-else description="暂无详细信息" />
+      </div>
     </SkeletonWrapper>
   </component>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { Picture, Edit, Delete, Promotion } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { productApi } from '@/api/product'
-import { selectionApi } from '@/api/selection'
-import { competitorApi } from '@/api/competitor'
-import { getProductTypeTag } from '@/types/utils'
+import { ref, computed, watch } from "vue";
+import { Picture, Edit, Delete, Promotion } from "@element-plus/icons-vue";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { productApi } from "@/api/product";
+import { selectionApi } from "@/api/selection";
+import { competitorApi } from "@/api/competitor";
+import { getProductTypeTag } from "@/types/utils";
 
 const props = defineProps({
   visible: {
     type: Boolean,
-    default: false
+    default: false,
   },
   product: {
     type: Object,
-    default: null
+    default: null,
   },
   mode: {
     type: String,
-    default: 'product'
+    default: "product",
   },
   dataSource: {
     type: String,
-    default: 'zheng'
+    default: "zheng",
   },
   useDrawer: {
     type: Boolean,
-    default: false
+    default: false,
   },
   showEditButton: {
     type: Boolean,
-    default: false
+    default: false,
   },
   showDeleteButton: {
     type: Boolean,
-    default: false
-  }
-})
+    default: false,
+  },
+});
 
-const emit = defineEmits(['update:visible', 'edit', 'delete', 'select-product'])
+const emit = defineEmits([
+  "update:visible",
+  "edit",
+  "delete",
+  "select-product",
+]);
 
 const dialogVisible = computed({
   get: () => props.visible,
-  set: (val) => emit('update:visible', val)
-})
+  set: (val) => emit("update:visible", val),
+});
 
-const loading = ref(false)
-const subProducts = ref([])
-const variants = ref([])
+const loading = ref(false);
+const subProducts = ref([]);
+const variants = ref([]);
 
 const dialogTitle = computed(() => {
-  if (!props.product) return '产品详情'
-  if (props.mode === 'selection') {
-    if (props.dataSource === 'zheng') {
-      return `郑总产品详情 - ${props.product.asin}`
+  if (!props.product) return "产品详情";
+  if (props.mode === "selection") {
+    if (props.dataSource === "zheng") {
+      return `郑总产品详情 - ${props.product.asin}`;
     }
-    return `选品详情 - ${props.product.asin}`
+    return `选品详情 - ${props.product.asin}`;
   }
-  return `产品详情 - ${props.product.sku}`
-})
+  return `产品详情 - ${props.product.sku}`;
+});
 
 const productIdText = computed(() => {
-  if (!props.product) return ''
-  if (props.mode === 'selection') {
-    return `ASIN：${props.product.asin}`
+  if (!props.product) return "";
+  if (props.mode === "selection") {
+    return `ASIN：${props.product.asin}`;
   }
-  return `SKU：${props.product.sku}`
-})
+  return `SKU：${props.product.sku}`;
+});
 
 const productNameText = computed(() => {
-  if (!props.product) return ''
-  if (props.mode === 'selection') {
-    return props.product.productTitle || props.product.title || '未知名称'
+  if (!props.product) return "";
+  if (props.mode === "selection") {
+    return props.product.productTitle || props.product.title || "未知名称";
   }
-  return props.product.name || '未知名称'
-})
+  return props.product.name || "未知名称";
+});
 
 const getImageUrl = (product) => {
-  if (!product) return '/images/default.png'
+  if (!product) return "/images/default.png";
   if (product.image) {
-    return product.image
+    return product.image;
   }
   if (product.localPath) {
-    return `/images/${product.localPath}`
+    return `/images/${product.localPath}`;
   }
   if (product.thumbPath) {
-    return `/images/${product.thumbPath}`
+    return `/images/${product.thumbPath}`;
   }
   if (product.imageUrl) {
-    return product.imageUrl
+    return product.imageUrl;
   }
-  return '/images/default.png'
-}
+  return "/images/default.png";
+};
 
 const getPreviewImages = () => {
-  if (!props.product) return []
-  const images = []
+  if (!props.product) return [];
+  const images = [];
   if (props.product.image) {
-    images.push(props.product.image)
+    images.push(props.product.image);
   }
   if (props.product.localPath) {
-    images.push(`/images/${props.product.localPath}`)
+    images.push(`/images/${props.product.localPath}`);
   }
   if (props.product.thumbPath) {
-    images.push(`/images/${props.product.thumbPath}`)
+    images.push(`/images/${props.product.thumbPath}`);
   }
   if (props.product.imageUrl) {
-    images.push(props.product.imageUrl)
+    images.push(props.product.imageUrl);
   }
-  return images
-}
+  return images;
+};
 
 const formatDate = (dateString) => {
-  if (!dateString) return '无记录'
-  const date = new Date(dateString)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
+  if (!dateString) return "无记录";
+  const date = new Date(dateString);
+  return date.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
 
 const formatSalesVolume = (volume) => {
-  if (!volume) return '0'
+  if (!volume) return "0";
   if (volume >= 10000) {
-    return `${(volume / 10000).toFixed(1)}万`
+    return `${(volume / 10000).toFixed(1)}万`;
   }
-  return volume.toString()
-}
+  return volume.toString();
+};
 
 const loadSubProducts = async () => {
-  if (!props.product || props.product.type !== '组合产品') return
-  
-  loading.value = true
+  if (!props.product || props.product.type !== "组合产品") return;
+
+  loading.value = true;
   try {
-    const response = await productApi.getList({ parent_sku: props.product.sku })
-    subProducts.value = response.data?.list || []
+    const response = await productApi.getList({
+      parent_sku: props.product.sku,
+    });
+    subProducts.value = response.data?.list || [];
   } catch (error) {
-    console.error('加载子产品失败:', error)
+    console.error("加载子产品失败:", error);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-}
+};
 
 const loadVariants = async () => {
-  if (!props.product || props.mode !== 'selection') return
-  const parentAsin = props.product.parentAsin || props.product.asin
-  const marketplace = props.product.marketplace
-  if (!parentAsin || !marketplace) return
+  if (!props.product || props.mode !== "selection") return;
+  const parentAsin = props.product.parentAsin || props.product.asin;
+  const marketplace = props.product.marketplace;
+  if (!parentAsin || !marketplace) return;
 
   try {
-    const res = props.dataSource === 'selection'
-      ? await competitorApi.getVariants(marketplace, parentAsin)
-      : await competitorApi.getDengZongVariants(marketplace, parentAsin)
-    variants.value = (res.data || [])
+    const res =
+      props.dataSource === "selection"
+        ? await competitorApi.getVariants(marketplace, parentAsin)
+        : await competitorApi.getDengZongVariants(marketplace, parentAsin);
+    variants.value = res.data || [];
   } catch (e) {
-    console.error('加载变体失败:', e)
+    console.error("加载变体失败:", e);
   }
-}
+};
 
 const handleClose = () => {
-  emit('update:visible', false)
-  subProducts.value = []
-  variants.value = []
-}
+  emit("update:visible", false);
+  subProducts.value = [];
+  variants.value = [];
+};
 
 const handleEdit = () => {
-  emit('edit', props.product)
-}
+  emit("edit", props.product);
+};
 
 const handleDelete = async () => {
   try {
     await ElMessageBox.confirm(
-      '确定要删除吗？删除后可从回收站恢复。',
-      '确认删除',
+      "确定要删除吗？删除后可从回收站恢复。",
+      "确认删除",
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    
-    emit('delete', props.product)
-    emit('update:visible', false)
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+      },
+    );
+
+    emit("delete", props.product);
+    emit("update:visible", false);
   } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error('删除失败')
+    if (error !== "cancel") {
+      ElMessage.error("删除失败");
     }
   }
-}
+};
 
 const selectVariant = (v) => {
-  emit('select-product', v)
-}
+  emit("select-product", v);
+};
 
 const getAmazonUrl = () => {
-  if (!props.product) return ''
-  const raw = props.product.productLink || props.product.productUrl || ''
-  if (raw) return raw
-  const asin = props.product.parentAsin || props.product.asin
-  const mkp = props.product.marketplace
+  if (!props.product) return "";
+  const raw = props.product.productLink || props.product.productUrl || "";
+  if (raw) return raw;
+  const asin = props.product.parentAsin || props.product.asin;
+  const mkp = props.product.marketplace;
   if (asin && mkp) {
     const domains = {
-      US: 'www.amazon.com', UK: 'www.amazon.co.uk', DE: 'www.amazon.de',
-      CA: 'www.amazon.ca', JP: 'www.amazon.co.jp', FR: 'www.amazon.fr',
-      IT: 'www.amazon.it', ES: 'www.amazon.es',
-    }
-    return `https://${domains[mkp] || 'www.amazon.com'}/dp/${asin}`
+      US: "www.amazon.com",
+      UK: "www.amazon.co.uk",
+      DE: "www.amazon.de",
+      CA: "www.amazon.ca",
+      JP: "www.amazon.co.jp",
+      FR: "www.amazon.fr",
+      IT: "www.amazon.it",
+      ES: "www.amazon.es",
+    };
+    return `https://${domains[mkp] || "www.amazon.com"}/dp/${asin}`;
   }
-  return ''
-}
+  return "";
+};
 
 const handleOpenProductLink = () => {
-  const url = getAmazonUrl()
-  if (url) window.open(url, '_blank')
-}
+  const url = getAmazonUrl();
+  if (url) window.open(url, "_blank");
+};
 
 const viewSubProduct = (subProduct) => {
-  emit('update:visible', false)
-  emit('edit', subProduct)
-}
+  emit("update:visible", false);
+  emit("edit", subProduct);
+};
 
-watch(() => props.visible, (newVal) => {
-  if (newVal && props.product) {
-    if (props.mode === 'product' && props.product.type === '组合产品') {
-      loadSubProducts()
+watch(
+  () => props.visible,
+  (newVal) => {
+    if (newVal && props.product) {
+      if (props.mode === "product" && props.product.type === "组合产品") {
+        loadSubProducts();
+      }
+      if (props.mode === "selection") {
+        loadVariants();
+      }
     }
-    if (props.mode === 'selection') {
-      loadVariants()
-    }
-  }
-})
+  },
+);
 </script>
 
 <style scoped lang="scss">
@@ -761,7 +807,11 @@ watch(() => props.visible, (newVal) => {
   width: 100%;
   height: 100%;
   border-radius: 8px;
-  background: linear-gradient(135deg, var(--el-fill-color-lighter, #f8fafc) 0%, var(--el-border-color-extra-light, #e2e8f0) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--el-fill-color-lighter, #f8fafc) 0%,
+    var(--el-border-color-extra-light, #e2e8f0) 100%
+  );
 }
 
 .image-error {
@@ -886,7 +936,11 @@ watch(() => props.visible, (newVal) => {
   width: 100%;
   padding-top: 75%;
   position: relative;
-  background: linear-gradient(135deg, var(--el-fill-color-lighter, #f8fafc) 0%, var(--el-border-color-extra-light, #e2e8f0) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--el-fill-color-lighter, #f8fafc) 0%,
+    var(--el-border-color-extra-light, #e2e8f0) 100%
+  );
   overflow: hidden;
 }
 
@@ -955,12 +1009,12 @@ watch(() => props.visible, (newVal) => {
   padding: 10px;
 
   &:hover {
-    border-color: var(--el-color-primary, #409EFF);
+    border-color: var(--el-color-primary, #409eff);
     box-shadow: 0 2px 8px rgba(64, 158, 255, 0.15);
   }
 
   &.variant-current {
-    border-color: var(--el-color-success, #67C23A);
+    border-color: var(--el-color-success, #67c23a);
     background: var(--el-color-success-light-9, #f0f9eb);
   }
 }
