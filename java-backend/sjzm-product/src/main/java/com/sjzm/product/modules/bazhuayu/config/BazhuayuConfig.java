@@ -35,4 +35,10 @@ public class BazhuayuConfig {
 
     /** data/all 单页拉取条数，范围 1~1000 */
     private int dataPageSize = 1000;
+
+    /**
+     * 任务组→站点→任务ID 映射(JSON)，配置文件兜底，DB(api_config)可运行时覆盖。
+     * 形如 {"<groupId>":{"US":"<taskId>","UK":"<taskId>","DE":"<taskId>"}}
+     */
+    private String taskMappingJson = "";
 }

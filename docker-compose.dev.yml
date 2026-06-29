@@ -178,6 +178,18 @@ services:
       REDISSON_ADDRESS: redis://redis:6379
       # FIXED: CRIT-2 — 移除硬编码 API Key，改由 .env 注入
       JWT_SECRET: ${JWT_SECRET:-sjzm-dev-jwt-secret-change-in-production}
+      # ── 八爪鱼自动采集（开发测试）──
+      BAZHUAYU_USERNAME: ${BAZHUAYU_USERNAME:-sijuetec}
+      BAZHUAYU_PASSWORD: ${BAZHUAYU_PASSWORD:-jiadu1112}
+      # cron 6 段式(秒 分 时 日 月 周)；开发默认禁用定时(Spring "-" 表示禁用)，靠手动 /trigger 测试
+      BAZHUAYU_CRON: ${BAZHUAYU_CRON:--}
+      # 任务组→站点→任务ID 映射（榜单采集榜单数据三国 US/UK/DE）
+      # 以图识图任务(US/UK/DE)属于图像识别，非本流水线，故不纳入：
+      #   以图识图US 6ec0c0a2-c394-3397-78f5-b2eaed8fab78
+      #   以图识图UK 5c2ae37f-3128-4c82-84d6-70ad6d3d3655
+      #   以图识图DE 3270566a-1206-4992-b466-949891038c55
+      BAZHUAYU_TASKGROUP_MAPPING: >-
+        {"bangdan":{"US":"d2a29423-ed46-49cd-8064-36b58754ef85","DE":"9a7ce21a-5093-188b-8669-3913d644af9e","UK":"6bf068a0-57ee-4ed6-aa1c-1ebabcd3780a"}}
     depends_on:
       mysql:
         condition: service_healthy
