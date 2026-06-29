@@ -131,15 +131,11 @@ services:
       VITE_BACKEND_PORT: "8090"
       VITE_JAVA_HOST: java-product
       VITE_JAVA_PORT: "8002"
-      # 选品 Agent SSE 服务（容器间通信）
-      VITE_SELECTION_AGENT_HOST: selection-agent-v2
-      VITE_SELECTION_AGENT_PORT: "8011"
-      # 开发环境默认直连各服务；仅在联调网关时改为 true
-      VITE_USE_GATEWAY: "false"
-      VITE_GATEWAY_HOST: gateway
-      VITE_GATEWAY_PORT: "9000"
+      VITE_JAVA_USER_HOST: java-user
+      VITE_JAVA_USER_PORT: "8001"
     ports:
-      - "8179:8179"
+      # host 8740 → container 8179（Hyper-V 排除了 8040-8639 + 7681-7780，原 8179 host 端口在排除区 8040-8239 边界外但被占；改用 8740 避开）
+      - "8740:8179"
     volumes:
       - ./frontend:/app
       - dev-node-modules:/app/node_modules
@@ -148,7 +144,7 @@ services:
     depends_on:
       - backend
 
-  # ── Java 微服务（开发默认不走 gateway / nacos） ──
+  # ── Java 微服务（开发直连，不走 gateway/nacos） ──
 
   java-product:
     image: maven:3.9-eclipse-temurin-21
@@ -188,32 +184,6 @@ services:
       redis:
         condition: service_healthy
 
-  gateway:
-    image: maven:3.9-eclipse-temurin-21
-    container_name: dev-gateway
-    profiles:
-      - gateway
-    working_dir: /app
-    restart: unless-stopped
-    ports:
-      - "9000:9000"
-    volumes:
-      - ./java-backend:/app
-      - java-m2:/root/.m2
-    command: >
-      sh -c "cd sjzm-gateway &&
-      mvn spring-boot:run -DskipTests
-      -Dspring-boot.run.jvmArguments='-Xms128m -Xmx256m'"
-    environment:
-      NACOS_ENABLED: "false"
-      SJZM_USER_URI: http://java-user:8001
-      SJZM_PRODUCT_URI: http://java-product:8002
-      GATEWAY_AUTH_ENABLED: "false"  # 开发环境关闭JWT认证
-      JWT_SECRET: ${JWT_SECRET:-sjzm-dev-jwt-secret-change-in-production}
-    depends_on:
-      - java-user
-      - java-product
-
   java-user:
     image: maven:3.9-eclipse-temurin-21
     container_name: java-user
@@ -245,49 +215,6 @@ services:
       redis:
         condition: service_healthy
 
-  nacos:
-    image: nacos/nacos-server:v2.3.1
-    container_name: dev-nacos
-    profiles:
-      - nacos
-    ports:
-      - "8993:8848"
-      - "9848:9848"
-    environment:
-      - MODE=standalone
-      - PREFER_HOST_MODE=hostname
-    volumes:
-      - nacos-logs:/home/nacos/logs
-      - nacos-data:/home/nacos/data
-    restart: unless-stopped
-
-  # ── 选品分析 Agent v2 (Hermes 框架) ──
-
-  selection-agent-v2:
-    build:
-      context: ./selection-agent-v2
-      dockerfile: Dockerfile
-    image: dev-selection-agent-v2
-    container_name: dev-selection-agent-v2
-    env_file:
-      - ./selection-agent-v2/.env
-    environment:
-      - JAVA_BASE_URL=http://java-product:8002
-      - HERMES_HOME=/root/.hermes
-      - PYTHONPATH=/app
-      - JWT_SECRET=${JWT_SECRET:-sjzm-dev-jwt-secret-change-in-production}
-    ports:
-      - "8012:8011"
-    volumes:
-      - ./selection-agent-v2:/app
-    # API 服务由 Dockerfile CMD 启动 (uvicorn api_server:app)
-    # 批量分析: docker exec dev-selection-agent-v2 python batch_runner.py
-    stdin_open: true
-    tty: true
-    depends_on:
-      java-product:
-        condition: service_started
-
 volumes:
   mysql-data:
   redis-data:
@@ -296,5 +223,3 @@ volumes:
   dev-models:
   dev-download-cache:
   dev-node-modules:
-  nacos-logs:
-  nacos-data:
