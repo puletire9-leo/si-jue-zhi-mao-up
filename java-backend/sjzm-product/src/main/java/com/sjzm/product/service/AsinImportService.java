@@ -190,6 +190,146 @@ public class AsinImportService {
         return preview;
     }
 
+    // ============================================================
+    // 流式初筛（大数据量：八爪鱼自动采集专用，逐页处理不堆全量）
+    // 文件路径仍走上面的 filterRowsAndCreateTask（小数据，单事务最安全）
+    // ============================================================
+
+    /**
+     * 流式初筛上下文：跨页累计计数 + 全局去重，内存只随 ASIN 总数线性增长。
+     */
+    public static class StreamingFilterContext {
+        final Long taskId;
+        final String marketplace;
+        final Set<String> seenAsins = new HashSet<>();   // 跨页去重（in-file 重复）
+        int total, pass, priceFail, reviewFail, duplicate, skipBlacklist, skipMain;
+
+        StreamingFilterContext(Long taskId, String marketplace) {
+            this.taskId = taskId;
+            this.marketplace = marketplace;
+        }
+
+        public Long getTaskId() { return taskId; }
+    }
+
+    /**
+     * 开始一个流式初筛任务：建 RUNNING 任务（计数全 0），返回上下文。
+     * 不加 @Transactional —— 长任务逐页提交，不裹大事务。
+     */
+    public StreamingFilterContext createStreamingTask(String marketplace, String importType) {
+        AsinImportTask task = new AsinImportTask();
+        task.setMarketplace(marketplace);
+        task.setImportType(importType);
+        task.setTaskStatus("RUNNING");
+        task.setTotalCount(0);
+        task.setPassCount(0);
+        task.setPriceFailCount(0);
+        task.setReviewFailCount(0);
+        task.setDuplicateCount(0);
+        task.setSkipCount(0);
+        task.setBatchTotal(0);
+        task.setBatchCurrent(0);
+        task.setCreatedAt(java.time.LocalDateTime.now());
+        task.setUpdatedAt(java.time.LocalDateTime.now());
+        taskMapper.insert(task);
+        log.info("流式初筛任务已创建: taskId={}, marketplace={}, importType={}", task.getId(), marketplace, importType);
+        return new StreamingFilterContext(task.getId(), marketplace);
+    }
+
+    /**
+     * 处理一页数据：本页 ASIN 查重 → 复用 filterRows 分桶 → 立即落库 results/skip → 累加计数。
+     * 跨页去重靠 ctx.seenAsins：本页内已在之前页出现过的 ASIN 直接计 DUPLICATE，不再进 filterRows。
+     * 每页独立小事务（Db.saveBatch 自带），不汇成大事务。
+     */
+    public void filterPageAndAppend(StreamingFilterContext ctx, List<Map<String, String>> pageRows) {
+        String mp = ctx.marketplace;
+        ctx.total += pageRows.size();
+
+        // 跨页去重：剔除之前页已见的 ASIN，计入 duplicate
+        List<Map<String, String>> fresh = new ArrayList<>(pageRows.size());
+        for (Map<String, String> row : pageRows) {
+            String asin = findAsin(row);
+            if (asin != null && asin.matches("^B0[0-9A-Z]{8}$") && ctx.seenAsins.contains(asin)) {
+                ctx.duplicate++;   // 跨页重复
+                continue;
+            }
+            fresh.add(row);
+        }
+
+        // 本页 ASIN 查重（复用现有分批查询）
+        Set<String> pageAsins = extractInputAsins(fresh);
+        Set<String> blacklist = batchQueryExistingBlacklist(pageAsins, mp);
+        Set<String> mainTable = batchQueryExistingMainTable(pageAsins, mp);
+
+        // 复用现有 filterRows 分桶（其内部 seen 负责本页内去重）
+        Map<String, List<Map<String, String>>> result = filterRows(fresh, blacklist, mainTable, mp);
+
+        // 落库：明细 + skip_asins（均已分批）
+        saveResults(ctx.taskId, result, mp);
+        saveFilteredAsinsToSkipTable(result, mp);
+
+        // PASS 的 ASIN 也写 skip_asins（请求过不再重复），并登记到全局去重
+        List<SkipAsin> passSkips = new ArrayList<>();
+        for (Map<String, String> row : result.get("PASS")) {
+            String asin = row.get("asin");
+            ctx.seenAsins.add(asin);
+            SkipAsin s = new SkipAsin();
+            s.setAsin(asin);
+            s.setMarketplace(mp);
+            s.setFilterReasons("初筛PASS");
+            passSkips.add(s);
+        }
+        // 非 PASS 的也登记去重（避免跨页再处理）
+        for (String key : List.of("PRICE_FAIL", "REVIEW_FAIL", "SKIP_BLACKLIST", "SKIP_MAIN", "DUPLICATE")) {
+            for (Map<String, String> row : result.get(key)) {
+                String asin = row.get("asin");
+                if (asin != null) ctx.seenAsins.add(asin);
+            }
+        }
+        if (!passSkips.isEmpty()) skipAsinMapper.insertBatchIgnoreDup(passSkips);
+
+        // 累加计数
+        ctx.pass += result.get("PASS").size();
+        ctx.priceFail += result.get("PRICE_FAIL").size();
+        ctx.reviewFail += result.get("REVIEW_FAIL").size();
+        ctx.duplicate += result.get("DUPLICATE").size();
+        ctx.skipBlacklist += result.get("SKIP_BLACKLIST").size();
+        ctx.skipMain += result.get("SKIP_MAIN").size();
+    }
+
+    /**
+     * 收尾：用累计计数回填任务，status 置 READY，返回预览（结构与 filterRowsAndCreateTask 一致）。
+     */
+    public Map<String, Object> finishStreamingTask(StreamingFilterContext ctx) {
+        int fullBatches = ctx.pass / BATCH_SIZE;
+        AsinImportTask task = taskMapper.selectById(ctx.taskId);
+        task.setTaskStatus("READY");
+        task.setTotalCount(ctx.total);
+        task.setPassCount(ctx.pass);
+        task.setPriceFailCount(ctx.priceFail);
+        task.setReviewFailCount(ctx.reviewFail);
+        task.setDuplicateCount(ctx.duplicate);
+        task.setSkipCount(ctx.skipBlacklist + ctx.skipMain);
+        task.setBatchTotal(fullBatches);
+        task.setUpdatedAt(java.time.LocalDateTime.now());
+        taskMapper.updateById(task);
+
+        Map<String, Object> preview = new HashMap<>();
+        preview.put("taskId", ctx.taskId);
+        preview.put("totalCount", ctx.total);
+        preview.put("passCount", ctx.pass);
+        preview.put("priceFailCount", ctx.priceFail);
+        preview.put("reviewFailCount", ctx.reviewFail);
+        preview.put("duplicateCount", ctx.duplicate);
+        preview.put("skipCount", ctx.skipBlacklist + ctx.skipMain);
+        preview.put("skipMainCount", ctx.skipMain);
+        preview.put("skipBlacklistCount", ctx.skipBlacklist);
+        preview.put("batchTotal", fullBatches);
+        preview.put("discardedAsins", ctx.pass - fullBatches * BATCH_SIZE);
+        log.info("流式初筛完成: taskId={}, total={}, pass={}", ctx.taskId, ctx.total, ctx.pass);
+        return preview;
+    }
+
     /**
      * 执行 API 调用（异步，立即返回）
      * 互斥锁：同一时间只允许一个任务执行，避免重复 API 调用

@@ -118,7 +118,7 @@ public class BazhuayuScheduledService {
         return Map.of("weekTag", weekTag, "results", results);
     }
 
-    /** 单站点：启动云采集 → 等完成 → 拉数据 → 写周表 → 整形 → 复用初筛建任务 */
+    /** 单站点：启动云采集 → 等完成 → 流式拉取(逐页落周表+喂初筛，不堆全量) */
     private Map<String, Object> collectAndScreen(String mp, String taskId, String weekTag) {
         log.info("站点 {} 开始采集，八爪鱼任务 {}", mp, taskId);
         String lotNo = client.startExtraction(taskId);
@@ -127,48 +127,51 @@ public class BazhuayuScheduledService {
             return Map.of("status", "EXTRACT_TIMEOUT", "lotNo", lotNo == null ? "" : lotNo);
         }
 
-        List<JsonNode> rawRows = client.fetchAllData(taskId);
-        log.info("站点 {} 拉取 {} 行原始数据", mp, rawRows.size());
-
-        // 写周表 + 整形为初筛输入（列序对齐文件路径）
-        List<BazhuayuWeeklyRaw> toSave = new ArrayList<>(DB_BATCH_SIZE);
-        List<Map<String, String>> shapedRows = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
-        for (JsonNode raw : rawRows) {
-            String asin = BazhuayuRowMapper.extractAsin(raw);
-            if (asin == null || !seen.add(asin)) continue;
-
-            String price = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.PRICE_KEYS);
-            String reviews = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.REVIEW_KEYS);
-            String title = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.TITLE_KEYS);
-
-            BazhuayuWeeklyRaw e = new BazhuayuWeeklyRaw();
-            e.setMarketplace(mp);
-            e.setAsin(asin);
-            e.setPrice(price);
-            e.setReviews(reviews);
-            e.setTitle(title);
-            e.setRawJson(raw.toString());
-            e.setWeekTag(weekTag);
-            e.setLotNo(lotNo);
-            e.setScrapedAt(LocalDateTime.now());
-            toSave.add(e);
-
-            shapedRows.add(BazhuayuRowMapper.shapeRow(asin, price, reviews, title));
-        }
-
-        // 重跑幂等：先删本站点本周旧行再写
+        // 重跑幂等：先删本站点本周旧行，之后逐页追加
         rawMapper.delete(new LambdaQueryWrapper<BazhuayuWeeklyRaw>()
                 .eq(BazhuayuWeeklyRaw::getMarketplace, mp)
                 .eq(BazhuayuWeeklyRaw::getWeekTag, weekTag));
-        if (!toSave.isEmpty()) Db.saveBatch(toSave, DB_BATCH_SIZE);
-        log.info("站点 {} 写入周表 {} 行", mp, toSave.size());
 
-        // 复用初筛建任务（产出进 asin_import_tasks/results，前端确认后走现有 execute）
-        Map<String, Object> preview = asinImportService.filterRowsAndCreateTask(shapedRows, mp, IMPORT_TYPE);
+        AsinImportService.StreamingFilterContext ctx =
+                asinImportService.createStreamingTask(mp, IMPORT_TYPE);
+        final String lot = lotNo;
+
+        // 流式：每页 → 写周表(含 raw_json)即丢 + 轻量行喂流式初筛
+        int totalRaw = client.fetchAllDataStreaming(taskId, page -> {
+            List<BazhuayuWeeklyRaw> pageEntities = new ArrayList<>(page.size());
+            List<Map<String, String>> shapedRows = new ArrayList<>(page.size());
+            Set<String> pageSeen = new HashSet<>();
+            for (JsonNode raw : page) {
+                String asin = BazhuayuRowMapper.extractAsin(raw);
+                if (asin == null || !pageSeen.add(asin)) continue;   // 页内去重(跨页由初筛 ctx 兜底)
+
+                String price = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.PRICE_KEYS);
+                String reviews = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.REVIEW_KEYS);
+                String title = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.TITLE_KEYS);
+
+                BazhuayuWeeklyRaw e = new BazhuayuWeeklyRaw();
+                e.setMarketplace(mp);
+                e.setAsin(asin);
+                e.setPrice(price);
+                e.setReviews(reviews);
+                e.setTitle(title);
+                e.setRawJson(raw.toString());
+                e.setWeekTag(weekTag);
+                e.setLotNo(lot);
+                e.setScrapedAt(LocalDateTime.now());
+                pageEntities.add(e);
+
+                shapedRows.add(BazhuayuRowMapper.shapeRow(asin, price, reviews, title));
+            }
+            if (!pageEntities.isEmpty()) Db.saveBatch(pageEntities, DB_BATCH_SIZE);
+            asinImportService.filterPageAndAppend(ctx, shapedRows);
+            // page/pageEntities/shapedRows 出作用域即可被 GC，raw_json 不全量驻留
+        });
+
+        Map<String, Object> preview = asinImportService.finishStreamingTask(ctx);
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("status", "READY");
-        r.put("rawCount", toSave.size());
+        r.put("rawCount", totalRaw);
         r.put("lotNo", lotNo);
         r.putAll(preview);
         return r;

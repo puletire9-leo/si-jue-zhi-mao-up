@@ -176,6 +176,36 @@ public class BazhuayuClient {
         return all;
     }
 
+    /**
+     * 流式分页拉取：每页交给 pageHandler 后即丢弃，不累积全量（大数据量防 OOM）。
+     * offset 游标分页，翻页间 sleep 2s（避免 429），restTotal<=0 停。
+     *
+     * @param taskId      任务 Id
+     * @param pageHandler 每页（最多 dataPageSize 行）的处理回调
+     * @return 总拉取行数
+     */
+    public int fetchAllDataStreaming(String taskId, java.util.function.Consumer<List<JsonNode>> pageHandler) {
+        int offset = 0;
+        int total = 0;
+        int size = Math.min(1000, Math.max(1, config.getDataPageSize()));
+        while (true) {
+            JsonNode data = get("/data/all?taskId=" + enc(taskId) + "&offset=" + offset + "&size=" + size);
+            JsonNode rows = data.path("data");
+            List<JsonNode> page = new ArrayList<>();
+            if (rows.isArray()) rows.forEach(page::add);
+            if (!page.isEmpty()) {
+                pageHandler.accept(page);
+                total += page.size();
+            }
+            int restTotal = data.path("restTotal").asInt(0);
+            offset = data.path("offset").asInt(offset);
+            if (restTotal <= 0 || page.isEmpty()) break;
+            sleep2s();
+        }
+        log.info("八爪鱼任务 {} 流式拉取共 {} 行", taskId, total);
+        return total;
+    }
+
     // ============================================================
     // HTTP 底层
     // ============================================================
