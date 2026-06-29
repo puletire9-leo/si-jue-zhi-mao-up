@@ -7,6 +7,7 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.ThreadPoolExecutor;
@@ -15,6 +16,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 @EnableDiscoveryClient
 @EnableFeignClients
 @EnableAsync
+@EnableScheduling
 @MapperScan("com.sjzm.product.mapper")
 public class ProductApplication {
 

@@ -117,22 +117,39 @@ public class AsinImportService {
 
         log.info("合并解析完成: {} 条记录", rows.size());
 
-        // 2. 从输入文件提取 ASIN，分批送数据库查重（不加载全表）
+        // 文件路径走 import_type=ASIN，复用通用初筛建任务逻辑
+        return filterRowsAndCreateTask(rows, marketplace, "ASIN");
+    }
+
+    /**
+     * 通用初筛 + 建任务入口（不依赖文件来源）。
+     * 文件上传（uploadAndFilter）和八爪鱼自动采集（BazhuayuScheduledService）共用：
+     * 查重 → filterRows → 写 skip_asins → 建 asin_import_tasks → 存 asin_import_results → 返回预览。
+     *
+     * @param rows        已整形的数据行，列序需与文件一致（filterRows 用位置索引 [1]=ASIN/[3]=price/[4]=reviews）
+     * @param marketplace UK/DE/US
+     * @param importType  ASIN（文件）/ BAZHUAYU_AUTO（自动采集）
+     * @return 初筛预览（含 taskId）
+     */
+    @Transactional
+    public Map<String, Object> filterRowsAndCreateTask(List<Map<String, String>> rows,
+                                                       String marketplace, String importType) {
+        // 1. 从输入提取 ASIN，分批送数据库查重（不加载全表）
         Set<String> inputAsins = extractInputAsins(rows);
         Set<String> blacklistAsins = batchQueryExistingBlacklist(inputAsins, marketplace);
         Set<String> mainTableAsins = batchQueryExistingMainTable(inputAsins, marketplace);
         log.info("查重完成: 输入 {} 个, 命中主表 {} 个, 命中黑名单 {} 个", inputAsins.size(), mainTableAsins.size(), blacklistAsins.size());
 
-        // 3. 执行筛选
+        // 2. 执行筛选
         Map<String, List<Map<String, String>>> filterResult = filterRows(rows, blacklistAsins, mainTableAsins, marketplace);
 
-        // 3.5 将初筛不通过 ASIN 写入 skip_asins（后续上传可去重）
+        // 2.5 将初筛不通过 ASIN 写入 skip_asins（后续上传可去重）
         saveFilteredAsinsToSkipTable(filterResult, marketplace);
 
-        // 4. 创建任务记录
+        // 3. 创建任务记录
         AsinImportTask task = new AsinImportTask();
         task.setMarketplace(marketplace);
-        task.setImportType("ASIN");
+        task.setImportType(importType);
         task.setTaskStatus("READY");
         task.setTotalCount(rows.size());
         task.setPassCount(filterResult.get("PASS").size());
@@ -152,10 +169,10 @@ public class AsinImportService {
         task.setUpdatedAt(java.time.LocalDateTime.now());
         taskMapper.insert(task);
 
-        // 5. 保存明细
+        // 4. 保存明细
         saveResults(task.getId(), filterResult, marketplace);
 
-        // 6. 返回预览
+        // 5. 返回预览
         Map<String, Object> preview = new HashMap<>();
         preview.put("taskId", task.getId());
         preview.put("totalCount", rows.size());
@@ -186,9 +203,10 @@ public class AsinImportService {
         }
 
         // ---- 悲观锁：同一类型+同一市场只允许一个任务执行 ----
+        // 用 task.getImportType()（而非硬编码 ASIN），让文件导入与八爪鱼自动任务各自自锁，互不误伤
         Long activeCount = taskMapper.selectCount(
                 new LambdaQueryWrapper<AsinImportTask>()
-                        .eq(AsinImportTask::getImportType, "ASIN")
+                        .eq(AsinImportTask::getImportType, task.getImportType())
                         .eq(AsinImportTask::getMarketplace, task.getMarketplace())
                         .in(AsinImportTask::getTaskStatus, List.of("RUNNING", "PAUSED")));
         if (activeCount != null && activeCount > 0) {

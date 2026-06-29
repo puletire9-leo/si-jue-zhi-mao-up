@@ -65,6 +65,16 @@ sellersprite:
     max-per-month: ${SELLERSPRITE_RATE_LIMIT_PER_MONTH:20000}
     max-asins-per-request: 40
 
+bazhuayu:
+  base-url: ${BAZHUAYU_BASE_URL:https://openapi.bazhuayu.com}
+  username: ${BAZHUAYU_USERNAME:}
+  password: ${BAZHUAYU_PASSWORD:}
+  connect-timeout: 10s
+  read-timeout: 30s
+  status-poll-interval-seconds: ${BAZHUAYU_POLL_INTERVAL:5}
+  extraction-timeout-minutes: ${BAZHUAYU_EXTRACT_TIMEOUT:60}
+  data-page-size: ${BAZHUAYU_PAGE_SIZE:1000}
+
 management:
   endpoints:
     web:
