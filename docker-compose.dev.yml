@@ -165,6 +165,9 @@ services:
       mvn spring-boot:run -DskipTests
       -Dspring-boot.run.jvmArguments='-Xms256m -Xmx1024m'
       -Dspring-boot.run.arguments='--server.port=8002'"
+    env_file:
+      - ./config/public/dev.env
+      - ./config/secrets/dev.env
     environment:
       # 开发默认直连服务，关闭注册中心依赖以加快启动
       NACOS_ENABLED: "false"
@@ -178,6 +181,7 @@ services:
       REDISSON_ADDRESS: redis://redis:6379
       # FIXED: CRIT-2 — 移除硬编码 API Key，改由 .env 注入
       JWT_SECRET: ${JWT_SECRET:-sjzm-dev-jwt-secret-change-in-production}
+      # 八爪鱼配置(账号/cron/映射)走 config/public/dev.env + config/secrets/dev.env
     depends_on:
       mysql:
         condition: service_healthy

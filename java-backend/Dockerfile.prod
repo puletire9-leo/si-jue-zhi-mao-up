@@ -36,7 +36,7 @@ COPY java-backend/sjzm-gateway/src ./java-backend/sjzm-gateway/src
 COPY java-backend/sjzm-user/src ./java-backend/sjzm-user/src
 COPY java-backend/sjzm-product/src ./java-backend/sjzm-product/src
 
-RUN mvn -f java-backend/pom.xml clean package -DskipTests -T 4 && \
+RUN mvn -f java-backend/pom.xml clean package -Dmaven.test.skip=true -T 4 && \
     mv java-backend/sjzm-gateway/target/sjzm-gateway-*.jar java-backend/sjzm-gateway/target/app.jar && \
     mv java-backend/sjzm-user/target/sjzm-user-*.jar java-backend/sjzm-user/target/app.jar && \
     mv java-backend/sjzm-product/target/sjzm-product-*.jar java-backend/sjzm-product/target/app.jar

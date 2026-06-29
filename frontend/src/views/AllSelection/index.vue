@@ -192,7 +192,7 @@
           <!-- 评分配置面板 -->
           <ScoringConfigPanel v-if="activeTab === 'all'" />
 
-          <!-- 置顶开关 -->
+          <!-- 置顶开关 + 清洗表开关 -->
           <div class="variant-filter-bar">
             <span class="filter-label">选中置顶</span>
             <el-switch
@@ -200,6 +200,21 @@
               size="small"
               :active-action-icon="Top"
               :inactive-action-icon="Bottom"
+            />
+            <el-tooltip
+              v-if="activeTab !== 'zheng'"
+              placement="top"
+              content="开启后只显示父群组代表行（去变体污染）；关闭后展示原始所有变体"
+            >
+              <span class="filter-label" style="margin-left: 16px">
+                清洗数据
+              </span>
+            </el-tooltip>
+            <el-switch
+              v-if="activeTab !== 'zheng'"
+              v-model="useCleanTable"
+              size="small"
+              @change="onUseCleanTableChange"
             />
           </div>
 
@@ -292,6 +307,48 @@
                 </el-button>
               </div>
             </div>
+
+            <div class="method-card method-card--m02">
+              <div class="method-card__body">
+                <div class="method-card__head">
+                  <div class="method-card__name">M02 郑总同行品线跟随法</div>
+                  <el-tag
+                    v-if="activeMethodCard?.id === 'M02'"
+                    type="success"
+                    effect="light"
+                    size="small"
+                  >
+                    已应用
+                  </el-tag>
+                </div>
+                <div class="method-card__desc">
+                  用郑总同行店铺最新批次作为基准盘子，筛选同行已经验证过的候选商品。
+                </div>
+                <div class="method-card__meta">
+                  <span>适合：同行跟随 / 选品优先级</span>
+                  <span>数据源：deng_zong_shop</span>
+                  <span>输出：候选 + 命中原因</span>
+                </div>
+              </div>
+              <div class="method-card__actions">
+                <el-button
+                  type="primary"
+                  size="small"
+                  :loading="loading && activeMethodCard?.id === 'M02'"
+                  @click="applyM02Method"
+                >
+                  应用方法
+                </el-button>
+                <el-button
+                  v-if="activeMethodCard"
+                  size="small"
+                  link
+                  @click="clearMethodCard"
+                >
+                  退出方法
+                </el-button>
+              </div>
+            </div>
           </div>
 
           <!-- 卖家 -->
@@ -343,12 +400,13 @@
             </div>
           </div>
 
-          <!-- 区间筛选面板（绑定 draftFilters.range，不即时查询；周批次依站点联动） -->
+          <!-- 区间筛选面板（绑定 draftFilters.range，不即时查询；周批次依站点 + 来源联动） -->
           <div class="fd-section">
             <div class="fd-label">区间与维度</div>
             <RangeFilterPanel
               v-model="draftFilters.range"
               :country="activeFilters.country || 'UK'"
+              :source="currentSource"
               embedded
             />
           </div>
@@ -887,7 +945,7 @@ const NEW_TAB_DEFAULT_RULES: QualifyRule[] = [
   },
 ];
 const newQualifyRules = ref<QualifyRule[]>([...NEW_TAB_DEFAULT_RULES]);
-const activeMethodCard = ref<{ id: "M01"; name: string } | null>(null);
+const activeMethodCard = ref<{ id: "M01" | "M02"; name: string } | null>(null);
 
 // 应用新品榜规则并重新加载
 const onNewRulesApply = (rules: QualifyRule[]) => {
@@ -955,6 +1013,26 @@ const getSectionTitle = (): string => {
 const productList = ref([]);
 const selectedIds = ref([]);
 const pinSelected = ref(false);
+/**
+ * 是否查询清洗表（按父 ASIN 去重后的代表行）。
+ * 默认 true：消费 competitor_products_clean，避免变体污染。
+ * zheng tab 走独立接口（deng_zong_shop 自己已去重），开关对它无效。
+ */
+const useCleanTable = ref(true);
+const onUseCleanTableChange = () => {
+  pagination.page = 1;
+  loadProducts();
+};
+/** 当前 tab 对应的 source 字符串（与 sourceMap 保持一致），供 RangeFilterPanel 拉同口径的周列表 */
+const currentSource = computed(() => {
+  const m: Record<string, string> = {
+    new: "新品榜",
+    reference: "竞品店铺",
+    zheng: "郑总店铺",
+    all: "",
+  };
+  return m[activeTab.value] || "";
+});
 const mySelections = ref<Set<string>>(new Set());
 const selectionUsersMap = ref<
   Record<string, { userId: number; userName: string }[]>
@@ -1197,6 +1275,21 @@ const loadProducts = async (params?: SelectionQueryParams) => {
       return;
     }
 
+    if (activeMethodCard.value?.id === "M02") {
+      const marketplace = normalizeM01Marketplace(
+        apiParams.marketplace || activeFilters.value.country,
+      );
+      const res = await methodCardsApi.getM02Products({
+        marketplace,
+        page: pagination.page,
+        size: pagination.size,
+      });
+      productList.value = (res.data?.list || []).map(normalizeProduct);
+      pagination.total = res.data?.total || 0;
+      await loadSelections();
+      return;
+    }
+
     // 郑总店铺走独立接口（deng_zong_shop 表）
     if (activeTab.value === "zheng") {
       const dengParams: any = {
@@ -1214,10 +1307,11 @@ const loadProducts = async (params?: SelectionQueryParams) => {
       productList.value = (res.data?.list || []).map(normalizeProduct);
       pagination.total = res.data?.total || 0;
     } else {
-      // 调用 Java 后端 competitor API（扁平路径：一变体一卡，无折叠）
+      // 调用 Java 后端 competitor API（默认按父 ASIN 去重，避免变体污染）
       const competitorParams: any = {
         ...apiParams,
         source: source || undefined,
+        useCleanTable: useCleanTable.value,
       };
       // 面板区间直接映射为请求字段
       const rf = activeFilters.value.range;
@@ -1240,7 +1334,7 @@ const loadProducts = async (params?: SelectionQueryParams) => {
         if (rf.createdWeeks?.length > 0)
           competitorParams.createdWeeks = rf.createdWeeks;
       }
-      // 默认按最新周过滤；若面板已选周则跳过
+      // 默认按最新周过滤；若面板已选周则跳过。批次列表口径与 source 对齐。
       if (
         !competitorParams.createdWeeks &&
         !competitorParams.month &&
@@ -1306,6 +1400,14 @@ const normalizeM01Marketplace = (value?: string): "UK" | "DE" => {
 const applyM01Method = () => {
   activeMethodCard.value = { id: "M01", name: "新品榜加速法" };
   activeTab.value = "new";
+  activeFilters.value.country = normalizeM01Marketplace(activeFilters.value.country);
+  filterDrawerVisible.value = false;
+  pagination.page = 1;
+  loadProducts();
+};
+
+const applyM02Method = () => {
+  activeMethodCard.value = { id: "M02", name: "郑总同行品线跟随法" };
   activeFilters.value.country = normalizeM01Marketplace(activeFilters.value.country);
   filterDrawerVisible.value = false;
   pagination.page = 1;
@@ -1644,7 +1746,7 @@ const activeFilterChips = computed<FilterChip[]>(() => {
   if (activeMethodCard.value)
     chips.push({
       key: "methodCard",
-      label: `方法: M01 ${activeMethodCard.value.name}`,
+      label: `方法: ${activeMethodCard.value.id} ${activeMethodCard.value.name}`,
     });
   if (af.country)
     chips.push({

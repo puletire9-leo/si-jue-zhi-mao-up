@@ -86,4 +86,33 @@
         <foreach collection="asins" item="a" open="(" separator="," close=")">#{a}</foreach>
     </select>
 
+    <!--
+      清洗表分页查询：复用 service 层组装的 LambdaQueryWrapper
+      （清洗表完整复制原表列结构，列名兼容；condition 中的 created_at / parent_asin / 等均存在）。
+    -->
+    <select id="selectCountFromClean" resultType="long">
+        SELECT COUNT(*) FROM competitor_products_clean ${ew.customSqlSegment}
+    </select>
+
+    <select id="selectListFromClean" resultType="com.sjzm.product.entity.CompetitorProduct">
+        SELECT * FROM competitor_products_clean
+        ${ew.customSqlSegment}
+    </select>
+
+    <!--
+      按 (marketplace, dedup_key) 批量统计原始表 competitor_products 中每个父群组的变体行数。
+      dedup_key = COALESCE(NULLIF(parent_asin,''), asin)，与清洗表的 dedup_key 一致。
+    -->
+    <select id="selectVariantCountsByDedupKeys" resultType="java.util.Map">
+        SELECT
+            COALESCE(NULLIF(parent_asin, ''), asin) AS dedupKey,
+            COUNT(*) AS variantCount
+        FROM competitor_products
+        WHERE marketplace = #{marketplace}
+          AND title IS NOT NULL
+          AND COALESCE(NULLIF(parent_asin, ''), asin) IN
+        <foreach collection="keys" item="k" open="(" separator="," close=")">#{k}</foreach>
+        GROUP BY COALESCE(NULLIF(parent_asin, ''), asin)
+    </select>
+
 </mapper>

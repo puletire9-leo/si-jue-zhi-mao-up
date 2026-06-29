@@ -24,6 +24,8 @@ const props = withDefaults(
   defineProps<{
     modelValue?: RangeFilterValue;
     country?: string;
+    /** 来源（如 '新品榜' / '竞品店铺'），用于把入库批次下拉对齐到查询口径 */
+    source?: string;
     /** 嵌入抽屉/卡片时为 true：去掉自身灰底边框，与外层风格统一 */
     embedded?: boolean;
   }>(),
@@ -45,6 +47,7 @@ const props = withDefaults(
       listingPreset: null,
     }),
     country: "US",
+    source: "",
     embedded: false,
   },
 );
@@ -155,16 +158,17 @@ function clearListingPreset() {
 
 const availableWeeks = ref<Array<{ week: string; count: number }>>([]);
 
-onMounted(async () => {
-  const res = await getCreatedWeeks(props.country);
+async function loadAvailableWeeks() {
+  const res = await getCreatedWeeks(props.country, props.source || undefined);
   availableWeeks.value = res?.data ?? [];
-  if (
-    local.value.createdWeeks.length === 0 &&
-    availableWeeks.value.length > 0
-  ) {
-    local.value.createdWeeks = [availableWeeks.value[0].week];
-  }
-});
+}
+
+onMounted(loadAvailableWeeks);
+
+watch(
+  () => [props.country, props.source],
+  loadAvailableWeeks,
+);
 </script>
 
 <template>
