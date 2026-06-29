@@ -122,11 +122,11 @@ public class BazhuayuScheduledService {
         return Map.of("weekTag", weekTag, "results", results);
     }
 
-    /** 单站点：增量 drain 未导出数据(逐页落周表+喂初筛，markexported 游标式增量) */
+    /** 单站点：检查未导出新数据 → drain → 初筛(云端已自采,我们只取增量) */
     private Map<String, Object> collectAndScreen(String mp, String taskId, String weekTag) {
         log.info("站点 {} 开始增量采集，八爪鱼任务 {}", mp, taskId);
-        // 不再 startExtraction/waitForExtraction —— 八爪鱼云端自带每日定时采集，
-        // 我们只取「未导出」增量（notexported + markexported 游标）。
+        // 不 startExtraction/waitForExtraction —— 八爪鱼云端已自带周日/周2定时采集，
+        // 我们只等待采集完成后去取未导出增量。
 
         // 重跑幂等：先删本站点本周旧行，之后逐页追加
         rawMapper.delete(new LambdaQueryWrapper<BazhuayuWeeklyRaw>()
@@ -136,7 +136,7 @@ public class BazhuayuScheduledService {
         AsinImportService.StreamingFilterContext ctx =
                 asinImportService.createStreamingTask(mp, IMPORT_TYPE);
 
-        // 增量 drain：每页 → 写周表(含 raw_json)即丢 + 轻量行喂流式初筛 → markexported
+        // drain 未导出数据(积压已清，云端跑完才有新数据，跑前调用会空跑但不报错)
         int totalRaw = client.drainNotExported(taskId, page -> {
             List<BazhuayuWeeklyRaw> pageEntities = new ArrayList<>(page.size());
             List<Map<String, String>> shapedRows = new ArrayList<>(page.size());
@@ -157,7 +157,7 @@ public class BazhuayuScheduledService {
                 e.setTitle(title);
                 e.setRawJson(raw.toString());
                 e.setWeekTag(weekTag);
-                e.setLotNo(null);   // 增量模式无单批次 lotNo
+                e.setLotNo(null);
                 e.setScrapedAt(LocalDateTime.now());
                 pageEntities.add(e);
 
@@ -165,7 +165,6 @@ public class BazhuayuScheduledService {
             }
             if (!pageEntities.isEmpty()) Db.saveBatch(pageEntities, DB_BATCH_SIZE);
             asinImportService.filterPageAndAppend(ctx, shapedRows);
-            // page/pageEntities/shapedRows 出作用域即可被 GC，raw_json 不全量驻留
         }, config.getDrainMaxRows());
 
         Map<String, Object> preview = asinImportService.finishStreamingTask(ctx);
