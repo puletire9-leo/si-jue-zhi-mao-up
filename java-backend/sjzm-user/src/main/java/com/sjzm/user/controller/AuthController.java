@@ -74,18 +74,6 @@ public class AuthController {
         return Result.success(toUserInfo(user));
     }
 
-    @PutMapping("/me")
-    @Operation(summary = "修改当前用户资料（仅 realName/email）")
-    public Result<LoginResponse.UserInfo> updateMe(@RequestBody User patch) {
-        Long userId = currentUserId();
-        if (userId == null) {
-            return Result.error(401, "未登录");
-        }
-        userService.updateSelf(userId, patch);
-        // 返回最新资料，前端可直接更新 userStore
-        return Result.success("资料更新成功", toUserInfo(authService.getUserById(userId)));
-    }
-
     @PutMapping("/me/password")
     @Operation(summary = "修改当前用户密码（需旧密码校验）")
     public Result<String> updateMyPassword(@RequestBody Map<String, String> body) {

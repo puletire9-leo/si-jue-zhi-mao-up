@@ -1,90 +1,59 @@
 <script setup lang="ts">
-import { reactive, ref, onMounted } from "vue";
-import { ElMessage, type FormInstance, type FormRules } from "element-plus";
+import { computed } from "vue";
 import { useUserStore } from "@/stores/user";
-import { userApi } from "@/api/user";
 
 const userStore = useUserStore();
 
-const formRef = ref<FormInstance>();
-const submitting = ref(false);
-
-const form = reactive({
-  username: "", // 只读展示
-  realName: "",
-  email: "",
+const username = computed(() => userStore.userInfo?.username || "-");
+const roles = computed(() => {
+  const role = userStore.userInfo?.role || "";
+  return role
+    .split(",")
+    .map((r) => r.trim())
+    .filter(Boolean);
 });
 
-const rules: FormRules = {
-  realName: [{ max: 50, message: "真名长度不能超过 50", trigger: "blur" }],
-  email: [{ type: "email", message: "邮箱格式不正确", trigger: "blur" }],
+const getRoleType = (role: string) => {
+  const map: Record<string, string> = {
+    管理员: "danger",
+    admin: "danger",
+    开发: "primary",
+    美术: "warning",
+    仓库: "success",
+    运营: "info",
+    采购员: "",
+  };
+  return map[role] || "";
 };
-
-const loadFromStore = () => {
-  const user = userStore.userInfo;
-  if (!user) return;
-  form.username = user.username || "";
-  form.realName = user.realName || "";
-  form.email = user.email || "";
-};
-
-const handleSubmit = async () => {
-  if (!formRef.value) return;
-  const valid = await formRef.value.validate().catch(() => false);
-  if (!valid) return;
-
-  submitting.value = true;
-  try {
-    const res = await userApi.updateSelf({
-      realName: form.realName,
-      email: form.email,
-    });
-    // 后端返回最新 UserInfo，同步到 store
-    if (res?.data) {
-      userStore.setUserInfo({ ...userStore.userInfo, ...res.data });
-    }
-    ElMessage.success("资料更新成功");
-  } catch (err: any) {
-    const message = err?.response?.data?.message || err?.message || "更新失败";
-    ElMessage.error(message);
-  } finally {
-    submitting.value = false;
-  }
-};
-
-onMounted(loadFromStore);
 </script>
 
 <template>
   <div class="profile-container">
     <h3 class="page-title">个人信息</h3>
 
-    <el-form
-      ref="formRef"
-      :model="form"
-      :rules="rules"
-      label-position="top"
-      class="profile-form"
-    >
-      <el-form-item label="用户名">
-        <el-input v-model="form.username" disabled />
-        <div class="form-hint">登录账号由管理员设置，不可自行修改</div>
-      </el-form-item>
+    <el-card class="info-card" shadow="never">
+      <el-descriptions :column="1" :colon="false" size="large">
+        <el-descriptions-item label="账号">
+          <span class="info-value">{{ username }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="角色">
+          <template v-if="roles.length">
+            <el-tag
+              v-for="r in roles"
+              :key="r"
+              :type="getRoleType(r) as any"
+              size="small"
+              style="margin-right: 6px"
+            >
+              {{ r }}
+            </el-tag>
+          </template>
+          <span v-else class="info-value">-</span>
+        </el-descriptions-item>
+      </el-descriptions>
 
-      <el-form-item label="真名" prop="realName">
-        <el-input v-model="form.realName" placeholder="请输入真名" />
-      </el-form-item>
-
-      <el-form-item label="邮箱" prop="email">
-        <el-input v-model="form.email" placeholder="请输入邮箱" clearable />
-      </el-form-item>
-
-      <el-form-item>
-        <el-button type="primary" :loading="submitting" @click="handleSubmit">
-          更新资料
-        </el-button>
-      </el-form-item>
-    </el-form>
+      <div class="hint">账号和角色由管理员统一维护，如需变更请联系管理员。</div>
+    </el-card>
   </div>
 </template>
 
@@ -100,27 +69,50 @@ onMounted(loadFromStore);
   color: #1a1a1a;
 }
 
-.profile-form {
-  background: white;
-  padding: 24px;
+.info-card {
   border-radius: 16px;
+  border: none;
   box-shadow: 0 2px 12px rgba(180, 83, 9, 0.08);
+
+  :deep(.el-descriptions__label) {
+    width: 80px;
+    color: #6b7280;
+    font-weight: 500;
+  }
+
+  :deep(.el-descriptions__content) {
+    padding: 14px 0;
+  }
 }
 
-.form-hint {
-  font-size: 12px;
-  color: #9ca3af;
-  margin-top: 4px;
+.info-value {
+  font-size: 15px;
+  color: #1a1a1a;
+  font-weight: 500;
+}
+
+.hint {
+  margin-top: 16px;
+  padding: 10px 14px;
+  background: #faf8f5;
+  border-radius: 10px;
+  border-left: 3px solid #d97706;
+  font-size: 13px;
+  color: #6b7280;
 }
 
 :deep(html.dark) {
   .page-title {
     color: var(--el-text-color-primary);
   }
-  .profile-form {
+  .info-card {
     background: var(--el-bg-color-overlay);
   }
-  .form-hint {
+  .info-value {
+    color: var(--el-text-color-primary);
+  }
+  .hint {
+    background: var(--el-fill-color-lighter);
     color: var(--el-text-color-secondary);
   }
 }
