@@ -5,10 +5,10 @@
     width="600px"
     :before-close="handleClose"
   >
-    <el-form 
-      ref="formRef" 
-      :model="formData" 
-      :rules="formRules" 
+    <el-form
+      ref="formRef"
+      :model="formData"
+      :rules="formRules"
       label-width="80px"
       :validate-on-rule-change="false"
     >
@@ -23,11 +23,7 @@
 
       <!-- 批次输入 -->
       <el-form-item label="批次" prop="batch">
-        <el-input
-          v-model="formData.batch"
-          placeholder="请输入批次"
-          clearable
-        />
+        <el-input v-model="formData.batch" placeholder="请输入批次" clearable />
       </el-form-item>
 
       <!-- 日期选择 -->
@@ -66,15 +62,17 @@
       <!-- 载体选择 -->
       <el-form-item label="载体" prop="carrier">
         <div class="carrier-select-wrapper">
-          <span class="carrier-display">{{ formData.carrier || '请选择载体' }}</span>
+          <span class="carrier-display">{{
+            formData.carrier || "请选择载体"
+          }}</span>
           <el-button
-              type="primary"
-              :icon="Van"
-              circle
-              size="small"
-              class="carrier-select-btn"
-              @click="handleCarrierSelect"
-            />
+            type="primary"
+            :icon="Van"
+            circle
+            size="small"
+            class="carrier-select-btn"
+            @click="handleCarrierSelect"
+          />
         </div>
       </el-form-item>
 
@@ -131,18 +129,22 @@
           <Check />
         </el-icon>
       </div>
-      
+
       <el-empty
         v-if="developerList.length === 0"
         description="暂无开发人数据"
         :image-size="100"
       />
     </div>
-    
+
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="handleDeveloperDialogClose">取消</el-button>
-        <el-button type="primary" @click="confirmDeveloperSelection" :disabled="!selectedDeveloper">
+        <el-button
+          type="primary"
+          @click="confirmDeveloperSelection"
+          :disabled="!selectedDeveloper"
+        >
           确定
         </el-button>
       </span>
@@ -172,18 +174,22 @@
           <Check />
         </el-icon>
       </div>
-      
+
       <el-empty
         v-if="carrierList.length === 0"
         description="暂无载体数据"
         :image-size="100"
       />
     </div>
-    
+
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="handleCarrierDialogClose">取消</el-button>
-        <el-button type="primary" @click="confirmCarrierSelection" :disabled="!selectedCarrier">
+        <el-button
+          type="primary"
+          @click="confirmCarrierSelection"
+          :disabled="!selectedCarrier"
+        >
           确定
         </el-button>
       </span>
@@ -192,249 +198,260 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
-import { ElMessage, type FormInstance } from 'element-plus'
-import { User, Van, Check } from '@element-plus/icons-vue'
+import { ref, reactive, computed } from "vue";
+import { ElMessage, type FormInstance } from "element-plus";
+import { User, Van, Check } from "@element-plus/icons-vue";
 // 导入API
-import { finalDraftApi } from '@/api/finalDraft'
-import { systemConfigApi } from '@/api/systemConfig'
+import { finalDraftApi } from "@/api/finalDraft";
+import { systemConfigApi } from "@/api/systemConfig";
+import { fetchMembers } from "@/api/members";
 
 interface Props {
-  modelValue: boolean
-  selectedIds: number[]
+  modelValue: boolean;
+  selectedIds: number[];
 }
 
-const props = defineProps<Props>()
+const props = defineProps<Props>();
 
 // 定义Emits
 const emit = defineEmits<{
-  'update:modelValue': [value: boolean]
-  success: []
-}>()
+  "update:modelValue": [value: boolean];
+  success: [];
+}>();
 
 // 响应式数据
 const dialogVisible = computed({
   get: () => props.modelValue,
-  set: (value) => emit('update:modelValue', value)
-})
+  set: (value) => emit("update:modelValue", value),
+});
 
-const formRef = ref<FormInstance>()
-const submitting = ref(false)
+const formRef = ref<FormInstance>();
+const submitting = ref(false);
 
 // 表单数据
 const formData = reactive({
-  element: '',
-  batch: '',
-  date: '',
-  developer: '',
-  carrier: '',
-  modificationRequirement: '',
-  status: '' as 'finalized' | 'optimizing' | 'concept' | ''
-})
+  element: "",
+  batch: "",
+  date: "",
+  developer: "",
+  carrier: "",
+  modificationRequirement: "",
+  status: "" as "finalized" | "optimizing" | "concept" | "",
+});
 
 // 开发人选择相关数据
-const developerDialogVisible = ref(false)
-const selectedDeveloper = ref<string>('')
-const developerList = ref<string[]>([])
+const developerDialogVisible = ref(false);
+const selectedDeveloper = ref<string>("");
+const developerList = ref<string[]>([]);
 
-// 加载开发人列表
+// 加载开发人列表（直接从 users 表 role='开发' 拉取）
 const loadDeveloperList = async () => {
   try {
-    const response = await systemConfigApi.getDeveloperList()
-    if (response.code === 200 && response.data && Array.isArray(response.data.developerList)) {
-      developerList.value = response.data.developerList
-    } else {
-      // 默认开发人列表
-      developerList.value = ['admin', 'user1', 'user2']
-    }
+    const members = await fetchMembers();
+    developerList.value = members.developers || [];
   } catch (error) {
-    console.error('加载开发人列表失败:', error)
-    developerList.value = ['admin', 'user1', 'user2']
+    console.error("加载开发人列表失败:", error);
+    developerList.value = [];
   }
-}
+};
 
 // 载体选择相关数据
-const carrierDialogVisible = ref(false)
-const selectedCarrier = ref<string>('')
-const carrierList = ref<{value: string, name: string, description: string}[]>([])
+const carrierDialogVisible = ref(false);
+const selectedCarrier = ref<string>("");
+const carrierList = ref<{ value: string; name: string; description: string }[]>(
+  [],
+);
 
 // 加载载体列表
 const loadCarrierList = async () => {
   try {
-    const response = await systemConfigApi.getCarrierList()
-    if (response.code === 200 && response.data && Array.isArray(response.data.carrierList)) {
+    const response = await systemConfigApi.getCarrierList();
+    if (
+      response.code === 200 &&
+      response.data &&
+      Array.isArray(response.data.carrierList)
+    ) {
       // 将获取到的载体列表转换为组件需要的格式
-      carrierList.value = response.data.carrierList.map(carrier => ({
+      carrierList.value = response.data.carrierList.map((carrier) => ({
         value: carrier,
         name: carrier,
-        description: `${carrier}载体`
-      }))
+        description: `${carrier}载体`,
+      }));
     } else {
       // 默认载体列表
-      carrierList.value = []
+      carrierList.value = [];
     }
   } catch (error) {
-    console.error('加载载体列表失败:', error)
-    carrierList.value = []
+    console.error("加载载体列表失败:", error);
+    carrierList.value = [];
   }
-}
+};
 
 // 初始化加载开发人列表和载体列表
-loadDeveloperList()
-loadCarrierList()
+loadDeveloperList();
+loadCarrierList();
 
 // 表单验证规则
 const formRules = {
   // 批量修改时，所有字段都是可选的
-}
+};
 
 // 计算属性
 const dialogTitle = computed(() => {
-  return `批量修改 (共 ${props.selectedIds.length} 个产品)`
-})
+  return `批量修改 (共 ${props.selectedIds.length} 个产品)`;
+});
 
 // 方法
 const resetForm = (): void => {
-  formData.element = ''
-  formData.batch = ''
-  formData.date = ''
-  formData.developer = ''
-  formData.carrier = ''
-  formData.modificationRequirement = ''
-  formData.status = ''
-}
+  formData.element = "";
+  formData.batch = "";
+  formData.date = "";
+  formData.developer = "";
+  formData.carrier = "";
+  formData.modificationRequirement = "";
+  formData.status = "";
+};
 
 const handleClose = (): void => {
-  dialogVisible.value = false
-  resetForm()
+  dialogVisible.value = false;
+  resetForm();
   // 清除表单验证状态，确保下次打开时没有残留的错误提示
   if (formRef.value) {
-    formRef.value.clearValidate()
+    formRef.value.clearValidate();
   }
-}
+};
 
 // 开发人选择相关方法
 const handleDeveloperSelect = (): void => {
-  developerDialogVisible.value = true
-  selectedDeveloper.value = formData.developer
-}
+  developerDialogVisible.value = true;
+  selectedDeveloper.value = formData.developer;
+};
 
 const handleDeveloperDialogClose = (): void => {
-  developerDialogVisible.value = false
-  selectedDeveloper.value = ''
-}
+  developerDialogVisible.value = false;
+  selectedDeveloper.value = "";
+};
 
 const selectDeveloper = (developer: string): void => {
-  selectedDeveloper.value = developer
-}
+  selectedDeveloper.value = developer;
+};
 
 const confirmDeveloperSelection = (): void => {
-  formData.developer = selectedDeveloper.value
-  developerDialogVisible.value = false
-}
+  formData.developer = selectedDeveloper.value;
+  developerDialogVisible.value = false;
+};
 
 // 载体选择相关方法
 const handleCarrierSelect = (): void => {
-  carrierDialogVisible.value = true
-  selectedCarrier.value = formData.carrier
-}
+  carrierDialogVisible.value = true;
+  selectedCarrier.value = formData.carrier;
+};
 
 const handleCarrierDialogClose = (): void => {
-  carrierDialogVisible.value = false
-  selectedCarrier.value = ''
-}
+  carrierDialogVisible.value = false;
+  selectedCarrier.value = "";
+};
 
-const selectCarrier = (carrier: {value: string, name: string, description: string}): void => {
-  selectedCarrier.value = carrier.value
-}
+const selectCarrier = (carrier: {
+  value: string;
+  name: string;
+  description: string;
+}): void => {
+  selectedCarrier.value = carrier.value;
+};
 
 const confirmCarrierSelection = (): void => {
-  const selectedCarrierObj = carrierList.value.find(item => item.value === selectedCarrier.value)
+  const selectedCarrierObj = carrierList.value.find(
+    (item) => item.value === selectedCarrier.value,
+  );
   if (selectedCarrierObj) {
-    formData.carrier = selectedCarrierObj.name
+    formData.carrier = selectedCarrierObj.name;
   }
-  carrierDialogVisible.value = false
-}
+  carrierDialogVisible.value = false;
+};
 
 // 处理日期变化，自动同步到批次字段
 const handleDateChange = (date: string): void => {
   if (date) {
-    formData.batch = date
+    formData.batch = date;
   }
-}
+};
 
 const handleSubmit = async (): Promise<void> => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
 
   try {
     // 验证至少有一个字段被修改
-    const hasChangedFields = Object.values(formData).some(value => value !== '')
+    const hasChangedFields = Object.values(formData).some(
+      (value) => value !== "",
+    );
     if (!hasChangedFields) {
-      ElMessage.warning('请至少修改一个字段')
-      return
+      ElMessage.warning("请至少修改一个字段");
+      return;
     }
 
-    submitting.value = true
-    
+    submitting.value = true;
+
     // 准备API请求数据，只包含非空字段
     const apiData: any = {
-      ids: props.selectedIds
-    }
-    
+      ids: props.selectedIds,
+    };
+
     // 只添加非空字段到请求数据中，排除date字段
     if (formData.element) {
-      apiData.element = formData.element
+      apiData.element = formData.element;
     }
-    
+
     if (formData.batch) {
-      apiData.batch = formData.batch
+      apiData.batch = formData.batch;
     }
-    
+
     if (formData.developer) {
-      apiData.developer = formData.developer
+      apiData.developer = formData.developer;
     }
-    
+
     if (formData.carrier) {
-      apiData.carrier = formData.carrier
+      apiData.carrier = formData.carrier;
     }
-    
+
     if (formData.modificationRequirement) {
-      apiData.modification_requirement = formData.modificationRequirement
+      apiData.modification_requirement = formData.modificationRequirement;
     }
-    
+
     if (formData.status) {
-      apiData.status = formData.status
+      apiData.status = formData.status;
     }
-    
-    console.log('批量修改API请求数据:', apiData)
-    
+
+    console.log("批量修改API请求数据:", apiData);
+
     // 调用批量更新API
-    const response = await finalDraftApi.batchUpdate(apiData)
-    
+    const response = await finalDraftApi.batchUpdate(apiData);
+
     if (response.code === 200) {
       ElMessage.success({
         message: `批量修改成功，共修改 ${props.selectedIds.length} 个产品`,
-        duration: 2000
-      })
-      emit('success')
-      handleClose()
+        duration: 2000,
+      });
+      emit("success");
+      handleClose();
     } else {
       ElMessage.error({
-        message: response.message || '操作失败',
-        duration: 5000
-      })
+        message: response.message || "操作失败",
+        duration: 5000,
+      });
     }
   } catch (error: any) {
-    console.error('批量修改失败:', error)
-    const errorMessage = error.response?.data?.message || error.message || '操作失败'
+    console.error("批量修改失败:", error);
+    const errorMessage =
+      error.response?.data?.message || error.message || "操作失败";
     ElMessage.error({
       message: `批量修改失败: ${errorMessage}`,
-      duration: 5000
-    })
+      duration: 5000,
+    });
   } finally {
-    submitting.value = false
+    submitting.value = false;
   }
-}
+};
 </script>
 
 <style scoped lang="scss">
@@ -442,11 +459,11 @@ const handleSubmit = async (): Promise<void> => {
   display: flex;
   align-items: center;
   gap: 8px;
-  
+
   .developer-input {
     flex: 1;
   }
-  
+
   .developer-select-btn {
     flex-shrink: 0;
   }
@@ -460,7 +477,7 @@ const handleSubmit = async (): Promise<void> => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 12px;
-  
+
   .developer-item {
     display: flex;
     align-items: center;
@@ -472,31 +489,31 @@ const handleSubmit = async (): Promise<void> => {
     transition: all 0.3s ease;
     background-color: #fafafa;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    
+
     &:hover {
       border-color: #409eff;
       background-color: #ecf5ff;
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     }
-    
+
     &.selected {
       border-color: #409eff;
       background-color: #ecf5ff;
       box-shadow: 0 4px 12px rgba(64, 158, 255, 0.15);
     }
-    
+
     .developer-info {
       display: flex;
       align-items: center;
-      
+
       .developer-name {
         font-size: 15px;
         font-weight: 600;
         color: #303133;
       }
     }
-    
+
     .check-icon {
       color: #409eff;
       font-size: 18px;
