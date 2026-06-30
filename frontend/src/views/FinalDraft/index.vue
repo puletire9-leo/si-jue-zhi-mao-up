@@ -7,12 +7,12 @@
           <span class="header-title">定稿管理</span>
           <div class="header-actions">
             <!-- 批量导入按钮 -->
-            <el-button type="primary" :icon="Upload" @click="handleBatchImport">
+            <el-button v-if="canWrite" type="primary" :icon="Upload" @click="handleBatchImport">
               批量导入
             </el-button>
-            
+
             <!-- 新增定稿按钮 -->
-            <el-button type="primary" :icon="Plus" @click="handleAddDraft">
+            <el-button v-if="canWrite" type="primary" :icon="Plus" @click="handleAddDraft">
               新增定稿
             </el-button>
             
@@ -26,9 +26,10 @@
               批量下载
             </el-button>
             
-            <el-button 
-              type="warning" 
-              :icon="Edit" 
+            <el-button
+              v-if="canWrite"
+              type="warning"
+              :icon="Edit"
               :disabled="selectedItems.length === 0"
               @click="handleBatchEdit"
             >
@@ -44,8 +45,8 @@
               侵权标注
             </el-button>
 
-            <el-button 
-              v-if="canDeleteDraft"
+            <el-button
+              v-if="canWrite"
               type="danger" 
               :icon="Delete" 
               :disabled="selectedItems.length === 0"
@@ -438,6 +439,7 @@ import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 
 // 导入API
 import { finalDraftApi } from '@/api/finalDraft'
+import { canWrite as checkCanWrite } from '@/utils/permission'
 
 // 导入工具函数
 import { downloadFile, batchDownloadFiles, getFileExtension, downloadImagesAsZip } from '@/utils/download'
@@ -528,11 +530,8 @@ interface Draft {
 // 用户状态管理
 const userStore = useUserStore()
 // 定稿状态管理
-// 计算属性：检查用户是否有删除权限（只有仓库角色不能删除）
-const canDeleteDraft = computed(() => {
-  const role = userStore.userInfo?.role
-  return role !== '仓库'
-})
+// 是否有写权限（上传/编辑/删除）：admin 和 开发 可写
+const canWrite = computed(() => checkCanWrite(userStore.userInfo?.role))
 
 // 响应式数据
 const dialogVisible = ref(false)

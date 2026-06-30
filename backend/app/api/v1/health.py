@@ -104,14 +104,6 @@ async def health_check(
         except Exception as e:
             logger.error(f"系统资源检查失败: {e}")
         
-        # 检查缓存状态
-        if hasattr(repo, 'permission_cache'):
-            cache_size = len(repo.permission_cache)
-            health_status["components"]["cache"] = {
-                "status": "healthy",
-                "permission_cache_size": cache_size
-            }
-        
         # 如果任何组件不健康，返回503状态码
         if health_status["status"] == "unhealthy":
             raise HTTPException(status_code=503, detail=health_status)

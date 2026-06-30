@@ -12,12 +12,12 @@
             </el-button>
             
             <!-- 批量导入按钮 -->
-            <el-button type="primary" :icon="Upload" @click="handleBatchImport">
+            <el-button v-if="canWrite" type="primary" :icon="Upload" @click="handleBatchImport">
               批量导入
             </el-button>
-            
+
             <!-- 新增素材按钮 -->
-            <el-button type="primary" :icon="Plus" @click="handleAddDraft">
+            <el-button v-if="canWrite" type="primary" :icon="Plus" @click="handleAddDraft">
               新增素材
             </el-button>
             
@@ -31,18 +31,19 @@
               批量下载
             </el-button>
             
-            <el-button 
-              type="warning" 
-              :icon="Edit" 
+            <el-button
+              v-if="canWrite"
+              type="warning"
+              :icon="Edit"
               :disabled="selectedItems.length === 0"
               @click="handleBatchEdit"
             >
               批量修改
             </el-button>
-            
-            <el-button 
-              v-if="userStore.isAdmin"
-              type="danger" 
+
+            <el-button
+              v-if="canWrite"
+              type="danger"
               :icon="Delete" 
               :disabled="selectedItems.length === 0"
               @click="handleBatchDelete"
@@ -443,6 +444,7 @@ import { systemConfigApi } from '@/api/systemConfig'
 import { downloadFile, batchDownloadFiles, getFileExtension, formatFilename, downloadImagesAsZip } from '@/utils/download'
 import { ImageUrlUtil } from '@/utils/imageUrlUtil'
 import { useUserStore } from '@/stores/user'
+import { canWrite as checkCanWrite } from '@/utils/permission'
 import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 
 // 类型定义
@@ -477,6 +479,9 @@ interface Pagination {
 
 // 用户状态管理
 const userStore = useUserStore()
+
+// 是否有写权限（上传/编辑/删除）：admin 和 开发 可写
+const canWrite = computed(() => checkCanWrite(userStore.userInfo?.role))
 
 // 响应式数据
 const loading = ref(false)

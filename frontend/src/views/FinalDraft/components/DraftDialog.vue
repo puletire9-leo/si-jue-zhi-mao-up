@@ -39,24 +39,9 @@
         />
       </el-form-item>
 
-      <!-- 开发人输入 -->
-      <el-form-item label="开发人" prop="developer">
-        <div class="developer-input-wrapper">
-          <el-input
-            v-model="formData.developer"
-            placeholder="请输入开发人"
-            clearable
-            class="developer-input"
-          />
-          <el-button
-            type="primary"
-            :icon="User"
-            circle
-            size="small"
-            class="developer-select-btn"
-            @click="handleDeveloperSelect"
-          />
-        </div>
+      <!-- 开发人（自动填写当前登录用户名） -->
+      <el-form-item label="开发人">
+        <el-input :value="autoDeveloper" disabled />
       </el-form-item>
 
       <!-- 日期选择 -->
@@ -191,45 +176,6 @@
     </template>
   </el-dialog>
 
-  <!-- 开发人选择对话框 -->
-  <el-dialog
-    v-model="developerDialogVisible"
-    title="选择开发人"
-    width="400px"
-    :before-close="handleDeveloperDialogClose"
-  >
-    <div class="developer-list">
-      <div
-        v-for="developer in developerList"
-        :key="developer"
-        class="developer-item"
-        :class="{ selected: selectedDeveloper === developer }"
-        @click="selectDeveloper(developer)"
-      >
-        <div class="developer-info">
-          <span class="developer-name">{{ developer }}</span>
-        </div>
-        <el-icon v-if="selectedDeveloper === developer" class="check-icon">
-          <Check />
-        </el-icon>
-      </div>
-      
-      <el-empty
-        v-if="developerList.length === 0"
-        description="暂无开发人数据"
-        :image-size="100"
-      />
-    </div>
-    
-    <template #footer>
-      <span class="dialog-footer">
-        <el-button @click="handleDeveloperDialogClose">取消</el-button>
-        <el-button type="primary" @click="confirmDeveloperSelection" :disabled="!selectedDeveloper">
-          确定
-        </el-button>
-      </span>
-    </template>
-  </el-dialog>
 
   <!-- 载体选择对话框 -->
   <el-dialog
@@ -286,7 +232,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { ElMessage, ElImageViewer, type UploadProps, type UploadUserFile, type FormInstance } from 'element-plus'
-import { UploadFilled, Delete, Picture, User, Van, Plus, Check } from '@element-plus/icons-vue'
+import { UploadFilled, Delete, Picture, Van, Plus, Check } from '@element-plus/icons-vue'
 // 导入API
 import { finalDraftApi } from '@/api/finalDraft'
 import { imageApi } from '@/api/image'
@@ -370,27 +316,6 @@ const referenceFileList = ref<UploadUserFile[]>([])
 const originalImages = ref<string[]>([])
 const originalReferenceImages = ref<string[]>([])
 
-// 开发人选择相关数据
-const developerDialogVisible = ref(false)
-const selectedDeveloper = ref<string>('')
-const developerList = ref<string[]>([])
-
-// 加载开发人列表
-const loadDeveloperList = async () => {
-  try {
-    const response = await systemConfigApi.getDeveloperList()
-    if (response.code === 200 && response.data && Array.isArray(response.data.developerList)) {
-      developerList.value = response.data.developerList
-    } else {
-      // 默认开发人列表
-      developerList.value = ['admin', 'user1', 'user2']
-    }
-  } catch (error) {
-    console.error('加载开发人列表失败:', error)
-    developerList.value = ['admin', 'user1', 'user2']
-  }
-}
-
 // 载体选择相关数据
 const carrierDialogVisible = ref(false)
 const selectedCarrier = ref<string>('')
@@ -417,8 +342,7 @@ const loadCarrierList = async () => {
   }
 }
 
-// 初始化加载开发人列表和载体列表
-loadDeveloperList()
+// 初始化加载载体列表
 loadCarrierList()
 
 // 表单验证规则
@@ -435,6 +359,9 @@ const userStore = useUserStore()
 const dialogTitle = computed(() => {
   return props.draft ? '编辑定稿' : '新增定稿'
 })
+
+// 自动获取当前登录用户作为开发人（角色已中文化，username 即为姓名）
+const autoDeveloper = computed(() => userStore.userInfo?.username || '')
 
 // 方法
 const resetForm = (): void => {
@@ -454,80 +381,11 @@ const resetForm = (): void => {
   referenceFileList.value = []
   originalImages.value = []
   originalReferenceImages.value = []
-
-  // 自动填写开发人（如果用户是开发角色并且关联了开发人）
-  autoFillDeveloper()
 }
 
-// 自动填写开发人
-const autoFillDeveloper = (): void => {
-  console.log('[AutoFillDeveloper] 开始执行自动填写开发人')
-  const currentUser = userStore.userInfo
-  console.log('[AutoFillDeveloper] 当前用户信息:', currentUser)
-  
-  if (currentUser) {
-    console.log('[AutoFillDeveloper] 用户角色:', currentUser.role)
-    console.log('[AutoFillDeveloper] 用户名:', currentUser.username)
-    
-    // 检查用户是否为开发角色（支持多种角色名称格式）
-    const isDeveloperRole = ['开发', 'developer'].includes(currentUser.role)
-    console.log('[AutoFillDeveloper] 是否为开发角色:', isDeveloperRole)
-    
-    // 如果是开发角色，尝试自动填写开发人
-    if (isDeveloperRole) {
-      // 用户名到开发名的映射
-      const usernameToDeveloperMap: Record<string, string> = {
-        'liumiao': '刘淼'
-        // 可以添加更多映射
-      }
-      
-      // 首先检查当前用户对象中的 developer 字段
-      if ((currentUser as any).developer) {
-        formData.developer = (currentUser as any).developer
-        console.log('[AutoFillDeveloper] 从用户对象的 developer 字段获取开发人:', (currentUser as any).developer)
-      }
-      // 其次使用硬编码映射
-      else if (usernameToDeveloperMap[currentUser.username]) {
-        formData.developer = usernameToDeveloperMap[currentUser.username]
-        console.log('[AutoFillDeveloper] 从硬编码映射获取开发人:', formData.developer)
-      }
-      // 最后使用用户名作为 fallback
-      else {
-        formData.developer = currentUser.username
-        console.log('[AutoFillDeveloper] 使用用户名作为开发人:', currentUser.username)
-      }
-      
-      console.log('[AutoFillDeveloper] 最终填写的开发人:', formData.developer)
-    } else {
-      console.log('[AutoFillDeveloper] 用户不是开发角色，跳过自动填写')
-    }
-  } else {
-    console.log('[AutoFillDeveloper] 用户信息为空，跳过自动填写')
-  }
-}
-
-// 监听用户信息变化，当用户信息加载完成后执行自动填写
-watch(
-  () => userStore.userInfo,
-  (newUserInfo) => {
-    if (newUserInfo) {
-      console.log('[DraftDialog] 用户信息变化，执行自动填写开发人')
-      autoFillDeveloper()
-    }
-  },
-  { deep: true }
-)
-
-// 组件挂载时执行自动填写
+// 组件挂载（开发人自动从 userStore.userInfo?.username 获取，无需手动操作）
 onMounted(() => {
-  console.log('[DraftDialog] 组件挂载，执行自动填写开发人')
-  autoFillDeveloper()
-  
-  // 延迟执行，确保用户信息已完全加载
-  setTimeout(() => {
-    console.log('[DraftDialog] 延迟执行自动填写开发人')
-    autoFillDeveloper()
-  }, 1000)
+  // no-op
 })
 
 // 监听props.draft变化，初始化表单数据
@@ -568,8 +426,6 @@ watch(() => props.draft, (newDraft) => {
     originalReferenceImages.value = [...referenceImages]
   } else {
     resetForm()
-    // 新增模式，自动填写开发人
-    autoFillDeveloper()
   }
 }, { immediate: true })
 
@@ -588,26 +444,6 @@ const handleDateChange = (dateValue: string): void => {
     // 无论批次字段是否为空，都自动填充为日期值
     formData.batch = dateValue
   }
-}
-
-// 开发人选择相关方法
-const handleDeveloperSelect = (): void => {
-  developerDialogVisible.value = true
-  selectedDeveloper.value = formData.developer
-}
-
-const handleDeveloperDialogClose = (): void => {
-  developerDialogVisible.value = false
-  selectedDeveloper.value = ''
-}
-
-const selectDeveloper = (developer: string): void => {
-  selectedDeveloper.value = developer
-}
-
-const confirmDeveloperSelection = (): void => {
-  formData.developer = selectedDeveloper.value
-  developerDialogVisible.value = false
 }
 
 // 载体选择相关方法
@@ -631,18 +467,6 @@ const confirmCarrierSelection = (): void => {
     formData.carrier = selectedCarrierObj.name
   }
   carrierDialogVisible.value = false
-}
-
-// 手动获取用户信息并执行自动填写
-const fetchUserInfoAndAutoFill = async () => {
-  try {
-    console.log('[DraftDialog] 手动获取用户信息')
-    await userStore.getUserInfo()
-    console.log('[DraftDialog] 获取用户信息后执行自动填写')
-    autoFillDeveloper()
-  } catch (error) {
-    console.error('[DraftDialog] 获取用户信息失败:', error)
-  }
 }
 
 // 监听对话框关闭事件，确保在对话框关闭时清除验证状态
@@ -691,7 +515,7 @@ watch(dialogVisible, async (newVal) => {
     } else {
       // 新增模式，手动获取用户信息并自动填写开发人
       console.log('[DraftDialog] 对话框打开，手动获取用户信息并执行自动填写')
-      await fetchUserInfoAndAutoFill()
+      // no-op
     }
   }
 })
@@ -736,7 +560,7 @@ const handleSubmit = async (): Promise<void> => {
     const apiData: Record<string, any> = {
       sku: formData.sku,
       batch: formData.batch,
-      developer: formData.developer,
+      developer: autoDeveloper.value,
       carrier: formData.carrier,
       element: formData.element,
       modification_requirement: formData.modificationRequirement,
@@ -1300,73 +1124,6 @@ const resetZoom = (): void => {
   :deep(.upload-component .el-upload__tip) {
     display: none;
   }
-
-.developer-input-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  
-  .developer-input {
-    flex: 1;
-  }
-  
-  .developer-select-btn {
-    flex-shrink: 0;
-  }
-}
-
-// 开发人选择对话框样式
-.developer-list {
-  max-height: 400px;
-  overflow-y: auto;
-  padding: 8px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 12px;
-  
-  .developer-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 16px;
-    border: 2px solid transparent;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    background-color: #fafafa;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    
-    &:hover {
-      border-color: #409eff;
-      background-color: #ecf5ff;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
-    
-    &.selected {
-      border-color: #409eff;
-      background-color: #ecf5ff;
-      box-shadow: 0 4px 12px rgba(64, 158, 255, 0.15);
-    }
-    
-    .developer-info {
-      display: flex;
-      align-items: center;
-      
-      .developer-name {
-        font-size: 15px;
-        font-weight: 600;
-        color: #303133;
-      }
-    }
-    
-    .check-icon {
-      color: #409eff;
-      font-size: 18px;
-      transition: all 0.3s ease;
-    }
-  }
-}
 
 /* 载体选择相关样式 */
 .carrier-select-wrapper {

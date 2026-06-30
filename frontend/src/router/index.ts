@@ -3,6 +3,7 @@ import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { ElMessage } from 'element-plus'
 import { getAllModules } from '@/modules'
+import { canSeeModule } from '@/utils/permission'
 
 // 模块化路由：从 modules/*/manifest.ts 自动收集
 const moduleRoutes: RouteRecordRaw[] = getAllModules().map(m => ({
@@ -261,6 +262,16 @@ router.beforeEach(async (to, from, next) => {
   // 仅日志警告：userInfo 存在但缺少 role（非阻塞）
   if (token && userStore.userInfo && !userStore.userInfo.role) {
     console.warn('[Router] userInfo 缺少 role 字段，部分功能可能受限')
+  }
+
+  // 按角色过滤路由访问（防止用户手敲 URL 绕过菜单隐藏）
+  if (token && userStore.userInfo?.role && to.path !== '/login' && to.path !== '/') {
+    const pathFirstSeg = to.path.split('/')[1] || ''
+    if (pathFirstSeg && !canSeeModule(userStore.userInfo.role, pathFirstSeg)) {
+      console.warn(`[Router] 角色 ${userStore.userInfo.role} 无权访问 ${to.path}，重定向到首页`)
+      next('/dashboard')
+      return
+    }
   }
 
   next()

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  Odometer
-} from '@element-plus/icons-vue'
+import { Odometer } from '@element-plus/icons-vue'
 import { getAllModules } from '@/modules'
+import { canSeeModule } from '@/utils/permission'
+import { useUserStore } from '@/stores/user'
 
 interface MenuItem {
   index: string
@@ -21,6 +21,7 @@ defineProps<{
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 
 // 图标按需加载缓存
 const iconCache = new Map<string, any>()
@@ -46,6 +47,9 @@ const menuItems = computed<MenuItem[]>(() => {
   for (const mod of modules) {
     // 隐藏项不出现在菜单中
     if (mod.hiddenInMenu) continue
+
+    // 按角色过滤菜单可见性
+    if (!canSeeModule(userStore.userInfo?.role, mod.id)) continue
 
     const item: MenuItem = {
       index: `/${mod.route.path}`,

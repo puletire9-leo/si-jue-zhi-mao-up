@@ -78,6 +78,7 @@
       </template>
       <template v-else>
         <el-button
+          v-if="canWrite"
           type="primary"
           :icon="Edit"
           circle
@@ -94,6 +95,7 @@
           title="下载"
         />
         <el-button
+          v-if="canWrite"
           type="danger"
           :icon="Delete"
           circle
@@ -128,6 +130,8 @@ import {
   Link
 } from '@element-plus/icons-vue'
 import { ImageUrlUtil } from '@/utils/imageUrlUtil'
+import { useUserStore } from '@/stores/user'
+import { canWrite as checkCanWrite } from '@/utils/permission'
 
 // 定义Props
 interface Props {
@@ -171,6 +175,9 @@ const isSelected = computed(() => props.selected || false)
 const isEditing = ref(false)
 const cardRef = ref<HTMLElement>()
 const imageRefreshKey = ref(0)
+
+const userStore = useUserStore()
+const canWrite = computed(() => checkCanWrite(userStore.userInfo?.role))
 
 // 编辑数据
 const editingData = reactive({

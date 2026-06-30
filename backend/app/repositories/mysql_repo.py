@@ -65,9 +65,7 @@ class MySQLRepository:
         
         self.pool: Optional[aiomysql.Pool] = None
         
-        # 权限缓存
-        self.permission_cache = {}
-        self.cache_expiry = 300  # 缓存过期时间（秒）
+        # (roles/permissions/role_permissions/user_roles 四张 RBAC 表已删除，改用 users.role 硬编码判断)
 
         # 性能指标统计
         self._query_metrics = {
@@ -242,23 +240,10 @@ class MySQLRepository:
         try:
             async with self.get_connection() as conn:
                 async with conn.cursor() as cursor:
-                    # 索引定义列表
+                    # 索引定义列表（roles/permissions/role_permissions 表已删除，仅保留 users 索引）
                     index_definitions = [
-                        # roles 表索引
-                        {"table": "roles", "name": "idx_roles_name", "columns": "name", "unique": False},
-                        {"table": "roles", "name": "idx_roles_parent_id", "columns": "parent_id", "unique": False},
-                        
-                        # role_permissions 表索引
-                        {"table": "role_permissions", "name": "idx_role_permissions_role_id", "columns": "role_id", "unique": False},
-                        {"table": "role_permissions", "name": "idx_role_permissions_permission_id", "columns": "permission_id", "unique": False},
-                        {"table": "role_permissions", "name": "idx_role_permissions_unique", "columns": "role_id, permission_id", "unique": True},
-                        
-                        # users 表索引
                         {"table": "users", "name": "idx_users_role", "columns": "role", "unique": False},
                         {"table": "users", "name": "idx_users_username", "columns": "username", "unique": False},
-                        
-                        # permissions 表索引
-                        {"table": "permissions", "name": "idx_permissions_code", "columns": "code", "unique": False}
                     ]
                     
                     for index_def in index_definitions:
@@ -1121,227 +1106,31 @@ class MySQLRepository:
         
         return await self.execute_query(query, (days,))
     
-    async def get_role_hierarchy(self, role_id: int) -> List[Dict[str, Any]]:
-        """
-        获取角色的完整继承层级（包括自身及所有父角色）
-        
-        Args:
-            role_id: 角色ID
-        
-        Returns:
-            角色层级列表，按从子到父的顺序排列
-        """
-        hierarchy = []
-        current_role_id = role_id
-        
-        # 循环获取所有父角色，直到没有父角色为止
-        while current_role_id is not None:
-            # 获取当前角色信息
-            role = await self.execute_query_one(
-                "SELECT id, name, description, parent_id FROM roles WHERE id = %s",
-                (current_role_id,)
-            )
-            
-            if not role:
-                break
-            
-            hierarchy.append(role)
-            current_role_id = role['parent_id']
-        
-        return hierarchy
-    
-    async def get_role_permissions(self, role_id: int) -> List[Dict[str, Any]]:
-        """
-        获取角色的所有权限（包括从父角色继承的权限）
-        
-        Args:
-            role_id: 角色ID
-        
-        Returns:
-            权限列表，去重后的完整权限集
-        """
-        # 获取角色层级（包括自身及所有父角色）
-        hierarchy = await self.get_role_hierarchy(role_id)
-        role_ids = [role['id'] for role in hierarchy]
-        
-        if not role_ids:
-            return []
-        
-        # 构建IN子句，使用角色ID列表查询所有权限
-        placeholders = ', '.join(['%s'] * len(role_ids))
-        query = f"""
-            SELECT DISTINCT p.*
-            FROM permissions p
-            JOIN role_permissions rp ON p.id = rp.permission_id
-            WHERE rp.role_id IN ({placeholders})
-            ORDER BY p.id
-        """
-        
-        return await self.execute_query(query, tuple(role_ids))
-    
-    async def get_user_permissions(self, user_id: int) -> List[Dict[str, Any]]:
-        """
-        获取用户的所有权限（基于用户角色及角色继承）
-        
-        Args:
-            user_id: 用户ID
-        
-        Returns:
-            权限列表，去重后的完整权限集
-        """
-        start_time = time.time()
-        current_time = int(time.time())
-        
-        # 检查缓存
-        cache_key = f"user_permissions_{user_id}"
-        if cache_key in self.permission_cache:
-            cached_data = self.permission_cache[cache_key]
-            if current_time - cached_data['timestamp'] < self.cache_expiry:
-                logger.info(f"使用缓存的用户权限: {user_id}")
-                execution_time = (time.time() - start_time) * 1000
-                if execution_time > 10:
-                    logger.warning(f"get_user_permissions 缓存查询执行时间较长: {execution_time:.2f}ms")
-                return cached_data['permissions']
-        
-        try:
-            # 一次性获取用户角色和权限，减少数据库查询次数
-            query = """
-                WITH RECURSIVE role_hierarchy AS (
-                    SELECT r.id, r.name, r.parent_id
-                    FROM roles r
-                    JOIN users u ON u.role = r.name
-                    WHERE u.id = %s
-                    UNION ALL
-                    SELECT r.id, r.name, r.parent_id
-                    FROM roles r
-                    JOIN role_hierarchy rh ON rh.parent_id = r.id
-                )
-                SELECT DISTINCT p.*
-                FROM permissions p
-                JOIN role_permissions rp ON p.id = rp.permission_id
-                JOIN role_hierarchy rh ON rh.id = rp.role_id
-                ORDER BY p.id
-            """
-            
-            permissions = await self.execute_query(query, (user_id,))
-            
-            # 更新缓存
-            self.permission_cache[cache_key] = {
-                'permissions': permissions,
-                'timestamp': current_time
-            }
-            
-            # 清理过期缓存，避免内存泄漏
-            self._clean_expired_cache()
-            
-            execution_time = (time.time() - start_time) * 1000
-            if execution_time > 100:
-                logger.warning(f"get_user_permissions 执行时间较长: {execution_time:.2f}ms")
-            
-            return permissions
-        except Exception as e:
-            logger.error(f"获取用户权限失败: {e}")
-            # 降级到原始实现
-            try:
-                # 获取用户角色
-                user = await self.execute_query_one(
-                    "SELECT role FROM users WHERE id = %s",
-                    (user_id,)
-                )
-                
-                if not user or not user['role']:
-                    return []
-                
-                # 获取角色ID
-                role = await self.execute_query_one(
-                    "SELECT id FROM roles WHERE name = %s",
-                    (user['role'],)
-                )
-                
-                if not role:
-                    return []
-                
-                # 获取角色的所有权限（包括继承）
-                permissions = await self.get_role_permissions(role['id'])
-                
-                # 更新缓存
-                self.permission_cache[cache_key] = {
-                    'permissions': permissions,
-                    'timestamp': current_time
-                }
-                
-                return permissions
-            except Exception as fallback_error:
-                logger.error(f"降级实现获取用户权限失败: {fallback_error}")
-                return []
-    
-    def _clean_expired_cache(self):
-        """
-        清理过期的缓存数据，避免内存泄漏
-        """
-        current_time = int(time.time())
-        expired_keys = []
-        
-        for key, data in self.permission_cache.items():
-            if current_time - data['timestamp'] >= self.cache_expiry:
-                expired_keys.append(key)
-        
-        for key in expired_keys:
-            del self.permission_cache[key]
-        
-        if expired_keys:
-            logger.info(f"清理了 {len(expired_keys)} 个过期的权限缓存")
-    
     async def get_user_by_token(self, token: str) -> Optional[Dict[str, Any]]:
         """
-        根据token获取用户信息（模拟实现，实际应从JWT或token存储中获取）
-        
+        根据token获取用户信息（简化版，roles/permissions/role_permissions 表已删除）
+
         Args:
             token: 用户token
-        
+
         Returns:
-            用户信息字典，包括权限列表
+            用户信息字典（不含 permissions 数组）
         """
-        # 模拟实现，实际应从token中解析用户ID或从token存储中查询
-        # 这里简化处理，默认返回admin用户
         user = await self.execute_query_one(
             "SELECT id, username, email, role FROM users WHERE username = 'admin'"
         )
-        
+
         if not user:
             return None
-        
-        # 获取用户权限
-        permissions = await self.get_user_permissions(user['id'])
-        
-        # 转换权限为简单的权限代码列表
-        permission_codes = [p['code'] for p in permissions]
 
-        # 返回包含权限的用户信息
         user_info = {
             'id': user['id'],
             'username': user['username'],
             'email': user['email'],
             'role': user['role'],
-            'permissions': permission_codes
         }
-        
+
         return user_info
-    
-    async def get_role_by_name(self, role_name: str) -> Optional[Dict[str, Any]]:
-        """
-        根据角色名称获取角色信息
-        
-        Args:
-            role_name: 角色名称
-        
-        Returns:
-            角色信息字典
-        """
-        return await self.execute_query_one(
-            "SELECT id, name, description, parent_id FROM roles WHERE name = %s",
-            (role_name,)
-        )
 
 
 # 全局MySQLRepository实例
