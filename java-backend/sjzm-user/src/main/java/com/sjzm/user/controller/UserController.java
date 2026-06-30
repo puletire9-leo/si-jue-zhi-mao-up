@@ -95,4 +95,15 @@ public class UserController {
         userService.updateRole(id, role);
         return Result.success("角色更新成功");
     }
+
+    @PutMapping("/{id}/password/reset")
+    @Operation(summary = "管理员重置他人密码（无需旧密码）")
+    public Result<String> resetPassword(@PathVariable Long id, @RequestBody java.util.Map<String, String> body) {
+        String newPassword = body.get("newPassword");
+        if (newPassword == null || newPassword.length() < 6) {
+            return Result.error(400, "新密码长度不能少于 6 位");
+        }
+        userService.resetPassword(id, newPassword);
+        return Result.success("密码重置成功");
+    }
 }
