@@ -1,10 +1,14 @@
 """
-[参考] 领星导入API - 待废弃
+[参考] 领星导入API - 暂留
 =========================
 
-[WARN] 此模块已迁移到 Java 后端: LingxingController.java
+[WARN] 前端仍在使用此模块的三个接口（upload-image/download-template/generate-import-file），
+      Java 侧暂未实现，因此保留此文件。
+      等 Java LingxingController 实现对应功能后再删除。
 
-最终删除日期：项目稳定运行后
+涉及前端：
+  - frontend/src/api/lingxing.ts (upload-image, download-template)
+  - frontend/src/views/Lingxing/Import/index.vue (generate-import-file, download-template)
 """
 
 """

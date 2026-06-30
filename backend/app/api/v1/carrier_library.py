@@ -30,7 +30,7 @@ from ...models import (
 from ...config import settings
 from ...services.library_image_service import get_library_image_service
 from ...repositories import MySQLRepository
-from ...middleware.auth_middleware import require_auth
+from ...middleware.auth_middleware import require_auth, require_write_role
 
 logger = logging.getLogger(__name__)
 
@@ -338,7 +338,7 @@ async def get_carrier_library_no_slash(
     page: int = Query(1, ge=1, description="当前页码"),
     size: int = Query(20, ge=1, le=100, description="每页数量"),
     mysql_repo=get_mysql_repo(),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     获取载体库列表（无末尾斜杠路由）
@@ -374,7 +374,7 @@ async def get_carrier_library(
     page: int = Query(1, ge=1, description="当前页码"),
     size: int = Query(20, ge=1, le=100, description="每页数量"),
     mysql_repo=get_mysql_repo(),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     获取载体库列表
@@ -577,7 +577,7 @@ async def get_carrier_library(
 async def create_carrier_library_no_slash(
     carrier: CarrierLibraryCreate,
     mysql_repo=get_mysql_repo(),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     创建新载体（无末尾斜杠路由）
@@ -589,7 +589,7 @@ async def create_carrier_library_no_slash(
 async def create_carrier_library(
     carrier: CarrierLibraryCreate,
     mysql_repo=get_mysql_repo(),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     创建新载体
@@ -743,7 +743,7 @@ async def create_carrier_library(
 async def batch_create_carrier_library(
     carriers: List[CarrierLibraryCreate],
     mysql_repo=get_mysql_repo(),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     批量创建载体
@@ -755,7 +755,7 @@ async def batch_create_carrier_library(
 async def _batch_create_carrier_library(
     carriers: List[CarrierLibraryCreate],
     mysql_repo=get_mysql_repo(),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     批量创建载体
@@ -871,7 +871,7 @@ async def _batch_create_carrier_library(
 async def batch_delete_carrier_library(
     request: BatchOperationRequest,
     mysql_repo=get_mysql_repo(),
-    user_info: dict = Depends(require_auth)
+    user_info: dict = Depends(require_write_role)
 ):
     """
     批量删除载体
@@ -883,7 +883,7 @@ async def batch_delete_carrier_library(
 async def _batch_delete_carrier_library(
     request: BatchOperationRequest,
     mysql_repo=get_mysql_repo(),
-    user_info: dict = Depends(require_auth)
+    user_info: dict = Depends(require_write_role)
 ):
     """
     批量删除载体
@@ -986,7 +986,7 @@ async def get_recycle_bin_slash(
     page: int = Query(default=1, ge=1, description="当前页码"),
     size: int = Query(default=20, ge=1, le=100, description="每页数量"),
     mysql_repo=get_mysql_repo(),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     获取回收站载体（有末尾斜杠路由）
@@ -999,7 +999,7 @@ async def get_recycle_bin(
     page: int = Query(default=1, ge=1, description="当前页码"),
     size: int = Query(default=20, ge=1, le=100, description="每页数量"),
     mysql_repo=get_mysql_repo(),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     获取回收站载体
@@ -1053,7 +1053,7 @@ async def get_recycle_bin(
 async def batch_restore_carrier_library(
     request: BatchOperationRequest,
     mysql_repo=get_mysql_repo(),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     从回收站批量恢复载体
@@ -1203,7 +1203,7 @@ async def batch_restore_carrier_library(
 async def delete_carrier_library(
     sku: str,
     mysql_repo=get_mysql_repo(),
-    user_info: dict = Depends(require_auth)
+    user_info: dict = Depends(require_write_role)
 ):
     """
     删除单个载体（软删除）
@@ -1297,7 +1297,7 @@ async def delete_carrier_library(
 async def delete_carrier_library_by_id(
     id: int,
     mysql_repo=get_mysql_repo(),
-    user_info: dict = Depends(require_auth)
+    user_info: dict = Depends(require_write_role)
 ):
     """
     通过ID删除单个载体（软删除）
@@ -1392,7 +1392,7 @@ async def update_carrier_library(
     id: int,
     carrier: CarrierLibraryUpdate,
     mysql_repo=get_mysql_repo(),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     更新载体信息
@@ -1523,7 +1523,7 @@ async def update_carrier_library(
 @router.post("/process-local-files")
 async def process_carrier_library_local_files(
     mysql_repo=get_mysql_repo(),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     处理载体库本地文件
@@ -1559,7 +1559,7 @@ async def get_carrier_library_recycle_bin(
     page: int = 1,
     size: int = 20,
     mysql_repo=get_mysql_repo(),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     获取载体库回收站列表
@@ -1634,7 +1634,7 @@ async def get_carrier_library_recycle_bin(
 @router.delete("/recycle-bin/clear")
 async def clear_carrier_library_recycle_bin(
     mysql_repo=get_mysql_repo(),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     清空载体库回收站
@@ -1672,7 +1672,7 @@ async def clear_carrier_library_recycle_bin(
 async def restore_carrier_library(
     sku: str,
     mysql_repo=get_mysql_repo(),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     从回收站恢复单个载体
@@ -1762,7 +1762,7 @@ async def restore_carrier_library(
 async def batch_restore_carrier_library(
     request: BatchOperationRequest,
     mysql_repo=get_mysql_repo(),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     从回收站批量恢复载体
@@ -1944,7 +1944,7 @@ async def batch_restore_carrier_library(
 async def batch_permanently_delete_carrier_library(
     request: BatchOperationRequest,
     mysql_repo=get_mysql_repo(),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     从回收站批量永久删除载体
@@ -2036,7 +2036,7 @@ async def batch_permanently_delete_carrier_library(
 async def permanently_delete_carrier_library(
     sku: str,
     mysql_repo=get_mysql_repo(),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     从回收站永久删除单个载体
@@ -2082,7 +2082,7 @@ async def permanently_delete_carrier_library(
 async def permanently_delete_carrier_library_by_id(
     id: int,
     mysql_repo=get_mysql_repo(),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     从回收站通过ID永久删除单个载体

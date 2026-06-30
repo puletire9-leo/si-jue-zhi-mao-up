@@ -45,7 +45,7 @@ from ...models.download_task import DownloadTaskSource
 from ...config import settings
 
 from ...services.download_task_service import download_task_service, DownloadTaskStatus, DOWNLOAD_CACHE_DIR
-from ...middleware.auth_middleware import require_auth
+from ...middleware.auth_middleware import require_auth, require_write_role
 from ...tasks.download_tasks import execute_download
 from ...utils.download_utils import clean_url
 
@@ -523,7 +523,7 @@ async def get_final_drafts_no_slash(
     sort_order: Optional[str] = Query("desc", description="排序方向"),
     page: Optional[str] = Query("1", description="当前页码"),
     size: Optional[str] = Query("20", description="每页数量"),
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -575,7 +575,7 @@ async def get_final_drafts(
     sort_order: Optional[str] = Query("desc", description="排序方向"),
     page: int = Query(1, ge=1, description="当前页码"),
     size: int = Query(20, ge=1, le=100, description="每页数量"),
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -834,7 +834,7 @@ async def get_final_drafts(
 @router.post("")
 async def create_final_draft_no_slash(
     draft: FinalDraftCreate,
-    user_info: dict = Depends(require_auth),
+    user_info: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -846,7 +846,7 @@ async def create_final_draft_no_slash(
 @router.post("/")
 async def create_final_draft(
     draft: FinalDraftCreate,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1016,7 +1016,7 @@ async def create_final_draft(
 @router.post("/batch-create")
 async def batch_create_final_drafts(
     drafts: List[FinalDraftCreate],
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1028,7 +1028,7 @@ async def batch_create_final_drafts(
 @router.post("/batch-create/")
 async def _batch_create_final_drafts(
     drafts: List[FinalDraftCreate],
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1149,7 +1149,7 @@ async def _batch_create_final_drafts(
 @router.post("/batch-delete")
 async def batch_delete_final_drafts(
     request: BatchOperationRequest,
-    user_info: dict = Depends(require_auth),
+    user_info: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1161,7 +1161,7 @@ async def batch_delete_final_drafts(
 @router.post("/batch-delete/")
 async def _batch_delete_final_drafts(
     request: BatchOperationRequest,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1263,7 +1263,7 @@ async def _batch_delete_final_drafts(
 async def get_recycle_bin_slash(
     page: int = Query(default=1, ge=1, description="当前页码"),
     size: int = Query(default=20, ge=1, le=100, description="每页数量"),
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1276,7 +1276,7 @@ async def get_recycle_bin_slash(
 async def get_recycle_bin(
     page: int = Query(default=1, ge=1, description="当前页码"),
     size: int = Query(default=20, ge=1, le=100, description="每页数量"),
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1330,7 +1330,7 @@ async def get_recycle_bin(
 @router.post("/recycle-bin/batch-restore")
 async def batch_restore_final_drafts(
     request: BatchOperationRequest,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1479,7 +1479,7 @@ async def batch_restore_final_drafts(
 
 @router.delete("/recycle-bin/clear")
 async def clear_final_draft_recycle_bin(
-    user_info: dict = Depends(require_auth),
+    user_info: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1517,7 +1517,7 @@ async def clear_final_draft_recycle_bin(
 @router.delete("/recycle-bin/batch")
 async def batch_permanently_delete_final_drafts(
     request: BatchOperationRequest,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1611,7 +1611,7 @@ async def batch_permanently_delete_final_drafts(
 @router.post("/recycle-bin/{sku}/restore")
 async def restore_final_draft(
     sku: str,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1682,7 +1682,7 @@ async def restore_final_draft(
 @router.delete("/recycle-bin/{sku}")
 async def permanently_delete_final_draft(
     sku: str,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1726,7 +1726,7 @@ async def permanently_delete_final_draft(
 @router.delete("/recycle-bin/delete-by-id/{id}")
 async def permanently_delete_final_draft_by_id(
     id: int,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1778,7 +1778,7 @@ async def permanently_delete_final_draft_by_id(
 async def download_zip_file(
     request: Request,
     token: str = Query(..., description="临时ZIP文件token"),
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     下载临时ZIP文件
@@ -1863,7 +1863,7 @@ async def download_zip_file(
 @router.get("/{sku}")
 async def get_final_draft(
     sku: str,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1915,7 +1915,7 @@ async def get_final_draft(
 async def update_final_draft(
     sku: str,
     draft_update: FinalDraftUpdate,
-    user_info: dict = Depends(require_auth),
+    user_info: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -2232,7 +2232,7 @@ async def update_final_draft(
 async def update_final_draft_by_identifier(
     identifier: str,
     draft_update: FinalDraftUpdate,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -2273,7 +2273,7 @@ async def update_final_draft_by_identifier(
 @router.post("/batch-update")
 async def batch_update_final_drafts(
     batch_update_data: dict,
-    user_info: dict = Depends(require_auth),
+    user_info: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -2383,7 +2383,7 @@ async def batch_update_final_drafts(
 @router.delete("/{identifier}")
 async def delete_final_draft_by_identifier(
     identifier: str,
-    user_info: dict = Depends(require_auth),
+    user_info: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -2490,7 +2490,7 @@ async def delete_final_draft_by_identifier(
 @router.get("/batch/{batch}/count")
 async def get_batch_count(
     batch: str,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -3585,7 +3585,7 @@ async def _download_files_batch(
 async def download_zip(
     request: Request,
     response: Response,
-    user_info: dict = Depends(require_auth)
+    user_info: dict = Depends(require_write_role)
 ):
     """
     下载文件并打包成ZIP（优化版）
@@ -3699,7 +3699,7 @@ async def download_zip(
 
 
 @router.get("/download-tasks/{task_id}")
-async def get_download_task_status(task_id: str, current_user: dict = Depends(require_auth)):
+async def get_download_task_status(task_id: str, current_user: dict = Depends(require_write_role)):
     """
     获取下载任务状态
     
@@ -3749,7 +3749,7 @@ async def get_download_task_status(task_id: str, current_user: dict = Depends(re
 
 
 @router.post("/download-tasks/{task_id}/cancel")
-async def cancel_download_task(task_id: str, current_user: dict = Depends(require_auth)):
+async def cancel_download_task(task_id: str, current_user: dict = Depends(require_write_role)):
     """
     取消下载任务
     

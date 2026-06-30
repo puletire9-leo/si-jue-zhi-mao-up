@@ -106,6 +106,7 @@
     <!-- 操作按钮 -->
     <div class="card-actions">
       <el-button
+        v-if="canWrite"
         type="primary"
         :icon="Edit"
         circle
@@ -120,7 +121,7 @@
         @click.stop="handleDownload"
       />
       <el-button
-        v-if="canDelete"
+        v-if="canWrite"
         type="danger"
         :icon="Delete"
         circle
@@ -134,6 +135,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useUserStore } from '@/stores/user'
+import { canWrite as checkCanWrite } from '@/utils/permission'
 // import { 
 //   Picture, 
 //   Loading, 
@@ -211,11 +213,8 @@ const emit = defineEmits<{
 // 用户状态管理
 const userStore = useUserStore()
 
-// 判断是否有删除权限（非仓库角色）
-const canDelete = computed(() => {
-  const role = userStore.userInfo?.role
-  return role !== '仓库'
-})
+// 是否有写权限（上传/编辑/删除）：admin 和 开发 可写
+const canWrite = computed(() => checkCanWrite(userStore.userInfo?.role))
 
 // 响应式数据 - 使用computed确保响应props.selected的变化
 const isSelected = computed(() => props.selected || false)

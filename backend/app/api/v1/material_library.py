@@ -31,7 +31,7 @@ from ...models import (
 from ...config import settings
 from ...services.library_image_service import get_library_image_service
 from ...services.cos_service import cos_service
-from ...middleware.auth_middleware import require_auth
+from ...middleware.auth_middleware import require_auth, require_write_role
 
 # AI analysis config — read from settings (config.py bridge module not available in Docker)
 AI_ANALYSIS_ENGINE = getattr(settings, "AI_ANALYSIS_ENGINE", None) or "tencent"
@@ -368,7 +368,7 @@ async def get_material_library_no_slash(
     sort_order: Optional[str] = Query("desc", description="排序方向"),
     page: int = Query(1, ge=1, description="当前页码"),
     size: int = Query(20, ge=1, le=100, description="每页数量"),
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -404,7 +404,7 @@ async def get_material_library(
     sort_order: Optional[str] = Query("desc", description="排序方向"),
     page: int = Query(1, ge=1, description="当前页码"),
     size: int = Query(20, ge=1, le=100, description="每页数量"),
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -613,7 +613,7 @@ async def get_material_library(
 @router.post("")
 async def create_material_library_no_slash(
     material: MaterialLibraryCreate,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -625,7 +625,7 @@ async def create_material_library_no_slash(
 @router.post("/")
 async def create_material_library(
     material: MaterialLibraryCreate,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -789,7 +789,7 @@ async def create_material_library(
 @router.post("/analyze-image")
 async def analyze_material_image(
     request: dict,
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     分析图片内容，自动识别元素标签
@@ -939,7 +939,7 @@ async def analyze_material_image(
 @router.post("/analyze-image-detailed")
 async def analyze_material_image_detailed(
     request: dict,
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     详细分析图片内容，使用腾讯云混元大模型
@@ -1066,7 +1066,7 @@ async def analyze_material_image_detailed(
 @router.post("/batch-create")
 async def batch_create_material_library(
     materials: List[MaterialLibraryCreate],
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1078,7 +1078,7 @@ async def batch_create_material_library(
 @router.post("/batch-create/")
 async def _batch_create_material_library(
     materials: List[MaterialLibraryCreate],
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1207,7 +1207,7 @@ async def _batch_create_material_library(
 @router.post("/batch-delete")
 async def batch_delete_material_library(
     request: BatchOperationRequest,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1219,7 +1219,7 @@ async def batch_delete_material_library(
 @router.post("/batch-delete/")
 async def _batch_delete_material_library(
     request: BatchOperationRequest,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1320,7 +1320,7 @@ async def _batch_delete_material_library(
 @router.delete("/{sku}")
 async def delete_material_library(
     sku: str,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1398,7 +1398,7 @@ async def delete_material_library(
 async def get_recycle_bin_slash(
     page: int = Query(default=1, ge=1, description="当前页码"),
     size: int = Query(default=20, ge=1, le=100, description="每页数量"),
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1411,7 +1411,7 @@ async def get_recycle_bin_slash(
 async def get_recycle_bin(
     page: int = Query(default=1, ge=1, description="当前页码"),
     size: int = Query(default=20, ge=1, le=100, description="每页数量"),
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1514,7 +1514,7 @@ def save_element_tags_to_file(elements: list[str]) -> bool:
 
 @router.get("/elements")
 async def get_elements(
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     获取当前元素词库列表
@@ -1552,7 +1552,7 @@ async def get_elements(
 @router.put("/elements")
 async def update_elements(
     elements: list[str],
-    current_user: dict = Depends(require_auth)
+    current_user: dict = Depends(require_write_role)
 ):
     """
     更新元素词库
@@ -1611,7 +1611,7 @@ async def update_elements(
 @router.post("/recycle-bin/batch-restore")
 async def batch_restore_material_library(
     request: BatchOperationRequest,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1760,7 +1760,7 @@ async def batch_restore_material_library(
 
 @router.post("/process-local-files")
 async def process_material_library_local_files(
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1794,7 +1794,7 @@ async def process_material_library_local_files(
 
 @router.post("/process-all-libraries")
 async def process_all_libraries_local_files(
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1828,7 +1828,7 @@ async def process_all_libraries_local_files(
 
 @router.delete("/recycle-bin/clear")
 async def clear_material_library_recycle_bin(
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -1866,7 +1866,7 @@ async def clear_material_library_recycle_bin(
 @router.delete("/recycle-bin/batch")
 async def batch_permanently_delete_material_library(
     request: BatchOperationRequest,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """
@@ -2081,7 +2081,7 @@ def extract_and_add_elements(element_str: str):
 async def update_material_library(
     sku: str,
     material: MaterialLibraryUpdate,
-    current_user: dict = Depends(require_auth),
+    current_user: dict = Depends(require_write_role),
     mysql_repo=get_mysql_repo()
 ):
     """

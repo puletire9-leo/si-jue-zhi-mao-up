@@ -5,7 +5,7 @@
 无 Gateway 头时，兜底从 Authorization 头解析 JWT。
 """
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Request, Depends
 from typing import Dict, Any
 
 
@@ -37,3 +37,16 @@ async def require_auth(request: Request) -> Dict[str, Any]:
 def is_admin(user: dict) -> bool:
     """判断是否管理员（仅用于业务逻辑，不做权限拦截）"""
     return user.get("role") in ("管理员", "admin")
+
+
+async def require_write_role(request: Request, user: Dict[str, Any] = Depends(require_auth)) -> Dict[str, Any]:
+    """
+    要求当前用户具有写权限（管理员或开发角色）。
+    GET/HEAD/OPTIONS 等只读方法放行，仅拦截 POST/PUT/DELETE 写操作。
+    """
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return user
+    role = user.get("role", "")
+    if role in ("管理员", "admin", "开发"):
+        return user
+    raise HTTPException(status_code=403, detail=f"角色 '{role}' 没有写操作权限")

@@ -42,15 +42,6 @@
           </template>
         </el-table-column>
         <el-table-column
-          prop="developer"
-          label="关联开发人"
-          width="150"
-        >
-          <template #default="{ row }">
-            {{ row.developer || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column
           prop="createdAt"
           label="创建时间"
           width="180"
@@ -149,24 +140,6 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item
-          v-if="formData.role === '开发'"
-          label="关联开发人"
-          required
-        >
-          <el-select
-            v-model="formData.developer"
-            placeholder="请选择开发人"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="developer in developerList"
-              :key="developer"
-              :label="developer"
-              :value="developer"
-            />
-          </el-select>
-        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">
@@ -189,7 +162,6 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { userApi } from '@/api/user'
-import { systemConfigApi } from '@/api/systemConfig'
 import { useUserStore } from '@/stores/user'
 import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 
@@ -202,25 +174,13 @@ const loading = ref(true)
 const hasLoaded = ref(false)
 const refreshing = computed(() => loading.value && hasLoaded.value)
 const isEdit = ref(false)
-const developerList = ref([])
 
 const formData = reactive({
   id: null,
   username: '',
   password: '',
-  role: '开发',
-  developer: ''
+  role: '开发'
 })
-
-const loadDeveloperList = async () => {
-  try {
-    const response = await systemConfigApi.getDeveloperList()
-    developerList.value = response.data?.developerList || []
-  } catch (error) {
-    console.error('获取开发人列表失败:', error)
-    developerList.value = []
-  }
-}
 
 const loadUsers = async () => {
   loading.value = true
@@ -230,8 +190,7 @@ const loadUsers = async () => {
     const users = response.data?.list || []
     userList.value = users.map(user => ({
       ...user,
-      createdAt: user.createdAt || (user as any).created_at,
-      developer: (user as any).developer
+      createdAt: user.createdAt || (user as any).created_at
     }))
   } catch (error) {
     ElMessage.error('加载用户列表失败')
@@ -252,9 +211,6 @@ const handleAdd = () => {
   formData.username = ''
   formData.password = ''
   formData.role = '开发'
-  formData.developer = ''
-  // 确保开发人列表已加载
-  loadDeveloperList()
   dialogVisible.value = true
 }
 
@@ -269,9 +225,6 @@ const handleEdit = (row) => {
   formData.username = row.username
   formData.password = ''
   formData.role = row.role
-  formData.developer = row.developer || ''
-  // 确保开发人列表已加载
-  loadDeveloperList()
   dialogVisible.value = true
 }
 

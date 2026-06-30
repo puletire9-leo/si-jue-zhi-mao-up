@@ -1151,21 +1151,6 @@ CREATE TABLE `operation_logs` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `permissions` (
-  `id` int NOT NULL AUTO_INCREMENT COMMENT '权限ID',
-  `name` varchar(100) NOT NULL COMMENT '权限名称',
-  `code` varchar(100) NOT NULL COMMENT '权限代码',
-  `description` varchar(255) DEFAULT NULL COMMENT '权限描述',
-  `module` varchar(50) DEFAULT NULL COMMENT '所属模块',
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `name` (`name`),
-  UNIQUE KEY `code` (`code`),
-  KEY `idx_permissions_code` (`code`)
-) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='权限表';
-/*!40101 SET character_set_client = @saved_cs_client */;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `product_30day_new` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `asin` varchar(20) NOT NULL,
@@ -1454,41 +1439,6 @@ CREATE TABLE `requirements` (
   `updatedAt` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `role_permissions` (
-  `id` int NOT NULL AUTO_INCREMENT COMMENT '关联ID',
-  `role_id` int NOT NULL COMMENT '角色ID',
-  `permission_id` int NOT NULL COMMENT '权限ID',
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_role_permission` (`role_id`,`permission_id`),
-  UNIQUE KEY `idx_role_permissions_unique` (`role_id`,`permission_id`),
-  KEY `idx_role_id` (`role_id`),
-  KEY `idx_permission_id` (`permission_id`),
-  KEY `idx_role_permissions_role_id` (`role_id`),
-  KEY `idx_role_permissions_permission_id` (`permission_id`),
-  CONSTRAINT `role_permissions_ibfk_1` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `role_permissions_ibfk_2` FOREIGN KEY (`permission_id`) REFERENCES `permissions` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=33 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='角色权限关联表';
-/*!40101 SET character_set_client = @saved_cs_client */;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `roles` (
-  `id` int NOT NULL AUTO_INCREMENT COMMENT '角色ID',
-  `name` varchar(50) NOT NULL COMMENT '角色名称',
-  `parent_id` int DEFAULT NULL COMMENT '父角色ID',
-  `description` varchar(255) DEFAULT NULL COMMENT '角色描述',
-  `permissions` json DEFAULT NULL COMMENT '权限列表（JSON格式）',
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `name` (`name`),
-  KEY `idx_parent_id` (`parent_id`),
-  KEY `idx_roles_name` (`name`),
-  KEY `idx_roles_parent_id` (`parent_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='角色表';
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
@@ -1911,21 +1861,6 @@ CREATE TABLE `user_filter_presets` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_index` (`user_id`,`preset_index`)
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `user_roles` (
-  `id` int NOT NULL AUTO_INCREMENT COMMENT '关联ID',
-  `user_id` int NOT NULL COMMENT '用户ID',
-  `role_id` int NOT NULL COMMENT '角色ID',
-  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_user_role` (`user_id`,`role_id`),
-  KEY `idx_user_id` (`user_id`),
-  KEY `idx_role_id` (`role_id`),
-  CONSTRAINT `user_roles_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `user_roles_ibfk_2` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户角色关联表';
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
