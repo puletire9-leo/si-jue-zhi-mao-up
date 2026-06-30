@@ -1,72 +1,59 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import Profile from './components/Profile.vue'
-import Preferences from './components/Preferences.vue'
-import SecurityLog from './components/SecurityLog.vue'
-import AccountManagement from './components/AccountManagement.vue'
-import { useUserStore } from '@/stores/user'
-import {
-  ArrowLeft,
-  User,
-  Setting,
-  Monitor,
-  UserFilled as ProfileIcon
-} from '@element-plus/icons-vue'
+import { ref, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import Profile from "./components/Profile.vue";
+import Preferences from "./components/Preferences.vue";
+import SecurityLog from "./components/SecurityLog.vue";
+import { useUserStore } from "@/stores/user";
+import { ArrowLeft, User, Setting, Monitor } from "@element-plus/icons-vue";
 
-const router = useRouter()
-const userStore = useUserStore()
+const router = useRouter();
+const userStore = useUserStore();
 
 const userInfo = ref({
-  avatar: '',
-  username: '',
-  nickname: ''
-})
+  avatar: "",
+  username: "",
+  nickname: "",
+});
 
 // 骨架屏加载状态
-const loading = ref(false)
-const hasLoaded = ref(true)
-const refreshing = ref(false)
+const loading = ref(false);
+const hasLoaded = ref(true);
+const refreshing = ref(false);
 
 const panes = [
   {
-    key: 'profile',
-    label: '个人信息',
+    key: "profile",
+    label: "个人信息",
     icon: User,
-    component: Profile
+    component: Profile,
   },
   {
-    key: 'preferences',
-    label: '偏好设置',
+    key: "preferences",
+    label: "偏好设置",
     icon: Setting,
-    component: Preferences
+    component: Preferences,
   },
   {
-    key: 'securityLog',
-    label: '安全日志',
+    key: "securityLog",
+    label: "安全日志",
     icon: Monitor,
-    component: SecurityLog
+    component: SecurityLog,
   },
-  {
-    key: 'accountManagement',
-    label: '账户管理',
-    icon: ProfileIcon,
-    component: AccountManagement
-  }
-]
+];
 
-const activePane = ref('profile')
+const activePane = ref("profile");
 
 onMounted(() => {
-  const user = userStore.userInfo
+  const user = userStore.userInfo;
   if (user) {
     userInfo.value = {
-      avatar: user.avatar || '',
-      username: user.username || '',
-      nickname: user.nickname || user.username || ''
-    }
+      avatar: user.avatar || "",
+      username: user.username || "",
+      nickname: user.nickname || user.username || "",
+    };
   }
-})
+});
 </script>
 
 <template>
@@ -79,14 +66,11 @@ onMounted(() => {
     <el-container class="account-container">
       <el-aside class="account-sidebar">
         <el-menu :default-active="activePane" class="account-menu">
-          <div 
-            class="back-btn"
-            @click="router.go(-1)"
-          >
+          <div class="back-btn" @click="router.go(-1)">
             <el-icon><ArrowLeft /></el-icon>
             <span>返回</span>
           </div>
-          
+
           <div class="user-info">
             <el-avatar :size="48" :src="userInfo.avatar">
               {{ userInfo.nickname?.charAt(0)?.toUpperCase() }}
@@ -110,8 +94,8 @@ onMounted(() => {
       </el-aside>
 
       <el-main class="account-content">
-        <component 
-          :is="panes.find(item => item.key === activePane)?.component" 
+        <component
+          :is="panes.find((item) => item.key === activePane)?.component"
         />
       </el-main>
     </el-container>
@@ -178,7 +162,7 @@ onMounted(() => {
 
       .username {
         font-size: 13px;
-        color: #9CA3AF;
+        color: #9ca3af;
       }
     }
   }
