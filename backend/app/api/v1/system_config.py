@@ -51,24 +51,15 @@ async def get_developer_list(
     mysql_repo=get_mysql_repo()
 ):
     """
-    获取开发人列表配置
+    获取开发人列表（统一来源：users 表 role='开发'）
 
     返回开发人列表
-
-    权限要求: 无需权限
     """
     try:
-        # 改读人员名单表 person_roster（role_type=developer），与 Java roster 模块统一数据源
-        query = """
-        SELECT name
-        FROM person_roster
-        WHERE role_type = 'developer' AND enabled = 1
-        ORDER BY sort_order ASC, id ASC
-        """
-
-        rows = await mysql_repo.execute_query(query)
-
-        developer_list = [row["name"] for row in rows] if rows else []
+        rows = await mysql_repo.execute_query(
+            "SELECT username FROM users WHERE role='开发' ORDER BY id ASC"
+        )
+        developer_list = [row["username"] for row in rows] if rows else []
 
         return {
             "code": 200,
@@ -83,56 +74,26 @@ async def get_developer_list(
         raise HTTPException(status_code=500, detail="获取开发人列表失败")
 
 
-@router.put("/developer-list", summary="更新开发人列表")
+@router.put("/developer-list", summary="更新开发人列表（已废弃，开发人改由用户管理增删）")
 async def update_developer_list(
     developer_list: List[str] = Body(..., description="开发人列表"),
     user_info: dict = Depends(require_auth),
     mysql_repo=get_mysql_repo()
 ):
     """
-    更新开发人列表配置
-    
-    - **developer_list**: 开发人列表（必需）
-    
-    返回更新结果
-    
-    权限要求: config:write
+    更新开发人列表（已废弃）
+
+    [WARN] 开发人名单已由 users 表（role='开发'）统一管理。
+    此接口保留仅为兼容旧前端（Settings 通用配置 Tab），
+    当前仅做空操作返回成功，前端下一版迁移后删除。
     """
-    try:
-        # 过滤空字符串
-        filtered_list = [dev.strip() for dev in developer_list if dev.strip()]
-        if not filtered_list:
-            raise HTTPException(status_code=400, detail="开发人列表不能为空")
-
-        # 整组覆盖 person_roster 的开发人（role_type=developer），与 Java roster 模块统一数据源
-        # 先删旧，再按顺序重建。person_roster.id 非自增，Python 侧用毫秒时间戳+序号生成。
-        import time as _time
-        await mysql_repo.execute_update(
-            "DELETE FROM person_roster WHERE role_type = 'developer'"
-        )
-        base_id = int(_time.time() * 1000)
-        for idx, name in enumerate(filtered_list, start=1):
-            await mysql_repo.execute_update(
-                """
-                INSERT INTO person_roster (id, name, role_type, sort_order, enabled)
-                VALUES (%s, %s, 'developer', %s, 1)
-                """,
-                (base_id + idx, name, idx)
-            )
-
-        return {
-            "code": 200,
-            "message": "更新成功",
-            "data": {
-                "developerList": filtered_list
-            }
+    return {
+        "code": 200,
+        "message": "更新成功（开发人已统一从用户管理管理，此处操作已忽略）",
+        "data": {
+            "developerList": developer_list
         }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"更新开发人列表失败: {e}")
-        raise HTTPException(status_code=500, detail="更新开发人列表失败")
+    }
 
 
 @router.get("/carrier-list", summary="获取载体列表")

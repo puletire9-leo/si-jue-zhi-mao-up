@@ -42,6 +42,16 @@
           </template>
         </el-table-column>
         <el-table-column
+          label="状态"
+          width="100"
+        >
+          <template #default="{ row }">
+            <el-tag :type="row.status === 1 ? 'success' : 'danger'" size="small">
+              {{ row.status === 1 ? '正常' : '禁用' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column
           prop="createdAt"
           label="创建时间"
           width="180"
@@ -140,6 +150,15 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="是否可登录" v-if="formData.role !== '管理员'">
+          <el-switch
+            v-model="formData.status"
+            :active-value="1"
+            :inactive-value="0"
+            active-text="可登录"
+            inactive-text="禁用登录"
+          />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">
@@ -179,7 +198,8 @@ const formData = reactive({
   id: null,
   username: '',
   password: '',
-  role: '开发'
+  role: '开发',
+  status: 1   // 1=启用(可登录), 0=禁用(不可登录)
 })
 
 const loadUsers = async () => {
@@ -211,6 +231,7 @@ const handleAdd = () => {
   formData.username = ''
   formData.password = ''
   formData.role = '开发'
+  formData.status = 1
   dialogVisible.value = true
 }
 
@@ -219,12 +240,13 @@ const handleEdit = (row) => {
     ElMessage.warning('只有管理员可以编辑用户')
     return
   }
-  
+
   isEdit.value = true
   formData.id = row.id
   formData.username = row.username
   formData.password = ''
   formData.role = row.role
+  formData.status = row.status ?? 1
   dialogVisible.value = true
 }
 
