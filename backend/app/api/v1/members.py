@@ -29,7 +29,7 @@ async def get_members(
     {
         "developers": ["张子轩","周沁仪",...],
         "operators":  ["唐若","张亚芳",...],
-        "warehouse":  ["王亚成"]
+        "purchasers": ["王亚成"]
     }
 
     查询方式：role LIKE '%开发%' 等，兼容一人多角色（逗号分隔）。
@@ -44,7 +44,7 @@ async def get_members(
             "SELECT username FROM users WHERE role LIKE '%运营%' ORDER BY id ASC"
         )
         purchasers = await mysql_repo.execute_query(
-            "SELECT username FROM users WHERE role LIKE '%采购员%' ORDER BY id ASC"
+            "SELECT username FROM users WHERE role LIKE '%采购员%' AND status=1 ORDER BY id ASC"
         )
 
         return {
