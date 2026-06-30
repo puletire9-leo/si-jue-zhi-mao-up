@@ -100,6 +100,21 @@ public class BazhuayuClient {
     // 任务 / 云采集 / 数据
     // ============================================================
 
+    /**
+     * 更新任务循环项（写采集 URL / 文本列表）。POST /task/updateLoopItems
+     * 参照 产品数据/八爪鱼api/bazhuayu_api.py update_loop_items。
+     * 以图识图用 loopType="UrlList"，把待识图的视觉搜索 URL 写进任务循环。
+     */
+    public void updateLoopItems(String taskId, String loopType, List<String> loopItems) {
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("taskId", taskId);
+        body.put("loopType", loopType);
+        com.fasterxml.jackson.databind.node.ArrayNode arr = body.putArray("loopItems");
+        loopItems.forEach(arr::add);
+        post("/task/updateLoopItems", body, true);
+        log.info("八爪鱼任务 {} 更新循环项 {} 条（loopType={}）", taskId, loopItems.size(), loopType);
+    }
+
     /** 搜索任务组下的任务，返回 [{taskId, taskName}] */
     public List<JsonNode> searchTasks(long taskGroupId) {
         JsonNode data = get("/task/search?taskGroupId=" + taskGroupId);

@@ -80,6 +80,7 @@ declare module 'vue' {
     FilterDrawer: typeof import('./components/FilterDrawer/index.vue')['default']
     FilterPresetSelector: typeof import('./components/FilterPresetSelector/index.vue')['default']
     GlobalSearch: typeof import('./components/GlobalSearch/index.vue')['default']
+    ImageSearchPanel: typeof import('./components/ImageSearchPanel/index.vue')['default']
     ImageUpload: typeof import('./components/ImageUpload/index.vue')['default']
     LazyImage: typeof import('./components/LazyImage/index.vue')['default']
     MobileActionSheet: typeof import('./components/MobileActionSheet/index.vue')['default']

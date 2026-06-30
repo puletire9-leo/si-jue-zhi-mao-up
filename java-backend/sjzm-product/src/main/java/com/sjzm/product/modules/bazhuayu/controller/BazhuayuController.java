@@ -9,6 +9,7 @@ import com.sjzm.product.mapper.BazhuayuWeeklyRawMapper;
 import com.sjzm.product.modules.bazhuayu.entity.BazhuayuWeeklyRaw;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuClient;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuConfigService;
+import com.sjzm.product.modules.bazhuayu.service.BazhuayuImageSearchService;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuRunStateService;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuScheduledService;
 import com.sjzm.product.service.ScoringService;
@@ -38,6 +39,7 @@ public class BazhuayuController {
     private final BazhuayuConfigService configService;
     private final BazhuayuRunStateService runStateService;
     private final BazhuayuClient client;
+    private final BazhuayuImageSearchService imageSearchService;
     private final BazhuayuWeeklyRawMapper rawMapper;
     private final AsinImportTaskMapper taskMapper;
     private final ScoringService scoringService;
@@ -147,6 +149,26 @@ public class BazhuayuController {
         }
         int marked = client.markAllExported(taskId);
         return Result.success(Map.of("marketplace", marketplace, "markedRows", marked));
+    }
+
+    @PostMapping("/image-search")
+    @Operation(summary = "以图识图：对一个 ASIN 发起英国 stylesnap 视觉搜索（同步等待云端采集，约数分钟）")
+    public Result<List<com.sjzm.product.modules.bazhuayu.entity.BazhuayuImageSearchResult>> imageSearch(
+            @RequestBody Map<String, Object> body) {
+        Object asin = body.get("asin");
+        if (asin == null || asin.toString().isBlank()) {
+            throw new IllegalArgumentException("asin 不能为空");
+        }
+        boolean forceRefresh = Boolean.TRUE.equals(body.get("forceRefresh"))
+                || "true".equalsIgnoreCase(String.valueOf(body.get("forceRefresh")));
+        return Result.success(imageSearchService.searchByAsin(asin.toString(), forceRefresh));
+    }
+
+    @GetMapping("/image-search/{asin}")
+    @Operation(summary = "查询以图识图缓存结果（不触发采集）")
+    public Result<List<com.sjzm.product.modules.bazhuayu.entity.BazhuayuImageSearchResult>> getImageSearch(
+            @PathVariable String asin) {
+        return Result.success(imageSearchService.listResults(asin));
     }
 
     /** 本周一 00:00（用于按创建时间过滤本周任务） */

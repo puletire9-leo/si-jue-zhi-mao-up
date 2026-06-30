@@ -235,6 +235,7 @@
               @toggle-select="handleToggleSelect"
               @view="handleView"
               @delete="handleDelete"
+              @image-search="handleImageSearch"
             />
 
             <el-empty
@@ -868,12 +869,28 @@
         </el-dialog>
       </div>
     </div>
+
+    <!-- 以图识图结果弹窗 -->
+    <el-dialog
+      v-model="imageSearchVisible"
+      title="以图识图（英国）"
+      width="70%"
+      top="6vh"
+      destroy-on-close
+    >
+      <ImageSearchPanel
+        v-if="imageSearchAsin"
+        ref="imageSearchPanelRef"
+        :asin="imageSearchAsin"
+        :source-image="imageSearchImage"
+      />
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 defineOptions({ name: "AllSelection" });
-import { ref, reactive, onMounted, onUnmounted, computed, watch } from "vue";
+import { ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { ElMessage, ElMessageBox, ElLoading } from "element-plus";
 import {
@@ -900,6 +917,7 @@ import {
 } from "@element-plus/icons-vue";
 import type { FormInstance, FormRules, UploadFile } from "element-plus";
 import UniversalCard from "@/components/UniversalCard/index.vue";
+import ImageSearchPanel from "@/components/ImageSearchPanel/index.vue";
 import SkeletonWrapper from "@/components/SkeletonWrapper/index.vue";
 import ProductDetailDialog from "@/components/ProductDetailDialog/index.vue";
 import SelectionQueryForm from "@/components/SelectionQueryForm/index.vue";
@@ -2114,6 +2132,20 @@ const handleSelectProduct = (variant) => {
 const handleView = (product) => {
   selectedProduct.value = product;
   detailDialogVisible.value = true;
+};
+
+// ── 以图识图 ──
+const imageSearchVisible = ref(false);
+const imageSearchAsin = ref("");
+const imageSearchImage = ref("");
+const imageSearchPanelRef = ref<InstanceType<typeof ImageSearchPanel> | null>(null);
+
+const handleImageSearch = (product: Record<string, any>) => {
+  imageSearchAsin.value = product.asin || "";
+  imageSearchImage.value = product.imageUrl || product.image || "";
+  imageSearchVisible.value = true;
+  // 弹窗打开后先查缓存（destroy-on-close 重建，等子组件挂载）
+  nextTick(() => imageSearchPanelRef.value?.loadCache());
 };
 
 const handleDeleteProduct = async (product) => {

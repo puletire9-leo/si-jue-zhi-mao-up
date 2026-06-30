@@ -53,6 +53,8 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ArrowDown } from '@element-plus/icons-vue'
+import { systemConfigApi } from '@/api/systemConfig'
+import { getRosterNames } from '@/api/roster'
 
 // 配置项标签
 const configLabels: Record<string, string> = {
@@ -65,11 +67,11 @@ const configLabels: Record<string, string> = {
   auxiliaryRatioAux: '辅料比例(辅料)'
 }
 
-// 默认配置
+// 默认配置（developer/productManager/purchaser 不再硬编码，onMounted 从统一名单拉取）
 const defaultConfig = {
-  developer: '刘淼',
-  productManager: '唐若,张亚芳,阳姣,尹心如,蒋舒,张奋奋',
-  purchaser: '王亚成',
+  developer: '',
+  productManager: '',
+  purchaser: '',
   purchaseLeadTime: '7',
   auxiliarySku: '2270356',
   auxiliaryRatioMain: '1',
@@ -100,6 +102,29 @@ const loadConfig = () => {
     }
   } catch (error) {
     console.error('加载配置失败:', error)
+  }
+}
+
+/**
+ * 从统一名单（person_roster）拉取默认人员，填充到默认配置。
+ * 开发人取首位，产品负责人/采购员取全部逗号拼接。仅填充当前为空的项，不覆盖用户已存配置。
+ */
+const loadRosterDefaults = async () => {
+  try {
+    const [devs, pms, purchasers] = await Promise.all([
+      systemConfigApi.getDeveloperList().then(r => r?.data?.developerList ?? []),
+      getRosterNames('product_manager'),
+      getRosterNames('purchaser')
+    ])
+    if (devs.length) defaultConfig.developer = devs[0]
+    if (pms.length) defaultConfig.productManager = pms.join(',')
+    if (purchasers.length) defaultConfig.purchaser = purchasers[0]
+    // 仅填充用户尚未设置的项
+    if (!config.developer) config.developer = defaultConfig.developer
+    if (!config.productManager) config.productManager = defaultConfig.productManager
+    if (!config.purchaser) config.purchaser = defaultConfig.purchaser
+  } catch (error) {
+    console.error('加载人员名单默认值失败:', error)
   }
 }
 
@@ -150,6 +175,7 @@ defineExpose({
 // 生命周期
 onMounted(() => {
   loadConfig()
+  loadRosterDefaults()
 })
 </script>
 
