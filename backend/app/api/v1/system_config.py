@@ -57,7 +57,7 @@ async def get_developer_list(
     """
     try:
         rows = await mysql_repo.execute_query(
-            "SELECT username FROM users WHERE role='开发' ORDER BY id ASC"
+            "SELECT username FROM users WHERE role LIKE '%开发%' ORDER BY id ASC"
         )
         developer_list = [row["username"] for row in rows] if rows else []
 

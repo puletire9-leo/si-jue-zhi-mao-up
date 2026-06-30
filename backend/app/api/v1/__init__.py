@@ -43,6 +43,7 @@ except Exception:
 from .reports import router as reports_router
 from .download_tasks import router as download_tasks_router
 from .lingxing import router as lingxing_router
+from .members import router as members_router
 from .announcement import router as announcement_router
 
 api_router = APIRouter()
@@ -70,6 +71,7 @@ api_router.include_router(image_proxy_router)
 api_router.include_router(reports_router, prefix="/reports")
 api_router.include_router(download_tasks_router)
 api_router.include_router(lingxing_router)
+api_router.include_router(members_router)
 api_router.include_router(announcement_router)
 
 __all__ = ["api_router"]

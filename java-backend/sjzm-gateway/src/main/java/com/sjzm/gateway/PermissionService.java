@@ -29,18 +29,21 @@ public class PermissionService {
     }
 
     /**
-     * 检查角色是否有指定权限
+     * 检查角色是否有指定权限（兼容多角色逗号分隔，如 "管理员,运营"）
      */
     public boolean hasPermission(String role, String permission) {
         if (role == null || permission == null) return false;
 
-        List<String> permissions = roles.get(role);
-        if (permissions == null || permissions.isEmpty()) return false;
-
-        // admin 的 "*" 表示所有权限
-        if (permissions.contains("*")) return true;
-
-        return permissions.contains(permission);
+        // 支持多角色：按逗号拆分，任一子角色拥有权限即通过
+        for (String subRole : role.split(",")) {
+            subRole = subRole.trim();
+            List<String> permissions = roles.get(subRole);
+            if (permissions != null && !permissions.isEmpty()) {
+                if (permissions.contains("*")) return true;
+                if (permissions.contains(permission)) return true;
+            }
+        }
+        return false;
     }
 
     /**
