@@ -41,18 +41,6 @@ export const userApi = {
     });
   },
 
-  // 修改本人资料（仅 realName / email，后端 updateSelf 会过滤其他字段）
-  updateSelf(data: {
-    realName?: string;
-    email?: string;
-  }): Promise<ApiResponse<User>> {
-    return request({
-      url: "/api/v1/auth/me",
-      method: "put",
-      data,
-    });
-  },
-
   // 修改本人密码（需旧密码校验）
   updateSelfPassword(
     oldPassword: string,
