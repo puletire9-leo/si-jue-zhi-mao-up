@@ -148,7 +148,7 @@ export const useUserStore = defineStore('user', () => {
   }
 
   const isAdmin = computed(() => {
-    return userInfo.value?.role === '管理员' || userInfo.value?.role === 'admin'
+    return userInfo.value?.role?.includes('管理员') || userInfo.value?.role?.includes('admin')
   })
 
   return {
