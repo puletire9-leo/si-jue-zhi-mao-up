@@ -110,4 +110,13 @@ export const userApi = {
       data: { role },
     });
   },
+
+  // 管理员重置他人密码（无需旧密码，仅 admin 可调用）
+  resetPassword(id: string, newPassword: string): Promise<ApiResponse<null>> {
+    return request({
+      url: `/api/v1/users/${id}/password/reset`,
+      method: "put",
+      data: { newPassword },
+    });
+  },
 };

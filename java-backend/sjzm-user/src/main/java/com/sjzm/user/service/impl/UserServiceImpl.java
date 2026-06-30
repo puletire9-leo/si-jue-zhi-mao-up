@@ -139,4 +139,14 @@ public class UserServiceImpl implements UserService {
         log.info("用户角色已更新: userId={}, role={}", id, role);
     }
 
+    @Override
+    public void resetPassword(Long id, String newPassword) {
+        User user = userMapper.selectById(id);
+        if (user == null) {
+            throw new BusinessException(404, "用户不存在");
+        }
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userMapper.updateById(user);
+        log.warn("[Admin] 重置用户密码: userId={}, username={}", id, user.getUsername());
+    }
 }

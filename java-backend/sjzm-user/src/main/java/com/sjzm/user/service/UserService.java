@@ -18,4 +18,10 @@ public interface UserService {
     void delete(Long id);
 
     void updateRole(Long id, String role);
+
+    /**
+     * 管理员重置他人密码（无需旧密码校验）
+     * 仅 admin 角色可调用，权限由网关 user:manage 控制
+     */
+    void resetPassword(Long id, String newPassword);
 }
