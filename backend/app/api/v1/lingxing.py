@@ -219,14 +219,32 @@ async def generate_import_file(
         
         # 构建命令行参数
         cmd_args = [
-            'python', script_path, 
+            'python', script_path,
             '--output-path-file', output_path_file,
             '--source-file', source_file
         ]
-        
+
         # 如果指定了开发人，添加到参数中
         if developer:
             cmd_args.extend(['--developer', developer])
+
+        # 从 person_roster 取产品负责人/采购员，传给脚本（统一名单数据源，覆盖脚本内硬编码）
+        try:
+            mysql_repo = request.app.state.mysql
+            pm_rows = await mysql_repo.execute_query(
+                "SELECT name FROM person_roster WHERE role_type='product_manager' AND enabled=1 ORDER BY sort_order ASC, id ASC"
+            )
+            pm_names = ",".join(r["name"] for r in pm_rows) if pm_rows else ""
+            if pm_names:
+                cmd_args.extend(['--product-manager', pm_names])
+
+            purchaser_rows = await mysql_repo.execute_query(
+                "SELECT name FROM person_roster WHERE role_type='purchaser' AND enabled=1 ORDER BY sort_order ASC, id ASC"
+            )
+            if purchaser_rows:
+                cmd_args.extend(['--purchaser', purchaser_rows[0]["name"]])
+        except Exception as e:
+            logger.warning(f"读取 person_roster 失败，脚本将用内置兜底名单: {e}")
         
         # 执行Python脚本
         result = subprocess.run(

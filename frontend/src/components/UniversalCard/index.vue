@@ -48,6 +48,10 @@
           <el-icon><Promotion /></el-icon>
           <span class="link-text">一键打开</span>
         </div>
+        <div class="card-link-button image-search-link" @click.stop="handleImageSearch" title="以图识图">
+          <el-icon><Search /></el-icon>
+          <span class="link-text">以图识图</span>
+        </div>
       </div>
       
       <div class="card-actions">
@@ -141,7 +145,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { Picture, Money, Shop, Folder, View, Delete, TrendCharts, Select, Promotion } from '@element-plus/icons-vue'
+import { Picture, Money, Shop, Folder, View, Delete, TrendCharts, Select, Promotion, Search } from '@element-plus/icons-vue'
 import { trackClick } from '@/api/clickLog'
 import { getProductType } from '@/api/competitor'
 
@@ -159,6 +163,7 @@ interface Emits {
   (e: 'toggle-select', asin: string, selected: boolean): void
   (e: 'delete', product: Record<string, any>): void
   (e: 'view', product: Record<string, any>): void
+  (e: 'image-search', product: Record<string, any>): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -463,6 +468,10 @@ const handleOpenProductLink = (): void => {
     })
   }
 }
+
+const handleImageSearch = (): void => {
+  emit('image-search', props.product)
+}
 </script>
 
 <style scoped lang="scss">
@@ -667,6 +676,16 @@ const handleOpenProductLink = (): void => {
 
       &:hover {
         box-shadow: 0 6px 16px rgba(240, 147, 251, 0.5);
+      }
+    }
+
+    // 以图识图按钮样式
+    &.image-search-link {
+      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+      box-shadow: 0 4px 12px rgba(79, 172, 254, 0.4);
+
+      &:hover {
+        box-shadow: 0 6px 16px rgba(79, 172, 254, 0.5);
       }
     }
   }

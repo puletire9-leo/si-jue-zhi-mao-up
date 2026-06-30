@@ -37,6 +37,10 @@ class LingxingAPI:
 
     BASE_URL = "https://openapi.lingxing.com"
 
+    # access_token / refresh_token 获取接口（无需签名，仅凭 appId + appSecret）
+    TOKEN_PATH = "/api/auth-server/oauth/access-token"
+    REFRESH_PATH = "/api/auth-server/oauth/refresh"
+
     def __init__(self, app_id: str, app_secret: str):
         """
         初始化 API 客户端
@@ -48,6 +52,76 @@ class LingxingAPI:
         self.app_id = app_id
         self.app_secret = app_secret
         self.access_token: Optional[str] = None
+        self.refresh_token: Optional[str] = None
+
+    # ------------------------------------------------------------------
+    # Access Token 获取与续约（文档「领星 API 接入指南」§3）
+    # ------------------------------------------------------------------
+
+    def get_access_token(self, timeout: int = 30) -> Dict[str, Any]:
+        """
+        获取 access_token（凭 appId + appSecret 换取）
+
+        接口路径：POST {BASE_URL}/api/auth-server/oauth/access-token
+        参数通过 Query 传递。此接口本身不参与业务签名。
+
+        服务端用 RSA 私钥解密 appSecret，故 appSecret 经 requests 的
+        URL 编码后直接传输即可（见文档「常见问题案例」#1）。
+
+        成功后自动写入 self.access_token / self.refresh_token。
+
+        Returns:
+            接口响应 JSON，data 内含 access_token / refresh_token / expires_in
+        """
+        url = f"{self.BASE_URL}{self.TOKEN_PATH}"
+        params = {"appId": self.app_id, "appSecret": self.app_secret}
+        response = requests.post(url, params=params, timeout=timeout)
+        response.raise_for_status()
+        result = response.json()
+
+        data = result.get("data") or {}
+        if data.get("access_token"):
+            self.access_token = data["access_token"]
+        if data.get("refresh_token"):
+            self.refresh_token = data["refresh_token"]
+        return result
+
+    def refresh_access_token(
+        self,
+        refresh_token: Optional[str] = None,
+        timeout: int = 30,
+    ) -> Dict[str, Any]:
+        """
+        续约 access_token
+
+        接口路径：POST {BASE_URL}/api/auth-server/oauth/refresh
+
+        注意（文档 §3.2）：refresh_token 有效期 2 小时，且只能使用一次；
+        每次续约都会返回新的 refresh_token，需保存以供下次续约。
+
+        Args:
+            refresh_token: 上次获取/续约返回的 refresh_token；
+                           不传则用 self.refresh_token
+
+        Returns:
+            接口响应 JSON，data 内含新的 access_token / refresh_token
+        """
+        token = refresh_token or self.refresh_token
+        if not token:
+            raise ValueError("refresh_token 未设置，无法续约")
+
+        url = f"{self.BASE_URL}{self.REFRESH_PATH}"
+        params = {"appId": self.app_id, "refreshToken": token}
+        response = requests.post(url, params=params, timeout=timeout)
+        response.raise_for_status()
+        result = response.json()
+
+        data = result.get("data") or {}
+        if data.get("access_token"):
+            self.access_token = data["access_token"]
+        if data.get("refresh_token"):
+            self.refresh_token = data["refresh_token"]
+        return result
 
     # ------------------------------------------------------------------
     # 基础工具方法

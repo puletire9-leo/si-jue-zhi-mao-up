@@ -13,7 +13,7 @@ OUTPUT_FILE_BASE_NAME = "导入领星表"  # 文件名前缀
 # 固定值配置（随时修改）
 FIXED_VALUES = {
     '开发人': '',
-    '产品负责人': '唐若,张亚芳,阳姣,尹心如,蒋舒,张奋奋,李杉,余江燕,张洁',
+    '产品负责人': '唐若,张亚芳,阳姣,尹心如,蒋舒,张奋奋,李杉,余江燕,张洁,李微微',
     '采购员': '王亚成',
     '采购交期': 7,
     '辅料SKU': '2270356',
@@ -32,6 +32,9 @@ OUTPUT_PATH_FILE = None
 
 # 开发人（从命令行参数传入，覆盖配置）
 DEVELOPER = None
+# 产品负责人 / 采购员（从命令行参数传入，覆盖 FIXED_VALUES；未传则用 FIXED_VALUES 兜底）
+PRODUCT_MANAGER = None
+PURCHASER = None
 # ===================== 【配置区域结束】=====================
 
 # 解析命令行参数
@@ -44,6 +47,16 @@ if '--developer' in sys.argv:
     idx = sys.argv.index('--developer')
     if idx + 1 < len(sys.argv):
         DEVELOPER = sys.argv[idx + 1]
+
+if '--product-manager' in sys.argv:
+    idx = sys.argv.index('--product-manager')
+    if idx + 1 < len(sys.argv):
+        PRODUCT_MANAGER = sys.argv[idx + 1]
+
+if '--purchaser' in sys.argv:
+    idx = sys.argv.index('--purchaser')
+    if idx + 1 < len(sys.argv):
+        PURCHASER = sys.argv[idx + 1]
 
 if '--source-file' in sys.argv:
     idx = sys.argv.index('--source-file')
@@ -164,12 +177,14 @@ def process_lingxing_import():
         print("=" * 60)
         print("[INFO] 正在填充【产品】工作表...")
 
-        # 固定值定义（从配置区域读取，开发人使用传入的参数）
+        # 固定值定义（传入参数优先，未传则用配置区 FIXED_VALUES 兜底）
         developer_value = DEVELOPER if DEVELOPER else FIXED_VALUES['开发人']
+        product_manager_value = PRODUCT_MANAGER if PRODUCT_MANAGER else FIXED_VALUES['产品负责人']
+        purchaser_value = PURCHASER if PURCHASER else FIXED_VALUES['采购员']
         fixed_values = {
             'S': developer_value,
-            'T': FIXED_VALUES['产品负责人'],
-            'W': FIXED_VALUES['采购员'],
+            'T': product_manager_value,
+            'W': purchaser_value,
             'X': FIXED_VALUES['采购交期']
         }
         print(f"[OK] 开发人: {developer_value}")

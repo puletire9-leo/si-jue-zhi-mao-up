@@ -76,6 +76,22 @@ export interface StartCollectResp {
   missing: string[]; // 未配置 taskId
 }
 
+/** 以图识图结果行 */
+export interface ImageSearchResult {
+  id: number;
+  sourceAsin: string;
+  marketplace: string;
+  sourceImageUrl: string | null;
+  searchUrl: string | null;
+  resultAsin: string | null;
+  resultTitle: string | null;
+  resultImage: string | null;
+  resultPrice: string | null;
+  lotNo: string | null;
+  scrapedAt: string | null;
+  createdAt: string | null;
+}
+
 /** Result<T> 包装解包：拦截器返回整个 {code,message,data}，业务层只需 data */
 function unwrap<T>(p: Promise<any>): Promise<T> {
   return p.then((res) => res?.data as T);
@@ -165,5 +181,28 @@ export const bazhuayuApi = {
         data: { mapping },
       }),
     );
+  },
+
+  /** 以图识图：对一个 ASIN 发起英国 stylesnap 视觉搜索（同步等待，约数分钟） */
+  imageSearch(asin: string, forceRefresh = false): Promise<ImageSearchResult[]> {
+    return unwrap<ImageSearchResult[]>(
+      request({
+        url: "/api/v1/modules/bazhuayu/image-search",
+        method: "post",
+        data: { asin, forceRefresh },
+        // 云端采集耗时长，单独放大超时到 10 分钟
+        timeout: 600000,
+      }),
+    ).then((d) => (Array.isArray(d) ? d : []));
+  },
+
+  /** 查询以图识图缓存结果（不触发采集） */
+  getImageSearch(asin: string): Promise<ImageSearchResult[]> {
+    return unwrap<ImageSearchResult[]>(
+      request({
+        url: `/api/v1/modules/bazhuayu/image-search/${encodeURIComponent(asin)}`,
+        method: "get",
+      }),
+    ).then((d) => (Array.isArray(d) ? d : []));
   },
 };

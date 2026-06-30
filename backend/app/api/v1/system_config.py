@@ -52,35 +52,24 @@ async def get_developer_list(
 ):
     """
     获取开发人列表配置
-    
+
     返回开发人列表
-    
+
     权限要求: 无需权限
     """
     try:
-        # 从数据库获取配置
+        # 改读人员名单表 person_roster（role_type=developer），与 Java roster 模块统一数据源
         query = """
-        SELECT config_value
-        FROM system_config
-        WHERE config_key = 'developer_list'
+        SELECT name
+        FROM person_roster
+        WHERE role_type = 'developer' AND enabled = 1
+        ORDER BY sort_order ASC, id ASC
         """
-        
-        result = await mysql_repo.execute_query(query, fetch_one=True)
-        
-        if not result:
-            # 如果没有配置，返回默认值
-            return {
-                "code": 200,
-                "message": "获取成功",
-                "data": {
-                    "developerList": settings.DEVELOPER_LIST
-                }
-            }
-        
-        # 解析配置值
-        developer_str = result["config_value"]
-        developer_list = [dev.strip() for dev in developer_str.split(",") if dev.strip()]
-        
+
+        rows = await mysql_repo.execute_query(query)
+
+        developer_list = [row["name"] for row in rows] if rows else []
+
         return {
             "code": 200,
             "message": "获取成功",
@@ -88,7 +77,7 @@ async def get_developer_list(
                 "developerList": developer_list
             }
         }
-    
+
     except Exception as e:
         logger.error(f"获取开发人列表失败: {e}")
         raise HTTPException(status_code=500, detail="获取开发人列表失败")
@@ -114,21 +103,23 @@ async def update_developer_list(
         filtered_list = [dev.strip() for dev in developer_list if dev.strip()]
         if not filtered_list:
             raise HTTPException(status_code=400, detail="开发人列表不能为空")
-        
-        # 转换为逗号分隔的字符串
-        config_value = ",".join(filtered_list)
-        
-        # 更新或插入配置
-        query = """
-        INSERT INTO system_config (config_key, config_value, description, is_system, updated_by)
-        VALUES ('developer_list', %s, '开发人列表，用于定稿管理页面的开发人筛选和选择', FALSE, %s)
-        ON DUPLICATE KEY UPDATE 
-            config_value = VALUES(config_value),
-            updated_by = VALUES(updated_by)
-        """
-        
-        await mysql_repo.execute_update(query, (config_value, user_info["username"]))
-        
+
+        # 整组覆盖 person_roster 的开发人（role_type=developer），与 Java roster 模块统一数据源
+        # 先删旧，再按顺序重建。person_roster.id 非自增，Python 侧用毫秒时间戳+序号生成。
+        import time as _time
+        await mysql_repo.execute_update(
+            "DELETE FROM person_roster WHERE role_type = 'developer'"
+        )
+        base_id = int(_time.time() * 1000)
+        for idx, name in enumerate(filtered_list, start=1):
+            await mysql_repo.execute_update(
+                """
+                INSERT INTO person_roster (id, name, role_type, sort_order, enabled)
+                VALUES (%s, %s, 'developer', %s, 1)
+                """,
+                (base_id + idx, name, idx)
+            )
+
         return {
             "code": 200,
             "message": "更新成功",
@@ -136,7 +127,7 @@ async def update_developer_list(
                 "developerList": filtered_list
             }
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:

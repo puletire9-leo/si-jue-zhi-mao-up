@@ -432,6 +432,7 @@ import {
 } from '@element-plus/icons-vue'
 import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import { reportApi } from '@/api/report'
+import { systemConfigApi } from '@/api/systemConfig'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as echarts from 'echarts'
 
@@ -519,18 +520,21 @@ const resizeCharts = debounce(() => {
   })
 }, 200)
 
-// 开发人员列表
-const developers = ref([
-  { label: '刘淼', value: '刘淼' },
-  { label: '蒋舒', value: '蒋舒' },
-  { label: '于林', value: '于林' },
-  { label: '周沁仪', value: '周沁仪' },
-  { label: '宋凤莉', value: '宋凤莉' },
-  { label: '张子轩', value: '张子轩' },
-  { label: '贺蓉晖', value: '贺蓉晖' },
-  { label: '陈杨', value: '陈杨' },
-  { label: '龙梦临', value: '龙梦临' }
-])
+// 开发人员列表（从 person_roster 经 system-config/developer-list 拉取，不再硬编码）
+const developers = ref<{ label: string; value: string }[]>([])
+
+/**
+ * 加载开发人列表（统一数据源 person_roster）
+ */
+async function loadDevelopers() {
+  try {
+    const res = await systemConfigApi.getDeveloperList()
+    const list = res?.data?.developerList ?? []
+    developers.value = list.map((name: string) => ({ label: name, value: name }))
+  } catch (e) {
+    console.error('加载开发人列表失败:', e)
+  }
+}
 
 /**
  * 加载报告内容
@@ -1835,6 +1839,7 @@ function formatNumber(num: number): string {
 
 // 页面挂载时加载默认报告
 onMounted(() => {
+  loadDevelopers()
   loadReport()
   // 添加全局resize事件监听器
   window.addEventListener('resize', resizeCharts)

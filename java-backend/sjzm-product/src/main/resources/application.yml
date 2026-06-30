@@ -77,6 +77,13 @@ bazhuayu:
   drain-max-rows: ${BAZHUAYU_DRAIN_MAX_ROWS:100000}
   task-mapping-json: ${BAZHUAYU_TASKGROUP_MAPPING:}
 
+lingxing:
+  base-url: ${LINGXING_BASE_URL:https://openapi.lingxing.com}
+  app-id: ${LINGXING_APP_ID:}
+  app-secret: ${LINGXING_APP_SECRET:}
+  connect-timeout: 10s
+  read-timeout: 30s
+
 management:
   endpoints:
     web:

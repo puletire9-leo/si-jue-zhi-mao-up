@@ -90,7 +90,20 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException(404, "用户不存在");
         }
         // 只更新允许的字段
-        if (user.getUsername() != null) existing.setUsername(user.getUsername());
+        if (user.getUsername() != null) {
+            // 改用户名时查重：撞到别的用户报友好提示（避免直接抛 DB 唯一约束异常）
+            if (!user.getUsername().equals(existing.getUsername())) {
+                Long dup = userMapper.selectCount(
+                        new LambdaQueryWrapper<User>()
+                                .eq(User::getUsername, user.getUsername())
+                                .ne(User::getId, id)
+                );
+                if (dup > 0) {
+                    throw new BusinessException(400, "用户名已存在");
+                }
+            }
+            existing.setUsername(user.getUsername());
+        }
         if (user.getEmail() != null) existing.setEmail(user.getEmail());
         if (user.getRealName() != null) existing.setRealName(user.getRealName());
         if (user.getRole() != null) {
