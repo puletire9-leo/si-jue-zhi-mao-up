@@ -18,4 +18,10 @@ public interface UserService {
     void delete(Long id);
 
     void updateRole(Long id, String role);
+
+    /**
+     * 用户改自己的资料（仅允许改 realName / email）
+     * 不接受 username / role / status / password 变更，避免越权
+     */
+    void updateSelf(Long id, User user);
 }

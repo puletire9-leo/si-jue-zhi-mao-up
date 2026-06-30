@@ -2,10 +2,9 @@
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import Profile from "./components/Profile.vue";
-import Preferences from "./components/Preferences.vue";
-import SecurityLog from "./components/SecurityLog.vue";
+import ChangePassword from "./components/ChangePassword.vue";
 import { useUserStore } from "@/stores/user";
-import { ArrowLeft, User, Setting, Monitor } from "@element-plus/icons-vue";
+import { ArrowLeft, User, Lock } from "@element-plus/icons-vue";
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -29,16 +28,10 @@ const panes = [
     component: Profile,
   },
   {
-    key: "preferences",
-    label: "偏好设置",
-    icon: Setting,
-    component: Preferences,
-  },
-  {
-    key: "securityLog",
-    label: "安全日志",
-    icon: Monitor,
-    component: SecurityLog,
+    key: "changePassword",
+    label: "修改密码",
+    icon: Lock,
+    component: ChangePassword,
   },
 ];
 

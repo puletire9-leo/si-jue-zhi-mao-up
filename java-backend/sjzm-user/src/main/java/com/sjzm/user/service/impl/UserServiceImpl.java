@@ -138,4 +138,17 @@ public class UserServiceImpl implements UserService {
         userMapper.updateById(user);
         log.info("用户角色已更新: userId={}, role={}", id, role);
     }
+
+    @Override
+    public void updateSelf(Long id, User user) {
+        User existing = userMapper.selectById(id);
+        if (existing == null) {
+            throw new BusinessException(404, "用户不存在");
+        }
+        // 只允许改 realName 和 email，其他字段一律忽略
+        if (user.getRealName() != null) existing.setRealName(user.getRealName());
+        if (user.getEmail() != null) existing.setEmail(user.getEmail());
+        userMapper.updateById(existing);
+        log.info("用户改自己资料: userId={}", id);
+    }
 }
