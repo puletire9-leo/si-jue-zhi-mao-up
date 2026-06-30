@@ -232,23 +232,25 @@ async def generate_import_file(
         if developer:
             cmd_args.extend(['--developer', developer])
 
-        # 从 person_roster 取产品负责人/采购员，传给脚本（统一名单数据源，覆盖脚本内硬编码）
+        # 从 users 表读取人员名单（统一数据源）：
+        #   领星 Excel "产品负责人"列 → role='运营'（不限 status,禁用账号也算业务名单）
+        #   领星 Excel "采购员"列     → role='仓库'（王亚成兼采购员业务）
         try:
             mysql_repo = request.app.state.mysql
             pm_rows = await mysql_repo.execute_query(
-                "SELECT name FROM person_roster WHERE role_type='product_manager' AND enabled=1 ORDER BY sort_order ASC, id ASC"
+                "SELECT username FROM users WHERE role='运营' ORDER BY id ASC"
             )
-            pm_names = ",".join(r["name"] for r in pm_rows) if pm_rows else ""
+            pm_names = ",".join(r["username"] for r in pm_rows) if pm_rows else ""
             if pm_names:
                 cmd_args.extend(['--product-manager', pm_names])
 
             purchaser_rows = await mysql_repo.execute_query(
-                "SELECT name FROM person_roster WHERE role_type='purchaser' AND enabled=1 ORDER BY sort_order ASC, id ASC"
+                "SELECT username FROM users WHERE role='仓库' AND status=1 ORDER BY id ASC LIMIT 1"
             )
             if purchaser_rows:
-                cmd_args.extend(['--purchaser', purchaser_rows[0]["name"]])
+                cmd_args.extend(['--purchaser', purchaser_rows[0]["username"]])
         except Exception as e:
-            logger.warning(f"读取 person_roster 失败，脚本将用内置兜底名单: {e}")
+            logger.warning(f"读取 users 表人员名单失败,脚本将用内置兜底名单: {e}")
         
         # 执行Python脚本
         result = subprocess.run(

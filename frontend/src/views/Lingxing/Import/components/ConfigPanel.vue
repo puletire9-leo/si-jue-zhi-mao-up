@@ -53,8 +53,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ArrowDown } from '@element-plus/icons-vue'
-import { systemConfigApi } from '@/api/systemConfig'
-import { getRosterNames } from '@/api/roster'
+import { userApi } from '@/api/user'
 
 // 配置项标签
 const configLabels: Record<string, string> = {
@@ -106,19 +105,24 @@ const loadConfig = () => {
 }
 
 /**
- * 从统一名单（person_roster）拉取默认人员，填充到默认配置。
- * 开发人取首位，产品负责人/采购员取全部逗号拼接。仅填充当前为空的项，不覆盖用户已存配置。
+ * 从 users 表（唯一数据源）拉取默认人员，填充到默认配置。
+ * 映射规则（与后端 lingxing.py /generate-import-file 保持一致）：
+ *   - 开发人      ← role='开发' 首位
+ *   - 产品负责人  ← role='运营' 全部，逗号拼接（"产品负责人"是领星 Excel 列名，本质是运营）
+ *   - 采购员      ← role='仓库' 首位（王亚成兼采购员业务）
+ * 仅填充当前为空的项，不覆盖用户已存配置。
  */
 const loadRosterDefaults = async () => {
   try {
-    const [devs, pms, purchasers] = await Promise.all([
-      systemConfigApi.getDeveloperList().then(r => r?.data?.developerList ?? []),
-      getRosterNames('product_manager'),
-      getRosterNames('purchaser')
-    ])
+    const resp = await userApi.getList({ page: 1, size: 200 })
+    const users = resp?.data?.list ?? []
+    const devs = users.filter((u: any) => u.role === '开发').map((u: any) => u.username)
+    const operators = users.filter((u: any) => u.role === '运营').map((u: any) => u.username)
+    const warehouseUsers = users.filter((u: any) => u.role === '仓库').map((u: any) => u.username)
+
     if (devs.length) defaultConfig.developer = devs[0]
-    if (pms.length) defaultConfig.productManager = pms.join(',')
-    if (purchasers.length) defaultConfig.purchaser = purchasers[0]
+    if (operators.length) defaultConfig.productManager = operators.join(',')
+    if (warehouseUsers.length) defaultConfig.purchaser = warehouseUsers[0]
     // 仅填充用户尚未设置的项
     if (!config.developer) config.developer = defaultConfig.developer
     if (!config.productManager) config.productManager = defaultConfig.productManager
