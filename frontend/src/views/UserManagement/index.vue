@@ -36,8 +36,14 @@
           width="120"
         >
           <template #default="{ row }">
-            <el-tag :type="getRoleType(row.role)">
-              {{ row.role }}
+            <el-tag
+              v-for="r in (row.role||'').split(',').filter(Boolean)"
+              :key="r"
+              :type="getRoleType(r.trim())"
+              size="small"
+              style="margin-right: 4px"
+            >
+              {{ r.trim() }}
             </el-tag>
           </template>
         </el-table-column>
@@ -119,38 +125,17 @@
             :placeholder="isEdit ? '留空则不修改密码' : '请输入密码'"
           />
         </el-form-item>
-        <el-form-item
-          label="角色"
-          required
-        >
-          <el-select
-            v-model="formData.role"
-            placeholder="请选择角色"
-            style="width: 100%"
-          >
-            <el-option
-              label="管理员"
-              value="管理员"
-            />
-            <el-option
-              label="开发"
-              value="开发"
-            />
-            <el-option
-              label="美术"
-              value="美术"
-            />
-            <el-option
-              label="仓库"
-              value="仓库"
-            />
-            <el-option
-              label="运营"
-              value="运营"
-            />
-          </el-select>
+        <el-form-item label="角色" required>
+          <el-checkbox-group v-model="roleSelection">
+            <el-checkbox label="管理员" :disabled="roleSelection.includes('开发')||roleSelection.includes('美术')||roleSelection.includes('仓库')||roleSelection.includes('运营')||roleSelection.includes('采购员')" />
+            <el-checkbox label="开发" :disabled="roleSelection.includes('管理员')" />
+            <el-checkbox label="美术" :disabled="roleSelection.includes('管理员')" />
+            <el-checkbox label="仓库" :disabled="roleSelection.includes('管理员')" />
+            <el-checkbox label="运营" :disabled="roleSelection.includes('管理员')" />
+            <el-checkbox label="采购员" :disabled="roleSelection.includes('管理员')" />
+          </el-checkbox-group>
         </el-form-item>
-        <el-form-item label="是否可登录" v-if="formData.role !== '管理员'">
+        <el-form-item label="是否可登录" v-if="!roleSelection.includes('管理员')">
           <el-switch
             v-model="formData.status"
             :active-value="1"
@@ -198,9 +183,13 @@ const formData = reactive({
   id: null,
   username: '',
   password: '',
-  role: '开发',
-  status: 1   // 1=启用(可登录), 0=禁用(不可登录)
+  role: '开发',     // 提交时的逗号分隔字符串
+  status: 1          // 1=启用(可登录), 0=禁用(不可登录)
 })
+
+// 多选角色（checkbox 组用数组，提交时转逗号串）
+const roleOptions = ['管理员', '开发', '美术', '仓库', '运营', '采购员']
+const roleSelection = ref<string[]>(['开发'])
 
 const loadUsers = async () => {
   loading.value = true
@@ -232,6 +221,7 @@ const handleAdd = () => {
   formData.password = ''
   formData.role = '开发'
   formData.status = 1
+  roleSelection.value = ['开发']
   dialogVisible.value = true
 }
 
@@ -247,6 +237,8 @@ const handleEdit = (row) => {
   formData.password = ''
   formData.role = row.role
   formData.status = row.status ?? 1
+  // 从逗号分隔还原为数组
+  roleSelection.value = (row.role || '').split(',').filter(Boolean).map((s: string) => s.trim())
   dialogVisible.value = true
 }
 
@@ -255,14 +247,20 @@ const handleSave = async () => {
     ElMessage.warning('只有管理员可以保存用户信息')
     return
   }
-  
+
+  if (roleSelection.value.length === 0) {
+    ElMessage.warning('请至少选择一个角色')
+    return
+  }
+
   try {
+    formData.role = roleSelection.value.join(',')
     if (isEdit.value) {
       await userApi.update(formData.id, formData)
     } else {
       await userApi.create(formData)
     }
-    
+
     ElMessage.success(isEdit.value ? '更新成功' : '创建成功')
     dialogVisible.value = false
     loadUsers()

@@ -232,20 +232,20 @@ async def generate_import_file(
         if developer:
             cmd_args.extend(['--developer', developer])
 
-        # 从 users 表读取人员名单（统一数据源）：
-        #   领星 Excel "产品负责人"列 → role='运营'（不限 status,禁用账号也算业务名单）
-        #   领星 Excel "采购员"列     → role='仓库'（王亚成兼采购员业务）
+        # 从 users 表读取人员名单（统一数据源，兼容多角色 LIKE 查询）：
+        #   领星 Excel "产品负责人"列 → role LIKE '%运营%'（不限 status）
+        #   领星 Excel "采购员"列     → role LIKE '%采购员%'（王亚成兼采购员业务）
         try:
             mysql_repo = request.app.state.mysql
             pm_rows = await mysql_repo.execute_query(
-                "SELECT username FROM users WHERE role='运营' ORDER BY id ASC"
+                "SELECT username FROM users WHERE role LIKE '%运营%' ORDER BY id ASC"
             )
             pm_names = ",".join(r["username"] for r in pm_rows) if pm_rows else ""
             if pm_names:
                 cmd_args.extend(['--product-manager', pm_names])
 
             purchaser_rows = await mysql_repo.execute_query(
-                "SELECT username FROM users WHERE role='仓库' AND status=1 ORDER BY id ASC LIMIT 1"
+                "SELECT username FROM users WHERE role LIKE '%采购员%' AND status=1 ORDER BY id ASC LIMIT 1"
             )
             if purchaser_rows:
                 cmd_args.extend(['--purchaser', purchaser_rows[0]["username"]])

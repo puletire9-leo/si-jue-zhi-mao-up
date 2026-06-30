@@ -35,18 +35,19 @@ async def require_auth(request: Request) -> Dict[str, Any]:
 
 
 def is_admin(user: dict) -> bool:
-    """判断是否管理员（仅用于业务逻辑，不做权限拦截）"""
-    return user.get("role") in ("管理员", "admin")
+    """判断是否管理员（兼容多角色逗号分隔）"""
+    role = user.get("role", "")
+    return "管理员" in role or "admin" in role.lower()
 
 
 async def require_write_role(request: Request, user: Dict[str, Any] = Depends(require_auth)) -> Dict[str, Any]:
     """
-    要求当前用户具有写权限（管理员或开发角色）。
+    要求当前用户具有写权限（管理员或开发角色，兼容多角色逗号分隔）。
     GET/HEAD/OPTIONS 等只读方法放行，仅拦截 POST/PUT/DELETE 写操作。
     """
     if request.method in ("GET", "HEAD", "OPTIONS"):
         return user
     role = user.get("role", "")
-    if role in ("管理员", "admin", "开发"):
+    if "管理员" in role or "admin" in role.lower() or "开发" in role:
         return user
     raise HTTPException(status_code=403, detail=f"角色 '{role}' 没有写操作权限")

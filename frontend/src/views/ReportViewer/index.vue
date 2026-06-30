@@ -432,7 +432,7 @@ import {
 } from '@element-plus/icons-vue'
 import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import { reportApi } from '@/api/report'
-import { userApi } from '@/api/user'
+import { fetchMembers } from '@/api/members'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as echarts from 'echarts'
 
@@ -524,15 +524,12 @@ const resizeCharts = debounce(() => {
 const developers = ref<{ label: string; value: string }[]>([])
 
 /**
- * 加载开发人列表（统一数据源 users 表，role='开发'）
+ * 加载开发人列表（从 Python /auth/members 无 RBAC 拦截）
  */
 async function loadDevelopers() {
   try {
-    const res = await userApi.getList({ page: 1, size: 200 })
-    const users = res?.data?.list ?? []
-    developers.value = users
-      .filter((u: any) => u.role === '开发')
-      .map((u: any) => ({ label: u.username, value: u.username }))
+    const members = await fetchMembers()
+    developers.value = members.developers.map(name => ({ label: name, value: name }))
   } catch (e) {
     console.error('加载开发人列表失败:', e)
   }
