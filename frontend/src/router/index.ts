@@ -3,7 +3,7 @@ import { useUserStore } from '@/stores/user'
 import { useAppStore } from '@/stores/app'
 import { ElMessage } from 'element-plus'
 import { getAllModules } from '@/modules'
-import { canSeeModule } from '@/utils/permission'
+import { canAccessPath } from '@/utils/permission'
 
 // 模块化路由：从 modules/*/manifest.ts 自动收集
 const moduleRoutes: RouteRecordRaw[] = getAllModules().map(m => ({
@@ -259,15 +259,20 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  // 仅日志警告：userInfo 存在但缺少 role（非阻塞）
+  // 登录态存在但 role 为空：身份不完整，强制登出避免绕过守卫
   if (token && userStore.userInfo && !userStore.userInfo.role) {
-    console.warn('[Router] userInfo 缺少 role 字段，部分功能可能受限')
+    console.warn('[Router] userInfo 缺少 role 字段，强制登出')
+    userStore.logout()
+    next('/login')
+    return
   }
 
   // 按角色过滤路由访问（防止用户手敲 URL 绕过菜单隐藏）
-  if (token && userStore.userInfo?.role && to.path !== '/login' && to.path !== '/') {
+  if (token && userStore.userInfo?.role && to.path !== '/login') {
     const pathFirstSeg = to.path.split('/')[1] || ''
-    if (pathFirstSeg && !canSeeModule(userStore.userInfo.role, pathFirstSeg)) {
+    // 路径首段不在允许列表内：拦截并重定向到 dashboard
+    // dashboard 自身在 ALWAYS_ALLOWED_PATHS 里，不会循环
+    if (!canAccessPath(userStore.userInfo.role, pathFirstSeg)) {
       console.warn(`[Router] 角色 ${userStore.userInfo.role} 无权访问 ${to.path}，重定向到首页`)
       next('/dashboard')
       return

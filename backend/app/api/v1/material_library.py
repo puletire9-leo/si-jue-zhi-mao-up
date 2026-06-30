@@ -789,7 +789,7 @@ async def create_material_library(
 @router.post("/analyze-image")
 async def analyze_material_image(
     request: dict,
-    current_user: dict = Depends(require_write_role)
+    current_user: dict = Depends(require_auth)
 ):
     """
     分析图片内容，自动识别元素标签
@@ -939,7 +939,7 @@ async def analyze_material_image(
 @router.post("/analyze-image-detailed")
 async def analyze_material_image_detailed(
     request: dict,
-    current_user: dict = Depends(require_write_role)
+    current_user: dict = Depends(require_auth)
 ):
     """
     详细分析图片内容，使用腾讯云混元大模型

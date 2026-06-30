@@ -3585,7 +3585,7 @@ async def _download_files_batch(
 async def download_zip(
     request: Request,
     response: Response,
-    user_info: dict = Depends(require_write_role)
+    user_info: dict = Depends(require_auth)
 ):
     """
     下载文件并打包成ZIP（优化版）
@@ -3749,7 +3749,7 @@ async def get_download_task_status(task_id: str, current_user: dict = Depends(re
 
 
 @router.post("/download-tasks/{task_id}/cancel")
-async def cancel_download_task(task_id: str, current_user: dict = Depends(require_write_role)):
+async def cancel_download_task(task_id: str, current_user: dict = Depends(require_auth)):
     """
     取消下载任务
     
