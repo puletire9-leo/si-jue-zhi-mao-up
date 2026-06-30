@@ -360,8 +360,12 @@ const dialogTitle = computed(() => {
   return props.draft ? '编辑定稿' : '新增定稿'
 })
 
-// 自动获取当前登录用户作为开发人（角色已中文化，username 即为姓名）
-const autoDeveloper = computed(() => userStore.userInfo?.username || '')
+// 开发人：编辑模式保留原作者；新增模式用当前登录用户名（中文化后即姓名）
+// 这样 admin 编辑别人的定稿时不会覆盖原 developer
+const autoDeveloper = computed(() => {
+  if (props.draft?.developer) return props.draft.developer
+  return userStore.userInfo?.username || ''
+})
 
 // 方法
 const resetForm = (): void => {
@@ -532,10 +536,18 @@ const handleSubmit = async (): Promise<void> => {
     // 检查必填字段
     const missingFields = requiredFields.filter(field => !field.value)
     if (missingFields.length > 0) {
-      // 显示缺失字段提示，5秒后消失
       const missingLabels = missingFields.map(field => field.label).join('、')
       ElMessage.error({
         message: `请填写以下必填字段：${missingLabels}`,
+        duration: 5000
+      })
+      return
+    }
+
+    // 开发人非空校验：autoDeveloper 在冷启动 userInfo 未加载时可能为空字符串
+    if (!autoDeveloper.value) {
+      ElMessage.error({
+        message: '当前登录态丢失，请刷新页面重新登录后再提交',
         duration: 5000
       })
       return
