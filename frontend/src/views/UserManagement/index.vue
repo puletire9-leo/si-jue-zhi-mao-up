@@ -188,7 +188,6 @@ const formData = reactive({
 })
 
 // 多选角色（checkbox 组用数组，提交时转逗号串）
-const roleOptions = ['管理员', '开发', '美术', '仓库', '运营', '采购员']
 const roleSelection = ref<string[]>(['开发'])
 
 const loadUsers = async () => {
@@ -303,7 +302,8 @@ const getRoleType = (role) => {
     '开发': 'primary',
     '美术': 'warning',
     '仓库': 'success',
-    '运营': 'info'
+    '运营': 'info',
+    '采购员': ''
   }
   return roleTypes[role] || ''
 }
