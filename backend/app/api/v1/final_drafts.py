@@ -3751,29 +3751,30 @@ async def get_download_task_status(task_id: str, current_user: dict = Depends(re
 @router.post("/download-tasks/{task_id}/cancel")
 async def cancel_download_task(task_id: str, current_user: dict = Depends(require_auth)):
     """
-    取消下载任务
-    
-    功能：
-    - 取消正在等待或执行中的任务
-    
-    Args:
-        task_id: 任务ID
-        
-    Returns:
-        dict: 取消结果
+    取消下载任务（仅任务发起人或管理员可取消，防止横向越权）
     """
     try:
+        # 先查任务、校验归属
+        task = await download_task_service.get_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="任务不存在")
+
+        # 仅任务发起人或管理员可取消（防止 A 用户取消 B 用户的下载）
+        is_admin = current_user.get("role") in ("管理员", "admin")
+        user_id_str = str(current_user.get("id", ""))
+        if not is_admin and str(task.created_by or "") != user_id_str:
+            raise HTTPException(status_code=403, detail="无权取消他人的下载任务")
+
         success = await download_task_service.cancel_task(task_id)
-        
         if not success:
-            raise HTTPException(status_code=400, detail="任务不存在或无法取消")
-        
+            raise HTTPException(status_code=400, detail="任务无法取消（可能已完成或已取消）")
+
         return {
             "code": 200,
             "message": "任务已取消",
             "data": {"task_id": task_id}
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:

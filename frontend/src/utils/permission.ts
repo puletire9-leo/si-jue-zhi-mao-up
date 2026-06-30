@@ -18,10 +18,9 @@ const RESTRICTED_MODULES = new Set([
 /** 所有角色都能访问的通用路径前缀（不出现在侧边栏，但任何登录用户可达） */
 const ALWAYS_ALLOWED_PATHS = new Set([
   'dashboard',          // 首页
-  'account-settings',   // 个人账号设置
-  'product',            // 产品详情 /product/:sku
-  'selection',          // 选品详情 /selection/:id
-  'lingxing'            // /lingxing/import 等
+  'account-settings'    // 个人账号设置
+  // 不放 product/selection：避免美术/仓库/运营 猜 SKU 直接访问产品详情
+  // 不放 lingxing：领星导入涉及业务数据，由 canSeeModule('lingxing-import') 单独控制
 ])
 
 /** 研发可见但屏蔽的管理后台 */
