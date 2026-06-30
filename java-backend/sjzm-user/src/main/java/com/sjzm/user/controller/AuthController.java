@@ -6,6 +6,7 @@ import com.sjzm.user.dto.LoginResponse;
 import com.sjzm.user.dto.RegisterRequest;
 import com.sjzm.user.entity.User;
 import com.sjzm.user.service.AuthService;
+import com.sjzm.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -22,6 +23,7 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final UserService userService;
 
     @PostMapping("/login")
     @Operation(summary = "用户登录")
@@ -61,9 +63,7 @@ public class AuthController {
     @GetMapping("/me")
     @Operation(summary = "获取当前用户信息")
     public Result<LoginResponse.UserInfo> me() {
-        Long userId = SecurityContextHolder.getContext().getAuthentication().getPrincipal() instanceof Long
-                ? (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal()
-                : null;
+        Long userId = currentUserId();
         if (userId == null) {
             return Result.error(401, "未登录");
         }
@@ -71,13 +71,53 @@ public class AuthController {
         if (user == null) {
             return Result.error(404, "用户不存在");
         }
-        return Result.success(LoginResponse.UserInfo.builder()
+        return Result.success(toUserInfo(user));
+    }
+
+    @PutMapping("/me")
+    @Operation(summary = "修改当前用户资料（仅 realName/email）")
+    public Result<LoginResponse.UserInfo> updateMe(@RequestBody User patch) {
+        Long userId = currentUserId();
+        if (userId == null) {
+            return Result.error(401, "未登录");
+        }
+        userService.updateSelf(userId, patch);
+        // 返回最新资料，前端可直接更新 userStore
+        return Result.success("资料更新成功", toUserInfo(authService.getUserById(userId)));
+    }
+
+    @PutMapping("/me/password")
+    @Operation(summary = "修改当前用户密码（需旧密码校验）")
+    public Result<String> updateMyPassword(@RequestBody Map<String, String> body) {
+        Long userId = currentUserId();
+        if (userId == null) {
+            return Result.error(401, "未登录");
+        }
+        String oldPassword = body.get("oldPassword");
+        String newPassword = body.get("newPassword");
+        if (oldPassword == null || oldPassword.isBlank()) {
+            return Result.error(400, "旧密码不能为空");
+        }
+        if (newPassword == null || newPassword.length() < 6) {
+            return Result.error(400, "新密码长度不能少于6位");
+        }
+        userService.updatePassword(userId, oldPassword, newPassword);
+        return Result.success("密码修改成功");
+    }
+
+    private Long currentUserId() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return principal instanceof Long ? (Long) principal : null;
+    }
+
+    private LoginResponse.UserInfo toUserInfo(User user) {
+        return LoginResponse.UserInfo.builder()
                 .id(user.getId())
                 .username(user.getUsername())
                 .email(user.getEmail())
                 .realName(user.getRealName())
                 .avatar(user.getAvatar())
                 .role(user.getRole())
-                .build());
+                .build();
     }
 }

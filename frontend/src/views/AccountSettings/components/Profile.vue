@@ -1,147 +1,87 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { useUserStore } from '@/stores/user'
-import { Upload } from '@element-plus/icons-vue'
+import { reactive, ref, onMounted } from "vue";
+import { ElMessage, type FormInstance, type FormRules } from "element-plus";
+import { useUserStore } from "@/stores/user";
+import { userApi } from "@/api/user";
 
-const userStore = useUserStore()
+const userStore = useUserStore();
 
-const userInfos = reactive({
-  avatar: '',
-  nickname: '',
-  email: '',
-  phone: '',
-  description: ''
-})
+const formRef = ref<FormInstance>();
+const submitting = ref(false);
 
-const emailSuggestions = ref([
-  '@qq.com',
-  '@126.com',
-  '@163.com',
-  '@gmail.com',
-  '@outlook.com'
-])
+const form = reactive({
+  username: "", // 只读展示
+  realName: "",
+  email: "",
+});
 
-const showEmailDropdown = ref(false)
-const filteredEmails = ref<string[]>([])
+const rules: FormRules = {
+  realName: [{ max: 50, message: "真名长度不能超过 50", trigger: "blur" }],
+  email: [{ type: "email", message: "邮箱格式不正确", trigger: "blur" }],
+};
 
-const queryEmail = (queryString: string) => {
-  if (!queryString.includes('@')) {
-    filteredEmails.value = emailSuggestions.value.map(suffix => queryString + suffix)
-  } else {
-    const prefix = queryString.split('@')[0]
-    filteredEmails.value = emailSuggestions.value
-      .filter(suffix => suffix.includes(queryString.split('@')[1] || ''))
-      .map(suffix => prefix + suffix)
+const loadFromStore = () => {
+  const user = userStore.userInfo;
+  if (!user) return;
+  form.username = user.username || "";
+  form.realName = user.realName || "";
+  form.email = user.email || "";
+};
+
+const handleSubmit = async () => {
+  if (!formRef.value) return;
+  const valid = await formRef.value.validate().catch(() => false);
+  if (!valid) return;
+
+  submitting.value = true;
+  try {
+    const res = await userApi.updateSelf({
+      realName: form.realName,
+      email: form.email,
+    });
+    // 后端返回最新 UserInfo，同步到 store
+    if (res?.data) {
+      userStore.setUserInfo({ ...userStore.userInfo, ...res.data });
+    }
+    ElMessage.success("资料更新成功");
+  } catch (err: any) {
+    const message = err?.response?.data?.message || err?.message || "更新失败";
+    ElMessage.error(message);
+  } finally {
+    submitting.value = false;
   }
-}
+};
 
-const selectEmail = (email: string) => {
-  userInfos.email = email
-  showEmailDropdown.value = false
-}
-
-const handleEmailInput = (e: Event) => {
-  const target = e.target as HTMLInputElement
-  queryEmail(target.value)
-}
-
-const handleSubmit = () => {
-  ElMessage.success('更新个人信息成功')
-}
-
-const handleAvatarUpload = () => {
-  ElMessage.info('头像上传功能开发中...')
-}
-
-onMounted(() => {
-  const user = userStore.userInfo
-  if (user) {
-    userInfos.avatar = user.avatar || ''
-    userInfos.nickname = user.nickname || user.username || ''
-    userInfos.email = user.email || ''
-    userInfos.phone = user.phone || ''
-    userInfos.description = user.description || ''
-  }
-})
+onMounted(loadFromStore);
 </script>
 
 <template>
   <div class="profile-container">
     <h3 class="page-title">个人信息</h3>
-    
-    <el-form :model="userInfos" label-position="top" class="profile-form">
-      <el-form-item label="头像">
-        <div class="avatar-upload">
-          <el-avatar :size="80" :src="userInfos.avatar">
-            {{ userInfos.nickname?.charAt(0)?.toUpperCase() }}
-          </el-avatar>
-          <el-button 
-            plain 
-            class="upload-btn"
-            @click="handleAvatarUpload"
-          >
-            <el-icon><Upload /></el-icon>
-            <span>更新头像</span>
-          </el-button>
-        </div>
+
+    <el-form
+      ref="formRef"
+      :model="form"
+      :rules="rules"
+      label-position="top"
+      class="profile-form"
+    >
+      <el-form-item label="用户名">
+        <el-input v-model="form.username" disabled />
+        <div class="form-hint">登录账号由管理员设置，不可自行修改</div>
       </el-form-item>
 
-      <el-form-item label="昵称">
-        <el-input 
-          v-model="userInfos.nickname" 
-          placeholder="请输入昵称"
-        />
+      <el-form-item label="真名" prop="realName">
+        <el-input v-model="form.realName" placeholder="请输入真名" />
       </el-form-item>
 
-      <el-form-item label="邮箱">
-        <div class="email-input-wrapper" ref="emailWrapper">
-          <el-input 
-            v-model="userInfos.email" 
-            placeholder="请输入邮箱"
-            class="email-input"
-            @input="handleEmailInput"
-            @focus="showEmailDropdown = true"
-            @blur="() => { setTimeout(() => { showEmailDropdown = false }, 200) }"
-          />
-          <div 
-            v-if="showEmailDropdown && filteredEmails.length"
-            class="email-dropdown"
-          >
-            <div 
-              v-for="email in filteredEmails" 
-              :key="email"
-              class="dropdown-item"
-              @click="selectEmail(email)"
-            >
-              {{ email }}
-            </div>
-          </div>
-        </div>
-      </el-form-item>
-
-      <el-form-item label="联系电话">
-        <el-input 
-          v-model="userInfos.phone" 
-          placeholder="请输入联系电话"
-          clearable
-        />
-      </el-form-item>
-
-      <el-form-item label="简介">
-        <el-input 
-          v-model="userInfos.description" 
-          placeholder="请输入简介"
-          type="textarea"
-          :autosize="{ minRows: 4, maxRows: 6 }"
-          maxlength="100"
-          show-word-limit
-        />
+      <el-form-item label="邮箱" prop="email">
+        <el-input v-model="form.email" placeholder="请输入邮箱" clearable />
       </el-form-item>
 
       <el-form-item>
-        <el-button type="primary" @click="handleSubmit">
-          更新信息
+        <el-button type="primary" :loading="submitting" @click="handleSubmit">
+          更新资料
         </el-button>
       </el-form-item>
     </el-form>
@@ -167,54 +107,21 @@ onMounted(() => {
   box-shadow: 0 2px 12px rgba(180, 83, 9, 0.08);
 }
 
-.avatar-upload {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-
-  .upload-btn {
-    background: #f5f0eb;
-    color: #b45309;
-    border-color: #b45309;
-
-    &:hover {
-      background: #b45309;
-      color: white;
-    }
-  }
-}
-
-.email-input-wrapper {
-  position: relative;
-  width: 100%;
-}
-
-.email-input {
-  width: 100%;
-}
-
-.email-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
+.form-hint {
+  font-size: 12px;
+  color: #9ca3af;
   margin-top: 4px;
-  background: white;
-  border: 1px solid #E5E7EB;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  z-index: 100;
+}
 
-  .dropdown-item {
-    padding: 10px 16px;
-    cursor: pointer;
-    color: #6b7280;
-    transition: background 0.2s;
-
-    &:hover {
-      background: #f5f0eb;
-      color: #b45309;
-    }
+:deep(html.dark) {
+  .page-title {
+    color: var(--el-text-color-primary);
+  }
+  .profile-form {
+    background: var(--el-bg-color-overlay);
+  }
+  .form-hint {
+    color: var(--el-text-color-secondary);
   }
 }
 </style>
