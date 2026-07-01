@@ -241,6 +241,100 @@
             </el-form>
           </el-tab-pane>
 
+          <el-tab-pane label="领星导入" name="lingxing">
+            <el-form
+              :model="lingxingDefaults"
+              label-width="140px"
+              style="max-width: 720px"
+            >
+              <div class="lingxing-hint">
+                <el-icon><InfoFilled /></el-icon>
+                <span
+                  >导入领星时预填这三个字段,现场仍可临时修改。留空则回退到按角色
+                  (开发/运营/采购员) 自动兜底。</span
+                >
+              </div>
+
+              <el-form-item label="开发人">
+                <el-select
+                  v-model="lingxingDefaults.developer"
+                  placeholder="选择开发人 (来自 users 表)"
+                  clearable
+                  filterable
+                  style="width: 100%"
+                >
+                  <el-option
+                    v-for="name in memberOptions.developers"
+                    :key="name"
+                    :label="name"
+                    :value="name"
+                  />
+                </el-select>
+                <div class="lingxing-sub-hint">
+                  单选,来源:用户管理里角色含"开发"的用户
+                </div>
+              </el-form-item>
+
+              <el-form-item label="产品负责人">
+                <el-select
+                  v-model="lingxingDefaults.operators"
+                  placeholder="选择产品负责人 (可多选)"
+                  clearable
+                  filterable
+                  multiple
+                  collapse-tags
+                  collapse-tags-tooltip
+                  style="width: 100%"
+                >
+                  <el-option
+                    v-for="name in memberOptions.operators"
+                    :key="name"
+                    :label="name"
+                    :value="name"
+                  />
+                </el-select>
+                <div class="lingxing-sub-hint">
+                  多选,导入时用逗号拼接写入 Excel;来源:角色含"运营"
+                </div>
+              </el-form-item>
+
+              <el-form-item label="采购员">
+                <el-select
+                  v-model="lingxingDefaults.purchaser"
+                  placeholder="选择采购员"
+                  clearable
+                  filterable
+                  style="width: 100%"
+                >
+                  <el-option
+                    v-for="name in memberOptions.purchasers"
+                    :key="name"
+                    :label="name"
+                    :value="name"
+                  />
+                </el-select>
+                <div class="lingxing-sub-hint">
+                  单选,来源:角色含"采购员"且未禁用
+                </div>
+              </el-form-item>
+
+              <el-form-item>
+                <el-button
+                  v-if="userStore.isAdmin"
+                  type="primary"
+                  :loading="savingLingxing"
+                  @click="saveLingxingDefaults"
+                >
+                  保存
+                </el-button>
+                <el-button @click="loadLingxingDefaults">重新加载</el-button>
+                <span v-if="!userStore.isAdmin" class="no-permission"
+                  >无权限</span
+                >
+              </el-form-item>
+            </el-form>
+          </el-tab-pane>
+
           <el-tab-pane label="备份设置" name="backup">
             <el-form label-width="120px" style="max-width: 800px">
               <!-- 一键备份区域 -->
@@ -541,6 +635,8 @@ import { ref, reactive, computed, onMounted, watch } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { InfoFilled, Refresh, Loading } from "@element-plus/icons-vue";
 import { systemConfigApi } from "@/api/systemConfig";
+import type { LingxingDefaultsResponse } from "@/api/systemConfig";
+import { fetchMembers } from "@/api/members";
 import { useUserStore } from "@/stores/user";
 
 interface ImageSettings {
@@ -609,6 +705,23 @@ const sellerspriteForm = reactive({
   maxAsinsPerRequest: 0,
 });
 const savingSellersprite = ref(false);
+
+// 领星导入默认人选
+const lingxingDefaults = reactive<LingxingDefaultsResponse>({
+  developer: "",
+  operators: [],
+  purchaser: "",
+});
+const memberOptions = reactive<{
+  developers: string[];
+  operators: string[];
+  purchasers: string[];
+}>({
+  developers: [],
+  operators: [],
+  purchasers: [],
+});
+const savingLingxing = ref(false);
 
 // 骨架屏加载状态
 const loading = ref(true);
@@ -998,12 +1111,68 @@ const saveSellerspriteConfig = async (): Promise<void> => {
   }
 };
 
+// 加载 users 表按角色分组的候选人员,供 3 个下拉使用
+const loadMemberOptions = async (): Promise<void> => {
+  try {
+    const members = await fetchMembers();
+    memberOptions.developers = members.developers || [];
+    memberOptions.operators = members.operators || [];
+    memberOptions.purchasers = members.purchasers || [];
+  } catch (error) {
+    console.error("加载人员名单失败:", error);
+  }
+};
+
+// 加载已保存的领星导入默认人选
+const loadLingxingDefaults = async (): Promise<void> => {
+  try {
+    const response = await systemConfigApi.getLingxingDefaults();
+    if (response.code === 200 && response.data) {
+      lingxingDefaults.developer = response.data.developer || "";
+      lingxingDefaults.operators = response.data.operators || [];
+      lingxingDefaults.purchaser = response.data.purchaser || "";
+    }
+  } catch (error) {
+    console.error("加载领星导入默认人选失败:", error);
+  }
+};
+
+const saveLingxingDefaults = async (): Promise<void> => {
+  if (!userStore.isAdmin) {
+    ElMessage.warning("只有管理员可以修改系统设置");
+    return;
+  }
+  savingLingxing.value = true;
+  try {
+    const response = await systemConfigApi.updateLingxingDefaults({
+      developer: lingxingDefaults.developer || "",
+      operators: lingxingDefaults.operators || [],
+      purchaser: lingxingDefaults.purchaser || "",
+    });
+    if (response.code === 200 && response.data) {
+      lingxingDefaults.developer = response.data.developer || "";
+      lingxingDefaults.operators = response.data.operators || [];
+      lingxingDefaults.purchaser = response.data.purchaser || "";
+      ElMessage.success("领星导入默认人选已更新");
+    } else {
+      ElMessage.error(response.message || "更新失败");
+    }
+  } catch (error) {
+    console.error("更新领星导入默认人选失败:", error);
+    ElMessage.error("更新失败,请检查网络连接");
+  } finally {
+    savingLingxing.value = false;
+  }
+};
+
 onMounted(async () => {
   try {
     await Promise.all([
       loadCarrierList(),
       loadImageSettings(),
       loadSellerspriteConfig(),
+      loadMemberOptions(),
+      loadLingxingDefaults(),
       fetchRecentBackups(),
       fetchExpiredBackups(),
     ]);
@@ -1305,6 +1474,33 @@ onMounted(async () => {
   color: #909399;
   font-size: 14px;
   margin-left: 10px;
+}
+
+/* 领星导入 tab */
+.lingxing-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin-bottom: 20px;
+  background-color: #ecf5ff;
+  border: 1px solid #d9ecff;
+  border-radius: 4px;
+  color: #409eff;
+  font-size: 13px;
+  line-height: 1.6;
+
+  :deep(.el-icon) {
+    flex-shrink: 0;
+    font-size: 16px;
+  }
+}
+
+.lingxing-sub-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #909399;
+  line-height: 1.5;
 }
 
 /* ====== 暗黑模式 ====== */
