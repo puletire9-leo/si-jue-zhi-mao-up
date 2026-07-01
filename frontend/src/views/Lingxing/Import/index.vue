@@ -746,6 +746,19 @@ const executeImport = async () => {
     return;
   }
 
+  // 检查 SKU 是否都已填写（脚本要求 SKU 不能为空，否则生成空白表）
+  const emptySkuRows = previewData.value
+    .map((row, idx) => ({ sku: row.sku || "", idx }))
+    .filter((r) => !r.sku.trim());
+  if (emptySkuRows.length > 0) {
+    const rowNums = emptySkuRows.map((r) => r.idx + 1).join(", ");
+    ElMessage.warning(
+      `请先填写第 ${rowNums} 行的 SKU，再生成文件（SKU 为空的行会被跳过）`,
+    );
+    importStatus.value = "idle";
+    return;
+  }
+
   try {
     const token = localStorage.getItem("token");
 
