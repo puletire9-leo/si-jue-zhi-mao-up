@@ -10,7 +10,12 @@
         <el-button :icon="Refresh" @click="refreshList" :loading="loading">
           刷新
         </el-button>
-        <el-button type="danger" :icon="Delete" @click="clearAllCompleted" :disabled="completedCount === 0">
+        <el-button
+          type="danger"
+          :icon="Delete"
+          @click="clearAllCompleted"
+          :disabled="completedCount === 0"
+        >
           清空已完成
         </el-button>
       </div>
@@ -31,7 +36,10 @@
           </div>
         </el-col>
         <el-col :xs="12" :sm="6" :md="4">
-          <div class="stat-card processing" @click="filterByStatus('processing')">
+          <div
+            class="stat-card processing"
+            @click="filterByStatus('processing')"
+          >
             <div class="stat-icon">
               <el-icon :size="28" class="is-loading"><Loading /></el-icon>
             </div>
@@ -91,7 +99,11 @@
     <!-- 筛选和搜索工具栏 -->
     <div class="toolbar">
       <div class="filter-section">
-        <el-radio-group v-model="currentFilter.status" size="default" @change="handleFilterChange">
+        <el-radio-group
+          v-model="currentFilter.status"
+          size="default"
+          @change="handleFilterChange"
+        >
           <el-radio-button label="all">全部</el-radio-button>
           <el-radio-button label="processing">进行中</el-radio-button>
           <el-radio-button label="completed">已完成</el-radio-button>
@@ -99,26 +111,26 @@
           <el-radio-button label="pending">等待中</el-radio-button>
         </el-radio-group>
 
-        <el-select 
-          v-model="currentFilter.source" 
-          placeholder="来源筛选" 
+        <el-select
+          v-model="currentFilter.source"
+          placeholder="来源筛选"
           clearable
-          style="width: 140px; margin-left: 12px;"
+          style="width: 140px; margin-left: 12px"
           @change="handleFilterChange"
         >
-          <el-option 
-            v-for="item in sourceOptions" 
-            :key="item.value" 
-            :label="item.label" 
-            :value="item.value" 
+          <el-option
+            v-for="item in sourceOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
           />
         </el-select>
 
-        <el-select 
-          v-model="currentFilter.dateRange" 
-          placeholder="时间范围" 
+        <el-select
+          v-model="currentFilter.dateRange"
+          placeholder="时间范围"
           clearable
-          style="width: 140px; margin-left: 12px;"
+          style="width: 140px; margin-left: 12px"
           @change="handleFilterChange"
         >
           <el-option label="今天" value="today" />
@@ -143,165 +155,204 @@
     <!-- 下载任务列表 -->
     <el-card class="task-list-card">
       <SkeletonWrapper :loading="loading && !hasLoaded" variant="table">
-      <el-table
-        :data="filteredTasks"
-        style="width: 100%"
-        :default-sort="{ prop: 'created_at', order: 'descending' }"
-        @selection-change="handleSelectionChange"
-      >
-        <el-table-column type="selection" width="55" />
-        
-        <el-table-column label="任务信息" min-width="280">
-          <template #default="{ row }">
-            <div class="task-info-cell">
-              <div class="task-icon" :class="row.source">
-                <el-icon :size="20">
-                  <component :is="getSourceIcon(row.source)" />
-                </el-icon>
-              </div>
-              <div class="task-detail">
-                <div class="task-name" :title="row.name">{{ row.name }}</div>
-                <div class="task-meta">
-                  <el-tag size="small" effect="plain" :type="getSourceType(row.source)">
-                    {{ getSourceLabel(row.source) }}
-                  </el-tag>
-                  <span class="file-count">{{ row.total_files }} 个文件</span>
+        <el-table
+          :data="filteredTasks"
+          style="width: 100%"
+          :default-sort="{ prop: 'created_at', order: 'descending' }"
+          @selection-change="handleSelectionChange"
+        >
+          <el-table-column type="selection" width="55" />
+
+          <el-table-column label="任务信息" min-width="280">
+            <template #default="{ row }">
+              <div class="task-info-cell">
+                <div class="task-icon" :class="row.source">
+                  <el-icon :size="20">
+                    <component :is="getSourceIcon(row.source)" />
+                  </el-icon>
+                </div>
+                <div class="task-detail">
+                  <div class="task-name" :title="row.name">{{ row.name }}</div>
+                  <div class="task-meta">
+                    <el-tag
+                      size="small"
+                      effect="plain"
+                      :type="getSourceType(row.source)"
+                    >
+                      {{ getSourceLabel(row.source) }}
+                    </el-tag>
+                    <span class="file-count">{{ row.total_files }} 个文件</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </template>
-        </el-table-column>
+            </template>
+          </el-table-column>
 
-        <el-table-column label="状态" width="120" sortable prop="status">
-          <template #default="{ row }">
-            <div class="status-cell">
-              <el-icon v-if="row.status === 'processing'" class="is-loading"><Loading /></el-icon>
-              <el-icon v-else-if="row.status === 'completed'" class="success-icon"><CircleCheck /></el-icon>
-              <el-icon v-else-if="row.status === 'failed'" class="error-icon"><CircleClose /></el-icon>
-              <el-icon v-else class="info-icon"><Clock /></el-icon>
-              <el-tag :type="getStatusType(row.status)" effect="light" size="small">
-                {{ getStatusText(row.status) }}
-              </el-tag>
-            </div>
-          </template>
-        </el-table-column>
+          <el-table-column label="状态" width="120" sortable prop="status">
+            <template #default="{ row }">
+              <div class="status-cell">
+                <el-icon v-if="row.status === 'processing'" class="is-loading"
+                  ><Loading
+                /></el-icon>
+                <el-icon
+                  v-else-if="row.status === 'completed'"
+                  class="success-icon"
+                  ><CircleCheck
+                /></el-icon>
+                <el-icon v-else-if="row.status === 'failed'" class="error-icon"
+                  ><CircleClose
+                /></el-icon>
+                <el-icon v-else class="info-icon"><Clock /></el-icon>
+                <el-tag
+                  :type="getStatusType(row.status)"
+                  effect="light"
+                  size="small"
+                >
+                  {{ getStatusText(row.status) }}
+                </el-tag>
+              </div>
+            </template>
+          </el-table-column>
 
-        <el-table-column label="进度" width="180">
-          <template #default="{ row }">
-            <div v-if="row.status === 'processing'" class="progress-cell">
-              <el-progress 
-                :percentage="row.progress" 
-                :stroke-width="8"
-                :show-text="false"
-              />
-              <span class="progress-text">{{ row.progress }}%</span>
-            </div>
-            <div v-else-if="row.status === 'completed'" class="success-info">
-              <el-icon><CircleCheck /></el-icon>
-              <span>{{ formatFileSize(row.total_size) }}</span>
-            </div>
-            <div v-else-if="row.status === 'failed'" class="error-info">
-              <el-icon><Warning /></el-icon>
-              <span>{{ row.failed_files }} 个失败</span>
-            </div>
-            <div v-else class="wait-info">
-              <el-icon><Clock /></el-icon>
-              <span>等待中</span>
-            </div>
-          </template>
-        </el-table-column>
+          <el-table-column label="进度" width="180">
+            <template #default="{ row }">
+              <div v-if="row.status === 'processing'" class="progress-cell">
+                <el-progress
+                  :percentage="row.progress"
+                  :stroke-width="8"
+                  :show-text="false"
+                />
+                <span class="progress-text">{{ row.progress }}%</span>
+              </div>
+              <div v-else-if="row.status === 'completed'" class="success-info">
+                <el-icon><CircleCheck /></el-icon>
+                <span>{{ formatFileSize(row.total_size) }}</span>
+              </div>
+              <div v-else-if="row.status === 'failed'" class="error-info">
+                <el-icon><Warning /></el-icon>
+                <span>{{ row.failed_files }} 个失败</span>
+              </div>
+              <div v-else class="wait-info">
+                <el-icon><Clock /></el-icon>
+                <span>等待中</span>
+              </div>
+            </template>
+          </el-table-column>
 
-        <el-table-column label="创建时间" width="160" sortable prop="created_at">
-          <template #default="{ row }">
-            <div class="time-cell">
-              <div class="time-main">{{ formatDate(row.created_at) }}</div>
-              <div class="time-sub">{{ formatTime(row.created_at) }}</div>
-            </div>
-          </template>
-        </el-table-column>
+          <el-table-column
+            label="创建时间"
+            width="160"
+            sortable
+            prop="created_at"
+          >
+            <template #default="{ row }">
+              <div class="time-cell">
+                <div class="time-main">{{ formatDate(row.created_at) }}</div>
+                <div class="time-sub">{{ formatTime(row.created_at) }}</div>
+              </div>
+            </template>
+          </el-table-column>
 
-        <el-table-column label="操作" width="180" fixed="right">
-          <template #default="{ row }">
-            <div class="action-cell">
-              <el-button
-                v-if="row.status === 'completed'"
-                type="primary"
-                size="small"
-                :icon="Download"
-                @click="downloadFile(row)"
-              >
-                下载
-              </el-button>
-              <el-button
-                v-else-if="row.status === 'failed'"
-                type="warning"
-                size="small"
-                :icon="RefreshRight"
-                @click="retryTask(row)"
-              >
-                重试
-              </el-button>
-              <el-button
-                v-else-if="row.status === 'processing'"
-                type="info"
-                size="small"
-                disabled
-              >
-                <el-icon class="is-loading"><Loading /></el-icon>
-                进行中
-              </el-button>
-              <el-button
-                v-else
-                type="info"
-                size="small"
-                disabled
-              >
-                等待中
-              </el-button>
-
-              <el-dropdown trigger="click" @command="(cmd) => handleCommand(cmd, row)">
-                <el-button link size="small">
-                  <el-icon><More /></el-icon>
+          <el-table-column label="操作" width="180" fixed="right">
+            <template #default="{ row }">
+              <div class="action-cell">
+                <el-button
+                  v-if="row.status === 'completed'"
+                  type="primary"
+                  size="small"
+                  :icon="Download"
+                  @click="downloadFile(row)"
+                >
+                  下载
                 </el-button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item command="detail" :icon="View">查看详情</el-dropdown-item>
-                    <el-dropdown-item v-if="row.status === 'completed'" command="preview" :icon="View">预览文件</el-dropdown-item>
-                    <el-dropdown-item divided command="delete" :icon="Delete" class="danger-item">删除任务</el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </div>
-          </template>
-        </el-table-column>
-      </el-table>
+                <el-button
+                  v-else-if="row.status === 'failed'"
+                  type="warning"
+                  size="small"
+                  :icon="RefreshRight"
+                  @click="retryTask(row)"
+                >
+                  重试
+                </el-button>
+                <el-button
+                  v-else-if="row.status === 'processing'"
+                  type="info"
+                  size="small"
+                  disabled
+                >
+                  <el-icon class="is-loading"><Loading /></el-icon>
+                  进行中
+                </el-button>
+                <el-button v-else type="info" size="small" disabled>
+                  等待中
+                </el-button>
 
-      <!-- 批量操作栏 -->
-      <div class="batch-actions" v-if="selectedTasks.length > 0">
-        <span class="selected-count">已选择 {{ selectedTasks.length }} 项</span>
-        <el-button type="primary" size="small" @click="batchDownload" :disabled="!hasCompletedSelected">
-          <el-icon><Download /></el-icon>
-          批量下载
-        </el-button>
-        <el-button type="danger" size="small" @click="batchDelete">
-          <el-icon><Delete /></el-icon>
-          批量删除
-        </el-button>
-        <el-button size="small" @click="clearSelection">取消选择</el-button>
-      </div>
+                <el-dropdown
+                  trigger="click"
+                  @command="(cmd) => handleCommand(cmd, row)"
+                >
+                  <el-button link size="small">
+                    <el-icon><More /></el-icon>
+                  </el-button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="detail" :icon="View"
+                        >查看详情</el-dropdown-item
+                      >
+                      <el-dropdown-item
+                        v-if="row.status === 'completed'"
+                        command="preview"
+                        :icon="View"
+                        >预览文件</el-dropdown-item
+                      >
+                      <el-dropdown-item
+                        divided
+                        command="delete"
+                        :icon="Delete"
+                        class="danger-item"
+                        >删除任务</el-dropdown-item
+                      >
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
 
-      <!-- 分页 -->
-      <div class="pagination-wrapper">
-        <el-pagination
-          v-model:current-page="pagination.page"
-          v-model:page-size="pagination.pageSize"
-          :total="pagination.total"
-          :page-sizes="[10, 20, 50, 100]"
-          layout="total, sizes, prev, pager, next, jumper"
-          @size-change="handleSizeChange"
-          @current-change="handleCurrentChange"
-        />
-      </div>
+        <!-- 批量操作栏 -->
+        <div class="batch-actions" v-if="selectedTasks.length > 0">
+          <span class="selected-count"
+            >已选择 {{ selectedTasks.length }} 项</span
+          >
+          <el-button
+            type="primary"
+            size="small"
+            @click="batchDownload"
+            :disabled="!hasCompletedSelected"
+          >
+            <el-icon><Download /></el-icon>
+            批量下载
+          </el-button>
+          <el-button type="danger" size="small" @click="batchDelete">
+            <el-icon><Delete /></el-icon>
+            批量删除
+          </el-button>
+          <el-button size="small" @click="clearSelection">取消选择</el-button>
+        </div>
+
+        <!-- 分页 -->
+        <div class="pagination-wrapper">
+          <el-pagination
+            v-model:current-page="pagination.page"
+            v-model:page-size="pagination.pageSize"
+            :total="pagination.total"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
+          />
+        </div>
       </SkeletonWrapper>
     </el-card>
 
@@ -326,8 +377,12 @@
 
         <!-- 文件名显示 -->
         <div class="preview-filename">
-          <span class="filename-text">{{ previewFileList[currentPreviewIndex]?.name }}</span>
-          <span class="file-counter">{{ currentPreviewIndex + 1 }} / {{ previewFileList.length }}</span>
+          <span class="filename-text">{{
+            previewFileList[currentPreviewIndex]?.name
+          }}</span>
+          <span class="file-counter"
+            >{{ currentPreviewIndex + 1 }} / {{ previewFileList.length }}</span
+          >
         </div>
 
         <!-- 导航按钮 -->
@@ -359,7 +414,11 @@
             :class="{ active: index === currentPreviewIndex }"
             @click="currentPreviewIndex = index"
           >
-            <img :src="file.url" :alt="file.name" @error="$event.target.src = '/placeholder-image.png'" />
+            <img
+              :src="file.url"
+              :alt="file.name"
+              @error="$event.target.src = '/placeholder-image.png'"
+            />
             <span class="thumbnail-name">{{ file.name }}</span>
           </div>
         </div>
@@ -392,29 +451,56 @@
         </div>
 
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="任务ID">{{ currentTask.id }}</el-descriptions-item>
-          <el-descriptions-item label="来源">{{ getSourceLabel(currentTask.source) }}</el-descriptions-item>
-          <el-descriptions-item label="创建时间">{{ currentTask.created_at }}</el-descriptions-item>
-          <el-descriptions-item label="完成时间">{{ currentTask.completed_at || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="总文件数">{{ currentTask.total_files }} 个</el-descriptions-item>
-          <el-descriptions-item label="成功/失败">{{ currentTask.completed_files }} / {{ currentTask.failed_files }}</el-descriptions-item>
-          <el-descriptions-item label="总大小" :span="2">{{ formatFileSize(currentTask.total_size) }}</el-descriptions-item>
-          <el-descriptions-item v-if="currentTask.error_message" label="错误信息" :span="2">
+          <el-descriptions-item label="任务ID">{{
+            currentTask.id
+          }}</el-descriptions-item>
+          <el-descriptions-item label="来源">{{
+            getSourceLabel(currentTask.source)
+          }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间">{{
+            currentTask.created_at
+          }}</el-descriptions-item>
+          <el-descriptions-item label="完成时间">{{
+            currentTask.completed_at || "-"
+          }}</el-descriptions-item>
+          <el-descriptions-item label="总文件数"
+            >{{ currentTask.total_files }} 个</el-descriptions-item
+          >
+          <el-descriptions-item label="成功/失败"
+            >{{ currentTask.completed_files }} /
+            {{ currentTask.failed_files }}</el-descriptions-item
+          >
+          <el-descriptions-item label="总大小" :span="2">{{
+            formatFileSize(currentTask.total_size)
+          }}</el-descriptions-item>
+          <el-descriptions-item
+            v-if="currentTask.error_message"
+            label="错误信息"
+            :span="2"
+          >
             <span class="error-text">{{ currentTask.error_message }}</span>
           </el-descriptions-item>
         </el-descriptions>
 
-        <div class="file-list-section" v-if="currentTask.files && currentTask.files.length > 0">
+        <div
+          class="file-list-section"
+          v-if="currentTask.files && currentTask.files.length > 0"
+        >
           <h4>文件列表</h4>
           <el-table :data="currentTask.files" size="small" max-height="300">
             <el-table-column prop="name" label="文件名" min-width="200" />
             <el-table-column prop="size" label="大小" width="100">
-              <template #default="{ row }">{{ formatFileSize(row.size) }}</template>
+              <template #default="{ row }">{{
+                formatFileSize(row.size)
+              }}</template>
             </el-table-column>
             <el-table-column prop="status" label="状态" width="100">
               <template #default="{ row }">
-                <el-tag :type="row.status === 'success' ? 'success' : 'danger'" size="small">
-                  {{ row.status === 'success' ? '成功' : '失败' }}
+                <el-tag
+                  :type="row.status === 'success' ? 'success' : 'danger'"
+                  size="small"
+                >
+                  {{ row.status === "success" ? "成功" : "失败" }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -426,433 +512,472 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
 import {
-  Refresh, Download, RefreshRight, Delete, CircleCheck, CircleClose,
-  Clock, Loading, Document, FolderOpened, Check, Warning, More, View,
-  Picture, Box, List, Star, Folder, ArrowLeft, ArrowRight
-} from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+  Refresh,
+  Download,
+  RefreshRight,
+  Delete,
+  CircleCheck,
+  CircleClose,
+  Clock,
+  Loading,
+  Document,
+  FolderOpened,
+  Check,
+  Warning,
+  More,
+  View,
+  Picture,
+  Box,
+  List,
+  Star,
+  Folder,
+  ArrowLeft,
+  ArrowRight,
+} from "@element-plus/icons-vue";
+import { ElMessage, ElMessageBox } from "element-plus";
 import {
   getDownloadTasks,
   getDownloadTaskDetail,
   downloadTaskFile,
   deleteDownloadTask,
   retryDownloadTask,
-  type DownloadTask as ApiDownloadTask
-} from '@/api/downloadTask'
-import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
+  type DownloadTask as ApiDownloadTask,
+} from "@/api/downloadTask";
+import SkeletonWrapper from "@/components/SkeletonWrapper/index.vue";
 
 // 下载任务接口
 interface DownloadFile {
-  name: string
-  size: number
-  status: 'success' | 'failed'
-  error?: string
+  name: string;
+  size: number;
+  status: "success" | "failed";
+  error?: string;
 }
 
 interface DownloadTask {
-  id: string
-  name: string
-  source: 'final-draft' | 'product' | 'selection' | 'material' | 'carrier' | 'system'
-  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled'
-  progress: number
-  total_files: number
-  completed_files: number
-  failed_files: number
-  total_size: number
-  created_at: string
-  completed_at?: string
-  download_url?: string
-  error_message?: string
-  files?: DownloadFile[]
+  id: string;
+  name: string;
+  source:
+    | "final-draft"
+    | "product"
+    | "selection"
+    | "material"
+    | "carrier"
+    | "system";
+  status: "pending" | "processing" | "completed" | "failed" | "cancelled";
+  progress: number;
+  total_files: number;
+  completed_files: number;
+  failed_files: number;
+  total_size: number;
+  created_at: string;
+  completed_at?: string;
+  download_url?: string;
+  error_message?: string;
+  files?: DownloadFile[];
 }
 
 // 加载状态
-const loading = ref(false)
-const hasLoaded = ref(false)
-const refreshing = computed(() => loading.value && hasLoaded.value)
+const loading = ref(false);
+const hasLoaded = ref(false);
+const refreshing = computed(() => loading.value && hasLoaded.value);
 
 watch(loading, (val) => {
   if (!val && !hasLoaded.value) {
-    hasLoaded.value = true
+    hasLoaded.value = true;
   }
-})
+});
 
 // 搜索关键词
-const searchKeyword = ref('')
+const searchKeyword = ref("");
 
 // 当前筛选条件
 const currentFilter = reactive({
-  status: 'all',
-  source: '',
-  dateRange: 'all'
-})
+  status: "all",
+  source: "",
+  dateRange: "all",
+});
 
 // 来源选项
 const sourceOptions = [
-  { value: 'final-draft', label: '定稿管理' },
-  { value: 'product', label: '产品管理' },
-  { value: 'selection', label: '选品管理' },
-  { value: 'material', label: '素材库' },
-  { value: 'carrier', label: '载体库' },
-  { value: 'system', label: '系统导出' }
-]
+  { value: "final-draft", label: "设计稿" },
+  { value: "product", label: "产品管理" },
+  { value: "selection", label: "选品管理" },
+  { value: "material", label: "素材库" },
+  { value: "carrier", label: "载体库" },
+  { value: "system", label: "系统导出" },
+];
 
 // 下载任务数据
-const downloadTasks = ref<DownloadTask[]>([])
+const downloadTasks = ref<DownloadTask[]>([]);
 
 // 分页配置
 const pagination = reactive({
   page: 1,
   pageSize: 20,
-  total: 5
-})
+  total: 5,
+});
 
 // 选中的任务
-const selectedTasks = ref<DownloadTask[]>([])
+const selectedTasks = ref<DownloadTask[]>([]);
 
 // 详情弹窗
-const detailDialogVisible = ref(false)
-const currentTask = ref<DownloadTask | null>(null)
+const detailDialogVisible = ref(false);
+const currentTask = ref<DownloadTask | null>(null);
 
 // 预览弹窗
-const previewDialogVisible = ref(false)
-const previewFileList = ref<Array<{ name: string; url: string; type: string }>>([])
-const currentPreviewIndex = ref(0)
+const previewDialogVisible = ref(false);
+const previewFileList = ref<Array<{ name: string; url: string; type: string }>>(
+  [],
+);
+const currentPreviewIndex = ref(0);
 
 // 统计数据
 const stats = computed(() => {
-  const tasks = downloadTasks.value
+  const tasks = downloadTasks.value;
   return {
     total: tasks.length,
-    processing: tasks.filter(t => t.status === 'processing').length,
-    completed: tasks.filter(t => t.status === 'completed').length,
-    failed: tasks.filter(t => t.status === 'failed').length,
-    pending: tasks.filter(t => t.status === 'pending').length,
-    totalSize: tasks.reduce((sum, t) => sum + (t.total_size || 0), 0)
-  }
-})
+    processing: tasks.filter((t) => t.status === "processing").length,
+    completed: tasks.filter((t) => t.status === "completed").length,
+    failed: tasks.filter((t) => t.status === "failed").length,
+    pending: tasks.filter((t) => t.status === "pending").length,
+    totalSize: tasks.reduce((sum, t) => sum + (t.total_size || 0), 0),
+  };
+});
 
 // 已完成任务数量
-const completedCount = computed(() => stats.value.completed)
+const completedCount = computed(() => stats.value.completed);
 
 // 是否有已完成的选中项
-const hasCompletedSelected = computed(() => 
-  selectedTasks.value.some(t => t.status === 'completed')
-)
+const hasCompletedSelected = computed(() =>
+  selectedTasks.value.some((t) => t.status === "completed"),
+);
 
 // 过滤后的任务列表
 const filteredTasks = computed(() => {
-  let result = downloadTasks.value
+  let result = downloadTasks.value;
 
   // 按状态筛选
-  if (currentFilter.status !== 'all') {
-    result = result.filter(t => t.status === currentFilter.status)
+  if (currentFilter.status !== "all") {
+    result = result.filter((t) => t.status === currentFilter.status);
   }
 
   // 按来源筛选
   if (currentFilter.source) {
-    result = result.filter(t => t.source === currentFilter.source)
+    result = result.filter((t) => t.source === currentFilter.source);
   }
 
   // 按时间范围筛选
-  if (currentFilter.dateRange && currentFilter.dateRange !== 'all') {
-    const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    result = result.filter(t => {
-      const taskDate = new Date(t.created_at)
+  if (currentFilter.dateRange && currentFilter.dateRange !== "all") {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    result = result.filter((t) => {
+      const taskDate = new Date(t.created_at);
       switch (currentFilter.dateRange) {
-        case 'today':
-          return taskDate >= today
-        case 'week':
-          const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
-          return taskDate >= weekAgo
-        case 'month':
-          const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
-          return taskDate >= monthAgo
+        case "today":
+          return taskDate >= today;
+        case "week":
+          const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+          return taskDate >= weekAgo;
+        case "month":
+          const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+          return taskDate >= monthAgo;
         default:
-          return true
+          return true;
       }
-    })
+    });
   }
 
   // 按关键词搜索
   if (searchKeyword.value) {
-    const keyword = searchKeyword.value.toLowerCase()
-    result = result.filter(t => 
-      t.name.toLowerCase().includes(keyword) ||
-      t.id.toLowerCase().includes(keyword)
-    )
+    const keyword = searchKeyword.value.toLowerCase();
+    result = result.filter(
+      (t) =>
+        t.name.toLowerCase().includes(keyword) ||
+        t.id.toLowerCase().includes(keyword),
+    );
   }
 
-  return result
-})
+  return result;
+});
 
 // 获取来源图标
 const getSourceIcon = (source: string) => {
   const icons: Record<string, any> = {
-    'final-draft': Check,
-    'product': Box,
-    'selection': List,
-    'material': Picture,
-    'carrier': Folder,
-    'system': Document
-  }
-  return icons[source] || Document
-}
+    "final-draft": Check,
+    product: Box,
+    selection: List,
+    material: Picture,
+    carrier: Folder,
+    system: Document,
+  };
+  return icons[source] || Document;
+};
 
 // 获取来源标签
 const getSourceLabel = (source: string) => {
   const labels: Record<string, string> = {
-    'final-draft': '定稿管理',
-    'product': '产品管理',
-    'selection': '选品管理',
-    'material': '素材库',
-    'carrier': '载体库',
-    'system': '系统导出'
-  }
-  return labels[source] || source
-}
+    "final-draft": "设计稿",
+    product: "产品管理",
+    selection: "选品管理",
+    material: "素材库",
+    carrier: "载体库",
+    system: "系统导出",
+  };
+  return labels[source] || source;
+};
 
 // 获取来源类型（用于标签颜色）
 const getSourceType = (source: string) => {
   const types: Record<string, string> = {
-    'final-draft': 'success',
-    'product': 'primary',
-    'selection': 'warning',
-    'material': 'info',
-    'carrier': 'danger',
-    'system': ''
-  }
-  return types[source] || ''
-}
+    "final-draft": "success",
+    product: "primary",
+    selection: "warning",
+    material: "info",
+    carrier: "danger",
+    system: "",
+  };
+  return types[source] || "";
+};
 
 // 获取状态类型
-const getStatusType = (status: string): 'primary' | 'success' | 'warning' | 'info' | 'danger' => {
-  const types: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'> = {
-    pending: 'info',
-    processing: 'warning',
-    completed: 'success',
-    failed: 'danger',
-    cancelled: 'info'
-  }
-  return types[status] || 'info'
-}
+const getStatusType = (
+  status: string,
+): "primary" | "success" | "warning" | "info" | "danger" => {
+  const types: Record<
+    string,
+    "primary" | "success" | "warning" | "info" | "danger"
+  > = {
+    pending: "info",
+    processing: "warning",
+    completed: "success",
+    failed: "danger",
+    cancelled: "info",
+  };
+  return types[status] || "info";
+};
 
 // 获取状态文本
 const getStatusText = (status: string) => {
   const texts: Record<string, string> = {
-    pending: '等待中',
-    processing: '进行中',
-    completed: '已完成',
-    failed: '失败',
-    cancelled: '已取消'
-  }
-  return texts[status] || status
-}
+    pending: "等待中",
+    processing: "进行中",
+    completed: "已完成",
+    failed: "失败",
+    cancelled: "已取消",
+  };
+  return texts[status] || status;
+};
 
 // 格式化文件大小
 const formatFileSize = (bytes?: number) => {
-  if (!bytes || bytes === 0) return '-'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  let size = bytes
-  let unitIndex = 0
+  if (!bytes || bytes === 0) return "-";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let size = bytes;
+  let unitIndex = 0;
   while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024
-    unitIndex++
+    size /= 1024;
+    unitIndex++;
   }
-  return `${size.toFixed(2)} ${units[unitIndex]}`
-}
+  return `${size.toFixed(2)} ${units[unitIndex]}`;
+};
 
 // 格式化存储大小（简化版）
 const formatStorage = (bytes: number) => {
-  if (bytes === 0) return '0 MB'
-  const gb = bytes / (1024 * 1024 * 1024)
+  if (bytes === 0) return "0 MB";
+  const gb = bytes / (1024 * 1024 * 1024);
   if (gb >= 1) {
-    return `${gb.toFixed(1)} GB`
+    return `${gb.toFixed(1)} GB`;
   }
-  const mb = bytes / (1024 * 1024)
-  return `${mb.toFixed(0)} MB`
-}
+  const mb = bytes / (1024 * 1024);
+  return `${mb.toFixed(0)} MB`;
+};
 
 // 格式化日期
 const formatDate = (time: string) => {
-  return new Date(time).toLocaleDateString('zh-CN')
-}
+  return new Date(time).toLocaleDateString("zh-CN");
+};
 
 // 格式化时间
 const formatTime = (time: string) => {
-  return new Date(time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-}
+  return new Date(time).toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
 
 // 筛选状态
 const filterByStatus = (status: string) => {
-  currentFilter.status = status
-}
+  currentFilter.status = status;
+};
 
 // 处理筛选变化
 const handleFilterChange = () => {
-  pagination.page = 1
-}
+  pagination.page = 1;
+};
 
 // 处理搜索
 const handleSearch = () => {
-  pagination.page = 1
-}
+  pagination.page = 1;
+};
 
 // 刷新列表
 // 防止并发请求的标志
-let isRefreshing = false
+let isRefreshing = false;
 
 const refreshList = async (showMessage = true) => {
   // 防止并发请求
   if (isRefreshing) {
-    console.log('刷新正在进行中，跳过本次请求')
-    return
+    console.log("刷新正在进行中，跳过本次请求");
+    return;
   }
-  
-  isRefreshing = true
-  loading.value = true
-  
+
+  isRefreshing = true;
+  loading.value = true;
+
   try {
     const params: any = {
       page: pagination.page,
-      page_size: pagination.pageSize
+      page_size: pagination.pageSize,
+    };
+
+    if (currentFilter.status !== "all") {
+      params.status = currentFilter.status;
     }
-    
-    if (currentFilter.status !== 'all') {
-      params.status = currentFilter.status
-    }
-    
+
     if (currentFilter.source) {
-      params.source = currentFilter.source
+      params.source = currentFilter.source;
     }
-    
+
     if (searchKeyword.value) {
-      params.keyword = searchKeyword.value
+      params.keyword = searchKeyword.value;
     }
-    
-    const response = await getDownloadTasks(params)
-    
+
+    const response = await getDownloadTasks(params);
+
     // 处理后端返回的数据结构，可能是 { total, items } 或 { code, data: { total, items } }
-    const result = response.data || response
-    
+    const result = response.data || response;
+
     if (!result || !result.items) {
-      console.warn('后端返回数据格式不正确:', response)
-      downloadTasks.value = []
-      pagination.total = 0
-      return
+      console.warn("后端返回数据格式不正确:", response);
+      downloadTasks.value = [];
+      pagination.total = 0;
+      return;
     }
-    
+
     downloadTasks.value = result.items.map((item: DownloadTask) => ({
       ...item,
-      download_url: `/api/v1/download-tasks/${item.id}/download`
-    }))
-    pagination.total = result.total || 0
-    
+      download_url: `/api/v1/download-tasks/${item.id}/download`,
+    }));
+    pagination.total = result.total || 0;
+
     // 只在手动刷新时显示成功消息
     if (showMessage) {
-      ElMessage.success('刷新成功')
+      ElMessage.success("刷新成功");
     }
   } catch (error: any) {
-    console.error('获取下载任务列表失败:', error)
-    ElMessage.error(`获取下载任务列表失败: ${error.message || '未知错误'}`)
+    console.error("获取下载任务列表失败:", error);
+    ElMessage.error(`获取下载任务列表失败: ${error.message || "未知错误"}`);
   } finally {
-    loading.value = false
-    isRefreshing = false
+    loading.value = false;
+    isRefreshing = false;
   }
-}
+};
 
 // 清空已完成
 const clearAllCompleted = async () => {
   try {
     await ElMessageBox.confirm(
-      '确定要清空所有已完成的下载任务吗？',
-      '确认清空',
-      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
-    )
-    
-    const completedTasks = downloadTasks.value.filter(t => t.status === 'completed')
-    const ids = completedTasks.map(t => t.id)
-    
+      "确定要清空所有已完成的下载任务吗？",
+      "确认清空",
+      { confirmButtonText: "确定", cancelButtonText: "取消", type: "warning" },
+    );
+
+    const completedTasks = downloadTasks.value.filter(
+      (t) => t.status === "completed",
+    );
+    const ids = completedTasks.map((t) => t.id);
+
     // 并行删除所有已完成的任务
-    await Promise.all(ids.map(id => deleteDownloadTask(id)))
-    
+    await Promise.all(ids.map((id) => deleteDownloadTask(id)));
+
     // 从列表中移除
-    downloadTasks.value = downloadTasks.value.filter(t => t.status !== 'completed')
-    pagination.total = Math.max(0, pagination.total - ids.length)
-    
-    ElMessage.success(`已清空 ${ids.length} 个已完成任务`)
+    downloadTasks.value = downloadTasks.value.filter(
+      (t) => t.status !== "completed",
+    );
+    pagination.total = Math.max(0, pagination.total - ids.length);
+
+    ElMessage.success(`已清空 ${ids.length} 个已完成任务`);
   } catch (error: any) {
-    if (error !== 'cancel') {
-      console.error('清空已完成任务失败:', error)
-      ElMessage.error(`清空失败: ${error.message || '未知错误'}`)
+    if (error !== "cancel") {
+      console.error("清空已完成任务失败:", error);
+      ElMessage.error(`清空失败: ${error.message || "未知错误"}`);
     }
   }
-}
+};
 
 // 选择变化
 const handleSelectionChange = (selection: DownloadTask[]) => {
-  selectedTasks.value = selection
-}
+  selectedTasks.value = selection;
+};
 
 // 清空选择
 const clearSelection = () => {
-  selectedTasks.value = []
-}
+  selectedTasks.value = [];
+};
 
 // 下载文件
 const downloadFile = async (task: DownloadTask) => {
   try {
-    await downloadTaskFile(task.id, `${task.name}.zip`)
-    ElMessage.success('开始下载')
+    await downloadTaskFile(task.id, `${task.name}.zip`);
+    ElMessage.success("开始下载");
   } catch (error: any) {
-    console.error('下载文件失败:', error)
-    ElMessage.error(`下载文件失败: ${error.message || '未知错误'}`)
+    console.error("下载文件失败:", error);
+    ElMessage.error(`下载文件失败: ${error.message || "未知错误"}`);
   }
-}
+};
 
 // 重试任务
 const retryTask = async (task: DownloadTask) => {
   try {
     await ElMessageBox.confirm(
       `确定要重新下载 "${task.name}" 吗？`,
-      '确认重试',
-      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
-    )
-    
-    await retryDownloadTask(task.id)
-    ElMessage.success('已开始重新下载')
-    
+      "确认重试",
+      { confirmButtonText: "确定", cancelButtonText: "取消", type: "warning" },
+    );
+
+    await retryDownloadTask(task.id);
+    ElMessage.success("已开始重新下载");
+
     // 刷新列表
-    await refreshList()
+    await refreshList();
   } catch (error: any) {
-    if (error !== 'cancel') {
-      console.error('重试任务失败:', error)
-      ElMessage.error(`重试任务失败: ${error.message || '未知错误'}`)
+    if (error !== "cancel") {
+      console.error("重试任务失败:", error);
+      ElMessage.error(`重试任务失败: ${error.message || "未知错误"}`);
     }
   }
-}
+};
 
 // 查看详情
 const viewDetails = async (task: DownloadTask) => {
   try {
-    const detail = await getDownloadTaskDetail(task.id)
+    const detail = await getDownloadTaskDetail(task.id);
     currentTask.value = {
       ...detail,
-      files: detail.files?.map(f => ({
+      files: detail.files?.map((f) => ({
         name: f.file_name,
         size: f.file_size,
-        status: f.status === 'success' ? 'success' : 'failed'
-      }))
-    }
-    detailDialogVisible.value = true
+        status: f.status === "success" ? "success" : "failed",
+      })),
+    };
+    detailDialogVisible.value = true;
   } catch (error: any) {
-    console.error('获取任务详情失败:', error)
-    ElMessage.error(`获取任务详情失败: ${error.message || '未知错误'}`)
+    console.error("获取任务详情失败:", error);
+    ElMessage.error(`获取任务详情失败: ${error.message || "未知错误"}`);
   }
-}
+};
 
 /**
  * 预览文件
@@ -862,187 +987,193 @@ const viewDetails = async (task: DownloadTask) => {
 const previewFiles = async (task: DownloadTask) => {
   try {
     // 显示加载提示
-    const loadingInstance = ElMessage.info('正在加载预览文件...')
+    const loadingInstance = ElMessage.info("正在加载预览文件...");
 
     // 下载ZIP文件
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem("token");
     const response = await fetch(`/api/v1/download-tasks/${task.id}/download`, {
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-    })
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
     if (!response.ok) {
-      throw new Error(`下载失败: ${response.status}`)
+      throw new Error(`下载失败: ${response.status}`);
     }
 
-    const zipBlob = await response.blob()
-    console.log('ZIP文件大小:', (zipBlob.size / 1024).toFixed(2), 'KB')
+    const zipBlob = await response.blob();
+    console.log("ZIP文件大小:", (zipBlob.size / 1024).toFixed(2), "KB");
 
     // 使用JSZip解压
-    const JSZip = (await import('jszip')).default
-    const zip = await JSZip.loadAsync(zipBlob)
+    const JSZip = (await import("jszip")).default;
+    const zip = await JSZip.loadAsync(zipBlob);
 
     // 提取图片文件
-    const imageFiles: Array<{ name: string; url: string }> = []
+    const imageFiles: Array<{ name: string; url: string }> = [];
 
     // 遍历ZIP中的文件
-    const filePromises: Promise<void>[] = []
+    const filePromises: Promise<void>[] = [];
     zip.forEach((relativePath: string, file: any) => {
       // 检查是否是图片文件
-      const ext = relativePath.toLowerCase().split('.').pop()
-      if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext)) {
-        const promise = file.async('blob').then((blob: Blob) => {
-          const url = URL.createObjectURL(blob)
+      const ext = relativePath.toLowerCase().split(".").pop();
+      if (["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) {
+        const promise = file.async("blob").then((blob: Blob) => {
+          const url = URL.createObjectURL(blob);
           imageFiles.push({
             name: relativePath,
-            url: url
-          })
-        })
-        filePromises.push(promise)
+            url: url,
+          });
+        });
+        filePromises.push(promise);
       }
-    })
+    });
 
     // 等待所有文件解压完成
-    await Promise.all(filePromises)
+    await Promise.all(filePromises);
 
     // 关闭加载提示
-    loadingInstance.close()
+    loadingInstance.close();
 
     if (imageFiles.length === 0) {
-      ElMessage.warning('该ZIP文件中没有图片文件可供预览')
-      return
+      ElMessage.warning("该ZIP文件中没有图片文件可供预览");
+      return;
     }
 
     // 按文件名排序
-    imageFiles.sort((a, b) => a.name.localeCompare(b.name))
+    imageFiles.sort((a, b) => a.name.localeCompare(b.name));
 
-    console.log('解压完成，共', imageFiles.length, '个图片文件')
+    console.log("解压完成，共", imageFiles.length, "个图片文件");
 
     // 构建预览文件列表
-    previewFileList.value = imageFiles
+    previewFileList.value = imageFiles;
 
-    currentPreviewIndex.value = 0
-    previewDialogVisible.value = true
+    currentPreviewIndex.value = 0;
+    previewDialogVisible.value = true;
   } catch (error: any) {
-    console.error('获取文件预览失败:', error)
-    ElMessage.error(`获取文件预览失败: ${error.message || '未知错误'}`)
+    console.error("获取文件预览失败:", error);
+    ElMessage.error(`获取文件预览失败: ${error.message || "未知错误"}`);
   }
-}
+};
 
 // 处理下拉菜单命令
 const handleCommand = (command: string, task: DownloadTask) => {
   switch (command) {
-    case 'detail':
-      viewDetails(task)
-      break
-    case 'preview':
-      previewFiles(task)
-      break
-    case 'delete':
-      deleteTask(task)
-      break
+    case "detail":
+      viewDetails(task);
+      break;
+    case "preview":
+      previewFiles(task);
+      break;
+    case "delete":
+      deleteTask(task);
+      break;
   }
-}
+};
 
 // 删除任务
 const deleteTask = async (task: DownloadTask) => {
   try {
     await ElMessageBox.confirm(
       `确定要删除任务 "${task.name}" 吗？删除后无法恢复。`,
-      '确认删除',
-      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'danger' }
-    )
-    
-    await deleteDownloadTask(task.id)
-    
+      "确认删除",
+      { confirmButtonText: "确定", cancelButtonText: "取消", type: "danger" },
+    );
+
+    await deleteDownloadTask(task.id);
+
     // 从列表中移除
-    downloadTasks.value = downloadTasks.value.filter(t => t.id !== task.id)
-    pagination.total = Math.max(0, pagination.total - 1)
-    
-    ElMessage.success('删除成功')
+    downloadTasks.value = downloadTasks.value.filter((t) => t.id !== task.id);
+    pagination.total = Math.max(0, pagination.total - 1);
+
+    ElMessage.success("删除成功");
   } catch (error: any) {
-    if (error !== 'cancel') {
-      console.error('删除任务失败:', error)
-      ElMessage.error(`删除任务失败: ${error.message || '未知错误'}`)
+    if (error !== "cancel") {
+      console.error("删除任务失败:", error);
+      ElMessage.error(`删除任务失败: ${error.message || "未知错误"}`);
     }
   }
-}
+};
 
 // 批量下载
 const batchDownload = async () => {
-  const completedTasks = selectedTasks.value.filter(t => t.status === 'completed')
-  
+  const completedTasks = selectedTasks.value.filter(
+    (t) => t.status === "completed",
+  );
+
   for (const task of completedTasks) {
     try {
-      await downloadTaskFile(task.id, `${task.name}.zip`)
+      await downloadTaskFile(task.id, `${task.name}.zip`);
       // 添加短暂延迟，避免浏览器同时下载过多文件
-      await new Promise(resolve => setTimeout(resolve, 500))
+      await new Promise((resolve) => setTimeout(resolve, 500));
     } catch (error) {
-      console.error(`下载任务 ${task.id} 失败:`, error)
+      console.error(`下载任务 ${task.id} 失败:`, error);
     }
   }
-  
-  ElMessage.success(`已开始下载 ${completedTasks.length} 个文件`)
-}
+
+  ElMessage.success(`已开始下载 ${completedTasks.length} 个文件`);
+};
 
 // 批量删除
 const batchDelete = async () => {
   try {
     await ElMessageBox.confirm(
       `确定要删除选中的 ${selectedTasks.value.length} 个任务吗？`,
-      '确认批量删除',
-      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'danger' }
-    )
-    
-    const ids = selectedTasks.value.map(t => t.id)
-    
+      "确认批量删除",
+      { confirmButtonText: "确定", cancelButtonText: "取消", type: "danger" },
+    );
+
+    const ids = selectedTasks.value.map((t) => t.id);
+
     // 并行删除多个任务
-    await Promise.all(ids.map(id => deleteDownloadTask(id)))
-    
+    await Promise.all(ids.map((id) => deleteDownloadTask(id)));
+
     // 从列表中移除
-    downloadTasks.value = downloadTasks.value.filter(t => !ids.includes(t.id))
-    pagination.total = Math.max(0, pagination.total - ids.length)
-    selectedTasks.value = []
-    
-    ElMessage.success('批量删除成功')
+    downloadTasks.value = downloadTasks.value.filter(
+      (t) => !ids.includes(t.id),
+    );
+    pagination.total = Math.max(0, pagination.total - ids.length);
+    selectedTasks.value = [];
+
+    ElMessage.success("批量删除成功");
   } catch (error: any) {
-    if (error !== 'cancel') {
-      console.error('批量删除失败:', error)
-      ElMessage.error(`批量删除失败: ${error.message || '未知错误'}`)
+    if (error !== "cancel") {
+      console.error("批量删除失败:", error);
+      ElMessage.error(`批量删除失败: ${error.message || "未知错误"}`);
     }
   }
-}
+};
 
 // 分页变化
 const handleSizeChange = (val: number) => {
-  pagination.pageSize = val
-}
+  pagination.pageSize = val;
+};
 
 const handleCurrentChange = (val: number) => {
-  pagination.page = val
-}
+  pagination.page = val;
+};
 
 // 定时刷新（每3秒刷新一次）
-let refreshInterval: number | null = null
+let refreshInterval: number | null = null;
 
 onMounted(() => {
   // 初始加载数据（显示消息）
-  refreshList(true)
+  refreshList(true);
 
   // 设置定时刷新（每3秒刷新一次）
   refreshInterval = window.setInterval(() => {
     // 只要有非已完成的任务就刷新（包括pending和processing）
-    const hasIncomplete = downloadTasks.value.some(t => t.status === 'processing' || t.status === 'pending')
+    const hasIncomplete = downloadTasks.value.some(
+      (t) => t.status === "processing" || t.status === "pending",
+    );
     if (hasIncomplete) {
       // 有未完成的任务时自动刷新（不显示消息）
-      refreshList(false)
+      refreshList(false);
     }
-  }, 3000)
-})
+  }, 3000);
+});
 
 onUnmounted(() => {
   if (refreshInterval) {
-    clearInterval(refreshInterval)
+    clearInterval(refreshInterval);
   }
-})
+});
 </script>
 
 <style scoped lang="scss">
@@ -1117,12 +1248,30 @@ onUnmounted(() => {
         }
       }
 
-      &.total .stat-icon { background: #ecf5ff; color: #409eff; }
-      &.processing .stat-icon { background: #fdf6ec; color: #e6a23c; }
-      &.completed .stat-icon { background: #f0f9eb; color: #67c23a; }
-      &.failed .stat-icon { background: #fef0f0; color: #f56c6c; }
-      &.pending .stat-icon { background: #f4f4f5; color: #909399; }
-      &.storage .stat-icon { background: #f0f9ff; color: #1890ff; }
+      &.total .stat-icon {
+        background: #ecf5ff;
+        color: #409eff;
+      }
+      &.processing .stat-icon {
+        background: #fdf6ec;
+        color: #e6a23c;
+      }
+      &.completed .stat-icon {
+        background: #f0f9eb;
+        color: #67c23a;
+      }
+      &.failed .stat-icon {
+        background: #fef0f0;
+        color: #f56c6c;
+      }
+      &.pending .stat-icon {
+        background: #f4f4f5;
+        color: #909399;
+      }
+      &.storage .stat-icon {
+        background: #f0f9ff;
+        color: #1890ff;
+      }
     }
   }
 
@@ -1154,12 +1303,30 @@ onUnmounted(() => {
         background: #f5f7fa;
         flex-shrink: 0;
 
-        &.final-draft { background: #f0f9eb; color: #67c23a; }
-        &.product { background: #ecf5ff; color: #409eff; }
-        &.selection { background: #fdf6ec; color: #e6a23c; }
-        &.material { background: #f0f9ff; color: #1890ff; }
-        &.carrier { background: #fef0f0; color: #f56c6c; }
-        &.system { background: #f4f4f5; color: #606266; }
+        &.final-draft {
+          background: #f0f9eb;
+          color: #67c23a;
+        }
+        &.product {
+          background: #ecf5ff;
+          color: #409eff;
+        }
+        &.selection {
+          background: #fdf6ec;
+          color: #e6a23c;
+        }
+        &.material {
+          background: #f0f9ff;
+          color: #1890ff;
+        }
+        &.carrier {
+          background: #fef0f0;
+          color: #f56c6c;
+        }
+        &.system {
+          background: #f4f4f5;
+          color: #606266;
+        }
       }
 
       .task-detail {
@@ -1192,9 +1359,15 @@ onUnmounted(() => {
       align-items: center;
       gap: 6px;
 
-      .success-icon { color: #67c23a; }
-      .error-icon { color: #f56c6c; }
-      .info-icon { color: #909399; }
+      .success-icon {
+        color: #67c23a;
+      }
+      .error-icon {
+        color: #f56c6c;
+      }
+      .info-icon {
+        color: #909399;
+      }
     }
 
     .progress-cell {
@@ -1213,7 +1386,9 @@ onUnmounted(() => {
       }
     }
 
-    .success-info, .error-info, .wait-info {
+    .success-info,
+    .error-info,
+    .wait-info {
       display: flex;
       align-items: center;
       gap: 6px;
@@ -1224,9 +1399,15 @@ onUnmounted(() => {
       }
     }
 
-    .success-info { color: #67c23a; }
-    .error-info { color: #f56c6c; }
-    .wait-info { color: #909399; }
+    .success-info {
+      color: #67c23a;
+    }
+    .error-info {
+      color: #f56c6c;
+    }
+    .wait-info {
+      color: #909399;
+    }
 
     .time-cell {
       .time-main {
@@ -1289,12 +1470,30 @@ onUnmounted(() => {
         justify-content: center;
         background: #f5f7fa;
 
-        &.final-draft { background: #f0f9eb; color: #67c23a; }
-        &.product { background: #ecf5ff; color: #409eff; }
-        &.selection { background: #fdf6ec; color: #e6a23c; }
-        &.material { background: #f0f9ff; color: #1890ff; }
-        &.carrier { background: #fef0f0; color: #f56c6c; }
-        &.system { background: #f4f4f5; color: #606266; }
+        &.final-draft {
+          background: #f0f9eb;
+          color: #67c23a;
+        }
+        &.product {
+          background: #ecf5ff;
+          color: #409eff;
+        }
+        &.selection {
+          background: #fdf6ec;
+          color: #e6a23c;
+        }
+        &.material {
+          background: #f0f9ff;
+          color: #1890ff;
+        }
+        &.carrier {
+          background: #fef0f0;
+          color: #f56c6c;
+        }
+        &.system {
+          background: #f4f4f5;
+          color: #606266;
+        }
       }
 
       .detail-info {
@@ -1540,9 +1739,15 @@ html.dark {
     }
 
     .status-cell {
-      .success-icon { color: var(--el-color-success); }
-      .error-icon { color: var(--el-color-danger); }
-      .info-icon { color: var(--el-text-color-secondary); }
+      .success-icon {
+        color: var(--el-color-success);
+      }
+      .error-icon {
+        color: var(--el-color-danger);
+      }
+      .info-icon {
+        color: var(--el-text-color-secondary);
+      }
     }
 
     .progress-cell {
@@ -1551,9 +1756,15 @@ html.dark {
       }
     }
 
-    .success-info { color: var(--el-color-success); }
-    .error-info { color: var(--el-color-danger); }
-    .wait-info { color: var(--el-text-color-secondary); }
+    .success-info {
+      color: var(--el-color-success);
+    }
+    .error-info {
+      color: var(--el-color-danger);
+    }
+    .wait-info {
+      color: var(--el-text-color-secondary);
+    }
 
     .time-cell {
       .time-main {

@@ -1,15 +1,15 @@
-import type { ModuleManifest } from '@/modules/types'
+import type { ModuleManifest } from "@/modules/types";
 
 export default {
-  id: 'final-draft',
-  name: '定稿管理',
-  icon: 'Brush',
-  menuGroup: '微定制',
+  id: "final-draft",
+  name: "设计稿",
+  icon: "Brush",
+  menuGroup: "非标品",
   menuOrder: 40,
   route: {
-    path: 'final-draft',
-    name: 'FinalDraft',
-    component: () => import('@/views/FinalDraft/index.vue'),
-    meta: { title: '定稿管理' }
-  }
-} satisfies ModuleManifest
+    path: "final-draft",
+    name: "FinalDraft",
+    component: () => import("@/views/FinalDraft/index.vue"),
+    meta: { title: "设计稿" },
+  },
+} satisfies ModuleManifest;

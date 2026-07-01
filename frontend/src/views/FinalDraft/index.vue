@@ -4,28 +4,38 @@
       <!-- 页面头部 -->
       <template #header>
         <div class="card-header">
-          <span class="header-title">定稿管理</span>
+          <span class="header-title">设计稿</span>
           <div class="header-actions">
             <!-- 批量导入按钮 -->
-            <el-button v-if="canWrite" type="primary" :icon="Upload" @click="handleBatchImport">
+            <el-button
+              v-if="canWrite"
+              type="primary"
+              :icon="Upload"
+              @click="handleBatchImport"
+            >
               批量导入
             </el-button>
 
             <!-- 新增定稿按钮 -->
-            <el-button v-if="canWrite" type="primary" :icon="Plus" @click="handleAddDraft">
+            <el-button
+              v-if="canWrite"
+              type="primary"
+              :icon="Plus"
+              @click="handleAddDraft"
+            >
               新增定稿
             </el-button>
-            
+
             <!-- 批量操作按钮 -->
-            <el-button 
-              type="info" 
-              :icon="Download" 
+            <el-button
+              type="info"
+              :icon="Download"
               :disabled="selectedItems.length === 0"
               @click="handleBatchDownload"
             >
               批量下载
             </el-button>
-            
+
             <el-button
               v-if="canWrite"
               type="warning"
@@ -47,47 +57,47 @@
 
             <el-button
               v-if="canWrite"
-              type="danger" 
-              :icon="Delete" 
+              type="danger"
+              :icon="Delete"
               :disabled="selectedItems.length === 0"
               @click="handleBatchDelete"
             >
               批量删除
             </el-button>
-            
-            <el-button 
-              type="warning" 
-              :icon="Refresh"
-              @click="handleRecycleBin"
-            >
+
+            <el-button type="warning" :icon="Refresh" @click="handleRecycleBin">
               回收站
             </el-button>
-            
+
             <!-- 分类排序按钮 -->
             <el-dropdown @command="handleSortCommand">
-          <el-button type="default" :icon="Sort">
-            分类排序<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-          </el-button>
+              <el-button type="default" :icon="Sort">
+                分类排序<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item command="developer">开发人</el-dropdown-item>
+                  <el-dropdown-item command="developer"
+                    >开发人</el-dropdown-item
+                  >
                   <el-dropdown-item command="sku">SKU</el-dropdown-item>
                   <el-dropdown-item command="batch">批次</el-dropdown-item>
-                  <el-dropdown-item command="createTime">创建时间</el-dropdown-item>
+                  <el-dropdown-item command="createTime"
+                    >创建时间</el-dropdown-item
+                  >
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
           </div>
         </div>
       </template>
-      
+
       <!-- 下载进度条 -->
-      <el-progress 
-        v-if="showProgress" 
-        :percentage="downloadProgress" 
-        :status="downloadStatus" 
-        :text-inside="true" 
-        :stroke-width="20" 
+      <el-progress
+        v-if="showProgress"
+        :percentage="downloadProgress"
+        :status="downloadStatus"
+        :text-inside="true"
+        :stroke-width="20"
         class="download-progress"
       >
         <template #format>
@@ -112,7 +122,7 @@
               :value="option.value"
             />
           </el-select>
-          
+
           <div class="search-input-wrapper">
             <el-input
               v-model="queryParams.searchContent"
@@ -123,9 +133,9 @@
               @keyup.enter="handleSearch"
             >
               <template #append>
-                <el-button 
-                  type="primary" 
-                  :icon="Search" 
+                <el-button
+                  type="primary"
+                  :icon="Search"
                   size="small"
                   @click="handleSearch"
                   class="search-btn"
@@ -134,8 +144,8 @@
                 </el-button>
               </template>
             </el-input>
-            <el-button 
-              :icon="List" 
+            <el-button
+              :icon="List"
               size="small"
               @click="openSearchDialog"
               class="advanced-search-icon-btn"
@@ -143,20 +153,20 @@
             >
             </el-button>
             <!-- 全选/取消全选图片按钮 -->
-            <el-button 
-              :type="isAllSelected ? 'default' : 'info'" 
-              :icon="isAllSelected ? CircleClose : Collection" 
+            <el-button
+              :type="isAllSelected ? 'default' : 'info'"
+              :icon="isAllSelected ? CircleClose : Collection"
               size="small"
               @click="handleSelectAll"
               class="select-all-btn"
               :title="isAllSelected ? '取消全选' : '全选当前列表所有图片'"
             >
-              {{ isAllSelected ? '取消全选' : '全选' }}
+              {{ isAllSelected ? "取消全选" : "全选" }}
             </el-button>
             <!-- 筛选功能 -->
-            <el-button 
-              type="default" 
-              :icon="Filter" 
+            <el-button
+              type="default"
+              :icon="Filter"
               size="small"
               @click="openFilterDialog"
               class="filter-btn"
@@ -167,7 +177,7 @@
           </div>
         </div>
       </div>
-      
+
       <!-- 多项精确搜索弹窗 -->
       <el-dialog
         v-model="searchDialogVisible"
@@ -192,7 +202,7 @@
               />
             </el-select>
           </div>
-          
+
           <div class="search-content-area">
             <el-input
               v-model="advancedSearchContent"
@@ -203,15 +213,11 @@
             />
           </div>
         </div>
-        
+
         <template #footer>
           <span class="dialog-footer">
-            <el-button @click="clearAdvancedSearchContent">
-              清空
-            </el-button>
-            <el-button @click="closeSearchDialog">
-              关闭
-            </el-button>
+            <el-button @click="clearAdvancedSearchContent"> 清空 </el-button>
+            <el-button @click="closeSearchDialog"> 关闭 </el-button>
             <el-button type="primary" @click="handleAdvancedSearch">
               搜索
             </el-button>
@@ -222,25 +228,25 @@
       <!-- 定稿产品网格 -->
       <SkeletonWrapper :loading="loading" variant="card-grid">
         <div class="drafts-grid">
-        <!-- 定稿卡片组件 -->
-        <DraftCard
-          v-for="draft in draftList"
-          :key="draft.id"
-          :draft="draft"
-          :selected="selectedItems.includes(draft.id)"
-          @select="handleSelect"
-          @edit="handleEdit"
-          @delete="handleDelete"
-          @download="handleDownload"
-        />
-        
-        <!-- 空状态 -->
-        <el-empty
-          v-if="!loading && draftList.length === 0"
-          description="暂无定稿数据"
-          :image-size="200"
-        />
-      </div>
+          <!-- 定稿卡片组件 -->
+          <DraftCard
+            v-for="draft in draftList"
+            :key="draft.id"
+            :draft="draft"
+            :selected="selectedItems.includes(draft.id)"
+            @select="handleSelect"
+            @edit="handleEdit"
+            @delete="handleDelete"
+            @download="handleDownload"
+          />
+
+          <!-- 空状态 -->
+          <el-empty
+            v-if="!loading && draftList.length === 0"
+            description="暂无定稿数据"
+            :image-size="200"
+          />
+        </div>
       </SkeletonWrapper>
 
       <!-- 分页 -->
@@ -285,24 +291,28 @@
             <Check />
           </el-icon>
         </div>
-        
+
         <el-empty
           v-if="batchList.length === 0"
           description="暂无批次数据"
           :image-size="100"
         />
       </div>
-      
+
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="handleBatchDialogClose">取消</el-button>
-          <el-button type="primary" @click="confirmBatchSelection" :disabled="!selectedBatch">
+          <el-button
+            type="primary"
+            @click="confirmBatchSelection"
+            :disabled="!selectedBatch"
+          >
             确定
           </el-button>
         </span>
       </template>
     </el-dialog>
-    
+
     <!-- 筛选对话框 -->
     <el-dialog
       v-model="filterDialogVisible"
@@ -326,16 +336,18 @@
             </el-checkbox>
           </el-checkbox-group>
         </div>
-        
+
         <div class="filter-section">
           <h4>状态</h4>
           <el-checkbox-group v-model="tempFilterParams.status">
             <el-checkbox label="finalized" size="small">已定稿</el-checkbox>
-            <el-checkbox label="optimizing" size="small">未完成在优化</el-checkbox>
+            <el-checkbox label="optimizing" size="small"
+              >未完成在优化</el-checkbox
+            >
             <el-checkbox label="concept" size="small">构思</el-checkbox>
           </el-checkbox-group>
         </div>
-        
+
         <div class="filter-section">
           <h4>批次</h4>
           <el-checkbox-group v-model="tempFilterParams.batch">
@@ -349,7 +361,7 @@
             </el-checkbox>
           </el-checkbox-group>
         </div>
-        
+
         <div class="filter-section">
           <h4>载体</h4>
           <el-checkbox-group v-model="tempFilterParams.carrier">
@@ -364,29 +376,33 @@
           </el-checkbox-group>
         </div>
       </div>
-      
+
       <template #footer>
         <span class="dialog-footer">
           <el-button size="small" @click="resetFilter">重置</el-button>
-          <el-button size="small" @click="handleFilterDialogClose">取消</el-button>
-          <el-button type="primary" size="small" @click="confirmFilter">确定</el-button>
+          <el-button size="small" @click="handleFilterDialogClose"
+            >取消</el-button
+          >
+          <el-button type="primary" size="small" @click="confirmFilter"
+            >确定</el-button
+          >
         </span>
       </template>
     </el-dialog>
-    
+
     <!-- 批量导入对话框 -->
     <BatchImportDialog
       v-model="batchImportDialogVisible"
       @success="handleDialogSuccess"
     />
-    
+
     <!-- 批量修改对话框 -->
     <BatchEditDialog
       v-model="batchEditDialogVisible"
       :selected-ids="selectedItems"
       @success="handleDialogSuccess"
     />
-    
+
     <!-- 文件命名对话框 -->
     <el-dialog
       v-model="fileNameDialogVisible"
@@ -409,14 +425,21 @@
             </el-select>
           </el-form-item>
           <el-form-item v-if="isBatchDownload">
-            <el-checkbox v-model="fileNameForm.includeDate">包含当前日期</el-checkbox>
+            <el-checkbox v-model="fileNameForm.includeDate"
+              >包含当前日期</el-checkbox
+            >
           </el-form-item>
         </el-form>
       </div>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="fileNameDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="confirmFileName" :disabled="!fileNameForm.name.trim()">确定</el-button>
+          <el-button
+            type="primary"
+            @click="confirmFileName"
+            :disabled="!fileNameForm.name.trim()"
+            >确定</el-button
+          >
         </span>
       </template>
     </el-dialog>
@@ -424,29 +447,49 @@
 </template>
 
 <script setup lang="ts">
-defineOptions({ name: 'FinalDraft' })
-import { ref, reactive, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Upload, Download, Sort, Search, Refresh, Collection, Check, ArrowDown, Delete, List, Filter, Edit, CircleClose } from '@element-plus/icons-vue'
+defineOptions({ name: "FinalDraft" });
+import { ref, reactive, computed, watch } from "vue";
+import { useRouter } from "vue-router";
+import { ElMessage, ElMessageBox } from "element-plus";
+import {
+  Plus,
+  Upload,
+  Download,
+  Sort,
+  Search,
+  Refresh,
+  Collection,
+  Check,
+  ArrowDown,
+  Delete,
+  List,
+  Filter,
+  Edit,
+  CircleClose,
+} from "@element-plus/icons-vue";
 
 // 导入组件
-import DraftCard from './components/DraftCard.vue'
-import DraftDialog from './components/DraftDialog.vue'
-import BatchImportDialog from './components/BatchImportDialog.vue'
-import BatchEditDialog from './components/BatchEditDialog.vue'
-import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
+import DraftCard from "./components/DraftCard.vue";
+import DraftDialog from "./components/DraftDialog.vue";
+import BatchImportDialog from "./components/BatchImportDialog.vue";
+import BatchEditDialog from "./components/BatchEditDialog.vue";
+import SkeletonWrapper from "@/components/SkeletonWrapper/index.vue";
 
 // 导入API
-import { finalDraftApi } from '@/api/finalDraft'
-import { canWrite as checkCanWrite } from '@/utils/permission'
+import { finalDraftApi } from "@/api/finalDraft";
+import { canWrite as checkCanWrite } from "@/utils/permission";
 
 // 导入工具函数
-import { downloadFile, batchDownloadFiles, getFileExtension, downloadImagesAsZip } from '@/utils/download'
-import { ImageUrlUtil } from '@/utils/imageUrlUtil'
+import {
+  downloadFile,
+  batchDownloadFiles,
+  getFileExtension,
+  downloadImagesAsZip,
+} from "@/utils/download";
+import { ImageUrlUtil } from "@/utils/imageUrlUtil";
 
 // 导入Store
-import { useUserStore } from '@/stores/user'
+import { useUserStore } from "@/stores/user";
 
 // 下载逻辑（~400行提取到 composables/useDraftDownload.ts）
 import {
@@ -460,10 +503,10 @@ import {
   currentDownloadDrafts,
   collectFilesFromDraft,
   requestZipDownload,
-} from './composables/useDraftDownload'
+} from "./composables/useDraftDownload";
 
 // 列表、筛选、搜索逻辑
-import { useDraftList } from './composables/useDraftList'
+import { useDraftList } from "./composables/useDraftList";
 
 const {
   loading,
@@ -498,281 +541,300 @@ const {
   clearAdvancedSearchContent,
   preprocessSearchContent,
   handleAdvancedSearch,
-} = useDraftList()
+} = useDraftList();
 
-const hasLoaded = ref(false)
-const refreshing = computed(() => loading.value && hasLoaded.value)
+const hasLoaded = ref(false);
+const refreshing = computed(() => loading.value && hasLoaded.value);
 
 watch(loading, (val) => {
   if (!val && !hasLoaded.value) {
-    hasLoaded.value = true
+    hasLoaded.value = true;
   }
-})
+});
 
 // 类型定义
 interface Draft {
-  id: number
-  sku: string
-  batch: string
-  developer: string
-  carrier: string
-  element?: string
-  modificationRequirement?: string
-  infringementLabel?: string
-  images: string[]
-  reference_images: string[]
-  referenceImages?: string[]
-  createTime: string
-  updateTime: string
-  status: 'finalized' | 'optimizing' | 'concept'
+  id: number;
+  sku: string;
+  batch: string;
+  developer: string;
+  carrier: string;
+  element?: string;
+  modificationRequirement?: string;
+  infringementLabel?: string;
+  images: string[];
+  reference_images: string[];
+  referenceImages?: string[];
+  createTime: string;
+  updateTime: string;
+  status: "finalized" | "optimizing" | "concept";
 }
 
 // 用户状态管理
-const userStore = useUserStore()
+const userStore = useUserStore();
 // 定稿状态管理
 // 是否有写权限（上传/编辑/删除）：admin 和 开发 可写
-const canWrite = computed(() => checkCanWrite(userStore.userInfo?.role))
+const canWrite = computed(() => checkCanWrite(userStore.userInfo?.role));
 
 // 响应式数据
-const dialogVisible = ref(false)
-const batchDialogVisible = ref(false)
-const batchImportDialogVisible = ref(false)
-const batchEditDialogVisible = ref(false)
-const currentDraft = ref<Draft | null>(null)
-const selectedItems = ref<number[]>([])
-const selectedBatch = ref<string>('')
-const selectedDate = ref<string>('')
+const dialogVisible = ref(false);
+const batchDialogVisible = ref(false);
+const batchImportDialogVisible = ref(false);
+const batchEditDialogVisible = ref(false);
+const currentDraft = ref<Draft | null>(null);
+const selectedItems = ref<number[]>([]);
+const selectedBatch = ref<string>("");
+const selectedDate = ref<string>("");
 
 // 文件命名表单（本地状态）
 const fileNameForm = reactive({
-  name: '',
-  type: 'zip',
-  includeDate: true
-})
-
+  name: "",
+  type: "zip",
+  includeDate: true,
+});
 
 // 路由实例
-const router = useRouter()
+const router = useRouter();
 
 // 判断是否已全选所有draft卡片
 const isAllSelected = computed(() => {
-  return draftList.value.length > 0 && selectedItems.value.length === draftList.value.length
-})
+  return (
+    draftList.value.length > 0 &&
+    selectedItems.value.length === draftList.value.length
+  );
+});
 
 // 批次列表数据
 interface BatchItem {
-  batch: string
-  imageCount: number
+  batch: string;
+  imageCount: number;
 }
 
 const batchList = ref<BatchItem[]>([
-  { batch: 'BATCH202401', imageCount: 15 },
-  { batch: 'BATCH202402', imageCount: 8 },
-  { batch: 'BATCH202403', imageCount: 22 },
-  { batch: 'BATCH202404', imageCount: 5 },
-  { batch: 'BATCH202405', imageCount: 12 }
-])
+  { batch: "BATCH202401", imageCount: 15 },
+  { batch: "BATCH202402", imageCount: 8 },
+  { batch: "BATCH202403", imageCount: 22 },
+  { batch: "BATCH202404", imageCount: 5 },
+  { batch: "BATCH202405", imageCount: 12 },
+]);
 
 // 方法
-
 
 // 全选/取消全选图片功能
 const handleSelectAll = (): void => {
   if (draftList.value.length === 0) {
-    ElMessage.warning('当前列表没有可选择的图片')
-    return
+    ElMessage.warning("当前列表没有可选择的图片");
+    return;
   }
-  
+
   if (isAllSelected.value) {
     // 取消全选
-    selectedItems.value = []
-    ElMessage.success('已取消全选所有图片')
+    selectedItems.value = [];
+    ElMessage.success("已取消全选所有图片");
   } else {
     // 全选所有draft卡片
-    selectedItems.value = draftList.value.map(draft => draft.id)
-    ElMessage.success(`已全选 ${selectedItems.value.length} 个定稿卡片`)
+    selectedItems.value = draftList.value.map((draft) => draft.id);
+    ElMessage.success(`已全选 ${selectedItems.value.length} 个定稿卡片`);
   }
-}
+};
 
 const handleAddDraft = (): void => {
-  currentDraft.value = null
-  dialogVisible.value = true
-}
+  currentDraft.value = null;
+  dialogVisible.value = true;
+};
 
 const handleEdit = (draft: Draft): void => {
-  currentDraft.value = draft
-  dialogVisible.value = true
-}
+  currentDraft.value = draft;
+  dialogVisible.value = true;
+};
 
 const handleDelete = async (draft: Draft): Promise<void> => {
   try {
-    await ElMessageBox.confirm(
-      `确定要删除定稿 ${draft.sku} 吗？`,
-      '提示',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    
+    await ElMessageBox.confirm(`确定要删除定稿 ${draft.sku} 吗？`, "提示", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+    });
+
     // 调用真实删除API
-    const response = await finalDraftApi.delete(draft.sku)
-    
+    const response = await finalDraftApi.delete(draft.sku);
+
     if (response.code === 200) {
-      ElMessage.success(response.message || '删除成功')
+      ElMessage.success(response.message || "删除成功");
       // 立即从列表中移除被删除的定稿，确保UI立即更新
-      const index = draftList.value.findIndex(item => item.sku === draft.sku)
+      const index = draftList.value.findIndex((item) => item.sku === draft.sku);
       if (index > -1) {
-        draftList.value.splice(index, 1)
+        draftList.value.splice(index, 1);
         // 如果是最后一页且删除后列表为空，切换到上一页
         if (draftList.value.length === 0 && pagination.page > 1) {
-          pagination.page--
+          pagination.page--;
         }
       }
-      loadDrafts()
+      loadDrafts();
     } else {
       // 根据错误信息显示不同的提示
-      if (response.code === 400 && response.message.includes('已存在于回收站')) {
-        ElMessage.warning('该定稿已存在于回收站，无需重复删除')
+      if (
+        response.code === 400 &&
+        response.message.includes("已存在于回收站")
+      ) {
+        ElMessage.warning("该定稿已存在于回收站，无需重复删除");
       } else if (response.code === 404) {
-        ElMessage.warning('该定稿不存在，可能已被删除')
+        ElMessage.warning("该定稿不存在，可能已被删除");
       } else {
-        ElMessage.error(response.message || '删除失败')
+        ElMessage.error(response.message || "删除失败");
       }
     }
   } catch (error: any) {
     // 用户取消删除或API调用失败
-    if (error !== 'cancel') {
-      console.error('删除定稿失败:', error)
+    if (error !== "cancel") {
+      console.error("删除定稿失败:", error);
       // 处理网络错误或其他异常
       if (error.response?.data?.message) {
-        if (error.response.status === 400 && error.response.data.message.includes('已存在于回收站')) {
-          ElMessage.warning('该定稿已存在于回收站，无需重复删除')
+        if (
+          error.response.status === 400 &&
+          error.response.data.message.includes("已存在于回收站")
+        ) {
+          ElMessage.warning("该定稿已存在于回收站，无需重复删除");
         } else if (error.response.status === 404) {
-          ElMessage.warning('该定稿不存在，可能已被删除')
+          ElMessage.warning("该定稿不存在，可能已被删除");
         } else {
-          ElMessage.error(error.response.data.message || '删除失败')
+          ElMessage.error(error.response.data.message || "删除失败");
         }
       } else {
-        ElMessage.error('删除失败')
+        ElMessage.error("删除失败");
       }
     }
   }
-}
+};
 
 const handleSelect = (draftId: number, selected: boolean): void => {
   if (selected) {
-    selectedItems.value.push(draftId)
+    selectedItems.value.push(draftId);
   } else {
-    const index = selectedItems.value.indexOf(draftId)
+    const index = selectedItems.value.indexOf(draftId);
     if (index > -1) {
-      selectedItems.value.splice(index, 1)
+      selectedItems.value.splice(index, 1);
     }
   }
-}
+};
 
 const handleBatchDownload = async (): Promise<void> => {
   if (selectedItems.value.length === 0) {
-    ElMessage.warning('请先选择要下载的定稿')
-    return
+    ElMessage.warning("请先选择要下载的定稿");
+    return;
   }
-  
+
   // 收集所有选中的草稿对象
-  const selectedDrafts = draftList.value.filter(draft => selectedItems.value.includes(draft.id))
-  
+  const selectedDrafts = draftList.value.filter((draft) =>
+    selectedItems.value.includes(draft.id),
+  );
+
   if (selectedDrafts.length === 0) {
-    ElMessage.warning('未找到选中的定稿')
-    return
+    ElMessage.warning("未找到选中的定稿");
+    return;
   }
-  
+
   // 过滤出只有已定稿状态的产品
-  const finalizedDrafts = selectedDrafts.filter(draft => draft.status === 'finalized')
-  
+  const finalizedDrafts = selectedDrafts.filter(
+    (draft) => draft.status === "finalized",
+  );
+
   if (finalizedDrafts.length === 0) {
-    ElMessage.warning('选中的产品中没有已定稿状态的产品，只有已定稿状态的产品才可以下载')
-    return
+    ElMessage.warning(
+      "选中的产品中没有已定稿状态的产品，只有已定稿状态的产品才可以下载",
+    );
+    return;
   }
-  
+
   if (finalizedDrafts.length < selectedDrafts.length) {
-    ElMessage.warning(`只下载已定稿状态的产品，共 ${finalizedDrafts.length} 个，跳过 ${selectedDrafts.length - finalizedDrafts.length} 个非已定稿状态的产品`)
+    ElMessage.warning(
+      `只下载已定稿状态的产品，共 ${finalizedDrafts.length} 个，跳过 ${selectedDrafts.length - finalizedDrafts.length} 个非已定稿状态的产品`,
+    );
   }
-  
+
   // 收集所有要下载的图片（批量下载不包含侵权标注）
-  const filesToDownload = finalizedDrafts.flatMap(d => collectFilesFromDraft(d, false))
+  const filesToDownload = finalizedDrafts.flatMap((d) =>
+    collectFilesFromDraft(d, false),
+  );
 
   if (filesToDownload.length === 0) {
-    ElMessage.warning('选中的设计稿没有可下载的图片')
-    return
+    ElMessage.warning("选中的设计稿没有可下载的图片");
+    return;
   }
 
   // 打开文件命名对话框
-  isBatchDownload.value = true
-  currentDownloadDrafts.value = finalizedDrafts
-  fileNameForm.name = `批量下载_${finalizedDrafts.length}个设计稿`
-  fileNameForm.includeDate = true
-  fileNameDialogVisible.value = true
-}
+  isBatchDownload.value = true;
+  currentDownloadDrafts.value = finalizedDrafts;
+  fileNameForm.name = `批量下载_${finalizedDrafts.length}个设计稿`;
+  fileNameForm.includeDate = true;
+  fileNameDialogVisible.value = true;
+};
 
 const handleBatchDelete = async (): Promise<void> => {
   if (selectedItems.value.length === 0) {
-    ElMessage.warning('请先选择要删除的定稿')
-    return
+    ElMessage.warning("请先选择要删除的定稿");
+    return;
   }
-  
+
   try {
     await ElMessageBox.confirm(
       `确定要删除选中的 ${selectedItems.value.length} 个定稿吗？`,
-      '提示',
+      "提示",
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+      },
+    );
+
     // 调用真实批量删除API
-    const response = await finalDraftApi.batchDelete({ ids: selectedItems.value })
-    
+    const response = await finalDraftApi.batchDelete({
+      ids: selectedItems.value,
+    });
+
     if (response.code === 200) {
-      ElMessage.success(`成功删除 ${response.data.success} 个定稿，失败 ${response.data.failed} 个`)
-      const deletedIds = selectedItems.value
-      selectedItems.value = []
+      ElMessage.success(
+        `成功删除 ${response.data.success} 个定稿，失败 ${response.data.failed} 个`,
+      );
+      const deletedIds = selectedItems.value;
+      selectedItems.value = [];
       // 立即从列表中移除被删除的定稿，确保UI立即更新
       if (deletedIds.length > 0) {
-        draftList.value = draftList.value.filter(draft => !deletedIds.includes(draft.id))
+        draftList.value = draftList.value.filter(
+          (draft) => !deletedIds.includes(draft.id),
+        );
         // 如果是最后一页且删除后列表为空，切换到上一页
         if (draftList.value.length === 0 && pagination.page > 1) {
-          pagination.page--
+          pagination.page--;
         }
       }
-      loadDrafts()
+      loadDrafts();
     } else {
-      ElMessage.error(response.message || '批量删除失败')
+      ElMessage.error(response.message || "批量删除失败");
     }
   } catch (error) {
     // 用户取消删除或API调用失败
-    if (error !== 'cancel') {
-      console.error('批量删除定稿失败:', error)
-      ElMessage.error('批量删除失败')
+    if (error !== "cancel") {
+      console.error("批量删除定稿失败:", error);
+      ElMessage.error("批量删除失败");
     }
   }
-}
+};
 
 // 跳转到回收站页面
 const handleRecycleBin = (): void => {
-  router.push('/final-draft-recycle-bin')
-}
+  router.push("/final-draft-recycle-bin");
+};
 
 // 批量导入方法
 const handleBatchImport = (): void => {
-  batchImportDialogVisible.value = true
-}
+  batchImportDialogVisible.value = true;
+};
 
 // 批量修改方法
 const handleBatchEdit = (): void => {
-  batchEditDialogVisible.value = true
-}
+  batchEditDialogVisible.value = true;
+};
 
 /**
  * 处理侵权标注下载
@@ -781,163 +843,182 @@ const handleBatchEdit = (): void => {
  */
 const handleInfringementLabelDownload = async (): Promise<void> => {
   if (selectedItems.value.length === 0) {
-    ElMessage.warning('请先选择要下载的定稿')
-    return
+    ElMessage.warning("请先选择要下载的定稿");
+    return;
   }
 
   // 收集所有选中的草稿对象
-  const selectedDrafts = draftList.value.filter(draft => selectedItems.value.includes(draft.id))
+  const selectedDrafts = draftList.value.filter((draft) =>
+    selectedItems.value.includes(draft.id),
+  );
 
   if (selectedDrafts.length === 0) {
-    ElMessage.warning('未找到选中的定稿')
-    return
+    ElMessage.warning("未找到选中的定稿");
+    return;
   }
 
   // 过滤出只有已定稿状态的产品
-  const finalizedDrafts = selectedDrafts.filter(draft => draft.status === 'finalized')
+  const finalizedDrafts = selectedDrafts.filter(
+    (draft) => draft.status === "finalized",
+  );
 
   // 调试日志：打印选中的定稿数据
-  console.log('选中的定稿数据:', selectedDrafts)
-  console.log('已定稿的定稿数据:', finalizedDrafts)
+  console.log("选中的定稿数据:", selectedDrafts);
+  console.log("已定稿的定稿数据:", finalizedDrafts);
   finalizedDrafts.forEach((draft, index) => {
-    console.log(`定稿 ${index + 1}: SKU=${draft.sku}, infringementLabel=${draft.infringementLabel}`)
-  })
+    console.log(
+      `定稿 ${index + 1}: SKU=${draft.sku}, infringementLabel=${draft.infringementLabel}`,
+    );
+  });
 
   if (finalizedDrafts.length === 0) {
-    ElMessage.warning('选中的产品中没有已定稿状态的产品，只有已定稿状态的产品才可以下载')
-    return
+    ElMessage.warning(
+      "选中的产品中没有已定稿状态的产品，只有已定稿状态的产品才可以下载",
+    );
+    return;
   }
 
   if (finalizedDrafts.length < selectedDrafts.length) {
-    ElMessage.warning(`只下载已定稿状态的产品，共 ${finalizedDrafts.length} 个，跳过 ${selectedDrafts.length - finalizedDrafts.length} 个非已定稿状态的产品`)
+    ElMessage.warning(
+      `只下载已定稿状态的产品，共 ${finalizedDrafts.length} 个，跳过 ${selectedDrafts.length - finalizedDrafts.length} 个非已定稿状态的产品`,
+    );
   }
 
   // 收集所有要下载的图片（侵权标注下载 = 包含侵权标注）
-  const filesToDownload = finalizedDrafts.flatMap(d => collectFilesFromDraft(d, true))
+  const filesToDownload = finalizedDrafts.flatMap((d) =>
+    collectFilesFromDraft(d, true),
+  );
 
   if (filesToDownload.length === 0) {
-    ElMessage.warning('选中的设计稿没有可下载的图片')
-    return
+    ElMessage.warning("选中的设计稿没有可下载的图片");
+    return;
   }
 
   // 打开文件命名对话框
-  isBatchDownload.value = true
-  currentDownloadDrafts.value = finalizedDrafts
-  fileNameForm.name = `侵权标注下载_${finalizedDrafts.length}个设计稿`
-  fileNameForm.includeDate = true
-  fileNameDialogVisible.value = true
-}
+  isBatchDownload.value = true;
+  currentDownloadDrafts.value = finalizedDrafts;
+  fileNameForm.name = `侵权标注下载_${finalizedDrafts.length}个设计稿`;
+  fileNameForm.includeDate = true;
+  fileNameDialogVisible.value = true;
+};
 
 const handleDownload = async (draft: Draft): Promise<void> => {
   try {
     // 检查状态，只有已定稿的产品才可以下载
-    if (draft.status !== 'finalized') {
-      ElMessage.warning(`只有已定稿状态的产品才可以下载，当前状态: ${draft.status}`)
-      return
+    if (draft.status !== "finalized") {
+      ElMessage.warning(
+        `只有已定稿状态的产品才可以下载，当前状态: ${draft.status}`,
+      );
+      return;
     }
-    
-    const totalImages = (draft.images?.length || 0) + (draft.reference_images?.length || 0)
-    
+
+    const totalImages =
+      (draft.images?.length || 0) + (draft.reference_images?.length || 0);
+
     if (totalImages === 0) {
-      ElMessage.warning(`设计稿 ${draft.sku} 没有可下载的图片`)
-      return
+      ElMessage.warning(`设计稿 ${draft.sku} 没有可下载的图片`);
+      return;
     }
-    
+
     // 打开文件命名对话框
-    isBatchDownload.value = false
-    currentDownloadDraft.value = draft
-    fileNameForm.name = `设计稿_${draft.sku}`
-    fileNameDialogVisible.value = true
+    isBatchDownload.value = false;
+    currentDownloadDraft.value = draft;
+    fileNameForm.name = `设计稿_${draft.sku}`;
+    fileNameDialogVisible.value = true;
   } catch (error: any) {
-    console.error(`下载设计稿 ${draft.sku} 失败:`, error)
-    const errorMessage = error.message || '未知错误'
-    ElMessage.error(`下载设计稿 ${draft.sku} 失败: ${errorMessage}`)
+    console.error(`下载设计稿 ${draft.sku} 失败:`, error);
+    const errorMessage = error.message || "未知错误";
+    ElMessage.error(`下载设计稿 ${draft.sku} 失败: ${errorMessage}`);
   }
-}
+};
 
 const handleSortCommand = (command: string): void => {
   // 排序逻辑
-  ElMessage.info(`按${command}排序`)
-}
+  ElMessage.info(`按${command}排序`);
+};
 
 const handleDialogSuccess = (): void => {
-  dialogVisible.value = false
-  loadDrafts()
-}
+  dialogVisible.value = false;
+  loadDrafts();
+};
 
 // 文件命名确认方法
 const confirmFileName = async (): Promise<void> => {
   if (!fileNameForm.name.trim()) {
-    ElMessage.warning('请输入文件名')
-    return
+    ElMessage.warning("请输入文件名");
+    return;
   }
-  fileNameDialogVisible.value = false
+  fileNameDialogVisible.value = false;
 
   const draftsToDownload = isBatchDownload.value
     ? currentDownloadDrafts.value
-    : (currentDownloadDraft.value ? [currentDownloadDraft.value] : [])
+    : currentDownloadDraft.value
+      ? [currentDownloadDraft.value]
+      : [];
 
   if (draftsToDownload.length === 0) {
-    ElMessage.warning('没有可下载的定稿')
-    return
+    ElMessage.warning("没有可下载的定稿");
+    return;
   }
 
-  const finalizedDrafts = draftsToDownload.filter(d => d.status === 'finalized')
+  const finalizedDrafts = draftsToDownload.filter(
+    (d) => d.status === "finalized",
+  );
   if (finalizedDrafts.length === 0) {
-    ElMessage.warning('只有已定稿状态的产品才可以下载')
-    return
+    ElMessage.warning("只有已定稿状态的产品才可以下载");
+    return;
   }
 
-  const allFiles = finalizedDrafts.flatMap(d => collectFilesFromDraft(d, !isBatchDownload.value))
+  const allFiles = finalizedDrafts.flatMap((d) =>
+    collectFilesFromDraft(d, !isBatchDownload.value),
+  );
   if (allFiles.length === 0) {
-    ElMessage.warning('没有可下载的图片')
-    return
+    ElMessage.warning("没有可下载的图片");
+    return;
   }
 
   try {
     const zipName = fileNameForm.includeDate
-      ? `${fileNameForm.name}_${new Date().toISOString().split('T')[0]}`
-      : fileNameForm.name
-    await requestZipDownload(allFiles, zipName)
+      ? `${fileNameForm.name}_${new Date().toISOString().split("T")[0]}`
+      : fileNameForm.name;
+    await requestZipDownload(allFiles, zipName);
   } catch (error: any) {
-    ElMessage.error(`下载失败: ${error.message || '未知错误'}`)
-    showProgress.value = false
+    ElMessage.error(`下载失败: ${error.message || "未知错误"}`);
+    showProgress.value = false;
   }
-}
-
+};
 
 // 批次选择相关方法
 const handleBatchSelect = (): void => {
-  batchDialogVisible.value = true
-  selectedBatch.value = queryParams.searchContent
-}
+  batchDialogVisible.value = true;
+  selectedBatch.value = queryParams.searchContent;
+};
 
 const handleBatchDialogClose = (): void => {
-  batchDialogVisible.value = false
-  selectedBatch.value = ''
-}
+  batchDialogVisible.value = false;
+  selectedBatch.value = "";
+};
 
 const selectBatch = (batchItem: BatchItem): void => {
-  selectedBatch.value = batchItem.batch
-}
+  selectedBatch.value = batchItem.batch;
+};
 
 const confirmBatchSelection = (): void => {
-  queryParams.searchType = 'batch'
-  queryParams.searchContent = selectedBatch.value
-  batchDialogVisible.value = false
-  handleSearch()
-}
+  queryParams.searchType = "batch";
+  queryParams.searchContent = selectedBatch.value;
+  batchDialogVisible.value = false;
+  handleSearch();
+};
 
 // 日期选择相关方法
 const handleDateChange = (date: string): void => {
   // 日期选择功能已集成到新的搜索界面
   if (date) {
-    queryParams.searchType = 'batch'
-    queryParams.searchContent = date
-    handleSearch()
+    queryParams.searchType = "batch";
+    queryParams.searchContent = date;
+    handleSearch();
   }
-}
-
+};
 </script>
 
 <style scoped lang="scss">
@@ -953,11 +1034,11 @@ const handleDateChange = (date: string): void => {
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-  
+
   .batch-input {
     flex: 1;
   }
-  
+
   .batch-select-btn {
     flex-shrink: 0;
   }
@@ -974,7 +1055,7 @@ const handleDateChange = (date: string): void => {
 .batch-list {
   max-height: 400px;
   overflow-y: auto;
-  
+
   .batch-item {
     display: flex;
     align-items: center;
@@ -985,34 +1066,34 @@ const handleDateChange = (date: string): void => {
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.3s ease;
-    
+
     &:hover {
       border-color: #409eff;
       background-color: #f5f7fa;
     }
-    
+
     &.selected {
       border-color: #409eff;
       background-color: #ecf5ff;
     }
-    
+
     .batch-info {
       display: flex;
       flex-direction: column;
       gap: 4px;
-      
+
       .batch-name {
         font-size: 14px;
         font-weight: 600;
         color: #303133;
       }
-      
+
       .image-count {
         font-size: 12px;
         color: #909399;
       }
     }
-    
+
     .check-icon {
       color: #409eff;
       font-size: 16px;
@@ -1024,13 +1105,13 @@ const handleDateChange = (date: string): void => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  
+
   .header-title {
     font-size: 18px;
     font-weight: 600;
     color: #303133;
   }
-  
+
   .header-actions {
     display: flex;
     gap: 12px;
@@ -1083,7 +1164,7 @@ const handleDateChange = (date: string): void => {
   background: #f5f7fa;
   color: #606266;
   transition: all 0.3s;
-  
+
   &:hover {
     background: #ecf5ff;
     color: #409eff;
@@ -1108,26 +1189,26 @@ const handleDateChange = (date: string): void => {
 /* 筛选对话框样式 */
 .filter-dialog {
   padding: 10px 0; /* 减小内边距 */
-  
+
   .el-collapse {
     margin: 0;
   }
-  
+
   .el-collapse-item__header {
     padding: 8px 10px; /* 减小折叠项头部内边距 */
     font-size: 14px;
   }
-  
+
   .el-collapse-item__content {
     padding: 10px;
     padding-top: 8px;
     padding-bottom: 15px;
   }
-  
+
   .el-checkbox-group {
     margin-top: 5px;
   }
-  
+
   /* 复选框网格布局 */
   .checkbox-grid {
     display: grid;
@@ -1135,7 +1216,7 @@ const handleDateChange = (date: string): void => {
     gap: 8px 12px; /* 行列间距 */
     align-items: center;
   }
-  
+
   .el-checkbox {
     margin: 0;
     white-space: nowrap;
@@ -1147,17 +1228,17 @@ const handleDateChange = (date: string): void => {
 /* 简化筛选对话框样式 */
 .simple-filter-dialog {
   padding: 10px 0;
-  
+
   .filter-section {
     margin-bottom: 15px;
-    
+
     h4 {
       margin: 0 0 8px 0;
       font-size: 14px;
       font-weight: 500;
       color: #303133;
     }
-    
+
     .el-checkbox {
       margin-right: 15px;
       margin-bottom: 8px;
@@ -1227,15 +1308,15 @@ const handleDateChange = (date: string): void => {
 /* 文件命名对话框样式 */
 .file-name-dialog {
   padding: 10px 0;
-  
+
   .el-form-item {
     margin-bottom: 16px;
   }
-  
+
   .el-input {
     width: 100%;
   }
-  
+
   .el-checkbox {
     margin-top: 8px;
   }
