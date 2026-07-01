@@ -3,7 +3,6 @@ import { ref, computed } from "vue";
 import { ElMessage } from "element-plus";
 import { getTree } from "@/api/product-line";
 import { competitorApi } from "@/api/competitor";
-import { methodCardsApi } from "@/api/methodCards";
 import { selectionApi } from "@/api/selection";
 import type {
   ProductLineGroup,
@@ -12,24 +11,16 @@ import type {
 } from "@/types/productLine";
 import type { CompetitorProductRaw, QualifyRule } from "@/api/competitor";
 import type { RangeFilterValue } from "@/components/RangeFilterPanel/index.vue";
+import { createEmptyRangeFilter } from "@/utils/rangeFilter";
+import {
+  buildSelectionFilterIntent,
+  buildSelectionQueryPlan,
+  type SelectionFilterState,
+} from "@/views/AllSelection/composables/queryPlan";
+import { resolveSelectionQueryPlan } from "@/views/AllSelection/composables/queryRuntime";
 
 function emptyRangeFilter(): RangeFilterValue {
-  return {
-    priceMin: null,
-    priceMax: null,
-    unitsMin: null,
-    unitsMax: null,
-    listingDaysMin: null,
-    listingDaysMax: null,
-    bsrMax: null,
-    weightMax: null,
-    variantCountMax: null,
-    fulfillment: [],
-    createdWeeks: [],
-    category: [],
-    grade: [],
-    listingPreset: null,
-  };
+  return createEmptyRangeFilter();
 }
 
 interface SubCategoryItem {
@@ -93,7 +84,10 @@ export const useProductLineSelectionStore = defineStore(
 
     // ---- 灵活合格规则（已由面板的上架天数/月销区间承担，默认空=不限）----
     const qualifyRules = ref<QualifyRule[]>([]);
-    const activeMethodCard = ref<{ id: "M02"; name: string } | null>(null);
+    const activeMethodCard = ref<{
+      id: "M01" | "M02";
+      name: string;
+    } | null>(null);
 
     // 方法卡视角使用的证据批次；M02 时为郑总同行盘子最新批次。
     const zhengBatchDate = ref("");
@@ -256,6 +250,15 @@ export const useProductLineSelectionStore = defineStore(
       });
     }
 
+    async function applyM01MethodCard() {
+      activeMethodCard.value = { id: "M01", name: "新品榜加速法" };
+      // M01 走 competitor_clean 表,不需要郑总证据批次
+      zhengBatchDate.value = "";
+      completeness.value = null;
+      await fetchTree();
+      await reloadCurrentProducts();
+    }
+
     async function applyM02MethodCard() {
       activeMethodCard.value = { id: "M02", name: "郑总同行品线跟随法" };
       await Promise.all([fetchTree(), refreshMethodEvidence()]);
@@ -276,43 +279,16 @@ export const useProductLineSelectionStore = defineStore(
       competitorLoading.value = true;
       resultsVisible.value = true;
       try {
-        const params: Record<string, any> = {
-          marketplace: marketplace.value,
-          page: competitorPage.value,
-          size: competitorPageSize.value,
-        };
-        // BUG-1 FIX: 拆分排序值 "bsr_asc" → sortBy="bsr" + sortOrder="asc"
+        let sortField = "score";
+        let sortOrder: "desc" | "asc" = "desc";
         if (sortBy.value) {
-          const [sortField, sortDir] = sortBy.value.split("_");
-          if (sortField) params.sortBy = sortField;
-          if (sortDir) params.sortOrder = sortDir;
-        }
-        if (filter.bsrId) params.bsrId = filter.bsrId;
-        if (filter.nodeId) params.nodeId = filter.nodeId;
-        if (searchKeyword.value) params.title = searchKeyword.value;
-        if (searchSellerName.value) params.sellerName = searchSellerName.value;
-        if (searchBrand.value) params.brand = searchBrand.value;
-        // 统一面板区间映射（价格/销量/上架天数/BSR/重量/变体数/配送/评级/入库周）
-        const rf = rangeFilter.value;
-        if (rf.priceMin != null) params.priceMin = rf.priceMin;
-        if (rf.priceMax != null) params.priceMax = rf.priceMax;
-        if (rf.unitsMin != null) params.unitsMin = rf.unitsMin;
-        if (rf.unitsMax != null) params.unitsMax = rf.unitsMax;
-        if (rf.listingDaysMin != null)
-          params.listingDaysMin = rf.listingDaysMin;
-        if (rf.listingDaysMax != null)
-          params.listingDaysMax = rf.listingDaysMax;
-        if (rf.bsrMax != null) params.bsrMax = rf.bsrMax;
-        if (rf.weightMax != null) params.weightMax = rf.weightMax;
-        if (rf.variantCountMax != null)
-          params.maxVariantCount = rf.variantCountMax;
-        if (rf.fulfillment?.length > 0) params.fulfillment = rf.fulfillment;
-        if (rf.grade?.length > 0) params.grade = rf.grade.join(",");
-        if (rf.createdWeeks?.length > 0) {
-          params.createdWeeks = [...rf.createdWeeks].sort();
+          const [nextSortField, nextSortDir] = sortBy.value.split("_");
+          if (nextSortField) sortField = nextSortField;
+          if (nextSortDir === "asc" || nextSortDir === "desc") {
+            sortOrder = nextSortDir;
+          }
         }
 
-        // element/carrier/keyword/combo filters
         const elementFilters = activeFilters.value.filter(
           (f) => f.type === "element",
         );
@@ -326,6 +302,7 @@ export const useProductLineSelectionStore = defineStore(
           (f) => f.type === "combo",
         );
         let kw = "";
+        let keywordTitle = searchKeyword.value;
         if (elementFilters.length > 0)
           kw = elementFilters.map((f) => f.value).join(" ");
         if (carrierFilters.length > 0)
@@ -334,39 +311,68 @@ export const useProductLineSelectionStore = defineStore(
             : carrierFilters.map((f) => f.value).join(" ");
         if (keywordFilters.length > 0) {
           const kwStr = keywordFilters.map((f) => f.value).join(" ");
-          params.title = params.title ? `${params.title} ${kwStr}` : kwStr;
+          keywordTitle = keywordTitle ? `${keywordTitle} ${kwStr}` : kwStr;
         }
         if (comboFilters.length > 0)
           kw = kw
             ? `${kw} ${comboFilters.map((f) => f.value).join(" ")}`
             : comboFilters.map((f) => f.value).join(" ");
-        if (kw) params.keywords = kw;
 
-        // 灵活合格规则：非空才下发（空=不按规则过滤，展示整个批次）
-        if (qualifyRules.value.length > 0)
-          params.qualifyRules = qualifyRules.value;
+        // scene 按方法卡分派: M01=新品榜, M02=郑总同行, 无卡=全量
+        const methodScene =
+          activeMethodCard.value?.id === "M01"
+            ? "new"
+            : activeMethodCard.value?.id === "M02"
+              ? "zheng"
+              : "all";
+        const intent = buildSelectionFilterIntent({
+          scene: methodScene,
+          methodId: activeMethodCard.value?.id ?? null,
+          queryParams: undefined,
+          activeFilters: {
+            country: marketplace.value,
+            sellerSelect: searchSellerName.value,
+            category: [],
+            sortField,
+            sortOrder,
+            range: {
+              ...rangeFilter.value,
+              createdWeeks: [...(rangeFilter.value.createdWeeks ?? [])].sort(),
+            },
+          } satisfies SelectionFilterState,
+          useCleanTable: true,
+          qualifyRules: qualifyRules.value,
+          qualifyRulesMode: "always",
+          overrides: {
+            marketplace: marketplace.value,
+            bsrId: filter.bsrId,
+            nodeId: filter.nodeId,
+            brand: searchBrand.value,
+            keywords: kw || undefined,
+            groupByParent: false,
+            title: keywordTitle || undefined,
+            sellerName: searchSellerName.value || undefined,
+          },
+        });
 
-        const res =
-          activeMethodCard.value?.id === "M02"
-            ? await methodCardsApi.getM02Products({
-                marketplace: marketplace.value as "UK" | "DE",
-                bsrId: filter.bsrId,
-                nodeId: filter.nodeId,
-                page: competitorPage.value,
-                size: competitorPageSize.value,
-                batchDate: zhengBatchDate.value || undefined,
-              })
-            : await competitorApi.getList({
-                ...params,
-                groupByParent: false,
-              });
+        if (activeMethodCard.value?.id === "M02" && zhengBatchDate.value) {
+          intent.freshness.snapshotKeys = [zhengBatchDate.value];
+        }
+
+        const plan = buildSelectionQueryPlan({
+          intent,
+          page: competitorPage.value,
+          size: competitorPageSize.value,
+        });
+        const resolved = await resolveSelectionQueryPlan(plan);
+        const res = resolved.result;
         if (reqId !== _productsReqId) return; // R3.2: 过时请求丢弃
-        competitorResults.value = (res?.data?.list ??
-          []) as CompetitorProductRaw[];
-        competitorTotal.value = res?.data?.total ?? 0;
+        competitorResults.value = (res.list ?? []) as CompetitorProductRaw[];
+        competitorTotal.value = res.total ?? 0;
         if (activeMethodCard.value?.id === "M02") {
-          const firstSnapshot = res?.data?.list?.[0]?.ruleSnapshot;
-          zhengBatchDate.value = firstSnapshot?.batchDate || zhengBatchDate.value;
+          const firstSnapshot = res.list?.[0]?.ruleSnapshot;
+          zhengBatchDate.value =
+            firstSnapshot?.batchDate || zhengBatchDate.value;
         }
       } catch (err) {
         if (reqId !== _productsReqId) return; // R3.2: 过时请求不弹错
@@ -684,6 +690,7 @@ export const useProductLineSelectionStore = defineStore(
       qualifyRules,
       applyQualifyRules,
       activeMethodCard,
+      applyM01MethodCard,
       applyM02MethodCard,
       clearMethodCard,
       // ---- 统一区间筛选面板 ----

@@ -101,6 +101,52 @@
     >
       <div class="fd-section">
         <div class="fd-label">业务方法卡</div>
+
+        <div class="method-card method-card--m01">
+          <div class="method-card__body">
+            <div class="method-card__head">
+              <div class="method-card__name">M01 新品榜加速法</div>
+              <el-tag
+                v-if="store.activeMethodCard?.id === 'M01'"
+                type="success"
+                effect="light"
+                size="small"
+              >
+                已应用
+              </el-tag>
+            </div>
+            <div class="method-card__desc">
+              clean 表去变体污染后,按价格带、重量、上架天数、销量分段或 BSR
+              代理筛出新品候选。
+            </div>
+            <div class="method-card__meta">
+              <span>适合：新品榜快筛</span>
+              <span>站点：UK / DE</span>
+              <span>数据源：competitor_products_clean</span>
+            </div>
+          </div>
+          <div class="method-card__actions">
+            <el-button
+              type="primary"
+              size="small"
+              :loading="
+                store.treeLoading && store.activeMethodCard?.id === 'M01'
+              "
+              @click="applyM01Method"
+            >
+              应用方法
+            </el-button>
+            <el-button
+              v-if="store.activeMethodCard"
+              size="small"
+              link
+              @click="clearMethodCard"
+            >
+              退出方法
+            </el-button>
+          </div>
+        </div>
+
         <div class="method-card method-card--m02">
           <div class="method-card__body">
             <div class="method-card__head">
@@ -115,19 +161,24 @@
               </el-tag>
             </div>
             <div class="method-card__desc">
-              用郑总同行店铺最新批次作为基准盘子，重排品线树并标记被同行验证过的 L1 / L2。
+              用郑总同行店铺最新批次作为基准盘子，重排品线树并标记被同行验证过的
+              L1 / L2。
             </div>
             <div class="method-card__meta">
               <span>适合：同行跟随 / 品线优先级</span>
               <span>数据源：deng_zong_shop</span>
-              <span v-if="store.zhengBatchDate">批次：{{ store.zhengBatchDate }}</span>
+              <span v-if="store.zhengBatchDate"
+                >批次：{{ store.zhengBatchDate }}</span
+              >
             </div>
           </div>
           <div class="method-card__actions">
             <el-button
               type="primary"
               size="small"
-              :loading="store.treeLoading"
+              :loading="
+                store.treeLoading && store.activeMethodCard?.id === 'M02'
+              "
               @click="applyM02Method"
             >
               应用方法
@@ -441,6 +492,7 @@ import RangeFilterPanel from "@/components/RangeFilterPanel/index.vue";
 import FilterDrawer from "@/components/FilterDrawer/index.vue";
 import type { RangeFilterValue } from "@/components/RangeFilterPanel/index.vue";
 import { useSelectionAgentStore } from "@/stores/selectionAgent";
+import { cloneRangeFilter, createEmptyRangeFilter } from "@/utils/rangeFilter";
 
 const store = useProductLineSelectionStore();
 const agentStore = useSelectionAgentStore();
@@ -482,38 +534,14 @@ function onPresetApply(cfg: Record<string, any>) {
 }
 
 // ===== 统一筛选抽屉：draft(草稿) + 已提交(store) 双状态 =====
-function emptyRange(): RangeFilterValue {
-  return {
-    priceMin: null,
-    priceMax: null,
-    unitsMin: null,
-    unitsMax: null,
-    listingDaysMin: null,
-    listingDaysMax: null,
-    bsrMax: null,
-    weightMax: null,
-    variantCountMax: null,
-    fulfillment: [],
-    createdWeeks: [],
-    category: [],
-    grade: [],
-    listingPreset: null,
-  };
-}
 function cloneRange(r: RangeFilterValue): RangeFilterValue {
-  return {
-    ...r,
-    fulfillment: [...(r.fulfillment ?? [])],
-    createdWeeks: [...(r.createdWeeks ?? [])],
-    category: [...(r.category ?? [])],
-    grade: [...(r.grade ?? [])],
-  };
+  return cloneRangeFilter(r);
 }
 
 const filterDrawerVisible = ref(false);
 const draftSeller = ref("");
 const draftBrand = ref("");
-const draftRange = ref<RangeFilterValue>(emptyRange());
+const draftRange = ref<RangeFilterValue>(createEmptyRangeFilter());
 
 function openFilterDrawer() {
   draftSeller.value = store.searchSellerName;
@@ -533,7 +561,7 @@ function handleDrawerConfirm() {
 function handleDrawerReset() {
   draftSeller.value = "";
   draftBrand.value = "";
-  draftRange.value = emptyRange();
+  draftRange.value = createEmptyRangeFilter();
 }
 
 // 已选条件标签
@@ -645,7 +673,12 @@ async function clearAllFilters() {
   await store.clearMethodCard();
   store.searchSellerName = "";
   store.searchBrand = "";
-  store.applyRangeFilter(emptyRange());
+  store.applyRangeFilter(createEmptyRangeFilter());
+}
+
+async function applyM01Method() {
+  await store.applyM01MethodCard();
+  filterDrawerVisible.value = false;
 }
 
 async function applyM02Method() {
