@@ -28,8 +28,10 @@ export function getAggregatedData(marketplace: string, month: string) {
   });
 }
 
-export function getTree(marketplace: string, month: string) {
-  return request.get(`${MODEL_BASE}/tree`, { params: { marketplace, month } });
+export function getTree(marketplace: string, month: string, methodId?: string) {
+  return request.get(`${MODEL_BASE}/tree`, {
+    params: { marketplace, month, methodId },
+  });
 }
 
 export function getModelMd(nodeId: number, marketplace: string) {

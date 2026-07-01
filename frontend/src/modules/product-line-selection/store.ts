@@ -149,7 +149,9 @@ export const useProductLineSelectionStore = defineStore(
       try {
         const mkp = marketplace.value;
         const mo = month.value.replace("-", "");
-        const res = await getTree(mkp, mo);
+        // 应用 M01 时后端按 M01 硬筛口径重算 productCount, 保证树数量=列表数量;
+        // 未应用方法卡时保持全量竞品口径
+        const res = await getTree(mkp, mo, activeMethodCard.value?.id);
         const raw = res?.data?.productLines as ProductLineGroup[] | undefined;
         if (!raw) {
           treeData.value = [];

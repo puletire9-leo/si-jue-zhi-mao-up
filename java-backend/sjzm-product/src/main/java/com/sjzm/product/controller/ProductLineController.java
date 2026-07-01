@@ -83,10 +83,14 @@ public class ProductLineController {
     }
 
     @GetMapping("/tree")
-    @Operation(summary = "品线排序树", description = "竞品全量品线树，方法卡候选商品由 /api/v1/method-cards/*/products 独立提供")
+    @Operation(
+            summary = "品线排序树",
+            description = "竞品全量品线树; 传 methodId=M01 时按 M01 硬筛口径统计 productCount, 保证树数量与方法卡商品列表口径一致"
+    )
     public Result<Map<String, Object>> getTree(
             @RequestParam(defaultValue = "UK") String marketplace,
-            @RequestParam String month) {
-        return Result.success(productLineTreeService.getTree(marketplace, month));
+            @RequestParam String month,
+            @RequestParam(required = false) String methodId) {
+        return Result.success(productLineTreeService.getTree(marketplace, month, methodId));
     }
 }
