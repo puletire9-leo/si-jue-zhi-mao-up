@@ -1,0 +1,758 @@
+import type { CompetitorListParams, QualifyRule } from "@/api/competitor";
+import type { MethodCardListParams } from "@/api/methodCards";
+import type { RangeFilterValue } from "@/components/RangeFilterPanel/index.vue";
+import type { SelectionQueryParams } from "@/components/SelectionQueryForm/types";
+
+export type SelectionScene = "all" | "new" | "reference" | "zheng";
+export type SelectionMethodId = "M01" | "M02";
+export type SelectionDataView = "clean" | "raw";
+export type SelectionLensId = "default" | SelectionMethodId;
+export type SelectionExecutor = "competitor" | "deng_zong" | "method_card";
+export type SelectionSnapshotKind =
+  | "competitor_created_week"
+  | "deng_zong_batch";
+export type SelectionTargetSource =
+  | "competitor_clean"
+  | "competitor_raw"
+  | "deng_zong";
+export type SelectionSemanticFilterKey =
+  | "asin"
+  | "title"
+  | "sellerName"
+  | "category"
+  | "snapshotKeys"
+  | "filterMode"
+  | "weekTag"
+  | "createdAtRange"
+  | "price"
+  | "units"
+  | "listingDays"
+  | "bsrMax"
+  | "weightMax"
+  | "variantCount"
+  | "fulfillment"
+  | "grade"
+  | "qualifyRules";
+export type SelectionFilterSupportMode = "supported" | "unsupported" | "single";
+
+export interface SelectionFilterState {
+  country: string;
+  sellerSelect: string;
+  category: string[];
+  sortField: string;
+  sortOrder: "desc" | "asc";
+  range: RangeFilterValue;
+}
+
+export interface SelectionFilterIntent {
+  scene: SelectionScene;
+  lensId: SelectionLensId;
+  methodId: SelectionMethodId | null;
+  scope: {
+    marketplace?: string;
+    businessSource?: string;
+    dataView: SelectionDataView;
+    filterMode?: string;
+    bsrId?: string;
+    nodeId?: number;
+    groupByParent?: boolean;
+  };
+  search: {
+    asin: string[];
+    title?: string;
+    sellerName?: string;
+    brand?: string;
+    keywords?: string;
+    categories: string[];
+  };
+  freshness: {
+    snapshotKeys: string[];
+    weekTag?: string;
+    createdAtStart?: string;
+    createdAtEnd?: string;
+  };
+  metrics: {
+    priceMin?: number;
+    priceMax?: number;
+    unitsMin?: number;
+    unitsMax?: number;
+    listingDaysMin?: number;
+    listingDaysMax?: number;
+    bsrMax?: number;
+    weightMax?: number;
+    variantCountMax?: number;
+    fulfillment: string[];
+    grade: string[];
+  };
+  sort: {
+    field: string;
+    order: "desc" | "asc";
+  };
+  qualifyRules: QualifyRule[];
+}
+
+export type SelectionQualifyRulesMode = "new-only" | "always";
+
+export interface LatestSnapshotFallback {
+  kind: SelectionSnapshotKind;
+  marketplace: string;
+  businessSource?: string;
+  filterMode?: string;
+}
+
+export interface SelectionSourceCapability {
+  targetSource: SelectionTargetSource;
+  executor: SelectionExecutor;
+  snapshotKind: SelectionSnapshotKind;
+  supports: Record<SelectionSemanticFilterKey, SelectionFilterSupportMode>;
+}
+
+interface SelectionQueryPlanBase {
+  executor: SelectionExecutor;
+  lensId: SelectionLensId;
+  methodId: SelectionMethodId | null;
+  unsupportedFilters: string[];
+  forcedFilters: string[];
+  latestSnapshotFallback?: LatestSnapshotFallback;
+}
+
+export interface CompetitorQueryPlan extends SelectionQueryPlanBase {
+  executor: "competitor";
+  targetSource: "competitor_clean" | "competitor_raw";
+  params: CompetitorListParams;
+}
+
+export interface DengZongQueryPlan extends SelectionQueryPlanBase {
+  executor: "deng_zong";
+  targetSource: "deng_zong";
+  params: Record<string, any>;
+}
+
+export interface MethodCardQueryPlan extends SelectionQueryPlanBase {
+  executor: "method_card";
+  targetSource: "competitor_clean" | "deng_zong";
+  params: MethodCardListParams;
+}
+
+export type SelectionQueryPlan =
+  | CompetitorQueryPlan
+  | DengZongQueryPlan
+  | MethodCardQueryPlan;
+
+interface SelectionMethodLensDefinition {
+  lensId: SelectionMethodId;
+  methodId: SelectionMethodId;
+  targetSource: "competitor_clean" | "deng_zong";
+  executor: "method_card";
+  forcedFilters: string[];
+  lockedScene?: SelectionScene;
+  lockedDataView?: SelectionDataView;
+  snapshotParam?: "createdWeek" | "batchDate";
+  snapshotSupport: SelectionFilterSupportMode;
+  supports: Record<SelectionSemanticFilterKey, SelectionFilterSupportMode>;
+}
+
+const ALL_FILTER_KEYS: SelectionSemanticFilterKey[] = [
+  "asin",
+  "title",
+  "sellerName",
+  "category",
+  "snapshotKeys",
+  "filterMode",
+  "weekTag",
+  "createdAtRange",
+  "price",
+  "units",
+  "listingDays",
+  "bsrMax",
+  "weightMax",
+  "variantCount",
+  "fulfillment",
+  "grade",
+  "qualifyRules",
+];
+
+function createSupportMap(
+  overrides: Partial<
+    Record<SelectionSemanticFilterKey, SelectionFilterSupportMode>
+  > = {},
+): Record<SelectionSemanticFilterKey, SelectionFilterSupportMode> {
+  const supports = {} as Record<
+    SelectionSemanticFilterKey,
+    SelectionFilterSupportMode
+  >;
+  for (const key of ALL_FILTER_KEYS) {
+    supports[key] = overrides[key] || "supported";
+  }
+  return supports;
+}
+
+export const SOURCE_CAPABILITIES: Record<
+  SelectionTargetSource,
+  SelectionSourceCapability
+> = {
+  competitor_clean: {
+    targetSource: "competitor_clean",
+    executor: "competitor",
+    snapshotKind: "competitor_created_week",
+    supports: createSupportMap(),
+  },
+  competitor_raw: {
+    targetSource: "competitor_raw",
+    executor: "competitor",
+    snapshotKind: "competitor_created_week",
+    supports: createSupportMap(),
+  },
+  deng_zong: {
+    targetSource: "deng_zong",
+    executor: "deng_zong",
+    snapshotKind: "deng_zong_batch",
+    supports: createSupportMap({
+      asin: "unsupported",
+      filterMode: "unsupported",
+      weekTag: "unsupported",
+      createdAtRange: "unsupported",
+      units: "unsupported",
+      listingDays: "unsupported",
+      fulfillment: "unsupported",
+      grade: "unsupported",
+      qualifyRules: "unsupported",
+    }),
+  },
+};
+
+export const METHOD_LENS_DEFINITIONS: Record<
+  SelectionMethodId,
+  SelectionMethodLensDefinition
+> = {
+  M01: {
+    lensId: "M01",
+    methodId: "M01",
+    targetSource: "competitor_clean",
+    executor: "method_card",
+    forcedFilters: ["scene=new", "dataView=clean", "method=M01"],
+    lockedScene: "new",
+    lockedDataView: "clean",
+    snapshotParam: "createdWeek",
+    snapshotSupport: "single",
+    supports: createSupportMap({
+      snapshotKeys: "single",
+      asin: "unsupported",
+      title: "unsupported",
+      sellerName: "unsupported",
+      category: "unsupported",
+      filterMode: "unsupported",
+      weekTag: "unsupported",
+      createdAtRange: "unsupported",
+      price: "unsupported",
+      units: "unsupported",
+      listingDays: "unsupported",
+      bsrMax: "unsupported",
+      weightMax: "unsupported",
+      variantCount: "unsupported",
+      fulfillment: "unsupported",
+      grade: "unsupported",
+      qualifyRules: "unsupported",
+    }),
+  },
+  M02: {
+    lensId: "M02",
+    methodId: "M02",
+    targetSource: "deng_zong",
+    executor: "method_card",
+    forcedFilters: ["dataView=deng_zong", "method=M02"],
+    snapshotParam: "batchDate",
+    snapshotSupport: "single",
+    supports: createSupportMap({
+      snapshotKeys: "single",
+      asin: "unsupported",
+      title: "unsupported",
+      sellerName: "unsupported",
+      category: "unsupported",
+      filterMode: "unsupported",
+      weekTag: "unsupported",
+      createdAtRange: "unsupported",
+      price: "unsupported",
+      units: "unsupported",
+      listingDays: "unsupported",
+      bsrMax: "unsupported",
+      weightMax: "unsupported",
+      variantCount: "unsupported",
+      fulfillment: "unsupported",
+      grade: "unsupported",
+      qualifyRules: "unsupported",
+    }),
+  },
+};
+
+export function resolveSceneBusinessSource(
+  scene: SelectionScene,
+): string | undefined {
+  const map: Record<SelectionScene, string | undefined> = {
+    all: undefined,
+    new: "新品榜",
+    reference: "竞品店铺",
+    zheng: "郑总店铺",
+  };
+  return map[scene];
+}
+
+// preset apply 会把 category/grade/fulfillment 等数组字段 patch 进 queryParams,
+// 到这一层 raw 可能已经不是纯字符串而是数组; 收窄两种输入形态防止运行时崩溃
+function splitSearchValues(raw?: string | string[] | null): string[] {
+  if (!raw) return [];
+  const src = Array.isArray(raw) ? raw.join(",") : raw;
+  if (typeof src !== "string") return [];
+  return src
+    .split(/[\n,，\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function splitCsv(raw?: string | string[] | null): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof raw !== "string") return [];
+  return raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeMethodMarketplace(value?: string): "UK" | "DE" {
+  return value === "DE" ? "DE" : "UK";
+}
+
+function compactText(value?: string): string | undefined {
+  const next = value?.trim();
+  return next ? next : undefined;
+}
+
+function normalizeCategories(
+  queryParams?: SelectionQueryParams,
+  activeFilters?: SelectionFilterState,
+): string[] {
+  if (activeFilters?.category?.length) {
+    return [...activeFilters.category];
+  }
+  return splitCsv(queryParams?.category);
+}
+
+function normalizeGrade(
+  queryParams?: SelectionQueryParams,
+  activeFilters?: SelectionFilterState,
+): string[] {
+  if (activeFilters?.range?.grade?.length) {
+    return [...activeFilters.range.grade];
+  }
+  return splitCsv(queryParams?.grade);
+}
+
+function resolveQualifyRules(input: {
+  scene: SelectionScene;
+  methodId: SelectionMethodId | null;
+  qualifyRules?: QualifyRule[];
+  qualifyRulesMode?: SelectionQualifyRulesMode;
+}): QualifyRule[] {
+  const {
+    scene,
+    methodId,
+    qualifyRules,
+    qualifyRulesMode = "new-only",
+  } = input;
+  if (!qualifyRules?.length) return [];
+  if (qualifyRulesMode === "always") {
+    return [...qualifyRules];
+  }
+  return scene === "new" && !methodId ? [...qualifyRules] : [];
+}
+
+function resolveActiveSemanticFilters(
+  intent: SelectionFilterIntent,
+): SelectionSemanticFilterKey[] {
+  const active: SelectionSemanticFilterKey[] = [];
+  if (intent.search.asin.length > 0) active.push("asin");
+  if (intent.search.title) active.push("title");
+  if (intent.search.sellerName) active.push("sellerName");
+  if (intent.search.categories.length > 0) active.push("category");
+  if (intent.freshness.snapshotKeys.length > 0) active.push("snapshotKeys");
+  if (intent.scope.filterMode) active.push("filterMode");
+  if (intent.freshness.weekTag) active.push("weekTag");
+  if (intent.freshness.createdAtStart || intent.freshness.createdAtEnd) {
+    active.push("createdAtRange");
+  }
+  if (intent.metrics.priceMin != null || intent.metrics.priceMax != null) {
+    active.push("price");
+  }
+  if (intent.metrics.unitsMin != null || intent.metrics.unitsMax != null) {
+    active.push("units");
+  }
+  if (
+    intent.metrics.listingDaysMin != null ||
+    intent.metrics.listingDaysMax != null
+  ) {
+    active.push("listingDays");
+  }
+  if (intent.metrics.bsrMax != null) active.push("bsrMax");
+  if (intent.metrics.weightMax != null) active.push("weightMax");
+  if (intent.metrics.variantCountMax != null) active.push("variantCount");
+  if (intent.metrics.fulfillment.length > 0) active.push("fulfillment");
+  if (intent.metrics.grade.length > 0) active.push("grade");
+  if (intent.qualifyRules.length > 0) active.push("qualifyRules");
+  return active;
+}
+
+function collectUnsupportedFilters(
+  intent: SelectionFilterIntent,
+  supports: Record<SelectionSemanticFilterKey, SelectionFilterSupportMode>,
+): string[] {
+  const unsupported: string[] = [];
+  for (const key of resolveActiveSemanticFilters(intent)) {
+    const support = supports[key] || "unsupported";
+    if (support === "unsupported") {
+      unsupported.push(key);
+      continue;
+    }
+    if (support === "single" && intent.freshness.snapshotKeys.length > 1) {
+      unsupported.push(`${key}(single-only)`);
+    }
+  }
+  return unsupported;
+}
+
+function resolveDefaultTargetSource(
+  intent: SelectionFilterIntent,
+): SelectionTargetSource {
+  if (intent.scene === "zheng") {
+    return "deng_zong";
+  }
+  return intent.scope.dataView === "clean"
+    ? "competitor_clean"
+    : "competitor_raw";
+}
+
+function resolveMethodCardSnapshot(
+  intent: SelectionFilterIntent,
+  lens: SelectionMethodLensDefinition,
+): string | undefined {
+  if (
+    lens.snapshotSupport !== "single" ||
+    !lens.snapshotParam ||
+    intent.freshness.snapshotKeys.length !== 1
+  ) {
+    return undefined;
+  }
+  return intent.freshness.snapshotKeys[0];
+}
+
+function buildMethodCardQueryPlan(input: {
+  intent: SelectionFilterIntent;
+  page: number;
+  size: number;
+  lens: SelectionMethodLensDefinition;
+}): MethodCardQueryPlan {
+  const { intent, page, size, lens } = input;
+  const marketplace = normalizeMethodMarketplace(intent.scope.marketplace);
+  const snapshotValue = resolveMethodCardSnapshot(intent, lens);
+  const params: MethodCardListParams = {
+    marketplace,
+    page,
+    size,
+    bsrId: intent.scope.bsrId,
+    nodeId: intent.scope.nodeId,
+  };
+  if (lens.snapshotParam === "createdWeek" && snapshotValue) {
+    params.createdWeek = snapshotValue;
+  }
+  if (lens.snapshotParam === "batchDate" && snapshotValue) {
+    params.batchDate = snapshotValue;
+  }
+
+  return {
+    executor: lens.executor,
+    lensId: lens.lensId,
+    methodId: lens.methodId,
+    targetSource: lens.targetSource,
+    params,
+    unsupportedFilters: collectUnsupportedFilters(intent, lens.supports),
+    forcedFilters: [...lens.forcedFilters],
+  };
+}
+
+function buildDengZongQueryPlan(input: {
+  intent: SelectionFilterIntent;
+  page: number;
+  size: number;
+}): DengZongQueryPlan {
+  const { intent, page, size } = input;
+  const marketplace = intent.scope.marketplace || "UK";
+  const batchDate =
+    intent.freshness.snapshotKeys.length > 0
+      ? intent.freshness.snapshotKeys.join(",")
+      : undefined;
+
+  return {
+    executor: "deng_zong",
+    lensId: "default",
+    methodId: null,
+    targetSource: "deng_zong",
+    params: {
+      page,
+      size,
+      marketplace,
+      title: intent.search.title,
+      sellerName: intent.search.sellerName,
+      brand: intent.search.brand,
+      category:
+        intent.search.categories.length > 0
+          ? intent.search.categories.join(",")
+          : undefined,
+      bsrId: intent.scope.bsrId,
+      nodeId: intent.scope.nodeId,
+      priceMin: intent.metrics.priceMin,
+      priceMax: intent.metrics.priceMax,
+      bsrMax: intent.metrics.bsrMax,
+      weightMax: intent.metrics.weightMax,
+      maxVariantCount: intent.metrics.variantCountMax,
+      batchDate,
+      sortBy: intent.sort.field || "units",
+      sortOrder: intent.sort.order || "desc",
+    },
+    unsupportedFilters: collectUnsupportedFilters(
+      intent,
+      SOURCE_CAPABILITIES.deng_zong.supports,
+    ),
+    forcedFilters: batchDate ? [] : ["latestBatchDate"],
+    latestSnapshotFallback: batchDate
+      ? undefined
+      : {
+          kind: "deng_zong_batch",
+          marketplace,
+        },
+  };
+}
+
+function buildCompetitorQueryPlan(input: {
+  intent: SelectionFilterIntent;
+  page: number;
+  size: number;
+  targetSource: "competitor_clean" | "competitor_raw";
+}): CompetitorQueryPlan {
+  const { intent, page, size, targetSource } = input;
+  const marketplace = intent.scope.marketplace || "UK";
+  const capability = SOURCE_CAPABILITIES[targetSource];
+  const competitorParams: CompetitorListParams = {
+    page,
+    size,
+    marketplace,
+    source: intent.scope.businessSource,
+    filterMode: intent.scope.filterMode,
+    useCleanTable: targetSource === "competitor_clean",
+    sortBy: intent.sort.field || "score",
+    sortOrder: intent.sort.order || "desc",
+  };
+
+  if (intent.search.asin.length > 0) competitorParams.asin = intent.search.asin;
+  if (intent.search.title) competitorParams.title = intent.search.title;
+  if (intent.search.sellerName) {
+    competitorParams.sellerName = intent.search.sellerName;
+  }
+  if (intent.search.brand) competitorParams.brand = intent.search.brand;
+  if (intent.search.keywords)
+    competitorParams.keywords = intent.search.keywords;
+  if (intent.search.categories.length > 0) {
+    competitorParams.category = intent.search.categories.join(",");
+  }
+  if (intent.scope.bsrId) competitorParams.bsrId = intent.scope.bsrId;
+  if (intent.scope.nodeId != null)
+    competitorParams.nodeId = intent.scope.nodeId;
+  if (intent.scope.groupByParent != null) {
+    competitorParams.groupByParent = intent.scope.groupByParent;
+  }
+  if (intent.metrics.grade.length > 0) {
+    competitorParams.grade = intent.metrics.grade.join(",");
+  }
+  if (intent.freshness.weekTag)
+    competitorParams.weekTag = intent.freshness.weekTag;
+  if (intent.freshness.createdAtStart) {
+    competitorParams.createdAtStart = intent.freshness.createdAtStart;
+  }
+  if (intent.freshness.createdAtEnd) {
+    competitorParams.createdAtEnd = intent.freshness.createdAtEnd;
+  }
+  if (intent.metrics.priceMin != null)
+    competitorParams.priceMin = intent.metrics.priceMin;
+  if (intent.metrics.priceMax != null)
+    competitorParams.priceMax = intent.metrics.priceMax;
+  if (intent.metrics.unitsMin != null)
+    competitorParams.unitsMin = intent.metrics.unitsMin;
+  if (intent.metrics.unitsMax != null)
+    competitorParams.unitsMax = intent.metrics.unitsMax;
+  if (intent.metrics.listingDaysMin != null) {
+    competitorParams.listingDaysMin = intent.metrics.listingDaysMin;
+  }
+  if (intent.metrics.listingDaysMax != null) {
+    competitorParams.listingDaysMax = intent.metrics.listingDaysMax;
+  }
+  if (intent.metrics.bsrMax != null)
+    competitorParams.bsrMax = intent.metrics.bsrMax;
+  if (intent.metrics.weightMax != null) {
+    competitorParams.weightMax = intent.metrics.weightMax;
+  }
+  if (intent.metrics.variantCountMax != null) {
+    competitorParams.maxVariantCount = intent.metrics.variantCountMax;
+  }
+  if (intent.metrics.fulfillment.length > 0) {
+    competitorParams.fulfillment = intent.metrics.fulfillment;
+  }
+  if (intent.freshness.snapshotKeys.length > 0) {
+    competitorParams.createdWeeks = [...intent.freshness.snapshotKeys];
+  }
+  if (intent.qualifyRules.length > 0) {
+    competitorParams.qualifyRules = intent.qualifyRules;
+  }
+
+  return {
+    executor: "competitor",
+    lensId: "default",
+    methodId: null,
+    targetSource,
+    params: competitorParams,
+    unsupportedFilters: collectUnsupportedFilters(intent, capability.supports),
+    forcedFilters: [],
+    latestSnapshotFallback:
+      intent.freshness.snapshotKeys.length > 0 ||
+      intent.freshness.weekTag ||
+      intent.freshness.createdAtStart
+        ? undefined
+        : {
+            kind: capability.snapshotKind,
+            marketplace,
+            businessSource: intent.scope.businessSource,
+            filterMode: intent.scope.filterMode,
+          },
+  };
+}
+
+export function buildSelectionFilterIntent(input: {
+  scene: SelectionScene;
+  methodId: SelectionMethodId | null;
+  queryParams?: SelectionQueryParams;
+  activeFilters: SelectionFilterState;
+  useCleanTable: boolean;
+  qualifyRules?: QualifyRule[];
+  qualifyRulesMode?: SelectionQualifyRulesMode;
+  overrides?: {
+    bsrId?: string;
+    nodeId?: number;
+    brand?: string;
+    keywords?: string;
+    groupByParent?: boolean;
+    title?: string;
+    sellerName?: string;
+    marketplace?: string;
+  };
+}): SelectionFilterIntent {
+  const {
+    scene,
+    methodId,
+    queryParams,
+    activeFilters,
+    useCleanTable,
+    qualifyRules,
+    qualifyRulesMode,
+    overrides,
+  } = input;
+  const sellerName =
+    compactText(overrides?.sellerName) ||
+    compactText(activeFilters.sellerSelect) ||
+    compactText(queryParams?.sellerSelect) ||
+    compactText(queryParams?.storeName);
+
+  return {
+    scene,
+    lensId: methodId || "default",
+    methodId,
+    scope: {
+      marketplace:
+        compactText(overrides?.marketplace) ||
+        compactText(activeFilters.country) ||
+        compactText(queryParams?.country),
+      businessSource: resolveSceneBusinessSource(scene),
+      dataView: useCleanTable ? "clean" : "raw",
+      filterMode: compactText(queryParams?.dataFilterMode),
+      bsrId: compactText(overrides?.bsrId),
+      nodeId: overrides?.nodeId,
+      groupByParent: overrides?.groupByParent,
+    },
+    search: {
+      asin: splitSearchValues(queryParams?.asin),
+      title:
+        compactText(overrides?.title) || compactText(queryParams?.productTitle),
+      sellerName,
+      brand: compactText(overrides?.brand),
+      keywords: compactText(overrides?.keywords),
+      categories: normalizeCategories(queryParams, activeFilters),
+    },
+    freshness: {
+      snapshotKeys: [...(activeFilters.range.createdWeeks || [])],
+      weekTag: compactText(queryParams?.weekTag),
+      createdAtStart: compactText(queryParams?.listingDateStart),
+      createdAtEnd: compactText(queryParams?.listingDateEnd),
+    },
+    metrics: {
+      priceMin: activeFilters.range.priceMin ?? undefined,
+      priceMax: activeFilters.range.priceMax ?? undefined,
+      unitsMin: activeFilters.range.unitsMin ?? undefined,
+      unitsMax: activeFilters.range.unitsMax ?? undefined,
+      listingDaysMin: activeFilters.range.listingDaysMin ?? undefined,
+      listingDaysMax: activeFilters.range.listingDaysMax ?? undefined,
+      bsrMax: activeFilters.range.bsrMax ?? undefined,
+      weightMax: activeFilters.range.weightMax ?? undefined,
+      variantCountMax: activeFilters.range.variantCountMax ?? undefined,
+      fulfillment: [...(activeFilters.range.fulfillment || [])],
+      grade: normalizeGrade(queryParams, activeFilters),
+    },
+    sort: {
+      field: activeFilters.sortField || "score",
+      order: activeFilters.sortOrder || "desc",
+    },
+    qualifyRules: resolveQualifyRules({
+      scene,
+      methodId,
+      qualifyRules,
+      qualifyRulesMode,
+    }),
+  };
+}
+
+export function buildSelectionQueryPlan(input: {
+  intent: SelectionFilterIntent;
+  page: number;
+  size: number;
+}): SelectionQueryPlan {
+  const { intent, page, size } = input;
+
+  if (intent.methodId) {
+    return buildMethodCardQueryPlan({
+      intent,
+      page,
+      size,
+      lens: METHOD_LENS_DEFINITIONS[intent.methodId],
+    });
+  }
+
+  const targetSource = resolveDefaultTargetSource(intent);
+  if (targetSource === "deng_zong") {
+    return buildDengZongQueryPlan({ intent, page, size });
+  }
+
+  return buildCompetitorQueryPlan({
+    intent,
+    page,
+    size,
+    targetSource,
+  });
+}

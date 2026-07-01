@@ -94,8 +94,8 @@
 
           <!-- 使用 SelectionQueryForm 组件 -->
           <SelectionQueryForm
-            ref="queryFormRef"
             :key="componentKey"
+            :model-value="queryParamsState"
             page-type="all"
             :show-compact-mode="true"
             :show-advanced-search="true"
@@ -105,6 +105,7 @@
             :show-total="true"
             :categories="categories"
             :total="pagination.total"
+            @update:model-value="onQueryFormChange"
             @search="handleSearch"
             @reset="handleReset"
             @image-search="handleSearchByImage"
@@ -281,7 +282,8 @@
                   </el-tag>
                 </div>
                 <div class="method-card__desc">
-                  clean 表去变体污染后，按价格带、重量、上架天数、销量分段或 BSR 代理筛出新品候选。
+                  clean 表去变体污染后，按价格带、重量、上架天数、销量分段或 BSR
+                  代理筛出新品候选。
                 </div>
                 <div class="method-card__meta">
                   <span>适合：新品榜快筛</span>
@@ -297,6 +299,9 @@
                   @click="applyM01Method"
                 >
                   应用方法
+                </el-button>
+                <el-button size="small" link @click="openMethodDetail('M01')">
+                  了解详情
                 </el-button>
                 <el-button
                   v-if="activeMethodCard"
@@ -340,6 +345,9 @@
                 >
                   应用方法
                 </el-button>
+                <el-button size="small" link @click="openMethodDetail('M02')">
+                  了解详情
+                </el-button>
                 <el-button
                   v-if="activeMethodCard"
                   size="small"
@@ -351,6 +359,135 @@
               </div>
             </div>
           </div>
+
+          <!-- 方法卡详情抽屉 -->
+          <el-drawer
+            v-model="methodDetailVisible"
+            :title="methodDetail?.title || '方法卡详情'"
+            direction="rtl"
+            size="520px"
+            append-to-body
+          >
+            <div v-if="methodDetail" class="method-detail">
+              <p class="method-detail__tagline">{{ methodDetail.tagline }}</p>
+
+              <div class="method-detail__section">
+                <div class="method-detail__label">
+                  <el-icon><CircleCheck /></el-icon> 何时用
+                </div>
+                <ul>
+                  <li v-for="item in methodDetail.whenToUse" :key="item">
+                    {{ item }}
+                  </li>
+                </ul>
+              </div>
+
+              <div class="method-detail__section">
+                <div class="method-detail__label">
+                  <el-icon><CircleClose /></el-icon> 何时不用
+                </div>
+                <ul>
+                  <li v-for="item in methodDetail.whenNotToUse" :key="item">
+                    {{ item }}
+                  </li>
+                </ul>
+              </div>
+
+              <div class="method-detail__section">
+                <div class="method-detail__label">
+                  <el-icon><Warning /></el-icon> 硬门槛 (一票否决)
+                </div>
+                <div class="method-detail__criteria">
+                  <div
+                    v-for="c in methodDetail.hardCriteria"
+                    :key="c.label"
+                    class="criterion"
+                  >
+                    <span class="criterion__label">{{ c.label }}</span>
+                    <span class="criterion__value">{{ c.value }}</span>
+                    <span v-if="c.note" class="criterion__note">
+                      {{ c.note }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="method-detail__section">
+                <div class="method-detail__label">
+                  <el-icon><Aim /></el-icon> 达标逻辑
+                </div>
+                <ul>
+                  <li v-for="item in methodDetail.passLogic" :key="item">
+                    {{ item }}
+                  </li>
+                </ul>
+              </div>
+
+              <div class="method-detail__section">
+                <div class="method-detail__label">
+                  <el-icon><Lock /></el-icon> 强制固定字段
+                </div>
+                <div class="method-detail__tags">
+                  <el-tag
+                    v-for="f in methodDetail.forcedFilters"
+                    :key="f"
+                    type="info"
+                    size="small"
+                  >
+                    {{ f }}
+                  </el-tag>
+                </div>
+              </div>
+
+              <div class="method-detail__section">
+                <div class="method-detail__label">
+                  <el-icon><Close /></el-icon> 不支持的筛选
+                </div>
+                <ul>
+                  <li
+                    v-for="f in methodDetail.unsupportedFilters"
+                    :key="f"
+                    class="method-detail__unsupported"
+                  >
+                    {{ f }}
+                  </li>
+                </ul>
+              </div>
+
+              <div class="method-detail__section">
+                <div class="method-detail__label">
+                  <el-icon><DataBoard /></el-icon> 数据源
+                </div>
+                <p class="method-detail__text">{{ methodDetail.dataSource }}</p>
+              </div>
+
+              <div class="method-detail__section">
+                <div class="method-detail__label">
+                  <el-icon><Files /></el-icon> 输出
+                </div>
+                <p class="method-detail__text">{{ methodDetail.output }}</p>
+              </div>
+
+              <div class="method-detail__section">
+                <div class="method-detail__label">
+                  <el-icon><InfoFilled /></el-icon> 依据 / 为什么这样筛
+                </div>
+                <ul>
+                  <li v-for="item in methodDetail.rationale" :key="item">
+                    {{ item }}
+                  </li>
+                </ul>
+              </div>
+
+              <div
+                v-if="methodDetail.fullDocPath"
+                class="method-detail__footer"
+              >
+                完整方法卡文档：
+                <code>{{ methodDetail.fullDocPath }}</code>
+              </div>
+            </div>
+          </el-drawer>
 
           <!-- 卖家 -->
           <div class="fd-section">
@@ -408,6 +545,7 @@
               v-model="draftFilters.range"
               :country="activeFilters.country || 'UK'"
               :source="currentSource"
+              :snapshot-kind="currentSnapshotKind"
               embedded
             />
           </div>
@@ -890,7 +1028,15 @@
 
 <script setup lang="ts">
 defineOptions({ name: "AllSelection" });
-import { ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
+import {
+  ref,
+  reactive,
+  onMounted,
+  onUnmounted,
+  computed,
+  watch,
+  nextTick,
+} from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { ElMessage, ElMessageBox, ElLoading } from "element-plus";
 import {
@@ -914,6 +1060,14 @@ import {
   Bottom,
   MoreFilled,
   Filter,
+  CircleCheck,
+  Warning,
+  Aim,
+  Lock,
+  Close,
+  DataBoard,
+  Files,
+  InfoFilled,
 } from "@element-plus/icons-vue";
 import type { FormInstance, FormRules, UploadFile } from "element-plus";
 import UniversalCard from "@/components/UniversalCard/index.vue";
@@ -921,21 +1075,27 @@ import ImageSearchPanel from "@/components/ImageSearchPanel/index.vue";
 import SkeletonWrapper from "@/components/SkeletonWrapper/index.vue";
 import ProductDetailDialog from "@/components/ProductDetailDialog/index.vue";
 import SelectionQueryForm from "@/components/SelectionQueryForm/index.vue";
+import {
+  defaultQueryParams,
+  type SelectionQueryParams,
+} from "@/components/SelectionQueryForm/types";
 import ScoringConfigPanel from "./ScoringConfigPanel.vue";
 import FilterPresetSelector from "@/components/FilterPresetSelector/index.vue";
 import QualifyRuleFilter from "@/components/QualifyRuleFilter/index.vue";
 import RangeFilterPanel from "@/components/RangeFilterPanel/index.vue";
 import FilterDrawer from "@/components/FilterDrawer/index.vue";
-import type { RangeFilterValue } from "@/components/RangeFilterPanel/index.vue";
-import type { SelectionQueryParams } from "@/components/SelectionQueryForm/types";
 import { selectionApi } from "@/api/selection";
-import {
-  competitorApi,
-  normalizeProduct,
-  getCreatedWeeks,
-} from "@/api/competitor";
-import { methodCardsApi } from "@/api/methodCards";
+import { competitorApi } from "@/api/competitor";
 import type { QualifyRule } from "@/api/competitor";
+import {
+  buildSelectionFilterIntent,
+  buildSelectionQueryPlan,
+  type SelectionFilterState as QueryPlanFilterState,
+  type SelectionQueryPlan,
+} from "./composables/queryPlan";
+import { resolveSelectionQueryPlan } from "./composables/queryRuntime";
+import { useSelectionFilterState } from "./composables/filterState";
+import { METHOD_CARD_INFO } from "./composables/methodCardInfo";
 import {
   fetchMySelections,
   fetchSelectionUsers,
@@ -945,7 +1105,18 @@ import { useUserStore } from "@/stores/user";
 
 const router = useRouter();
 const route = useRoute();
-const queryFormRef = ref<InstanceType<typeof SelectionQueryForm>>();
+const queryParamsState = ref<SelectionQueryParams>({ ...defaultQueryParams });
+
+const syncQueryParamsState = (params?: Partial<SelectionQueryParams>) => {
+  queryParamsState.value = {
+    ...queryParamsState.value,
+    ...(params || {}),
+  };
+};
+
+const applyQueryParams = (params?: Partial<SelectionQueryParams>) => {
+  syncQueryParamsState(params);
+};
 
 // 组件刷新key
 const componentKey = ref(2);
@@ -964,6 +1135,18 @@ const NEW_TAB_DEFAULT_RULES: QualifyRule[] = [
 ];
 const newQualifyRules = ref<QualifyRule[]>([...NEW_TAB_DEFAULT_RULES]);
 const activeMethodCard = ref<{ id: "M01" | "M02"; name: string } | null>(null);
+
+// 方法卡详情抽屉状态
+const methodDetailVisible = ref(false);
+const methodDetailId = ref<"M01" | "M02" | null>(null);
+const methodDetail = computed(() =>
+  methodDetailId.value ? METHOD_CARD_INFO[methodDetailId.value] : null,
+);
+
+const openMethodDetail = (id: "M01" | "M02") => {
+  methodDetailId.value = id;
+  methodDetailVisible.value = true;
+};
 
 // 应用新品榜规则并重新加载
 const onNewRulesApply = (rules: QualifyRule[]) => {
@@ -1007,7 +1190,7 @@ const handleTabChange = (tab: string): void => {
 
   // 新品榜默认：英国（筛选改由合格规则承担）
   const defaults = tab === "new" ? { country: "UK" } : {};
-  queryFormRef.value?.setQueryParams({
+  applyQueryParams({
     productType: productTypeMap[tab] || "",
     ...defaults,
   });
@@ -1049,8 +1232,28 @@ const currentSource = computed(() => {
     zheng: "郑总店铺",
     all: "",
   };
-  return m[activeTab.value] || "";
+  return m[effectiveScene.value] || "";
 });
+const effectiveScene = computed(() => {
+  if (activeMethodCard.value?.id === "M01") return "new";
+  if (activeMethodCard.value?.id === "M02") return "zheng";
+  if (
+    activeTab.value === "all" ||
+    activeTab.value === "new" ||
+    activeTab.value === "reference" ||
+    activeTab.value === "zheng"
+  ) {
+    return activeTab.value;
+  }
+  return "all";
+});
+const currentSnapshotKind = computed<
+  "competitor_created_week" | "deng_zong_batch"
+>(() =>
+  effectiveScene.value === "zheng"
+    ? "deng_zong_batch"
+    : "competitor_created_week",
+);
 const mySelections = ref<Set<string>>(new Set());
 const selectionUsersMap = ref<
   Record<string, { userId: number; userName: string }[]>
@@ -1103,71 +1306,7 @@ const searchImagePreview = ref("");
 const categories = ref([]);
 
 // ===== 统一筛选状态：activeFilters(已生效) + draftFilters(抽屉草稿) =====
-interface FilterState {
-  country: string;
-  sellerSelect: string;
-  category: string[];
-  sortField: string;
-  sortOrder: "desc" | "asc";
-  range: RangeFilterValue;
-}
-
-function emptyRange(): RangeFilterValue {
-  return {
-    priceMin: null,
-    priceMax: null,
-    unitsMin: null,
-    unitsMax: null,
-    listingDaysMin: null,
-    listingDaysMax: null,
-    bsrMax: null,
-    weightMax: null,
-    variantCountMax: null,
-    fulfillment: [],
-    createdWeeks: [],
-    category: [],
-    grade: [],
-    listingPreset: null,
-  };
-}
-
-function cloneRange(r: RangeFilterValue): RangeFilterValue {
-  return {
-    ...r,
-    fulfillment: [...(r.fulfillment ?? [])],
-    createdWeeks: [...(r.createdWeeks ?? [])],
-    category: [...(r.category ?? [])],
-    grade: [...(r.grade ?? [])],
-  };
-}
-
-function cloneFilterState(s: FilterState): FilterState {
-  return {
-    ...s,
-    category: [...s.category],
-    range: cloneRange(s.range),
-  };
-}
-
-const activeFilters = ref<FilterState>({
-  country: "UK",
-  sellerSelect: "",
-  category: [],
-  sortField: "score",
-  sortOrder: "desc",
-  range: emptyRange(),
-});
-
-const draftFilters = ref<FilterState>({
-  country: "UK",
-  sellerSelect: "",
-  category: [],
-  sortField: "score",
-  sortOrder: "desc",
-  range: emptyRange(),
-});
-
-const filterDrawerVisible = ref(false);
+type FilterState = QueryPlanFilterState;
 const drawerSellerOptions = ref<
   { id: number; marketplace: string; sellerName: string; storeUrl: string }[]
 >([]);
@@ -1249,7 +1388,7 @@ const loadCategories = async () => {
     zheng: "郑总店铺",
     all: "",
   };
-  const source = sourceMap[activeTab.value] || "";
+  const source = sourceMap[effectiveScene.value] || "";
 
   try {
     const response = await selectionApi.getCategories(source || undefined);
@@ -1260,147 +1399,39 @@ const loadCategories = async () => {
   }
 };
 
+const lastQueryPlan = ref<SelectionQueryPlan | null>(null);
+
 const loadProducts = async (params?: SelectionQueryParams) => {
   loading.value = true;
   try {
-    // 获取查询参数
-    const queryParams = params || queryFormRef.value?.getQueryParams();
+    const queryParams = params || queryParamsState.value;
+    const intent = buildSelectionFilterIntent({
+      scene: effectiveScene.value as "all" | "new" | "reference" | "zheng",
+      methodId: activeMethodCard.value?.id ?? null,
+      queryParams,
+      activeFilters: activeFilters.value,
+      useCleanTable: useCleanTable.value,
+      qualifyRules: newQualifyRules.value,
+    });
+    const plan = buildSelectionQueryPlan({
+      intent,
+      page: pagination.page,
+      size: pagination.size,
+    });
+    const resolved = await resolveSelectionQueryPlan(plan);
+    lastQueryPlan.value = resolved.plan;
 
-    // 使用统一参数映射函数构建API参数
-    const apiParams = buildApiParams(queryParams);
+    console.log("[selection-query-plan]", {
+      executor: resolved.plan.executor,
+      scene: effectiveScene.value,
+      methodId: resolved.plan.methodId,
+      forcedFilters: resolved.plan.forcedFilters,
+      unsupportedFilters: resolved.plan.unsupportedFilters,
+      params: resolved.plan.params,
+    });
 
-    // source 映射：根据 activeTab 设置数据来源筛选
-    const sourceMap: Record<string, string> = {
-      new: "新品榜",
-      reference: "竞品店铺",
-      zheng: "郑总店铺",
-      all: "",
-    };
-    const source = sourceMap[activeTab.value] || "";
-
-    if (activeMethodCard.value?.id === "M01") {
-      const marketplace = normalizeM01Marketplace(
-        apiParams.marketplace || activeFilters.value.country,
-      );
-      const res = await methodCardsApi.getM01Products({
-        marketplace,
-        page: pagination.page,
-        size: pagination.size,
-      });
-      productList.value = (res.data?.list || []).map(normalizeProduct);
-      pagination.total = res.data?.total || 0;
-      await loadSelections();
-      return;
-    }
-
-    if (activeMethodCard.value?.id === "M02") {
-      const marketplace = normalizeM01Marketplace(
-        apiParams.marketplace || activeFilters.value.country,
-      );
-      const res = await methodCardsApi.getM02Products({
-        marketplace,
-        page: pagination.page,
-        size: pagination.size,
-      });
-      productList.value = (res.data?.list || []).map(normalizeProduct);
-      pagination.total = res.data?.total || 0;
-      await loadSelections();
-      return;
-    }
-
-    // 郑总店铺走独立接口（deng_zong_shop 表）
-    if (activeTab.value === "zheng") {
-      const dengParams: any = {
-        page: apiParams.page,
-        size: apiParams.size,
-        marketplace: apiParams.marketplace || undefined,
-        title: apiParams.title || undefined,
-        sellerName: apiParams.sellerName || undefined,
-        sortBy: apiParams.sortBy || "units",
-        sortOrder: apiParams.sortOrder || "desc",
-      };
-      console.log("加载邓总店铺，参数:", dengParams);
-      const res = await competitorApi.getDengZongShopList(dengParams);
-      console.log("加载邓总店铺，响应:", res);
-      productList.value = (res.data?.list || []).map(normalizeProduct);
-      pagination.total = res.data?.total || 0;
-    } else {
-      // 调用 Java 后端 competitor API（默认按父 ASIN 去重，避免变体污染）
-      const competitorParams: any = {
-        ...apiParams,
-        source: source || undefined,
-        useCleanTable: useCleanTable.value,
-      };
-      // 面板区间直接映射为请求字段
-      const rf = activeFilters.value.range;
-      if (rf) {
-        if (rf.unitsMin != null) competitorParams.unitsMin = rf.unitsMin;
-        if (rf.unitsMax != null) competitorParams.unitsMax = rf.unitsMax;
-        if (rf.listingDaysMin != null)
-          competitorParams.listingDaysMin = rf.listingDaysMin;
-        if (rf.listingDaysMax != null)
-          competitorParams.listingDaysMax = rf.listingDaysMax;
-        if (rf.priceMin != null) competitorParams.priceMin = rf.priceMin;
-        if (rf.priceMax != null) competitorParams.priceMax = rf.priceMax;
-        if (rf.bsrMax != null) competitorParams.bsrMax = rf.bsrMax;
-        if (rf.weightMax != null) competitorParams.weightMax = rf.weightMax;
-        if (rf.variantCountMax != null)
-          competitorParams.maxVariantCount = rf.variantCountMax;
-        if (rf.fulfillment?.length > 0)
-          competitorParams.fulfillment = rf.fulfillment;
-        if (rf.grade?.length > 0) competitorParams.grade = rf.grade.join(",");
-        if (rf.createdWeeks?.length > 0)
-          competitorParams.createdWeeks = rf.createdWeeks;
-      }
-      // 默认按最新周过滤；若面板已选周则跳过。批次列表口径与 source 对齐。
-      if (
-        !competitorParams.createdWeeks &&
-        !competitorParams.month &&
-        !competitorParams.weekTag &&
-        !competitorParams.createdAtStart
-      ) {
-        try {
-          const wkRes = await getCreatedWeeks(
-            competitorParams.marketplace || "UK",
-            source || undefined,
-          );
-          const weeks = wkRes?.data ?? [];
-          if (weeks.length > 0) {
-            competitorParams.createdWeeks = [weeks[0].week];
-          }
-        } catch {
-          // 批次获取失败不阻塞列表加载
-        }
-      }
-      // 移除空值参数
-      Object.keys(competitorParams).forEach((key) => {
-        if (
-          competitorParams[key] === "" ||
-          competitorParams[key] === undefined ||
-          competitorParams[key] === null
-        ) {
-          delete competitorParams[key];
-        }
-      });
-
-      console.log(
-        "加载产品列表，参数:",
-        competitorParams,
-        "tab:",
-        activeTab.value,
-      );
-      const response = await competitorApi.getList(competitorParams);
-      console.log("加载产品列表，响应:", response);
-      productList.value = response.data?.list || [];
-      pagination.total = response.data?.total || 0;
-    }
-    console.log(
-      "加载产品列表，产品数量:",
-      productList.value.length,
-      "总数:",
-      pagination.total,
-    );
-
+    productList.value = resolved.result.list;
+    pagination.total = resolved.result.total;
     await loadSelections();
   } catch (error) {
     console.error("加载选品列表失败:", error);
@@ -1418,17 +1449,23 @@ const normalizeM01Marketplace = (value?: string): "UK" | "DE" => {
 const applyM01Method = () => {
   activeMethodCard.value = { id: "M01", name: "新品榜加速法" };
   activeTab.value = "new";
-  activeFilters.value.country = normalizeM01Marketplace(activeFilters.value.country);
+  activeFilters.value.country = normalizeM01Marketplace(
+    activeFilters.value.country,
+  );
   filterDrawerVisible.value = false;
   pagination.page = 1;
+  loadCategories();
   loadProducts();
 };
 
 const applyM02Method = () => {
   activeMethodCard.value = { id: "M02", name: "郑总同行品线跟随法" };
-  activeFilters.value.country = normalizeM01Marketplace(activeFilters.value.country);
+  activeFilters.value.country = normalizeM01Marketplace(
+    activeFilters.value.country,
+  );
   filterDrawerVisible.value = false;
   pagination.page = 1;
+  loadCategories();
   loadProducts();
 };
 
@@ -1436,51 +1473,9 @@ const clearMethodCard = () => {
   activeMethodCard.value = null;
   filterDrawerVisible.value = false;
   pagination.page = 1;
+  loadCategories();
   loadProducts();
 };
-
-/**
- * 统一参数映射：从 SelectionQueryParams 自动映射到 API 查询参数
- */
-const FILTER_TO_API_KEY: Record<string, string> = {
-  country: "marketplace",
-  dataFilterMode: "filterMode",
-  productTitle: "title",
-  storeName: "sellerName",
-  sortField: "sortBy",
-};
-
-function buildApiParams(
-  queryParams?: SelectionQueryParams,
-): Record<string, any> {
-  const params: Record<string, any> = {
-    page: pagination.page,
-    size: pagination.size,
-    marketplace: activeFilters.value.country || undefined,
-    sortBy: activeFilters.value.sortField || "score",
-    sortOrder: activeFilters.value.sortOrder || "desc",
-  };
-  // 搜索字段映射
-  const filterFields = [
-    "asin",
-    "productTitle",
-    "storeName",
-    "sellerSelect",
-    "category",
-    "grade",
-    "weekTag",
-    "listingDateStart",
-    "listingDateEnd",
-  ];
-  for (const field of filterFields) {
-    const val = queryParams?.[field as keyof SelectionQueryParams];
-    if (val !== "" && val !== undefined && val !== null) {
-      const apiKey = FILTER_TO_API_KEY[field] || field;
-      params[apiKey] = Array.isArray(val) ? val.join(",") : val;
-    }
-  }
-  return params;
-}
 
 const loadSelections = async () => {
   const marketplace = activeFilters.value.country || "UK";
@@ -1668,7 +1663,7 @@ watch(
     if (config) {
       activeTab.value = config.tab;
       const defaults = config.tab === "new" ? { country: "UK" } : {};
-      queryFormRef.value?.setQueryParams({
+      applyQueryParams({
         productType: config.productType,
         ...defaults,
       });
@@ -1680,18 +1675,16 @@ watch(
   },
 );
 
+const onQueryFormChange = (params: SelectionQueryParams) => {
+  queryParamsState.value = { ...params };
+};
+
 const handleSearch = (params: SelectionQueryParams) => {
+  queryParamsState.value = { ...params };
   pagination.page = 1;
   loadProducts(params);
 };
 
-const handleReset = () => {
-  activeFilters.value.range = emptyRange();
-  pagination.page = 1;
-  loadProducts();
-};
-
-// ===== 统一筛选抽屉逻辑 =====
 const loadDrawerSellers = async (marketplace?: string) => {
   drawerSellerLoading.value = true;
   try {
@@ -1706,234 +1699,46 @@ const loadDrawerSellers = async (marketplace?: string) => {
   }
 };
 
-// 主栏站点切换（即时生效）：清卖家、重载卖家列表、重载大类、查询
-const onBarCountryChange = (val: string) => {
-  activeFilters.value.sellerSelect = "";
-  loadDrawerSellers(val || undefined);
-  loadCategories();
+const triggerFilterQuery = () => {
   pagination.page = 1;
   loadProducts();
 };
 
-// 主栏大类切换（即时生效）
-const onBarCategoryChange = () => {
-  pagination.page = 1;
-  loadProducts();
-};
-
-// 打开抽屉：activeFilters → draftFilters（草稿拷贝，未确认不影响查询）
-const openFilterDrawer = () => {
-  draftFilters.value = cloneFilterState(activeFilters.value);
-  loadDrawerSellers(activeFilters.value.country || undefined);
-  filterDrawerVisible.value = true;
-};
-
-// 确认筛选：draftFilters → activeFilters，触发查询
-const handleDrawerConfirm = () => {
-  activeFilters.value = cloneFilterState(draftFilters.value);
-  filterDrawerVisible.value = false;
-  pagination.page = 1;
-  loadProducts();
-};
-
-// 抽屉内重置：仅清空草稿，不查询（用户需再点确认）
-const handleDrawerReset = () => {
-  draftFilters.value = {
-    country: activeFilters.value.country,
-    sellerSelect: "",
-    category: [...activeFilters.value.category],
-    sortField: "score",
-    sortOrder: "desc",
-    range: emptyRange(),
-  };
-};
-
-// 已选条件标签
-interface FilterChip {
-  key: string;
-  label: string;
-}
-const COUNTRY_LABEL: Record<string, string> = {
-  US: "美国",
-  UK: "英国",
-  DE: "德国",
-};
-const activeFilterChips = computed<FilterChip[]>(() => {
-  const chips: FilterChip[] = [];
-  const af = activeFilters.value;
-  if (activeMethodCard.value)
-    chips.push({
-      key: "methodCard",
-      label: `方法: ${activeMethodCard.value.id} ${activeMethodCard.value.name}`,
-    });
-  if (af.country)
-    chips.push({
-      key: "country",
-      label: `站点: ${COUNTRY_LABEL[af.country] || af.country}`,
-    });
-  if (af.sellerSelect)
-    chips.push({ key: "seller", label: `卖家: ${af.sellerSelect}` });
-  if (af.category.length)
-    chips.push({
-      key: "category",
-      label: `大类: ${af.category.length}项`,
-    });
-  const rf = af.range;
-  if (rf.priceMin != null || rf.priceMax != null)
-    chips.push({
-      key: "price",
-      label: `价格: ${rf.priceMin ?? "·"}~${rf.priceMax ?? "·"}`,
-    });
-  if (rf.unitsMin != null || rf.unitsMax != null)
-    chips.push({
-      key: "units",
-      label: `月销: ${rf.unitsMin ?? "·"}~${rf.unitsMax ?? "·"}`,
-    });
-  if (rf.listingDaysMin != null || rf.listingDaysMax != null)
-    chips.push({
-      key: "listingDays",
-      label: `上架天数: ${rf.listingDaysMin ?? "·"}~${rf.listingDaysMax ?? "·"}`,
-    });
-  if (rf.bsrMax != null)
-    chips.push({ key: "bsrMax", label: `BSR≤${rf.bsrMax}` });
-  if (rf.weightMax != null)
-    chips.push({ key: "weightMax", label: `重量≤${rf.weightMax}g` });
-  if (rf.variantCountMax != null)
-    chips.push({ key: "variantCountMax", label: `变体≤${rf.variantCountMax}` });
-  if (rf.fulfillment.length)
-    chips.push({
-      key: "fulfillment",
-      label: `配送: ${rf.fulfillment.join("/")}`,
-    });
-  if (rf.grade.length)
-    chips.push({ key: "grade", label: `评级: ${rf.grade.join("/")}` });
-  if (rf.createdWeeks.length)
-    chips.push({
-      key: "createdWeeks",
-      label: `周批次: ${rf.createdWeeks.length}项`,
-    });
-  return chips;
+const {
+  activeFilters,
+  draftFilters,
+  filterDrawerVisible,
+  activeFilterChips,
+  handleReset,
+  onBarCountryChange,
+  onBarCategoryChange,
+  openFilterDrawer,
+  handleDrawerConfirm,
+  handleDrawerReset,
+  removeChip,
+  clearAllFilters,
+  getCurrentFilterConfig,
+  handlePresetApply,
+  setCountry,
+} = useSelectionFilterState({
+  activeMethodCard,
+  getQualifyRules: () => [...newQualifyRules.value],
+  setQualifyRules: (rules) => {
+    newQualifyRules.value = Array.isArray(rules)
+      ? (rules as QualifyRule[])
+      : [...NEW_TAB_DEFAULT_RULES];
+  },
+  applyQuery: triggerFilterQuery,
+  syncMarketplaceScope: (marketplace) => {
+    loadDrawerSellers(marketplace);
+    loadCategories();
+  },
+  normalizeMethodMarketplace: normalizeM01Marketplace,
+  patchQueryParams: (config) => {
+    applyQueryParams(config);
+  },
+  initialCountry: "UK",
 });
-
-// 删除单个已选条件（即时生效）
-const removeChip = (key: string) => {
-  const af = cloneFilterState(activeFilters.value);
-  const rf = af.range;
-  switch (key) {
-    case "methodCard":
-      activeMethodCard.value = null;
-      break;
-    case "country":
-      af.country = "";
-      break;
-    case "seller":
-      af.sellerSelect = "";
-      break;
-    case "category":
-      af.category = [];
-      break;
-    case "price":
-      rf.priceMin = null;
-      rf.priceMax = null;
-      break;
-    case "units":
-      rf.unitsMin = null;
-      rf.unitsMax = null;
-      break;
-    case "listingDays":
-      rf.listingDaysMin = null;
-      rf.listingDaysMax = null;
-      rf.listingPreset = null;
-      break;
-    case "bsrMax":
-      rf.bsrMax = null;
-      break;
-    case "weightMax":
-      rf.weightMax = null;
-      break;
-    case "variantCountMax":
-      rf.variantCountMax = null;
-      break;
-    case "fulfillment":
-      rf.fulfillment = [];
-      break;
-    case "grade":
-      rf.grade = [];
-      break;
-    case "createdWeeks":
-      rf.createdWeeks = [];
-      break;
-  }
-  activeFilters.value = af;
-  pagination.page = 1;
-  loadProducts();
-};
-
-// 清除全部筛选（即时生效）
-const clearAllFilters = () => {
-  activeMethodCard.value = null;
-  activeFilters.value = {
-    country: activeFilters.value.country,
-    sellerSelect: "",
-    category: [],
-    sortField: "score",
-    sortOrder: "desc",
-    range: emptyRange(),
-  };
-  pagination.page = 1;
-  loadProducts();
-};
-
-const getCurrentFilterConfig = (): Record<string, any> => {
-  const af = activeFilters.value;
-  return {
-    ...af.range,
-    // 筛选条件（统一抽屉字段）
-    country: af.country || "",
-    sellerSelect: af.sellerSelect || "",
-    sortField: af.sortField || "score",
-    sortOrder: af.sortOrder || "desc",
-    // 合格规则（新品榜）一并纳入预设
-    qualifyRules: newQualifyRules.value,
-  };
-};
-
-const handlePresetApply = (config: Record<string, any>) => {
-  queryFormRef.value?.setQueryParams(config);
-  if (Array.isArray(config?.qualifyRules)) {
-    newQualifyRules.value = config.qualifyRules;
-  }
-  // 回填 activeFilters
-  activeFilters.value = {
-    country: config.country ?? "",
-    sellerSelect: config.sellerSelect ?? "",
-    category: Array.isArray(config.category) ? [...config.category] : [],
-    sortField: config.sortField ?? "score",
-    sortOrder: config.sortOrder ?? "desc",
-    range: {
-      priceMin: config.priceMin ?? null,
-      priceMax: config.priceMax ?? null,
-      unitsMin: config.unitsMin ?? null,
-      unitsMax: config.unitsMax ?? null,
-      listingDaysMin: config.listingDaysMin ?? null,
-      listingDaysMax: config.listingDaysMax ?? null,
-      bsrMax: config.bsrMax ?? null,
-      weightMax: config.weightMax ?? null,
-      variantCountMax: config.variantCountMax ?? null,
-      fulfillment: config.fulfillment ?? [],
-      createdWeeks: config.createdWeeks ?? [],
-      category: config.category ?? [],
-      grade: config.grade ?? [],
-      listingPreset: config.listingPreset ?? null,
-    },
-  };
-  // 若抽屉开着，同步草稿
-  if (filterDrawerVisible.value) {
-    draftFilters.value = cloneFilterState(activeFilters.value);
-  }
-  pagination.page = 1;
-  loadProducts();
-};
 
 // ========== 卖家管理 ==========
 const openSellerDialog = () => {
@@ -2138,7 +1943,9 @@ const handleView = (product) => {
 const imageSearchVisible = ref(false);
 const imageSearchAsin = ref("");
 const imageSearchImage = ref("");
-const imageSearchPanelRef = ref<InstanceType<typeof ImageSearchPanel> | null>(null);
+const imageSearchPanelRef = ref<InstanceType<typeof ImageSearchPanel> | null>(
+  null,
+);
 
 const handleImageSearch = (product: Record<string, any>) => {
   imageSearchAsin.value = product.asin || "";
@@ -2543,14 +2350,14 @@ onMounted(() => {
     initParams.country = route.query.marketplace as string;
   }
   // 同步主栏常驻站点（默认 UK，与新品榜数据口径一致）
-  activeFilters.value.country = initParams.country || "UK";
+  setCountry(initParams.country || "UK");
   initParams.country = activeFilters.value.country;
-  queryFormRef.value?.setQueryParams(initParams);
+  applyQueryParams(initParams);
   // 加载大类榜单列表
   loadCategories();
   // 如果有路由 query 参数，触发搜索
   if (initParams.storeName) {
-    queryFormRef.value?.handleSearch();
+    handleSearch(queryParamsState.value);
   } else {
     loadProducts();
   }
@@ -2893,6 +2700,117 @@ onUnmounted(() => {
   .el-pagination {
     background: var(--el-bg-color);
     border-color: var(--el-border-color);
+  }
+}
+
+// 方法卡详情抽屉
+.method-detail {
+  padding: 4px 6px 24px;
+
+  &__tagline {
+    margin: 0 0 20px;
+    padding: 12px 14px;
+    background: var(--el-color-primary-light-9);
+    border-left: 3px solid var(--el-color-primary);
+    border-radius: 4px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--el-text-color-primary);
+  }
+
+  &__section {
+    margin-bottom: 20px;
+  }
+
+  &__label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--el-text-color-primary);
+
+    .el-icon {
+      color: var(--el-color-primary);
+      font-size: 15px;
+    }
+  }
+
+  &__text {
+    margin: 0;
+    padding-left: 22px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--el-text-color-regular);
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 22px;
+
+    li {
+      margin-bottom: 6px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--el-text-color-regular);
+    }
+  }
+
+  &__unsupported {
+    color: var(--el-text-color-secondary) !important;
+    text-decoration: line-through;
+  }
+
+  &__criteria {
+    padding-left: 22px;
+
+    .criterion {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 13px;
+
+      &__label {
+        min-width: 72px;
+        color: var(--el-text-color-secondary);
+      }
+
+      &__value {
+        font-weight: 600;
+        color: var(--el-color-danger);
+      }
+
+      &__note {
+        color: var(--el-text-color-secondary);
+        font-size: 12px;
+      }
+    }
+  }
+
+  &__tags {
+    padding-left: 22px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  &__footer {
+    margin-top: 24px;
+    padding: 10px 14px;
+    background: var(--el-fill-color-lighter);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+
+    code {
+      padding: 2px 6px;
+      background: var(--el-fill-color);
+      border-radius: 3px;
+      font-family: monospace;
+      color: var(--el-text-color-regular);
+    }
   }
 }
 </style>
