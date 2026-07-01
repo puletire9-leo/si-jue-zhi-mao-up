@@ -250,18 +250,32 @@ export const useProductLineSelectionStore = defineStore(
       });
     }
 
+    // 未选中大类时自动选第一个,让方法卡首次应用能出商品数据
+    function ensureCategorySelected() {
+      if (
+        !selectedBsrId.value &&
+        !selectedNodeId.value &&
+        treeData.value.length > 0
+      ) {
+        const first = treeData.value[0];
+        selectCategory(first.id, first.name);
+      }
+    }
+
     async function applyM01MethodCard() {
       activeMethodCard.value = { id: "M01", name: "新品榜加速法" };
       // M01 走 competitor_clean 表,不需要郑总证据批次
       zhengBatchDate.value = "";
       completeness.value = null;
       await fetchTree();
+      ensureCategorySelected();
       await reloadCurrentProducts();
     }
 
     async function applyM02MethodCard() {
       activeMethodCard.value = { id: "M02", name: "郑总同行品线跟随法" };
       await Promise.all([fetchTree(), refreshMethodEvidence()]);
+      ensureCategorySelected();
       await reloadCurrentProducts();
     }
 
