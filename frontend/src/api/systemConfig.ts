@@ -51,6 +51,12 @@ export interface SellerspriteConfigResponse {
   maxAsinsPerRequest: number;
 }
 
+export interface LingxingDefaultsResponse {
+  developer: string;
+  operators: string[];
+  purchaser: string;
+}
+
 export const systemConfigApi = {
   /**
    * 开始备份
@@ -278,6 +284,46 @@ export const systemConfigApi = {
       return response as unknown as ApiResponse<SellerspriteConfigResponse>;
     } catch (error) {
       console.error("更新卖家精灵配置失败:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 获取领星导入默认人选(开发人/产品负责人/采购员)
+   * 空值表示未配置,调用方回退到 members 兜底逻辑
+   */
+  async getLingxingDefaults(): Promise<ApiResponse<LingxingDefaultsResponse>> {
+    try {
+      const response = await request({
+        url: "/api/v1/system-config/lingxing-defaults",
+        method: "get",
+      });
+      return response as unknown as ApiResponse<LingxingDefaultsResponse>;
+    } catch (error) {
+      console.error("获取领星导入默认人选失败:", error);
+      return {
+        code: 200,
+        message: "获取失败使用空默认",
+        data: { developer: "", operators: [], purchaser: "" },
+      };
+    }
+  },
+
+  /**
+   * 更新领星导入默认人选
+   */
+  async updateLingxingDefaults(
+    data: LingxingDefaultsResponse,
+  ): Promise<ApiResponse<LingxingDefaultsResponse>> {
+    try {
+      const response = await request({
+        url: "/api/v1/system-config/lingxing-defaults",
+        method: "put",
+        data,
+      });
+      return response as unknown as ApiResponse<LingxingDefaultsResponse>;
+    } catch (error) {
+      console.error("更新领星导入默认人选失败:", error);
       throw error;
     }
   },

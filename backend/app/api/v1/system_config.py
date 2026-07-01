@@ -256,6 +256,102 @@ async def update_image_settings(
         raise HTTPException(status_code=500, detail="更新图片设置失败")
 
 
+# ============================================================
+# 领星导入默认人选配置
+# ============================================================
+# 存储在 system_config 表,3 个 key:
+#   lingxing_default_developer      单个 username
+#   lingxing_default_operators      逗号分隔的 username 列表
+#   lingxing_default_purchaser      单个 username
+# 无配置时前端/lingxing.py 回退到 users 表 role LIKE 查询兜底逻辑
+# ============================================================
+
+LINGXING_KEYS = ("lingxing_default_developer", "lingxing_default_operators", "lingxing_default_purchaser")
+
+
+class LingxingDefaultsUpdate(BaseModel):
+    """领星导入默认人选更新模型"""
+    developer: str = ""
+    operators: List[str] = []
+    purchaser: str = ""
+
+
+@router.get("/lingxing-defaults", summary="获取领星导入默认人选")
+async def get_lingxing_defaults(
+    user_info: dict = Depends(require_auth),
+    mysql_repo=get_mysql_repo()
+):
+    """
+    获取领星导入的默认人选配置。
+
+    返回结构:
+    {
+        "developer":  "张子轩",         # 开发人 单个 username, 未配置时 ""
+        "operators":  ["唐若","张亚芳"], # 产品负责人 多人 username, 未配置时 []
+        "purchaser":  "王亚成"          # 采购员 单个 username, 未配置时 ""
+    }
+    """
+    try:
+        query = "SELECT config_key, config_value FROM system_config WHERE config_key IN (%s, %s, %s)"
+        rows = await mysql_repo.execute_query(query, LINGXING_KEYS, fetch_all=True)
+        cfg = {row["config_key"]: row["config_value"] or "" for row in (rows or [])}
+        operators_raw = cfg.get("lingxing_default_operators", "")
+        operators = [name.strip() for name in operators_raw.split(",") if name.strip()]
+        return {
+            "code": 200,
+            "message": "获取成功",
+            "data": {
+                "developer": cfg.get("lingxing_default_developer", ""),
+                "operators": operators,
+                "purchaser": cfg.get("lingxing_default_purchaser", "")
+            }
+        }
+    except Exception as e:
+        logger.error(f"获取领星导入默认人选失败: {e}")
+        raise HTTPException(status_code=500, detail="获取领星导入默认人选失败")
+
+
+@router.put("/lingxing-defaults", summary="更新领星导入默认人选")
+async def update_lingxing_defaults(
+    payload: LingxingDefaultsUpdate = Body(..., description="领星导入默认人选"),
+    user_info: dict = Depends(require_auth),
+    mysql_repo=get_mysql_repo()
+):
+    """
+    更新领星导入默认人选配置。空字符串/空数组表示清空该项(导入时回退兜底)。
+    """
+    try:
+        operators_str = ",".join(name.strip() for name in payload.operators if name.strip())
+        items = [
+            ("lingxing_default_developer", payload.developer.strip(), "领星导入 开发人默认", user_info["username"]),
+            ("lingxing_default_operators", operators_str, "领星导入 产品负责人默认(逗号分隔)", user_info["username"]),
+            ("lingxing_default_purchaser", payload.purchaser.strip(), "领星导入 采购员默认", user_info["username"]),
+        ]
+        query = """
+        INSERT INTO system_config (config_key, config_value, description, is_system, updated_by)
+        VALUES (%s, %s, %s, FALSE, %s)
+        ON DUPLICATE KEY UPDATE
+            config_value = VALUES(config_value),
+            updated_by   = VALUES(updated_by)
+        """
+        for item in items:
+            await mysql_repo.execute_update(query, item)
+        return {
+            "code": 200,
+            "message": "更新成功",
+            "data": {
+                "developer": payload.developer.strip(),
+                "operators": [name.strip() for name in payload.operators if name.strip()],
+                "purchaser": payload.purchaser.strip()
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"更新领星导入默认人选失败: {e}")
+        raise HTTPException(status_code=500, detail="更新领星导入默认人选失败")
+
+
 @router.post("/backup/start", summary="开始备份")
 async def start_backup(
     backup_type: str = Body(default="local", description="备份类型: local(本地备份) 或 cos(腾讯云备份)", embed=True),

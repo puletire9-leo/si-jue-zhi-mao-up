@@ -232,25 +232,54 @@ async def generate_import_file(
         if developer:
             cmd_args.extend(['--developer', developer])
 
-        # 从 users 表读取人员名单（统一数据源，兼容多角色 LIKE 查询）：
-        #   领星 Excel "产品负责人"列 → role LIKE '%运营%'（不限 status）
-        #   领星 Excel "采购员"列     → role LIKE '%采购员%'（王亚成兼采购员业务）
-        try:
-            mysql_repo = request.app.state.mysql
-            pm_rows = await mysql_repo.execute_query(
-                "SELECT username FROM users WHERE role LIKE '%运营%' ORDER BY id ASC"
-            )
-            pm_names = ",".join(r["username"] for r in pm_rows) if pm_rows else ""
-            if pm_names:
-                cmd_args.extend(['--product-manager', pm_names])
+        # 读取人员名单,两层来源:
+        #   1. system_config.lingxing_default_* (设置页配置的默认值)
+        #   2. users 表 role LIKE 查询兜底
+        # 前端 selectedDeveloper 已通过 CLI --developer 传入,若设置里有默认值则用它替换兜底
+        mysql_repo = request.app.state.mysql
 
-            purchaser_rows = await mysql_repo.execute_query(
-                "SELECT username FROM users WHERE role LIKE '%采购员%' AND status=1 ORDER BY id ASC LIMIT 1"
+        try:
+            cfg_rows = await mysql_repo.execute_query(
+                "SELECT config_key, config_value FROM system_config "
+                "WHERE config_key IN ('lingxing_default_developer', "
+                "'lingxing_default_operators', 'lingxing_default_purchaser')"
             )
-            if purchaser_rows:
-                cmd_args.extend(['--purchaser', purchaser_rows[0]["username"]])
+            cfg = {r["config_key"]: (r["config_value"] or "").strip() for r in (cfg_rows or [])}
         except Exception as e:
-            logger.warning(f"读取 users 表人员名单失败,脚本将用内置兜底名单: {e}")
+            logger.warning(f"读取领星默认配置失败,走 users 表兜底: {e}")
+            cfg = {}
+
+        # 开发人:优先前端选择,其次配置默认,不覆盖已通过 --developer 传入的值
+        if not developer and cfg.get("lingxing_default_developer"):
+            cmd_args.extend(['--developer', cfg["lingxing_default_developer"]])
+
+        # 产品负责人:优先配置默认,否则 users 表 role LIKE '%运营%' 全量兜底
+        pm_names = cfg.get("lingxing_default_operators", "")
+        if not pm_names:
+            try:
+                pm_rows = await mysql_repo.execute_query(
+                    "SELECT username FROM users WHERE role LIKE '%运营%' ORDER BY id ASC"
+                )
+                pm_names = ",".join(r["username"] for r in pm_rows) if pm_rows else ""
+            except Exception as e:
+                logger.warning(f"读取 users 表运营名单失败: {e}")
+                pm_names = ""
+        if pm_names:
+            cmd_args.extend(['--product-manager', pm_names])
+
+        # 采购员:优先配置默认,否则 users 表 role LIKE '%采购员%' 取第一个
+        purchaser_name = cfg.get("lingxing_default_purchaser", "")
+        if not purchaser_name:
+            try:
+                purchaser_rows = await mysql_repo.execute_query(
+                    "SELECT username FROM users WHERE role LIKE '%采购员%' AND status=1 ORDER BY id ASC LIMIT 1"
+                )
+                if purchaser_rows:
+                    purchaser_name = purchaser_rows[0]["username"]
+            except Exception as e:
+                logger.warning(f"读取 users 表采购员名单失败: {e}")
+        if purchaser_name:
+            cmd_args.extend(['--purchaser', purchaser_name])
         
         # 执行Python脚本
         result = subprocess.run(
