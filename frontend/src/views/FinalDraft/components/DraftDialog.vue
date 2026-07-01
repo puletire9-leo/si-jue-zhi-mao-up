@@ -5,10 +5,10 @@
     width="600px"
     :before-close="handleClose"
   >
-    <el-form 
-      ref="formRef" 
-      :model="formData" 
-      :rules="formRules" 
+    <el-form
+      ref="formRef"
+      :model="formData"
+      :rules="formRules"
       label-width="80px"
       :validate-on-rule-change="false"
     >
@@ -23,25 +23,32 @@
 
       <!-- SKU输入 -->
       <el-form-item label="SKU" prop="sku">
-        <el-input
-          v-model="formData.sku"
-          placeholder="请输入SKU"
-          clearable
-        />
+        <el-input v-model="formData.sku" placeholder="请输入SKU" clearable />
       </el-form-item>
 
       <!-- 批次输入 -->
       <el-form-item label="批次" prop="batch">
-        <el-input
-          v-model="formData.batch"
-          placeholder="请输入批次"
-          clearable
-        />
+        <el-input v-model="formData.batch" placeholder="请输入批次" clearable />
       </el-form-item>
 
-      <!-- 开发人（自动填写当前登录用户名） -->
-      <el-form-item label="开发人">
-        <el-input :value="autoDeveloper" disabled />
+      <!-- 开发人（默认填当前登录用户，可点右侧按钮从列表选择或直接输入修改） -->
+      <el-form-item label="开发人" prop="developer">
+        <div class="developer-input-wrapper">
+          <el-input
+            v-model="formData.developer"
+            placeholder="请输入开发人"
+            clearable
+            class="developer-input"
+          />
+          <el-button
+            type="primary"
+            :icon="User"
+            circle
+            size="small"
+            class="developer-select-btn"
+            @click="handleDeveloperSelect"
+          />
+        </div>
       </el-form-item>
 
       <!-- 日期选择 -->
@@ -60,15 +67,17 @@
       <!-- 载体选择 -->
       <el-form-item label="载体" prop="carrier">
         <div class="carrier-select-wrapper">
-          <span class="carrier-display">{{ formData.carrier || '请选择载体' }}</span>
+          <span class="carrier-display">{{
+            formData.carrier || "请选择载体"
+          }}</span>
           <el-button
-              type="primary"
-              :icon="Van"
-              circle
-              size="small"
-              class="carrier-select-btn"
-              @click="handleCarrierSelect"
-            />
+            type="primary"
+            :icon="Van"
+            circle
+            size="small"
+            class="carrier-select-btn"
+            @click="handleCarrierSelect"
+          />
         </div>
       </el-form-item>
 
@@ -119,12 +128,14 @@
           >
             <!-- 直接放置内容，不使用额外的el-upload-dragger -->
             <el-icon class="upload-icon"><Plus /></el-icon>
-            <div class="el-upload__text">拖拽图片到此处或 <em>点击上传</em></div>
+            <div class="el-upload__text">
+              拖拽图片到此处或 <em>点击上传</em>
+            </div>
             <div class="el-upload__tip">支持JPG、PNG格式，单张不超过10MB</div>
           </el-upload>
         </div>
       </el-form-item>
-      
+
       <!-- 效果图上传 -->
       <el-form-item label="效果图">
         <div class="upload-area">
@@ -150,7 +161,9 @@
           >
             <!-- 直接放置内容，不使用额外的el-upload-dragger -->
             <el-icon class="upload-icon"><Plus /></el-icon>
-            <div class="el-upload__text">拖拽图片到此处或 <em>点击上传</em></div>
+            <div class="el-upload__text">
+              拖拽图片到此处或 <em>点击上传</em>
+            </div>
             <div class="el-upload__tip">支持JPG、PNG格式，单张不超过10MB</div>
           </el-upload>
         </div>
@@ -176,6 +189,49 @@
     </template>
   </el-dialog>
 
+  <!-- 开发人选择对话框 -->
+  <el-dialog
+    v-model="developerDialogVisible"
+    title="选择开发人"
+    width="400px"
+    :before-close="handleDeveloperDialogClose"
+  >
+    <div class="developer-list">
+      <div
+        v-for="developer in developerList"
+        :key="developer"
+        class="developer-item"
+        :class="{ selected: selectedDeveloper === developer }"
+        @click="selectDeveloper(developer)"
+      >
+        <div class="developer-info">
+          <span class="developer-name">{{ developer }}</span>
+        </div>
+        <el-icon v-if="selectedDeveloper === developer" class="check-icon">
+          <Check />
+        </el-icon>
+      </div>
+
+      <el-empty
+        v-if="developerList.length === 0"
+        description="暂无开发人数据"
+        :image-size="100"
+      />
+    </div>
+
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="handleDeveloperDialogClose">取消</el-button>
+        <el-button
+          type="primary"
+          @click="confirmDeveloperSelection"
+          :disabled="!selectedDeveloper"
+        >
+          确定
+        </el-button>
+      </span>
+    </template>
+  </el-dialog>
 
   <!-- 载体选择对话框 -->
   <el-dialog
@@ -200,18 +256,22 @@
           <Check />
         </el-icon>
       </div>
-      
+
       <el-empty
         v-if="carrierList.length === 0"
         description="暂无载体数据"
         :image-size="100"
       />
     </div>
-    
+
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="handleCarrierDialogClose">取消</el-button>
-        <el-button type="primary" @click="confirmCarrierSelection" :disabled="!selectedCarrier">
+        <el-button
+          type="primary"
+          @click="confirmCarrierSelection"
+          :disabled="!selectedCarrier"
+        >
           确定
         </el-button>
       </span>
@@ -230,912 +290,1077 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted } from 'vue'
-import { ElMessage, ElImageViewer, type UploadProps, type UploadUserFile, type FormInstance } from 'element-plus'
-import { UploadFilled, Delete, Picture, Van, Plus, Check } from '@element-plus/icons-vue'
+import { ref, reactive, computed, watch, onMounted } from "vue";
+import {
+  ElMessage,
+  ElImageViewer,
+  type UploadProps,
+  type UploadUserFile,
+  type FormInstance,
+} from "element-plus";
+import {
+  UploadFilled,
+  Delete,
+  Picture,
+  User,
+  Van,
+  Plus,
+  Check,
+} from "@element-plus/icons-vue";
 // 导入API
-import { finalDraftApi } from '@/api/finalDraft'
-import { imageApi } from '@/api/image'
-import { systemConfigApi } from '@/api/systemConfig'
-import { userApi } from '@/api/user'
+import { finalDraftApi } from "@/api/finalDraft";
+import { imageApi } from "@/api/image";
+import { systemConfigApi } from "@/api/systemConfig";
+import { userApi } from "@/api/user";
+import { fetchMembers } from "@/api/members";
 // 导入用户状态管理
-import { useUserStore } from '@/stores/user'
-import { ImageUrlUtil } from '@/utils/imageUrlUtil'
+import { useUserStore } from "@/stores/user";
+import { ImageUrlUtil } from "@/utils/imageUrlUtil";
 interface Props {
-  modelValue: boolean
-  category?: 'final' | 'material' | 'carrier'
+  modelValue: boolean;
+  category?: "final" | "material" | "carrier";
   draft?: {
-    id: number
-    sku: string
-    batch: string
-    developer: string
-    carrier: string
-    element?: string
-    modificationRequirement?: string
-    infringementLabel?: string
-    images: string[]
-    referenceImages?: string[]
-    reference_images?: string[]
-    createTime: string
-    updateTime: string
-    status: 'finalized' | 'optimizing' | 'concept'
-  }
+    id: number;
+    sku: string;
+    batch: string;
+    developer: string;
+    carrier: string;
+    element?: string;
+    modificationRequirement?: string;
+    infringementLabel?: string;
+    images: string[];
+    referenceImages?: string[];
+    reference_images?: string[];
+    createTime: string;
+    updateTime: string;
+    status: "finalized" | "optimizing" | "concept";
+  };
 }
 
-const props = defineProps<Props>()
+const props = defineProps<Props>();
 
 // 定义Emits
 const emit = defineEmits<{
-  'update:modelValue': [value: boolean]
-  success: []
-}>()
+  "update:modelValue": [value: boolean];
+  success: [];
+}>();
 
 // 响应式数据
 const dialogVisible = computed({
   get: () => props.modelValue,
-  set: (value) => emit('update:modelValue', value)
-})
+  set: (value) => emit("update:modelValue", value),
+});
 
-const formRef = ref<FormInstance>()
-const uploadRef = ref()
-const referenceUploadRef = ref()
-const submitting = ref(false)
+const formRef = ref<FormInstance>();
+const uploadRef = ref();
+const referenceUploadRef = ref();
+const submitting = ref(false);
 
 // 图片预览相关数据
-const previewVisible = ref(false)
-const previewImage = ref('')
-const previewImageList = ref<string[]>([])
-const scale = ref(1)
-const minScale = ref(0.1)
-const maxScale = ref(5)
-const isDragging = ref(false)
-const startX = ref(0)
-const startY = ref(0)
-const translateX = ref(0)
-const translateY = ref(0)
+const previewVisible = ref(false);
+const previewImage = ref("");
+const previewImageList = ref<string[]>([]);
+const scale = ref(1);
+const minScale = ref(0.1);
+const maxScale = ref(5);
+const isDragging = ref(false);
+const startX = ref(0);
+const startY = ref(0);
+const translateX = ref(0);
+const translateY = ref(0);
 
 const formData = reactive({
-  element: '',
-  sku: '',
-  batch: '',
-  developer: '',
-  carrier: '',
-  modificationRequirement: '',
-  infringementLabel: '',
-  createTime: '',
-  updateTime: '',
+  element: "",
+  sku: "",
+  batch: "",
+  developer: "",
+  carrier: "",
+  modificationRequirement: "",
+  infringementLabel: "",
+  createTime: "",
+  updateTime: "",
   images: [] as string[],
   reference_images: [] as string[],
-  status: 'finalized' as 'finalized' | 'optimizing' | 'concept'
-})
+  status: "finalized" as "finalized" | "optimizing" | "concept",
+});
 
-const fileList = ref<UploadUserFile[]>([])
-const referenceFileList = ref<UploadUserFile[]>([])
+const fileList = ref<UploadUserFile[]>([]);
+const referenceFileList = ref<UploadUserFile[]>([]);
 
 // 保存编辑前的原始图片URL，用于判断用户是否修改了图片
-const originalImages = ref<string[]>([])
-const originalReferenceImages = ref<string[]>([])
+const originalImages = ref<string[]>([]);
+const originalReferenceImages = ref<string[]>([]);
+
+// 开发人选择相关数据
+const developerDialogVisible = ref(false);
+const selectedDeveloper = ref<string>("");
+const developerList = ref<string[]>([]);
+
+// 加载开发人列表（从 users 表 role LIKE '%开发%'）
+const loadDeveloperList = async () => {
+  try {
+    const members = await fetchMembers();
+    developerList.value = members.developers || [];
+  } catch (error) {
+    console.error("加载开发人列表失败:", error);
+    developerList.value = [];
+  }
+};
 
 // 载体选择相关数据
-const carrierDialogVisible = ref(false)
-const selectedCarrier = ref<string>('')
-const carrierList = ref<{value: string, name: string, description: string}[]>([])
+const carrierDialogVisible = ref(false);
+const selectedCarrier = ref<string>("");
+const carrierList = ref<{ value: string; name: string; description: string }[]>(
+  [],
+);
 
 // 加载载体列表
 const loadCarrierList = async () => {
   try {
-    const response = await systemConfigApi.getCarrierList()
-    if (response.code === 200 && response.data && Array.isArray(response.data.carrierList)) {
+    const response = await systemConfigApi.getCarrierList();
+    if (
+      response.code === 200 &&
+      response.data &&
+      Array.isArray(response.data.carrierList)
+    ) {
       // 将获取到的载体列表转换为组件需要的格式
-      carrierList.value = response.data.carrierList.map(carrier => ({
+      carrierList.value = response.data.carrierList.map((carrier) => ({
         value: carrier,
         name: carrier,
-        description: `${carrier}载体`
-      }))
+        description: `${carrier}载体`,
+      }));
     } else {
       // 默认载体列表
-      carrierList.value = []
+      carrierList.value = [];
     }
   } catch (error) {
-    console.error('加载载体列表失败:', error)
-    carrierList.value = []
+    console.error("加载载体列表失败:", error);
+    carrierList.value = [];
   }
-}
+};
 
-// 初始化加载载体列表
-loadCarrierList()
+// 初始化加载开发人列表和载体列表
+loadDeveloperList();
+loadCarrierList();
 
 // 表单验证规则
 const formRules = {
-  sku: [
-    { required: true, message: '请输入SKU', trigger: 'submit' }
-  ]
-}
+  sku: [{ required: true, message: "请输入SKU", trigger: "submit" }],
+  developer: [{ required: true, message: "请输入开发人", trigger: "submit" }],
+};
 
 // 用户状态管理
-const userStore = useUserStore()
+const userStore = useUserStore();
 
 // 计算属性
 const dialogTitle = computed(() => {
-  return props.draft ? '编辑定稿' : '新增定稿'
-})
-
-// 开发人：编辑模式保留原作者；新增模式用当前登录用户名（中文化后即姓名）
-// 这样 admin 编辑别人的定稿时不会覆盖原 developer
-const autoDeveloper = computed(() => {
-  if (props.draft?.developer) return props.draft.developer
-  return userStore.userInfo?.username || ''
-})
+  return props.draft ? "编辑定稿" : "新增定稿";
+});
 
 // 方法
 const resetForm = (): void => {
-  formData.element = ''
-  formData.sku = ''
-  formData.batch = ''
-  formData.developer = ''
-  formData.carrier = ''
-  formData.modificationRequirement = ''
-  formData.infringementLabel = ''
-  formData.createTime = ''
-  formData.updateTime = ''
-  formData.images = []
-  formData.reference_images = []
-  formData.status = 'finalized'
-  fileList.value = []
-  referenceFileList.value = []
-  originalImages.value = []
-  originalReferenceImages.value = []
-}
+  formData.element = "";
+  formData.sku = "";
+  formData.batch = "";
+  formData.developer = "";
+  formData.carrier = "";
+  formData.modificationRequirement = "";
+  formData.infringementLabel = "";
+  formData.createTime = "";
+  formData.updateTime = "";
+  formData.images = [];
+  formData.reference_images = [];
+  formData.status = "finalized";
+  fileList.value = [];
+  referenceFileList.value = [];
+  originalImages.value = [];
+  originalReferenceImages.value = [];
+};
 
 // 组件挂载（开发人自动从 userStore.userInfo?.username 获取，无需手动操作）
 onMounted(() => {
   // no-op
-})
+});
 
 // 监听props.draft变化，初始化表单数据
-watch(() => props.draft, (newDraft) => {
-  if (newDraft) {
-    // 获取参考图数据，同时检查reference_images和referenceImages字段
-    const referenceImages = [...(newDraft.reference_images || newDraft.referenceImages || [])]
-    
-    Object.assign(formData, {
-      element: newDraft.element || '',
-      sku: newDraft.sku,
-      batch: newDraft.batch,
-      developer: newDraft.developer,
-      carrier: newDraft.carrier || '',
-      modificationRequirement: newDraft.modificationRequirement || '',
-      infringementLabel: newDraft.infringementLabel || '',
-      createTime: newDraft.createTime,
-      updateTime: newDraft.updateTime,
-      images: [...newDraft.images],
-      reference_images: referenceImages,
-      status: newDraft.status
-    })
-    
-    // 初始化文件列表
-    fileList.value = newDraft.images.map((image, index) => ({
-      name: `image_${index}.jpg`,
-      url: ImageUrlUtil.getThumbnailUrlSync(image)
-    }))
-    
-    // 初始化参考图文件列表
-    referenceFileList.value = referenceImages.map((image, index) => ({
-      name: `reference_image_${index}.jpg`,
-      url: ImageUrlUtil.getThumbnailUrlSync(image)
-    }))
+watch(
+  () => props.draft,
+  (newDraft) => {
+    if (newDraft) {
+      // 获取参考图数据，同时检查reference_images和referenceImages字段
+      const referenceImages = [
+        ...(newDraft.reference_images || newDraft.referenceImages || []),
+      ];
 
-    // 保存原始图片快照，用于判断用户是否修改了图片
-    originalImages.value = [...newDraft.images]
-    originalReferenceImages.value = [...referenceImages]
-  } else {
-    resetForm()
-  }
-}, { immediate: true })
+      Object.assign(formData, {
+        element: newDraft.element || "",
+        sku: newDraft.sku,
+        batch: newDraft.batch,
+        developer: newDraft.developer,
+        carrier: newDraft.carrier || "",
+        modificationRequirement: newDraft.modificationRequirement || "",
+        infringementLabel: newDraft.infringementLabel || "",
+        createTime: newDraft.createTime,
+        updateTime: newDraft.updateTime,
+        images: [...newDraft.images],
+        reference_images: referenceImages,
+        status: newDraft.status,
+      });
+
+      // 初始化文件列表
+      fileList.value = newDraft.images.map((image, index) => ({
+        name: `image_${index}.jpg`,
+        url: ImageUrlUtil.getThumbnailUrlSync(image),
+      }));
+
+      // 初始化参考图文件列表
+      referenceFileList.value = referenceImages.map((image, index) => ({
+        name: `reference_image_${index}.jpg`,
+        url: ImageUrlUtil.getThumbnailUrlSync(image),
+      }));
+
+      // 保存原始图片快照，用于判断用户是否修改了图片
+      originalImages.value = [...newDraft.images];
+      originalReferenceImages.value = [...referenceImages];
+    } else {
+      resetForm();
+    }
+  },
+  { immediate: true },
+);
 
 const handleClose = (): void => {
-  dialogVisible.value = false
-  resetForm()
+  dialogVisible.value = false;
+  resetForm();
   // 清除表单验证状态，确保下次打开时没有残留的错误提示
   if (formRef.value) {
-    formRef.value.clearValidate()
+    formRef.value.clearValidate();
   }
-}
+};
 
 // 处理日期变化
 const handleDateChange = (dateValue: string): void => {
   if (dateValue) {
     // 无论批次字段是否为空，都自动填充为日期值
-    formData.batch = dateValue
+    formData.batch = dateValue;
   }
-}
+};
+
+// 开发人选择相关方法
+const handleDeveloperSelect = (): void => {
+  developerDialogVisible.value = true;
+  selectedDeveloper.value = formData.developer;
+};
+
+const handleDeveloperDialogClose = (): void => {
+  developerDialogVisible.value = false;
+  selectedDeveloper.value = "";
+};
+
+const selectDeveloper = (developer: string): void => {
+  selectedDeveloper.value = developer;
+};
+
+const confirmDeveloperSelection = (): void => {
+  formData.developer = selectedDeveloper.value;
+  developerDialogVisible.value = false;
+};
 
 // 载体选择相关方法
 const handleCarrierSelect = (): void => {
-  carrierDialogVisible.value = true
-  selectedCarrier.value = formData.carrier
-}
+  carrierDialogVisible.value = true;
+  selectedCarrier.value = formData.carrier;
+};
 
 const handleCarrierDialogClose = (): void => {
-  carrierDialogVisible.value = false
-  selectedCarrier.value = ''
-}
+  carrierDialogVisible.value = false;
+  selectedCarrier.value = "";
+};
 
-const selectCarrier = (carrier: {value: string, name: string, description: string}): void => {
-  selectedCarrier.value = carrier.value
-}
+const selectCarrier = (carrier: {
+  value: string;
+  name: string;
+  description: string;
+}): void => {
+  selectedCarrier.value = carrier.value;
+};
 
 const confirmCarrierSelection = (): void => {
-  const selectedCarrierObj = carrierList.value.find(item => item.value === selectedCarrier.value)
+  const selectedCarrierObj = carrierList.value.find(
+    (item) => item.value === selectedCarrier.value,
+  );
   if (selectedCarrierObj) {
-    formData.carrier = selectedCarrierObj.name
+    formData.carrier = selectedCarrierObj.name;
   }
-  carrierDialogVisible.value = false
-}
+  carrierDialogVisible.value = false;
+};
 
 // 监听对话框关闭事件，确保在对话框关闭时清除验证状态
 watch(dialogVisible, async (newVal) => {
   if (!newVal) {
     if (formRef.value) {
       // 对话框关闭时清除验证状态
-      formRef.value.clearValidate()
+      formRef.value.clearValidate();
     }
   } else {
     // 对话框打开时，重新初始化表单数据，无论props.draft是否变化
     if (props.draft) {
       // 获取参考图数据，同时检查reference_images和referenceImages字段
-      const referenceImages = [...(props.draft.reference_images || props.draft.referenceImages || [])]
-      
+      const referenceImages = [
+        ...(props.draft.reference_images || props.draft.referenceImages || []),
+      ];
+
       Object.assign(formData, {
-        element: props.draft.element || '',
+        element: props.draft.element || "",
         sku: props.draft.sku,
         batch: props.draft.batch,
         developer: props.draft.developer,
-        carrier: props.draft.carrier || '',
-        modificationRequirement: props.draft.modificationRequirement || '',
-        infringementLabel: props.draft.infringementLabel || '',
+        carrier: props.draft.carrier || "",
+        modificationRequirement: props.draft.modificationRequirement || "",
+        infringementLabel: props.draft.infringementLabel || "",
         createTime: props.draft.createTime,
         updateTime: props.draft.updateTime,
         images: [...props.draft.images],
         reference_images: referenceImages,
-        status: props.draft.status
-      })
-      
-      // 重新初始化文件列表
-        fileList.value = props.draft.images.map((image, index) => ({
-          name: `image_${index}.jpg`,
-          url: ImageUrlUtil.getThumbnailUrlSync(image)
-        }))
-        
-        // 重新初始化参考图文件列表
-        referenceFileList.value = referenceImages.map((image, index) => ({
-          name: `reference_image_${index}.jpg`,
-          url: ImageUrlUtil.getThumbnailUrlSync(image)
-        }))
+        status: props.draft.status,
+      });
 
-        // 保存原始图片快照
-        originalImages.value = [...props.draft.images]
-        originalReferenceImages.value = [...referenceImages]
+      // 重新初始化文件列表
+      fileList.value = props.draft.images.map((image, index) => ({
+        name: `image_${index}.jpg`,
+        url: ImageUrlUtil.getThumbnailUrlSync(image),
+      }));
+
+      // 重新初始化参考图文件列表
+      referenceFileList.value = referenceImages.map((image, index) => ({
+        name: `reference_image_${index}.jpg`,
+        url: ImageUrlUtil.getThumbnailUrlSync(image),
+      }));
+
+      // 保存原始图片快照
+      originalImages.value = [...props.draft.images];
+      originalReferenceImages.value = [...referenceImages];
     } else {
-      // 新增模式，手动获取用户信息并自动填写开发人
-      console.log('[DraftDialog] 对话框打开，手动获取用户信息并执行自动填写')
-      // no-op
+      // 新增模式：默认填当前登录用户为开发人（可自由修改）
+      if (!formData.developer && userStore.userInfo?.username) {
+        formData.developer = userStore.userInfo.username;
+      }
     }
   }
-})
+});
 
 const handleSubmit = async (): Promise<void> => {
-  if (!formRef.value) return
+  if (!formRef.value) return;
 
   try {
     // 手动验证必填字段
-    const requiredFields = [
-      { name: 'sku', value: formData.sku, label: 'SKU' }
-    ]
+    const requiredFields = [{ name: "sku", value: formData.sku, label: "SKU" }];
 
     // 检查必填字段
-    const missingFields = requiredFields.filter(field => !field.value)
+    const missingFields = requiredFields.filter((field) => !field.value);
     if (missingFields.length > 0) {
-      const missingLabels = missingFields.map(field => field.label).join('、')
+      const missingLabels = missingFields
+        .map((field) => field.label)
+        .join("、");
       ElMessage.error({
         message: `请填写以下必填字段：${missingLabels}`,
-        duration: 5000
-      })
-      return
+        duration: 5000,
+      });
+      return;
     }
 
-    // 开发人非空校验：autoDeveloper 在冷启动 userInfo 未加载时可能为空字符串
-    if (!autoDeveloper.value) {
+    // 开发人非空校验（表单虽有 required 规则，这里再守一道兜底）
+    if (!formData.developer) {
       ElMessage.error({
-        message: '当前登录态丢失，请刷新页面重新登录后再提交',
-        duration: 5000
-      })
-      return
+        message: "请填写开发人",
+        duration: 5000,
+      });
+      return;
     }
 
-    submitting.value = true
+    submitting.value = true;
 
     // 判断图片是否被用户修改（增/删/新上传）
-    const imagesCountChanged = fileList.value.length !== originalImages.value.length
-    const refImagesCountChanged = referenceFileList.value.length !== originalReferenceImages.value.length
-    const hasNewUploads = fileList.value.some(f => f.url && f.url.startsWith('blob:'))
-      || referenceFileList.value.some(f => f.url && f.url.startsWith('blob:'))
-    const imagesModified = imagesCountChanged || refImagesCountChanged || hasNewUploads
+    const imagesCountChanged =
+      fileList.value.length !== originalImages.value.length;
+    const refImagesCountChanged =
+      referenceFileList.value.length !== originalReferenceImages.value.length;
+    const hasNewUploads =
+      fileList.value.some((f) => f.url && f.url.startsWith("blob:")) ||
+      referenceFileList.value.some((f) => f.url && f.url.startsWith("blob:"));
+    const imagesModified =
+      imagesCountChanged || refImagesCountChanged || hasNewUploads;
 
     // 只在图片有变更时才处理上传
     if (imagesModified || !props.draft) {
-      await handleImageUpload()
-      await handleReferenceImageUpload()
+      await handleImageUpload();
+      await handleReferenceImageUpload();
     }
 
     // 准备API请求数据
     const apiData: Record<string, any> = {
       sku: formData.sku,
       batch: formData.batch,
-      developer: autoDeveloper.value,
+      developer: formData.developer,
       carrier: formData.carrier,
       element: formData.element,
       modification_requirement: formData.modificationRequirement,
       infringement_label: formData.infringementLabel,
-      status: formData.status
-    }
+      status: formData.status,
+    };
 
     // 只在图片变更时才发送 images/reference_images 字段
     if (imagesModified || !props.draft) {
-      apiData.images = formData.images
-      apiData.reference_images = formData.reference_images
+      apiData.images = formData.images;
+      apiData.reference_images = formData.reference_images;
     }
 
     // 调用真实API
-    let response
+    let response;
     if (props.draft) {
       // 编辑模式
-      response = await finalDraftApi.update(props.draft.sku, apiData)
+      response = await finalDraftApi.update(props.draft.sku, apiData);
     } else {
       // 新增模式
-      response = await finalDraftApi.create(apiData)
+      response = await finalDraftApi.create(apiData);
     }
 
     if (response.code === 200) {
       ElMessage.success({
-        message: props.draft ? '编辑成功' : '新增成功',
-        duration: 2000
-      })
-      emit('success')
-      handleClose()
+        message: props.draft ? "编辑成功" : "新增成功",
+        duration: 2000,
+      });
+      emit("success");
+      handleClose();
     } else {
       ElMessage.error({
-        message: response.message || '操作失败',
-        duration: 5000
-      })
+        message: response.message || "操作失败",
+        duration: 5000,
+      });
     }
   } catch (error) {
-    console.error('操作失败:', error)
+    console.error("操作失败:", error);
     ElMessage.error({
-      message: '操作失败',
-      duration: 5000
-    })
+      message: "操作失败",
+      duration: 5000,
+    });
   } finally {
-    submitting.value = false
+    submitting.value = false;
   }
-}
+};
 
 const handleImageUpload = async (): Promise<void> => {
   // 实现真正的图片上传到腾讯云COS
-  const newImages: string[] = []
-  const filesToUpload: File[] = []
-  const blobUrlFiles: { file: UploadUserFile; index: number }[] = []
-  
+  const newImages: string[] = [];
+  const filesToUpload: File[] = [];
+  const blobUrlFiles: { file: UploadUserFile; index: number }[] = [];
+
   // 保存原始fileList，用于上传失败时回滚
-  const originalFileList = [...fileList.value]
-  
+  const originalFileList = [...fileList.value];
+
   // 分离已上传的图片和待上传的文件
   for (const [index, file] of fileList.value.entries()) {
     if (file.url) {
       // 检查是否是本地预览URL，如果是则需要上传，否则直接使用
-      if (file.url.startsWith('blob:')) {
+      if (file.url.startsWith("blob:")) {
         if (file.raw) {
-          filesToUpload.push(file.raw)
-          blobUrlFiles.push({ file, index })
+          filesToUpload.push(file.raw);
+          blobUrlFiles.push({ file, index });
         }
       } else {
         // 已经是有效的URL，直接使用
         // 检查是否是代理URL，如果是则转换回原始COS URL
-        if (file.url.includes('/api/v1/image-proxy/proxy')) {
+        if (file.url.includes("/api/v1/image-proxy/proxy")) {
           // 从代理URL中提取object_key并构造原始COS URL
-          const urlParams = new URLSearchParams(file.url.split('?')[1] || '')
-          const objectKey = urlParams.get('object_key')
+          const urlParams = new URLSearchParams(file.url.split("?")[1] || "");
+          const objectKey = urlParams.get("object_key");
           if (objectKey) {
-            const originalCosUrl = `https://sijuelishi-1328246743.cos.ap-guangzhou.myqcloud.com/${decodeURIComponent(objectKey)}`
-            newImages.push(originalCosUrl)
+            const originalCosUrl = `https://sijuelishi-1328246743.cos.ap-guangzhou.myqcloud.com/${decodeURIComponent(objectKey)}`;
+            newImages.push(originalCosUrl);
           } else {
-            newImages.push(file.url)
+            newImages.push(file.url);
           }
         } else {
-          newImages.push(file.url)
+          newImages.push(file.url);
         }
       }
     } else if (file.raw) {
       // 待上传的文件
-      filesToUpload.push(file.raw)
-      blobUrlFiles.push({ file, index })
+      filesToUpload.push(file.raw);
+      blobUrlFiles.push({ file, index });
     }
   }
-  
+
   // 上传待上传的文件
   if (filesToUpload.length > 0) {
     try {
       // 调用批量上传API，根据category属性使用正确的分类参数
-      const uploadCategory = props.category || 'final'
-      ElMessage.info({ message: '开始上传图片，请稍候...', duration: 2000 })
-      
-      const response = await imageApi.batchUpload(filesToUpload, uploadCategory, formData.sku)
-      
+      const uploadCategory = props.category || "final";
+      ElMessage.info({ message: "开始上传图片，请稍候...", duration: 2000 });
+
+      const response = await imageApi.batchUpload(
+        filesToUpload,
+        uploadCategory,
+        formData.sku,
+      );
+
       if (response.code === 200) {
         // 处理上传成功的图片URL
-        let uploadedUrls: string[] = []
-        const data = response.data as any
+        let uploadedUrls: string[] = [];
+        const data = response.data as any;
         if (Array.isArray(data)) {
           // 上传成功，添加返回的URL
-          uploadedUrls = data.map(item => {
-            const url = (item as any).filepath || ''
-            return url
-          })
+          uploadedUrls = data.map((item) => {
+            const url = (item as any).filepath || "";
+            return url;
+          });
         } else if (data?.success) {
           // 批量上传返回的是成功和失败的结果
-          uploadedUrls = data.success.map(item => {
-            const url = (item as any).cos_url || (item as any).url || ''
-            return url
-          })
-          
+          uploadedUrls = data.success.map((item) => {
+            const url = (item as any).cos_url || (item as any).url || "";
+            return url;
+          });
+
           // 检查是否有上传失败的文件
-          if (data.failed && Array.isArray(data.failed) && data.failed.length > 0) {
-            const failedCount = data.failed.length
-            ElMessage.warning(`部分图片上传失败: ${failedCount} 个文件上传失败`)
+          if (
+            data.failed &&
+            Array.isArray(data.failed) &&
+            data.failed.length > 0
+          ) {
+            const failedCount = data.failed.length;
+            ElMessage.warning(
+              `部分图片上传失败: ${failedCount} 个文件上传失败`,
+            );
           }
         } else if (data?.url) {
           // 单文件上传返回格式
-          const url = data.url
-          uploadedUrls = [url]
+          const url = data.url;
+          uploadedUrls = [url];
         }
-        
+
         // 检查是否有成功上传的文件
         if (uploadedUrls.length === 0) {
-          throw new Error('图片上传失败: 没有文件上传成功')
+          throw new Error("图片上传失败: 没有文件上传成功");
         }
-        
+
         // 更新newImages数组
-        newImages.push(...uploadedUrls)
-        
+        newImages.push(...uploadedUrls);
+
         // 更新fileList中的文件对象，将blob URL替换为真实URL
         for (let i = 0; i < uploadedUrls.length; i++) {
           if (i < blobUrlFiles.length) {
-            const { index } = blobUrlFiles[i]
+            const { index } = blobUrlFiles[i];
             // 为前端显示创建代理URL
-            const proxyUrl = ImageUrlUtil.getThumbnailUrlSync(uploadedUrls[i])
-            fileList.value[index].url = proxyUrl
+            const proxyUrl = ImageUrlUtil.getThumbnailUrlSync(uploadedUrls[i]);
+            fileList.value[index].url = proxyUrl;
           }
         }
-        
-        ElMessage.success('图片上传成功')
+
+        ElMessage.success("图片上传成功");
       } else {
         // 上传失败，回滚fileList
-        fileList.value = originalFileList
-        const errorMsg = response.message || '图片上传失败'
-        ElMessage.error({ message: `图片上传失败: ${errorMsg}`, duration: 5000 })
-        throw new Error(`图片上传失败: ${errorMsg}`)
+        fileList.value = originalFileList;
+        const errorMsg = response.message || "图片上传失败";
+        ElMessage.error({
+          message: `图片上传失败: ${errorMsg}`,
+          duration: 5000,
+        });
+        throw new Error(`图片上传失败: ${errorMsg}`);
       }
     } catch (error) {
       // 上传失败，回滚fileList
-      fileList.value = originalFileList
-      
-      const errorMsg = error instanceof Error ? error.message : '图片上传失败'
-      console.error('图片上传失败:', error)
-      ElMessage.error({ message: `图片上传失败: ${errorMsg}`, duration: 5000 })
-      throw error
+      fileList.value = originalFileList;
+
+      const errorMsg = error instanceof Error ? error.message : "图片上传失败";
+      console.error("图片上传失败:", error);
+      ElMessage.error({ message: `图片上传失败: ${errorMsg}`, duration: 5000 });
+      throw error;
     }
   }
-  
+
   // 只有在上传成功时才更新formData
-  formData.images = newImages
-}
+  formData.images = newImages;
+};
 
 const handleReferenceImageUpload = async (): Promise<void> => {
   // 实现效果图上传到腾讯云COS
-  const newReferenceImages: string[] = []
-  const filesToUpload: File[] = []
-  const blobUrlFiles: { file: UploadUserFile; index: number }[] = []
-  
+  const newReferenceImages: string[] = [];
+  const filesToUpload: File[] = [];
+  const blobUrlFiles: { file: UploadUserFile; index: number }[] = [];
+
   // 保存原始referenceFileList，用于上传失败时回滚
-  const originalReferenceFileList = [...referenceFileList.value]
-  
+  const originalReferenceFileList = [...referenceFileList.value];
+
   // 分离已上传的图片和待上传的文件
   for (const [index, file] of referenceFileList.value.entries()) {
     if (file.url) {
       // 检查是否是本地预览URL，如果是则需要上传，否则直接使用
-      if (file.url.startsWith('blob:')) {
+      if (file.url.startsWith("blob:")) {
         if (file.raw) {
-          filesToUpload.push(file.raw)
-          blobUrlFiles.push({ file, index })
+          filesToUpload.push(file.raw);
+          blobUrlFiles.push({ file, index });
         }
       } else {
         // 已经是有效的URL，直接使用
         // 检查是否是代理URL，如果是则转换回原始COS URL
-        if (file.url.includes('/api/v1/image-proxy/proxy')) {
+        if (file.url.includes("/api/v1/image-proxy/proxy")) {
           // 从代理URL中提取object_key并构造原始COS URL
-          const urlParams = new URLSearchParams(file.url.split('?')[1] || '')
-          const objectKey = urlParams.get('object_key')
+          const urlParams = new URLSearchParams(file.url.split("?")[1] || "");
+          const objectKey = urlParams.get("object_key");
           if (objectKey) {
-            const originalCosUrl = `https://sijuelishi-1328246743.cos.ap-guangzhou.myqcloud.com/${decodeURIComponent(objectKey)}`
-            newReferenceImages.push(originalCosUrl)
+            const originalCosUrl = `https://sijuelishi-1328246743.cos.ap-guangzhou.myqcloud.com/${decodeURIComponent(objectKey)}`;
+            newReferenceImages.push(originalCosUrl);
           } else {
-            newReferenceImages.push(file.url)
+            newReferenceImages.push(file.url);
           }
         } else {
-          newReferenceImages.push(file.url)
+          newReferenceImages.push(file.url);
         }
       }
     } else if (file.raw) {
       // 待上传的文件
-      filesToUpload.push(file.raw)
-      blobUrlFiles.push({ file, index })
+      filesToUpload.push(file.raw);
+      blobUrlFiles.push({ file, index });
     }
   }
-  
+
   // 上传待上传的文件
   if (filesToUpload.length > 0) {
     try {
       // 调用批量上传API，指定category为'reference'，表示这是效果图
-      ElMessage.info({ message: '开始上传效果图，请稍候...', duration: 2000 })
-      
-      const response = await imageApi.batchUpload(filesToUpload, 'reference', formData.sku)
-      
+      ElMessage.info({ message: "开始上传效果图，请稍候...", duration: 2000 });
+
+      const response = await imageApi.batchUpload(
+        filesToUpload,
+        "reference",
+        formData.sku,
+      );
+
       if (response.code === 200) {
         // 处理上传成功的图片URL
-        let uploadedUrls: string[] = []
-        const data = response.data as any
+        let uploadedUrls: string[] = [];
+        const data = response.data as any;
         if (Array.isArray(data)) {
           // 上传成功，添加返回的URL
-          uploadedUrls = data.map(item => {
-            const url = (item as any).filepath || ''
-            return url
-          })
+          uploadedUrls = data.map((item) => {
+            const url = (item as any).filepath || "";
+            return url;
+          });
         } else if (data?.success) {
           // 批量上传返回的是成功和失败的结果
-          uploadedUrls = data.success.map(item => {
-            const url = (item as any).cos_url || (item as any).url || ''
-            return url
-          })
-          
+          uploadedUrls = data.success.map((item) => {
+            const url = (item as any).cos_url || (item as any).url || "";
+            return url;
+          });
+
           // 检查是否有上传失败的文件
-          if (data.failed && Array.isArray(data.failed) && data.failed.length > 0) {
-            const failedCount = data.failed.length
-            ElMessage.warning(`部分效果图上传失败: ${failedCount} 个文件上传失败`)
+          if (
+            data.failed &&
+            Array.isArray(data.failed) &&
+            data.failed.length > 0
+          ) {
+            const failedCount = data.failed.length;
+            ElMessage.warning(
+              `部分效果图上传失败: ${failedCount} 个文件上传失败`,
+            );
           }
         } else if (data?.url) {
           // 单文件上传返回格式
-          const url = data.url
-          uploadedUrls = [url]
+          const url = data.url;
+          uploadedUrls = [url];
         }
-        
+
         // 检查是否有成功上传的文件
         if (uploadedUrls.length === 0) {
-          throw new Error('效果图上传失败: 没有文件上传成功')
+          throw new Error("效果图上传失败: 没有文件上传成功");
         }
-        
+
         // 更新newReferenceImages数组
-        newReferenceImages.push(...uploadedUrls)
-        
+        newReferenceImages.push(...uploadedUrls);
+
         // 更新referenceFileList中的文件对象，将blob URL替换为真实URL并转换为代理URL用于显示
         for (let i = 0; i < uploadedUrls.length; i++) {
           if (i < blobUrlFiles.length) {
-            const { index } = blobUrlFiles[i]
-            const uploadedUrl = uploadedUrls[i]
+            const { index } = blobUrlFiles[i];
+            const uploadedUrl = uploadedUrls[i];
             // 为前端显示创建代理URL
-            const proxyUrl = ImageUrlUtil.getThumbnailUrlSync(uploadedUrl)
-            referenceFileList.value[index].url = proxyUrl
+            const proxyUrl = ImageUrlUtil.getThumbnailUrlSync(uploadedUrl);
+            referenceFileList.value[index].url = proxyUrl;
           }
         }
-        
-        ElMessage.success('效果图上传成功')
+
+        ElMessage.success("效果图上传成功");
       } else {
         // 上传失败，回滚referenceFileList
-        referenceFileList.value = originalReferenceFileList
-        const errorMsg = response.message || '效果图上传失败'
-        ElMessage.error({ message: `效果图上传失败: ${errorMsg}`, duration: 5000 })
-        throw new Error(`效果图上传失败: ${errorMsg}`)
+        referenceFileList.value = originalReferenceFileList;
+        const errorMsg = response.message || "效果图上传失败";
+        ElMessage.error({
+          message: `效果图上传失败: ${errorMsg}`,
+          duration: 5000,
+        });
+        throw new Error(`效果图上传失败: ${errorMsg}`);
       }
     } catch (error) {
       // 上传失败，回滚referenceFileList
-      referenceFileList.value = originalReferenceFileList
-      
-      const errorMsg = error instanceof Error ? error.message : '效果图上传失败'
-      console.error('效果图上传失败:', error)
-      ElMessage.error({ message: `效果图上传失败: ${errorMsg}`, duration: 5000 })
-      throw error
+      referenceFileList.value = originalReferenceFileList;
+
+      const errorMsg =
+        error instanceof Error ? error.message : "效果图上传失败";
+      console.error("效果图上传失败:", error);
+      ElMessage.error({
+        message: `效果图上传失败: ${errorMsg}`,
+        duration: 5000,
+      });
+      throw error;
     }
   }
-  
-  // 只有在上传成功时才更新formData
-  formData.reference_images = newReferenceImages
-}
 
-const handleExceed: UploadProps['onExceed'] = () => {
-  ElMessage.warning('最多只能上传10张图片')
-}
+  // 只有在上传成功时才更新formData
+  formData.reference_images = newReferenceImages;
+};
+
+const handleExceed: UploadProps["onExceed"] = () => {
+  ElMessage.warning("最多只能上传10张图片");
+};
 
 // 处理fileList更新事件
 const handleFileListUpdate = (newFileList: UploadUserFile[]) => {
-  console.log('File list updated:', newFileList)
-  fileList.value = newFileList
-}
+  console.log("File list updated:", newFileList);
+  fileList.value = newFileList;
+};
 
-const handleChange: UploadProps['onChange'] = (file, files) => {
+const handleChange: UploadProps["onChange"] = (file, files) => {
   // 简化事件处理，让Element Plus管理文件列表
   // 只在文件状态变化时进行必要处理
-  if (file.status === 'ready' && file.raw) {
+  if (file.status === "ready" && file.raw) {
     // 验证图片类型
-    const isValid = validateImageType(file.raw)
+    const isValid = validateImageType(file.raw);
     if (!isValid) {
       // 验证失败，从文件列表中移除
-      fileList.value = files.filter(item => item.uid !== file.uid)
+      fileList.value = files.filter((item) => item.uid !== file.uid);
     }
   }
-}
+};
 
-const handleRemove: UploadProps['onRemove'] = (file, files) => {
+const handleRemove: UploadProps["onRemove"] = (file, files) => {
   // 使用Element Plus提供的最新文件列表，确保状态一致
-  fileList.value = [...files]
-}
+  fileList.value = [...files];
+};
 
 // 参考图相关处理函数
 const handleReferenceFileListUpdate = (newFileList: UploadUserFile[]) => {
-  console.log('Reference file list updated:', newFileList)
-  referenceFileList.value = newFileList
-}
+  console.log("Reference file list updated:", newFileList);
+  referenceFileList.value = newFileList;
+};
 
-const handleReferenceChange: UploadProps['onChange'] = (file, files) => {
+const handleReferenceChange: UploadProps["onChange"] = (file, files) => {
   // 简化事件处理，让Element Plus管理文件列表
   // 只在文件状态变化时进行必要处理
-  if (file.status === 'ready' && file.raw) {
+  if (file.status === "ready" && file.raw) {
     // 验证图片类型
-    const isValid = validateImageType(file.raw)
+    const isValid = validateImageType(file.raw);
     if (!isValid) {
       // 验证失败，从文件列表中移除
-      referenceFileList.value = files.filter(item => item.uid !== file.uid)
+      referenceFileList.value = files.filter((item) => item.uid !== file.uid);
     }
   }
-}
+};
 
-const handleReferenceRemove: UploadProps['onRemove'] = (file, files) => {
+const handleReferenceRemove: UploadProps["onRemove"] = (file, files) => {
   // 使用Element Plus提供的最新文件列表，确保状态一致
-  referenceFileList.value = [...files]
-}
+  referenceFileList.value = [...files];
+};
 
 // 验证图片类型的函数，供点击上传和拖拽上传共同使用
 // 只验证图片类型，不设置大小限制
 const validateImageType = (file: File): boolean => {
-  const isJPGOrPNG = file.type === 'image/jpeg' || file.type === 'image/png'
-  
+  const isJPGOrPNG = file.type === "image/jpeg" || file.type === "image/png";
+
   if (!isJPGOrPNG) {
-    ElMessage.error('上传图片只能是 JPG/PNG 格式!')
-    return false
+    ElMessage.error("上传图片只能是 JPG/PNG 格式!");
+    return false;
   }
-  return true
-}
+  return true;
+};
 
-const beforeUpload: UploadProps['beforeUpload'] = (file) => {
-  return validateImageType(file)
-}
+const beforeUpload: UploadProps["beforeUpload"] = (file) => {
+  return validateImageType(file);
+};
 
-const handleUpload: UploadProps['httpRequest'] = async (options) => {
+const handleUpload: UploadProps["httpRequest"] = async (options) => {
   // 自定义上传逻辑
-  const { file, onSuccess, onError } = options
-  
+  const { file, onSuccess, onError } = options;
+
   try {
     // 模拟上传过程
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
     const result = {
       url: URL.createObjectURL(file),
-      name: file.name
-    }
-    
-    onSuccess(result)
+      name: file.name,
+    };
+
+    onSuccess(result);
   } catch (error) {
-    onError({ 
-      name: 'UploadError',
-      status: 500, 
-      method: 'POST', 
-      url: '', 
-      message: error instanceof Error ? error.message : '上传失败' 
-    })
+    onError({
+      name: "UploadError",
+      status: 500,
+      method: "POST",
+      url: "",
+      message: error instanceof Error ? error.message : "上传失败",
+    });
   }
-}
+};
 
 const removeImage = (index: number): void => {
-  formData.images.splice(index, 1)
-  fileList.value.splice(index, 1)
-}
+  formData.images.splice(index, 1);
+  fileList.value.splice(index, 1);
+};
 
 // 图片预览相关方法
 const handlePreview = (file: UploadUserFile): void => {
   // 设置预览图片URL
-  previewImage.value = file.url || ''
+  previewImage.value = file.url || "";
   // 设置预览图片列表（只包含当前图片）
-  previewImageList.value = [file.url || '']
+  previewImageList.value = [file.url || ""];
   // 显示预览对话框
-  previewVisible.value = true
-}
+  previewVisible.value = true;
+};
 
 const handlePreviewClose = (): void => {
   // 关闭预览对话框
-  previewVisible.value = false
+  previewVisible.value = false;
   // 清空预览图片URL
-  previewImage.value = ''
+  previewImage.value = "";
   // 清空预览图片列表
-  previewImageList.value = []
+  previewImageList.value = [];
   // 重置缩放和位移
-  resetZoom()
-}
+  resetZoom();
+};
 
 // 重置缩放和位移（保留用于兼容性）
 const resetZoom = (): void => {
-  scale.value = 1
-  translateX.value = 0
-  translateY.value = 0
-}
+  scale.value = 1;
+  translateX.value = 0;
+  translateY.value = 0;
+};
 </script>
 
 <style scoped lang="scss">
 .upload-area {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 15px 0;
+
+  /* 确保已上传文件列表正常显示 */
+  :deep(.el-upload-list--picture-card) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    padding: 0;
+    margin: 0;
+  }
+
+  /* 调整上传组件样式，确保整洁 */
+  :deep(.el-upload--picture-card) {
+    /* 移除默认的margin，确保紧凑显示 */
+    margin: 0;
+    padding: 0;
+    display: inline-block;
+    position: relative;
+  }
+
+  /* 确保图片和上传按钮显示正常 */
+  :deep(.el-upload-list__item) {
+    margin: 0;
+    position: relative;
+    overflow: hidden;
+    width: 150px;
+    height: 150px;
+    border-radius: 8px;
+    border: 1px solid #ebeef5;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    }
+  }
+
+  /* 确保图片缩略图显示 */
+  :deep(.el-upload-list__item-thumbnail) {
     width: 100%;
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 15px 0;
-    
-    /* 确保已上传文件列表正常显示 */
-    :deep(.el-upload-list--picture-card) {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 20px;
-      padding: 0;
-      margin: 0;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    border-radius: 8px;
+  }
+
+  /* 确保上传的图片显示正常 */
+  :deep(.el-upload-list__item img) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 8px;
+  }
+
+  /* 调整图片项操作按钮 */
+  :deep(.el-upload-list__item-actions) {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+    color: #fff;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    padding: 12px 0;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-radius: 0 0 8px 8px;
+  }
+
+  /* 鼠标悬停时显示操作按钮 */
+  :deep(.el-upload-list__item:hover .el-upload-list__item-actions) {
+    opacity: 1;
+  }
+
+  /* 调整操作图标大小 */
+  :deep(.el-icon) {
+    font-size: 18px;
+    cursor: pointer;
+
+    &:hover {
+      color: #409eff;
     }
-    
-    /* 调整上传组件样式，确保整洁 */
-    :deep(.el-upload--picture-card) {
-      /* 移除默认的margin，确保紧凑显示 */
-      margin: 0;
-      padding: 0;
-      display: inline-block;
-      position: relative;
-    }
-    
-    /* 确保图片和上传按钮显示正常 */
+  }
+
+  /* 响应式设计 */
+  @media (max-width: 900px) {
+    max-width: 100%;
+
     :deep(.el-upload-list__item) {
-      margin: 0;
-      position: relative;
-      overflow: hidden;
-      width: 150px;
-      height: 150px;
-      border-radius: 8px;
-      border: 1px solid #ebeef5;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-      transition: all 0.3s ease;
-      
-      &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-      }
+      width: 130px;
+      height: 130px;
     }
-    
-    /* 确保图片缩略图显示 */
-    :deep(.el-upload-list__item-thumbnail) {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-      border-radius: 8px;
+
+    :deep(.el-upload-list--picture-card) {
+      gap: 16px;
     }
-    
-    /* 确保上传的图片显示正常 */
-    :deep(.el-upload-list__item img) {
-      display: block;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      border-radius: 8px;
+  }
+
+  @media (max-width: 768px) {
+    :deep(.el-upload-list__item) {
+      width: 110px;
+      height: 110px;
     }
-    
-    /* 调整图片项操作按钮 */
-    :deep(.el-upload-list__item-actions) {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
-      color: #fff;
-      display: flex;
-      justify-content: center;
+
+    :deep(.el-upload-list--picture-card) {
+      gap: 14px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    :deep(.el-upload-list__item) {
+      width: 100px;
+      height: 100px;
+    }
+
+    :deep(.el-upload-list--picture-card) {
       gap: 12px;
-      padding: 12px 0;
-      opacity: 0;
-      transition: opacity 0.3s ease;
-      border-radius: 0 0 8px 8px;
     }
-    
-    /* 鼠标悬停时显示操作按钮 */
-    :deep(.el-upload-list__item:hover .el-upload-list__item-actions) {
-      opacity: 1;
+  }
+
+  @media (max-width: 360px) {
+    :deep(.el-upload-list__item) {
+      width: 90px;
+      height: 90px;
     }
-    
-    /* 调整操作图标大小 */
-    :deep(.el-icon) {
+
+    :deep(.el-upload-list--picture-card) {
+      gap: 10px;
+    }
+  }
+}
+
+/* 调整上传组件的提示文本样式 */
+:deep(.upload-component .el-upload__text) {
+  display: none;
+}
+
+:deep(.upload-component .el-upload__tip) {
+  display: none;
+}
+
+/* 开发人选择相关样式 */
+.developer-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .developer-input {
+    flex: 1;
+  }
+
+  .developer-select-btn {
+    flex-shrink: 0;
+  }
+}
+
+.developer-list {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+
+  .developer-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background-color: #fafafa;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+
+    &:hover {
+      border-color: #409eff;
+      background-color: #ecf5ff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    &.selected {
+      border-color: #409eff;
+      background-color: #ecf5ff;
+      box-shadow: 0 4px 12px rgba(64, 158, 255, 0.15);
+    }
+
+    .developer-info {
+      display: flex;
+      align-items: center;
+
+      .developer-name {
+        font-size: 15px;
+        font-weight: 600;
+        color: #303133;
+      }
+    }
+
+    .check-icon {
+      color: #409eff;
       font-size: 18px;
-      cursor: pointer;
-      
-      &:hover {
-        color: #409eff;
-      }
-    }
-    
-    /* 响应式设计 */
-    @media (max-width: 900px) {
-      max-width: 100%;
-      
-      :deep(.el-upload-list__item) {
-        width: 130px;
-        height: 130px;
-      }
-      
-      :deep(.el-upload-list--picture-card) {
-        gap: 16px;
-      }
-    }
-    
-    @media (max-width: 768px) {
-      :deep(.el-upload-list__item) {
-        width: 110px;
-        height: 110px;
-      }
-      
-      :deep(.el-upload-list--picture-card) {
-        gap: 14px;
-      }
-    }
-    
-    @media (max-width: 480px) {
-      :deep(.el-upload-list__item) {
-        width: 100px;
-        height: 100px;
-      }
-      
-      :deep(.el-upload-list--picture-card) {
-        gap: 12px;
-      }
-    }
-    
-    @media (max-width: 360px) {
-      :deep(.el-upload-list__item) {
-        width: 90px;
-        height: 90px;
-      }
-      
-      :deep(.el-upload-list--picture-card) {
-        gap: 10px;
-      }
     }
   }
-  
-  /* 调整上传组件的提示文本样式 */
-  :deep(.upload-component .el-upload__text) {
-    display: none;
-  }
-  
-  :deep(.upload-component .el-upload__tip) {
-    display: none;
-  }
+}
 
 /* 载体选择相关样式 */
 .carrier-select-wrapper {
@@ -1165,7 +1390,10 @@ const resetZoom = (): void => {
   overflow-y: auto;
   padding: 8px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); /* 减小最小宽度 */
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(180px, 1fr)
+  ); /* 减小最小宽度 */
   gap: 10px; /* 调整间距 */
 
   .carrier-item {
@@ -1256,8 +1484,6 @@ const resetZoom = (): void => {
   }
 }
 
-
-
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
@@ -1268,17 +1494,17 @@ const resetZoom = (): void => {
 .image-preview-dialog {
   max-width: 95vw;
   max-height: 95vh;
-  
+
   :deep(.el-dialog__body) {
     padding: 0;
     overflow: hidden;
   }
-  
+
   :deep(.el-dialog__header) {
     padding: 12px 20px;
     border-bottom: none;
   }
-  
+
   :deep(.el-dialog__footer) {
     padding: 12px 20px;
     border-top: none;
@@ -1297,7 +1523,7 @@ const resetZoom = (): void => {
   padding: 20px;
   position: relative;
   cursor: grab;
-  
+
   &:active {
     cursor: grabbing;
   }
@@ -1317,7 +1543,7 @@ const resetZoom = (): void => {
   width: auto;
   height: auto;
   display: block;
-  
+
   :deep(.el-image__inner) {
     max-width: none;
     max-height: none;
@@ -1326,7 +1552,7 @@ const resetZoom = (): void => {
     height: auto;
     display: block;
   }
-  
+
   :deep(.el-image__error) {
     width: 300px;
     height: 200px;
