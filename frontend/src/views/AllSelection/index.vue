@@ -287,7 +287,7 @@
                 </div>
                 <div class="method-card__meta">
                   <span>适合：新品榜快筛</span>
-                  <span>站点：UK / DE</span>
+                  <span>站点：UK / DE / US</span>
                   <span>输出：候选 + 命中原因</span>
                 </div>
               </div>
@@ -1316,8 +1316,11 @@ const loadProducts = async (params?: SelectionQueryParams) => {
   }
 };
 
-const normalizeM01Marketplace = (value?: string): "UK" | "DE" => {
-  return value === "DE" ? "DE" : "UK";
+// M01 支持 UK / DE / US 三站点; 其他站点 (如 FR/IT/ES) 归一为 UK
+const normalizeM01Marketplace = (value?: string): "UK" | "DE" | "US" => {
+  if (value === "DE") return "DE";
+  if (value === "US") return "US";
+  return "UK";
 };
 
 const applyM01Method = () => {
@@ -2589,5 +2592,4 @@ onUnmounted(() => {
     border-color: var(--el-border-color);
   }
 }
-
 </style>

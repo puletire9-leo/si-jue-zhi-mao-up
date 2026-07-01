@@ -1,9 +1,12 @@
 import request from "@/utils/request";
 import type { ApiResponse } from "@/types/api";
-import { normalizeProduct, type CompetitorListResponse } from "@/api/competitor";
+import {
+  normalizeProduct,
+  type CompetitorListResponse,
+} from "@/api/competitor";
 
 export interface MethodCardListParams {
-  marketplace?: "UK" | "DE";
+  marketplace?: "UK" | "DE" | "US";
   month?: string;
   createdWeek?: string;
   batchDate?: string;
