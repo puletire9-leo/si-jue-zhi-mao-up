@@ -795,8 +795,13 @@ function openDetail(product: any) {
   detailVisible.value = true;
 }
 
-onMounted(() => {
-  store.initData();
+onMounted(async () => {
+  // 品线分析默认应用 M01 新品榜加速法, 用户可从"业务方法卡"点"退出方法"回全量
+  if (!store.activeMethodCard) {
+    await store.applyM01MethodCard();
+  } else {
+    await store.initData();
+  }
   consumeAgentRules();
 });
 
