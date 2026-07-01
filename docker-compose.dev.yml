@@ -134,8 +134,8 @@ services:
       VITE_JAVA_USER_HOST: java-user
       VITE_JAVA_USER_PORT: "8001"
     ports:
-      # host 8740 → container 8179（Hyper-V 排除了 8040-8639 + 7681-7780，原 8179 host 端口在排除区 8040-8239 边界外但被占；改用 8740 避开）
-      - "8740:8179"
+      # host 8180 → container 8179（Windows 动态端口保留段 8330-8929 内,避开 8740 用 8180）
+      - "8180:8179"
     volumes:
       - ./frontend:/app
       - dev-node-modules:/app/node_modules
