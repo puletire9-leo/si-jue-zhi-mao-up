@@ -4,13 +4,28 @@
       <div class="welcome-text">
         欢迎回来，<span class="highlight">Admin</span>
       </div>
-      <div class="welcome-sub">您有 {{ pendingCount }} 条待处理消息 · {{ currentDate }}</div>
+      <div class="welcome-sub">
+        您有 {{ pendingCount }} 条待处理消息 · {{ currentDate }}
+      </div>
     </div>
 
     <div class="stats-grid">
       <div class="stat-card" @click="navigateTo('/products')">
         <div class="stat-icon purple">
-          <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+          <svg
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+            ></path>
+          </svg>
         </div>
         <div class="stat-content">
           <div class="stat-value">1,284</div>
@@ -21,7 +36,20 @@
 
       <div class="stat-card" @click="navigateTo('/all-selection')">
         <div class="stat-icon orange">
-          <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path></svg>
+          <svg
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+            ></path>
+          </svg>
         </div>
         <div class="stat-content">
           <div class="stat-value">456</div>
@@ -32,7 +60,20 @@
 
       <div class="stat-card">
         <div class="stat-icon green">
-          <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          <svg
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            ></path>
+          </svg>
         </div>
         <div class="stat-content">
           <div class="stat-value">¥89.2K</div>
@@ -43,7 +84,20 @@
 
       <div class="stat-card" @click="navigateTo('/resource-collection')">
         <div class="stat-icon blue">
-          <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+          <svg
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+            ></path>
+          </svg>
         </div>
         <div class="stat-content">
           <div class="stat-value">3,847</div>
@@ -58,7 +112,20 @@
       <div class="features-grid">
         <div class="feature-card" @click="navigateTo('/products')">
           <div class="feature-icon purple">
-            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+            <svg
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+              ></path>
+            </svg>
           </div>
           <div class="feature-content">
             <div class="feature-title">产品管理</div>
@@ -69,7 +136,20 @@
 
         <div class="feature-card" @click="navigateTo('/all-selection')">
           <div class="feature-icon orange">
-            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path></svg>
+            <svg
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+              ></path>
+            </svg>
           </div>
           <div class="feature-content">
             <div class="feature-title">选品中心</div>
@@ -80,18 +160,44 @@
 
         <div class="feature-card" @click="navigateTo('/final-draft')">
           <div class="feature-icon green">
-            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <svg
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              ></path>
+            </svg>
           </div>
           <div class="feature-content">
-            <div class="feature-title">定稿管理</div>
-            <div class="feature-desc">定稿创建、素材库</div>
+            <div class="feature-title">设计稿</div>
+            <div class="feature-desc">设计稿创建、素材库</div>
           </div>
           <div class="feature-arrow">→</div>
         </div>
 
         <div class="feature-card" @click="navigateTo('/product-data')">
           <div class="feature-icon blue">
-            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+            <svg
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+              ></path>
+            </svg>
           </div>
           <div class="feature-content">
             <div class="feature-title">数据看板</div>
@@ -102,7 +208,20 @@
 
         <div class="feature-card" @click="navigateTo('/resource-collection')">
           <div class="feature-icon pink">
-            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <svg
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+              ></path>
+            </svg>
           </div>
           <div class="feature-content">
             <div class="feature-title">图片管理</div>
@@ -113,7 +232,20 @@
 
         <div class="feature-card" @click="navigateTo('/prompt-library')">
           <div class="feature-icon cyan">
-            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            <svg
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              ></path>
+            </svg>
           </div>
           <div class="feature-content">
             <div class="feature-title">资料中心</div>
@@ -133,7 +265,20 @@
         <div class="activity-list">
           <div class="activity-item">
             <div class="activity-icon purple">
-              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+              <svg
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                ></path>
+              </svg>
             </div>
             <div class="activity-content">
               <div class="activity-text">新增产品 "智能手环 Pro"</div>
@@ -144,7 +289,20 @@
 
           <div class="activity-item">
             <div class="activity-icon orange">
-              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+              <svg
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                ></path>
+              </svg>
             </div>
             <div class="activity-content">
               <div class="activity-text">上传图片素材 24 张</div>
@@ -155,7 +313,20 @@
 
           <div class="activity-item">
             <div class="activity-icon green">
-              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+              <svg
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                ></path>
+              </svg>
             </div>
             <div class="activity-content">
               <div class="activity-text">选品待审核：蓝牙耳机 X3</div>
@@ -166,7 +337,20 @@
 
           <div class="activity-item">
             <div class="activity-icon blue">
-              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              <svg
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                ></path>
+              </svg>
             </div>
             <div class="activity-content">
               <div class="activity-text">定稿审核通过</div>
@@ -184,19 +368,58 @@
         <div class="quick-list">
           <div class="quick-item" @click="navigateTo('/products')">
             <div class="quick-icon purple">
-              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+              <svg
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                ></path>
+              </svg>
             </div>
             <span>导入产品</span>
           </div>
           <div class="quick-item" @click="navigateTo('/resource-collection')">
             <div class="quick-icon orange">
-              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+              <svg
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                ></path>
+              </svg>
             </div>
             <span>上传图片</span>
           </div>
           <div class="quick-item">
             <div class="quick-icon green">
-              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+              <svg
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                ></path>
+              </svg>
             </div>
             <span>导出数据</span>
           </div>
@@ -207,25 +430,25 @@
 </template>
 
 <script setup lang="ts">
-defineOptions({ name: 'Dashboard' })
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+defineOptions({ name: "Dashboard" });
+import { computed } from "vue";
+import { useRouter } from "vue-router";
 
-const router = useRouter()
+const router = useRouter();
 
-const pendingCount = 5
+const pendingCount = 5;
 
 const currentDate = computed(() => {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth() + 1
-  const day = now.getDate()
-  return `${year}年${month}月${day}日`
-})
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const day = now.getDate();
+  return `${year}年${month}月${day}日`;
+});
 
 const navigateTo = (path: string) => {
-  router.push(path)
-}
+  router.push(path);
+};
 </script>
 
 <style scoped lang="scss">
@@ -291,23 +514,39 @@ const navigateTo = (path: string) => {
   flex-shrink: 0;
 
   &.purple {
-    background: linear-gradient(135deg, rgba(180, 83, 9, 0.12), rgba(217, 119, 6, 0.08));
+    background: linear-gradient(
+      135deg,
+      rgba(180, 83, 9, 0.12),
+      rgba(217, 119, 6, 0.08)
+    );
     color: #b45309;
   }
 
   &.orange {
-    background: linear-gradient(135deg, rgba(234, 174, 135, 0.2), rgba(240, 201, 176, 0.15));
-    color: #D97706;
+    background: linear-gradient(
+      135deg,
+      rgba(234, 174, 135, 0.2),
+      rgba(240, 201, 176, 0.15)
+    );
+    color: #d97706;
   }
 
   &.green {
-    background: linear-gradient(135deg, rgba(22, 163, 74, 0.1), rgba(74, 222, 128, 0.08));
-    color: #16A34A;
+    background: linear-gradient(
+      135deg,
+      rgba(22, 163, 74, 0.1),
+      rgba(74, 222, 128, 0.08)
+    );
+    color: #16a34a;
   }
 
   &.blue {
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(96, 165, 250, 0.08));
-    color: #3B82F6;
+    background: linear-gradient(
+      135deg,
+      rgba(59, 130, 246, 0.12),
+      rgba(96, 165, 250, 0.08)
+    );
+    color: #3b82f6;
   }
 }
 
@@ -339,12 +578,12 @@ const navigateTo = (path: string) => {
 
   &.up {
     background: rgba(22, 163, 74, 0.1);
-    color: #16A34A;
+    color: #16a34a;
   }
 
   &.down {
     background: rgba(220, 38, 38, 0.1);
-    color: #DC2626;
+    color: #dc2626;
   }
 }
 
@@ -376,13 +615,13 @@ const navigateTo = (path: string) => {
   overflow: hidden;
 
   &::before {
-    content: '';
+    content: "";
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 3px;
-    background: linear-gradient(90deg, #b45309, #EAAE87);
+    background: linear-gradient(90deg, #b45309, #eaae87);
     transform: scaleX(0);
     transform-origin: left;
     transition: transform 0.25s ease;
@@ -417,27 +656,27 @@ const navigateTo = (path: string) => {
   }
 
   &.orange {
-    background: linear-gradient(135deg, #EAAE87, #F0C9B0);
+    background: linear-gradient(135deg, #eaae87, #f0c9b0);
     color: white;
   }
 
   &.green {
-    background: linear-gradient(135deg, #16A34A, #4ADE80);
+    background: linear-gradient(135deg, #16a34a, #4ade80);
     color: white;
   }
 
   &.blue {
-    background: linear-gradient(135deg, #3B82F6, #60A5FA);
+    background: linear-gradient(135deg, #3b82f6, #60a5fa);
     color: white;
   }
 
   &.pink {
-    background: linear-gradient(135deg, #EC4899, #F472B6);
+    background: linear-gradient(135deg, #ec4899, #f472b6);
     color: white;
   }
 
   &.cyan {
-    background: linear-gradient(135deg, #06B6D4, #22D3EE);
+    background: linear-gradient(135deg, #06b6d4, #22d3ee);
     color: white;
   }
 }
@@ -535,17 +774,17 @@ const navigateTo = (path: string) => {
 
   &.orange {
     background: rgba(234, 174, 135, 0.2);
-    color: #D97706;
+    color: #d97706;
   }
 
   &.green {
     background: rgba(22, 163, 74, 0.1);
-    color: #16A34A;
+    color: #16a34a;
   }
 
   &.blue {
     background: rgba(59, 130, 246, 0.1);
-    color: #3B82F6;
+    color: #3b82f6;
   }
 }
 
@@ -578,12 +817,12 @@ const navigateTo = (path: string) => {
 
   &.success {
     background: rgba(22, 163, 74, 0.1);
-    color: #16A34A;
+    color: #16a34a;
   }
 
   &.pending {
     background: rgba(234, 174, 135, 0.2);
-    color: #D97706;
+    color: #d97706;
   }
 
   &.info {
@@ -631,12 +870,12 @@ const navigateTo = (path: string) => {
   }
 
   &.orange {
-    background: linear-gradient(135deg, #EAAE87, #F0C9B0);
+    background: linear-gradient(135deg, #eaae87, #f0c9b0);
     color: white;
   }
 
   &.green {
-    background: linear-gradient(135deg, #16A34A, #4ADE80);
+    background: linear-gradient(135deg, #16a34a, #4ade80);
     color: white;
   }
 }
