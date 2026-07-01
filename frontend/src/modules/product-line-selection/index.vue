@@ -121,7 +121,7 @@
             </div>
             <div class="method-card__meta">
               <span>适合：新品榜快筛</span>
-              <span>站点：UK / DE</span>
+              <span>站点：UK / DE / US</span>
               <span>数据源：competitor_products_clean</span>
             </div>
           </div>

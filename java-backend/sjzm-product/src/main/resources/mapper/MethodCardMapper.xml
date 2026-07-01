@@ -30,7 +30,9 @@
             (cp.listing_days &lt;= 30 AND cp.units IS NOT NULL AND cp.units &gt;= #{sales30})
             OR (cp.listing_days &lt;= 60 AND cp.units IS NOT NULL AND cp.units &gt;= #{sales60})
             OR (cp.listing_days &lt;= 90 AND cp.units IS NOT NULL AND cp.units &gt;= #{sales90})
-            OR (cp.bsr IS NOT NULL AND cp.bsr &gt; 0 AND cp.bsr &lt; #{bsrMax})
+            <if test="bsrMax != null">
+                OR (cp.bsr IS NOT NULL AND cp.bsr &gt; 0 AND cp.bsr &lt; #{bsrMax})
+            </if>
         )
     </sql>
 

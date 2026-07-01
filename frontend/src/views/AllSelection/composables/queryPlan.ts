@@ -321,8 +321,11 @@ function splitCsv(raw?: string | string[] | null): string[] {
     .filter(Boolean);
 }
 
-function normalizeMethodMarketplace(value?: string): "UK" | "DE" {
-  return value === "DE" ? "DE" : "UK";
+// M01 支持 UK / DE / US 三站点; 其他站点归一为 UK
+function normalizeMethodMarketplace(value?: string): "UK" | "DE" | "US" {
+  if (value === "DE") return "DE";
+  if (value === "US") return "US";
+  return "UK";
 }
 
 function compactText(value?: string): string | undefined {

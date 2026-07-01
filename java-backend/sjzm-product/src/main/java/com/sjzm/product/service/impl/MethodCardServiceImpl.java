@@ -144,7 +144,11 @@ public class MethodCardServiceImpl implements MethodCardService {
                     new BigDecimal("300"), 90, 4, 20, 50, 25000);
             case "UK" -> new M01Rule("UK", new BigDecimal("4.99"), new BigDecimal("17.99"),
                     new BigDecimal("300"), 90, 2, 10, 30, 20000);
-            default -> throw new IllegalArgumentException("M01 暂只支持 UK / DE");
+            // US: M01 文档 (docs/选品方法库/3_消费层/方法卡片/M01_新品榜加速法.md) 阈值,
+            // BSR 阈值文档标注为 — ,故 bsrMax=null (SQL 判空跳过 BSR OR 分支)
+            case "US" -> new M01Rule("US", new BigDecimal("6.99"), new BigDecimal("25.99"),
+                    new BigDecimal("300"), 90, 50, 120, 200, null);
+            default -> throw new IllegalArgumentException("M01 暂只支持 UK / DE / US");
         };
     }
 
@@ -158,7 +162,8 @@ public class MethodCardServiceImpl implements MethodCardService {
             if (listingDays <= 60 && units >= rule.sales60()) reasons.add("SALES_60D_PASS");
             if (listingDays <= 90 && units >= rule.sales90()) reasons.add("SALES_90D_PASS");
         }
-        if (bsr != null && bsr > 0 && bsr < rule.bsrMax()) {
+        // BSR 阈值可为空 (如 US 站点 M01 文档中标注 BSR 阈值 —,即不使用 BSR 判定)
+        if (rule.bsrMax() != null && bsr != null && bsr > 0 && bsr < rule.bsrMax()) {
             reasons.add("BSR_PASS");
         }
         return reasons;
