@@ -4,82 +4,112 @@
       <template #header>
         <div class="card-header">
           <span>用户管理</span>
-          <el-button
-            v-if="userStore.isAdmin"
-            type="primary"
-            :icon="Plus"
-            @click="handleAdd"
-          >
-            添加用户
-          </el-button>
+          <div class="header-tools">
+            <el-input
+              v-model="searchKeyword"
+              placeholder="搜索用户名"
+              :prefix-icon="Search"
+              clearable
+              class="search-input"
+            />
+            <el-button
+              v-if="userStore.isAdmin"
+              type="primary"
+              :icon="Plus"
+              @click="handleAdd"
+            >
+              添加用户
+            </el-button>
+          </div>
         </div>
       </template>
 
       <SkeletonWrapper :loading="loading && !hasLoaded" variant="table">
-        <el-table v-loading="refreshing" :data="userList" style="width: 100%">
-          <el-table-column prop="id" label="ID" width="80" />
-          <el-table-column prop="username" label="用户名" />
-          <el-table-column prop="role" label="角色" width="120">
-            <template #default="{ row }">
-              <el-tag
-                v-for="r in (row.role || '').split(',').filter(Boolean)"
-                :key="r"
-                :type="getRoleType(r.trim())"
-                size="small"
-                style="margin-right: 4px"
-              >
-                {{ r.trim() }}
-              </el-tag>
+        <el-tabs v-model="activeTab" class="role-tabs">
+          <el-tab-pane v-for="tab in tabList" :key="tab.key" :name="tab.key">
+            <template #label>
+              <span class="tab-label">
+                {{ tab.label }}
+                <el-badge
+                  v-if="tab.count > 0"
+                  :value="tab.count"
+                  :type="tab.key === activeTab ? 'primary' : 'info'"
+                  class="tab-badge"
+                />
+              </span>
             </template>
-          </el-table-column>
-          <el-table-column label="状态" width="100">
-            <template #default="{ row }">
-              <el-tag
-                :type="row.status === 1 ? 'success' : 'danger'"
-                size="small"
-              >
-                {{ row.status === 1 ? "正常" : "禁用" }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="createdAt" label="创建时间" width="180">
-            <template #default="{ row }">
-              {{ formatDate(row.createdAt) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="260" fixed="right">
-            <template #default="{ row }">
-              <el-button
-                v-if="userStore.isAdmin"
-                type="primary"
-                link
-                :icon="Edit"
-                @click="handleEdit(row)"
-              >
-                编辑
-              </el-button>
-              <el-button
-                v-if="userStore.isAdmin"
-                type="warning"
-                link
-                :icon="Key"
-                @click="openResetDialog(row)"
-              >
-                重置密码
-              </el-button>
-              <el-button
-                v-if="userStore.isAdmin"
-                type="danger"
-                link
-                :icon="Delete"
-                @click="handleDelete(row)"
-              >
-                删除
-              </el-button>
-              <span v-else class="no-permission">无权限</span>
-            </template>
-          </el-table-column>
-        </el-table>
+
+            <el-table
+              v-loading="refreshing"
+              :data="tab.rows"
+              style="width: 100%"
+              empty-text="暂无匹配用户"
+            >
+              <el-table-column prop="id" label="ID" width="80" />
+              <el-table-column prop="username" label="用户名" />
+              <el-table-column prop="role" label="角色" width="180">
+                <template #default="{ row }">
+                  <el-tag
+                    v-for="r in (row.role || '').split(',').filter(Boolean)"
+                    :key="r"
+                    :type="getRoleType(r.trim())"
+                    size="small"
+                    style="margin-right: 4px"
+                  >
+                    {{ r.trim() }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="状态" width="100">
+                <template #default="{ row }">
+                  <el-tag
+                    :type="row.status === 1 ? 'success' : 'danger'"
+                    size="small"
+                  >
+                    {{ row.status === 1 ? "正常" : "禁用" }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="createdAt" label="创建时间" width="180">
+                <template #default="{ row }">
+                  {{ formatDate(row.createdAt) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="260" fixed="right">
+                <template #default="{ row }">
+                  <el-button
+                    v-if="userStore.isAdmin"
+                    type="primary"
+                    link
+                    :icon="Edit"
+                    @click="handleEdit(row)"
+                  >
+                    编辑
+                  </el-button>
+                  <el-button
+                    v-if="userStore.isAdmin"
+                    type="warning"
+                    link
+                    :icon="Key"
+                    @click="openResetDialog(row)"
+                  >
+                    重置密码
+                  </el-button>
+                  <el-button
+                    v-if="userStore.isAdmin"
+                    type="danger"
+                    link
+                    :icon="Delete"
+                    @click="handleDelete(row)"
+                  >
+                    删除
+                  </el-button>
+                  <span v-else class="no-permission">无权限</span>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
+        </el-tabs>
       </SkeletonWrapper>
     </el-card>
 
@@ -198,7 +228,7 @@
 <script setup lang="ts">
 defineOptions({ name: "Users" });
 import { ref, reactive, computed, onMounted } from "vue";
-import { Plus, Edit, Delete, Key } from "@element-plus/icons-vue";
+import { Plus, Edit, Delete, Key, Search } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { userApi } from "@/api/user";
 import { useUserStore } from "@/stores/user";
@@ -213,6 +243,55 @@ const loading = ref(true);
 const hasLoaded = ref(false);
 const refreshing = computed(() => loading.value && hasLoaded.value);
 const isEdit = ref(false);
+
+// 搜索 + 分组
+const searchKeyword = ref("");
+const activeTab = ref("all");
+
+// 角色分组定义(顺序即 tab 显示顺序)
+const ROLE_TABS: {
+  key: string;
+  label: string;
+  matcher: (u: any) => boolean;
+}[] = [
+  { key: "all", label: "全部", matcher: () => true },
+  {
+    key: "管理员",
+    label: "管理员",
+    matcher: (u) => hasRole(u, "管理员"),
+  },
+  { key: "开发", label: "开发", matcher: (u) => hasRole(u, "开发") },
+  { key: "美术", label: "美术", matcher: (u) => hasRole(u, "美术") },
+  { key: "仓库", label: "仓库", matcher: (u) => hasRole(u, "仓库") },
+  { key: "运营", label: "运营", matcher: (u) => hasRole(u, "运营") },
+  { key: "采购员", label: "采购员", matcher: (u) => hasRole(u, "采购员") },
+  { key: "disabled", label: "已禁用", matcher: (u) => u.status !== 1 },
+];
+
+// 判断用户是否属于某角色(逗号分隔多角色兼容)
+function hasRole(user: any, role: string): boolean {
+  return (user.role || "")
+    .split(",")
+    .map((r: string) => r.trim())
+    .includes(role);
+}
+
+// 搜索过滤后的用户列表
+const filteredUsers = computed(() => {
+  const kw = searchKeyword.value.trim().toLowerCase();
+  if (!kw) return userList.value;
+  return userList.value.filter((u: any) =>
+    (u.username || "").toLowerCase().includes(kw),
+  );
+});
+
+// 每个 tab 的用户列表(带 count)
+const tabList = computed(() =>
+  ROLE_TABS.map((tab) => {
+    const rows = filteredUsers.value.filter(tab.matcher);
+    return { ...tab, rows, count: rows.length };
+  }),
+);
 
 const formData = reactive({
   id: null,
@@ -234,7 +313,8 @@ const resetSubmitting = ref(false);
 const loadUsers = async () => {
   loading.value = true;
   try {
-    const response = await userApi.getList({ page: 1, size: 20 });
+    // 一次拉全量:分组视图需要看到所有用户,后端上限 1000 已足够
+    const response = await userApi.getList({ page: 1, size: 1000 });
     // 添加字段映射，将后端返回的下划线命名转换为驼峰命名
     const users = response.data?.list || [];
     userList.value = users.map((user) => ({
@@ -366,7 +446,10 @@ const submitReset = async () => {
 
   resetSubmitting.value = true;
   try {
-    await userApi.resetPassword(resetTarget.value.id, resetForm.newPassword);
+    await userApi.resetPassword(
+      String(resetTarget.value.id),
+      resetForm.newPassword,
+    );
     ElMessage.success(`已重置 ${resetTarget.value.username} 的密码`);
     resetDialogVisible.value = false;
   } catch (err: any) {
@@ -408,6 +491,38 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-input {
+  width: 220px;
+}
+
+.role-tabs {
+  :deep(.el-tabs__item) {
+    font-size: 14px;
+    padding: 0 20px;
+  }
+}
+
+.tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tab-badge {
+  :deep(.el-badge__content) {
+    font-size: 11px;
+    height: 16px;
+    line-height: 16px;
+    padding: 0 6px;
+  }
 }
 
 .no-permission {
