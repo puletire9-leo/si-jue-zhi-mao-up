@@ -198,13 +198,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from "vue";
+import { ref, reactive, computed, watch } from "vue";
 import { ElMessage, type FormInstance } from "element-plus";
 import { User, Van, Check } from "@element-plus/icons-vue";
 // 导入API
 import { finalDraftApi } from "@/api/finalDraft";
 import { systemConfigApi } from "@/api/systemConfig";
 import { fetchMembers } from "@/api/members";
+import { useUserStore } from "@/stores/user";
+
+const userStore = useUserStore();
 
 interface Props {
   modelValue: boolean;
@@ -290,6 +293,16 @@ const loadCarrierList = async () => {
 // 初始化加载开发人列表和载体列表
 loadDeveloperList();
 loadCarrierList();
+
+// 对话框打开时，默认填写当前登录用户为开发人（可自由修改）
+watch(
+  () => props.modelValue,
+  (visible) => {
+    if (visible && !formData.developer && userStore.userInfo?.username) {
+      formData.developer = userStore.userInfo.username;
+    }
+  },
+);
 
 // 表单验证规则
 const formRules = {

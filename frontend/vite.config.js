@@ -169,6 +169,17 @@ export default defineConfig(({ mode }) => {
           timeout: 30000,
           logLevel: 'warn'
         },
+        // 注意：更具体的路径必须放在 /api/v1/auth 之前
+        // /auth/members 是 Python 实现（无 RBAC 拦截，供前端按角色拉名单）
+        '/api/v1/auth/members': {
+          target: mode === 'development'
+            ? `http://${env.VITE_BACKEND_HOST || 'localhost'}:${env.VITE_BACKEND_PORT || '8090'}`
+            : (env.VITE_API_BASE_URL || 'http://localhost:8090'),
+          changeOrigin: true,
+          secure: false,
+          timeout: 30000,
+          logLevel: 'warn'
+        },
         '/api/v1/auth': {
           target: javaUserTarget,
           changeOrigin: true,
