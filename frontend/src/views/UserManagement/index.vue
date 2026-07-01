@@ -378,10 +378,15 @@ const handleSave = async () => {
 
   try {
     formData.role = roleSelection.value.join(",");
-    if (isEdit.value) {
-      await userApi.update(formData.id, formData);
-    } else {
-      await userApi.create(formData);
+    // request.ts 拦截器对业务错误(code != 200)也 return res,不抛异常;
+    // 必须显式检查 code,否则会误报"创建成功"但数据其实没进库
+    const resp: any = isEdit.value
+      ? await userApi.update(formData.id, formData)
+      : await userApi.create(formData);
+
+    if (resp && resp.code !== 200) {
+      ElMessage.error(resp.message || (isEdit.value ? "更新失败" : "创建失败"));
+      return;
     }
 
     ElMessage.success(isEdit.value ? "更新成功" : "创建成功");

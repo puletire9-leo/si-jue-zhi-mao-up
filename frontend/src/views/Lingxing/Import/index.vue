@@ -19,7 +19,11 @@
       </template>
 
       <!-- 导入步骤 -->
-      <el-steps :active="activeStep" finish-status="success" class="import-steps">
+      <el-steps
+        :active="activeStep"
+        finish-status="success"
+        class="import-steps"
+      >
         <el-step title="选择文件" description="上传领星数据文件" />
         <el-step title="数据预览" description="预览并编辑导入数据" />
         <el-step title="生成文件" description="生成领星导入文件" />
@@ -38,12 +42,10 @@
           accept=".xlsx,.xls,.csv"
         >
           <el-icon class="upload-icon"><Upload /></el-icon>
-          <div class="upload-text">
-            <em>点击上传</em> 或拖拽文件到此处
-          </div>
+          <div class="upload-text"><em>点击上传</em> 或拖拽文件到此处</div>
           <template #tip>
             <div class="upload-tip">
-              支持 Excel (.xlsx, .xls) 或 CSV 格式文件<br>
+              支持 Excel (.xlsx, .xls) 或 CSV 格式文件<br />
               必需字段：SKU、产品名称
             </div>
           </template>
@@ -56,7 +58,7 @@
             :loading="parsing"
             @click="handleNextStep"
           >
-            {{ parsing ? '解析中...' : '下一步' }}
+            {{ parsing ? "解析中..." : "下一步" }}
           </el-button>
         </div>
       </div>
@@ -87,10 +89,17 @@
         <div v-if="importLogs.length > 0" class="import-logs">
           <div class="logs-header">
             <span>导入过程日志</span>
-            <el-button type="primary" link size="small" @click="clearLogs">清除</el-button>
+            <el-button type="primary" link size="small" @click="clearLogs"
+              >清除</el-button
+            >
           </div>
           <div class="logs-content">
-            <div v-for="(log, index) in importLogs" :key="index" class="log-item" :class="log.type">
+            <div
+              v-for="(log, index) in importLogs"
+              :key="index"
+              class="log-item"
+              :class="log.type"
+            >
               <span class="log-time">{{ log.time }}</span>
               <span class="log-message">{{ log.message }}</span>
             </div>
@@ -117,7 +126,9 @@
         <div v-if="importStatus === 'success'" class="result-success">
           <el-icon class="result-icon"><CircleCheck /></el-icon>
           <h3>生成成功</h3>
-          <p>已成功生成领星导入文件，共 {{ importResult.successCount }} 条数据</p>
+          <p>
+            已成功生成领星导入文件，共 {{ importResult.successCount }} 条数据
+          </p>
         </div>
 
         <div v-else-if="importStatus === 'error'" class="result-error">
@@ -207,13 +218,19 @@
           <div class="developer-info">
             <span class="developer-name">{{ dev }}</span>
           </div>
-          <el-icon v-if="selectedDeveloper === dev" class="check-icon"><Check /></el-icon>
+          <el-icon v-if="selectedDeveloper === dev" class="check-icon"
+            ><Check
+          /></el-icon>
         </div>
       </div>
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="showDeveloperDialog = false">取消</el-button>
-          <el-button type="primary" @click="confirmDeveloper" :disabled="!selectedDeveloper">
+          <el-button
+            type="primary"
+            @click="confirmDeveloper"
+            :disabled="!selectedDeveloper"
+          >
             确定
           </el-button>
         </span>
@@ -227,9 +244,9 @@
  * 领星导入页面组件
  * 提供领星数据导入功能，支持Excel文件上传、解析、数据预览和导入记录查看
  */
-import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, reactive, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import { ElMessage, ElMessageBox } from "element-plus";
 import {
   Upload,
   CircleCheck,
@@ -238,150 +255,147 @@ import {
   Refresh,
   Download,
   User,
-  Check
-} from '@element-plus/icons-vue'
-import type { UploadFile, UploadFiles } from 'element-plus'
-import * as XLSX from 'xlsx'
-import ProductTable from './components/ProductTable.vue'
-import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
-import { uploadLingxingImage } from '@/api/lingxing'
-import { extractImagesFromExcel, uint8ArrayToFile } from './utils/excelImageExtractor'
+  Check,
+} from "@element-plus/icons-vue";
+import type { UploadFile, UploadFiles } from "element-plus";
+import * as XLSX from "xlsx";
+import ProductTable from "./components/ProductTable.vue";
+import SkeletonWrapper from "@/components/SkeletonWrapper/index.vue";
+import { uploadLingxingImage } from "@/api/lingxing";
+import { fetchMembers } from "@/api/members";
+import { useUserStore } from "@/stores/user";
+import {
+  extractImagesFromExcel,
+  uint8ArrayToFile,
+} from "./utils/excelImageExtractor";
+
+const userStore = useUserStore();
 
 // 路由实例
-const router = useRouter()
+const router = useRouter();
 
 // 当前步骤
-const activeStep = ref(0)
+const activeStep = ref(0);
 
 // 文件列表
-const fileList = ref<UploadFile[]>([])
+const fileList = ref<UploadFile[]>([]);
 
 // 解析状态
-const parsing = ref(false)
+const parsing = ref(false);
 
 // 预览数据
-const previewData = ref<any[]>([])
+const previewData = ref<any[]>([]);
 
 // 产品表格引用
-const productTableRef = ref<InstanceType<typeof ProductTable> | null>(null)
+const productTableRef = ref<InstanceType<typeof ProductTable> | null>(null);
 
 // 导入状态
-const importStatus = ref<'idle' | 'importing' | 'success' | 'error'>('idle')
+const importStatus = ref<"idle" | "importing" | "success" | "error">("idle");
 const importResult = reactive({
   successCount: 0,
-  errorMessage: ''
-})
+  errorMessage: "",
+});
 
 // 导入历史记录
-const importHistory = ref<any[]>([])
+const importHistory = ref<any[]>([]);
 
 // 导入日志
 interface ImportLog {
-  time: string
-  message: string
-  type: 'info' | 'success' | 'warning' | 'error'
+  time: string;
+  message: string;
+  type: "info" | "success" | "warning" | "error";
 }
-const importLogs = ref<ImportLog[]>([])
+const importLogs = ref<ImportLog[]>([]);
 
 // 导入记录加载状态
-const historyLoading = ref(false)
-const historyLoaded = ref(false)
+const historyLoading = ref(false);
+const historyLoaded = ref(false);
 
 /**
  * 添加导入日志
  * @param message 日志消息
  * @param type 日志类型
  */
-const addLog = (message: string, type: ImportLog['type'] = 'info') => {
-  const now = new Date()
-  const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}.${now.getMilliseconds().toString().padStart(3, '0')}`
-  importLogs.value.push({ time, message, type })
-}
+const addLog = (message: string, type: ImportLog["type"] = "info") => {
+  const now = new Date();
+  const time = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}:${now.getSeconds().toString().padStart(2, "0")}.${now.getMilliseconds().toString().padStart(3, "0")}`;
+  importLogs.value.push({ time, message, type });
+};
 
 /**
  * 清除日志
  */
 const clearLogs = () => {
-  importLogs.value = []
-}
+  importLogs.value = [];
+};
 
 // 分页配置
 const pagination = reactive({
   page: 1,
   pageSize: 10,
-  total: 0
-})
+  total: 0,
+});
 
 // 开发人选择
-const showDeveloperDialog = ref(false)
-const selectedDeveloper = ref('')
-const developerList = ref<string[]>([])
+const showDeveloperDialog = ref(false);
+const selectedDeveloper = ref("");
+const developerList = ref<string[]>([]);
 
 /**
- * 获取开发人列表
+ * 加载开发人候选列表(供切换选择)。默认值走当前登录用户,由 onMounted 兜底。
+ * 老端点 /api/v1/system-config/developer-list 已下线,统一走 /api/v1/auth/members。
  */
 const fetchDeveloperList = async () => {
   try {
-    const token = localStorage.getItem('token')
-    const response = await fetch('/api/v1/system-config/developer-list', {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-
-    if (response.ok) {
-      const result = await response.json()
-      if (result.code === 200 && result.data) {
-        developerList.value = result.data.developerList || []
-      }
-    }
+    const members = await fetchMembers();
+    developerList.value = members.developers || [];
   } catch (error) {
-    console.error('获取开发人列表失败:', error)
+    console.error("获取开发人列表失败:", error);
   }
-}
+};
 
 /**
  * Excel字段映射配置
  * 支持多种可能的列名变体
  */
 const fieldMapping: Record<string, string[]> = {
-  sku: ['SKU', 'sku', 'Sku', '产品SKU', '产品编码'],
-  productName: ['产品名称', '名称', 'name', 'Name', '产品名', '商品名称'],
-  length: ['长cm', '长(cm)', '长', '长度', 'length', 'Length', '长(CM)'],
-  width: ['宽cm', '宽(cm)', '宽', '宽度', 'width', 'Width', '宽(CM)'],
-  height: ['高cm', '高(cm)', '高', '高度', 'height', 'Height', '高(CM)'],
-  weight: ['毛重（kg）', '毛重(kg)', '毛重', '重量', 'weight', 'Weight', 'kg'],
-  purchaseCost: ['采购费用', '采购价', '成本', 'cost', 'Cost', '采购成本'],
-  supplierLink: ['供应商链接', '链接', 'link', 'Link', '采购链接'],
-  supplier: ['供应商', '供货方', 'supplier', 'Supplier'],
-  ukCustomsCode: ['英国海关编码', '海关编码', 'customsCode', 'HS编码'],
-  cnDeclarationName: ['中文报关名', '中文品名', 'cnName'],
-  enDeclarationName: ['英文报关名', '英文品名', 'enName'],
-  imageUrl: ['图片url', '图片URL', '图片地址', 'imageUrl', '图片', '图片链接']
-}
+  sku: ["SKU", "sku", "Sku", "产品SKU", "产品编码"],
+  productName: ["产品名称", "名称", "name", "Name", "产品名", "商品名称"],
+  length: ["长cm", "长(cm)", "长", "长度", "length", "Length", "长(CM)"],
+  width: ["宽cm", "宽(cm)", "宽", "宽度", "width", "Width", "宽(CM)"],
+  height: ["高cm", "高(cm)", "高", "高度", "height", "Height", "高(CM)"],
+  weight: ["毛重（kg）", "毛重(kg)", "毛重", "重量", "weight", "Weight", "kg"],
+  purchaseCost: ["采购费用", "采购价", "成本", "cost", "Cost", "采购成本"],
+  supplierLink: ["供应商链接", "链接", "link", "Link", "采购链接"],
+  supplier: ["供应商", "供货方", "supplier", "Supplier"],
+  ukCustomsCode: ["英国海关编码", "海关编码", "customsCode", "HS编码"],
+  cnDeclarationName: ["中文报关名", "中文品名", "cnName"],
+  enDeclarationName: ["英文报关名", "英文品名", "enName"],
+  imageUrl: ["图片url", "图片URL", "图片地址", "imageUrl", "图片", "图片链接"],
+};
 
 /**
  * 必需字段列表
  */
-const requiredFields = ['sku', 'productName']
+const requiredFields = ["sku", "productName"];
 
 /**
  * 确认选择开发人
  */
 const confirmDeveloper = () => {
   if (selectedDeveloper.value) {
-    showDeveloperDialog.value = false
-    ElMessage.success(`已选择开发人: ${selectedDeveloper.value}`)
+    showDeveloperDialog.value = false;
+    ElMessage.success(`已选择开发人: ${selectedDeveloper.value}`);
   }
-}
+};
 
 /**
  * 打开开发人选择对话框
  */
 const openDeveloperDialog = async () => {
-  await fetchDeveloperList()
-  showDeveloperDialog.value = true
-}
+  await fetchDeveloperList();
+  showDeveloperDialog.value = true;
+};
 
 /**
  * 处理文件选择变化
@@ -389,9 +403,9 @@ const openDeveloperDialog = async () => {
  * @param uploadFiles 文件列表
  */
 const handleFileChange = (uploadFile: UploadFile, uploadFiles: UploadFiles) => {
-  fileList.value = uploadFiles
-  ElMessage.success(`已选择文件: ${uploadFile.name}`)
-}
+  fileList.value = uploadFiles;
+  ElMessage.success(`已选择文件: ${uploadFile.name}`);
+};
 
 /**
  * 处理文件移除
@@ -399,34 +413,34 @@ const handleFileChange = (uploadFile: UploadFile, uploadFiles: UploadFiles) => {
  * @param uploadFiles 剩余文件列表
  */
 const handleFileRemove = (uploadFile: UploadFile, uploadFiles: UploadFiles) => {
-  fileList.value = uploadFiles
-}
+  fileList.value = uploadFiles;
+};
 
 /**
  * 进入下一步
  */
 const handleNextStep = async () => {
   if (activeStep.value === 0) {
-    await parseExcelFile()
+    await parseExcelFile();
     if (!parsing.value && previewData.value.length > 0) {
-      activeStep.value++
+      activeStep.value++;
     }
   } else if (activeStep.value === 1) {
-    await executeImport()
+    await executeImport();
   }
-}
+};
 
 /**
  * 返回上一步
  */
 const handlePrevStep = () => {
   if (activeStep.value > 0) {
-    activeStep.value--
+    activeStep.value--;
     if (activeStep.value === 0) {
-      previewData.value = []
+      previewData.value = [];
     }
   }
-}
+};
 
 /**
  * 将Excel表头映射到字段
@@ -434,21 +448,25 @@ const handlePrevStep = () => {
  * @returns 字段映射对象
  */
 const mapHeadersToFields = (headers: string[]): Record<string, string> => {
-  const fieldMap: Record<string, string> = {}
+  const fieldMap: Record<string, string> = {};
 
   headers.forEach((header, index) => {
-    const headerStr = String(header).trim()
+    const headerStr = String(header).trim();
 
     for (const [field, possibleNames] of Object.entries(fieldMapping)) {
-      if (possibleNames.some(name => name.toLowerCase() === headerStr.toLowerCase())) {
-        fieldMap[index] = field
-        break
+      if (
+        possibleNames.some(
+          (name) => name.toLowerCase() === headerStr.toLowerCase(),
+        )
+      ) {
+        fieldMap[index] = field;
+        break;
       }
     }
-  })
+  });
 
-  return fieldMap
-}
+  return fieldMap;
+};
 
 /**
  * 检查必需字段是否存在
@@ -456,9 +474,9 @@ const mapHeadersToFields = (headers: string[]): Record<string, string> => {
  * @returns 缺失的字段列表
  */
 const checkRequiredFields = (fieldMap: Record<string, string>): string[] => {
-  const mappedFields = Object.values(fieldMap)
-  return requiredFields.filter(field => !mappedFields.includes(field))
-}
+  const mappedFields = Object.values(fieldMap);
+  return requiredFields.filter((field) => !mappedFields.includes(field));
+};
 
 /**
  * 解析数值
@@ -466,18 +484,21 @@ const checkRequiredFields = (fieldMap: Record<string, string>): string[] => {
  * @param precision 小数精度
  * @returns 解析后的数值
  */
-const parseNumericValue = (value: any, precision: number): number | undefined => {
-  if (value === undefined || value === null || value === '') {
-    return undefined
+const parseNumericValue = (
+  value: any,
+  precision: number,
+): number | undefined => {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
   }
 
-  const num = parseFloat(String(value))
+  const num = parseFloat(String(value));
   if (isNaN(num)) {
-    return undefined
+    return undefined;
   }
 
-  return parseFloat(num.toFixed(precision))
-}
+  return parseFloat(num.toFixed(precision));
+};
 
 /**
  * 解析数据行
@@ -485,111 +506,116 @@ const parseNumericValue = (value: any, precision: number): number | undefined =>
  * @param fieldMap 字段映射对象
  * @returns 解析后的数据数组
  */
-const parseDataRows = (rows: any[][], fieldMap: Record<string, string>): any[] => {
-  const result: any[] = []
+const parseDataRows = (
+  rows: any[][],
+  fieldMap: Record<string, string>,
+): any[] => {
+  const result: any[] = [];
 
   rows.forEach((row, rowIndex) => {
-    const rowData: Record<string, any> = {}
+    const rowData: Record<string, any> = {};
 
     Object.entries(fieldMap).forEach(([colIndex, field]) => {
-      const value = row[parseInt(colIndex)]
+      const value = row[parseInt(colIndex)];
 
       switch (field) {
-        case 'length':
-        case 'width':
-        case 'height':
-          rowData[field] = parseNumericValue(value, 2)
-          break
-        case 'weight':
-          rowData[field] = parseNumericValue(value, 3)
-          break
-        case 'purchaseCost':
-          rowData[field] = parseNumericValue(value, 2)
-          break
+        case "length":
+        case "width":
+        case "height":
+          rowData[field] = parseNumericValue(value, 2);
+          break;
+        case "weight":
+          rowData[field] = parseNumericValue(value, 3);
+          break;
+        case "purchaseCost":
+          rowData[field] = parseNumericValue(value, 2);
+          break;
         default:
-          rowData[field] = value !== undefined ? String(value).trim() : ''
+          rowData[field] = value !== undefined ? String(value).trim() : "";
       }
-    })
+    });
 
     // 只添加有SKU和产品名称的行
     if (rowData.sku || rowData.productName) {
-      result.push(rowData)
+      result.push(rowData);
     }
-  })
+  });
 
-  return result
-}
+  return result;
+};
 
 /**
  * 解析Excel文件
  */
 const parseExcelFile = async () => {
   if (fileList.value.length === 0) {
-    ElMessage.warning('请先选择文件')
-    return
+    ElMessage.warning("请先选择文件");
+    return;
   }
 
-  parsing.value = true
-  const file = fileList.value[0].raw
+  parsing.value = true;
+  const file = fileList.value[0].raw;
 
   if (!file) {
-    ElMessage.error('文件读取失败')
-    parsing.value = false
-    return
+    ElMessage.error("文件读取失败");
+    parsing.value = false;
+    return;
   }
 
   try {
-    const data = await file.arrayBuffer()
-    const workbook = XLSX.read(data, { type: 'array' })
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data, { type: "array" });
 
     // 获取第一个工作表
-    const firstSheetName = workbook.SheetNames[0]
-    const worksheet = workbook.Sheets[firstSheetName]
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
 
     // 转换为JSON
-    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][]
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+      header: 1,
+    }) as any[][];
 
     if (jsonData.length < 2) {
-      ElMessage.error('Excel文件数据不足，至少需要包含表头和一行数据')
-      parsing.value = false
-      return
+      ElMessage.error("Excel文件数据不足，至少需要包含表头和一行数据");
+      parsing.value = false;
+      return;
     }
 
     // 解析表头
-    const headers = jsonData[0] as string[]
-    const fieldMap = mapHeadersToFields(headers)
+    const headers = jsonData[0] as string[];
+    const fieldMap = mapHeadersToFields(headers);
 
     // 检查必需字段
-    const missingFields = checkRequiredFields(fieldMap)
+    const missingFields = checkRequiredFields(fieldMap);
     if (missingFields.length > 0) {
-      ElMessage.error(`缺少必需字段: ${missingFields.join(', ')}`)
-      parsing.value = false
-      return
+      ElMessage.error(`缺少必需字段: ${missingFields.join(", ")}`);
+      parsing.value = false;
+      return;
     }
 
     // 解析数据行
-    const parsedData = parseDataRows(jsonData.slice(1), fieldMap)
+    const parsedData = parseDataRows(jsonData.slice(1), fieldMap);
 
     if (parsedData.length === 0) {
-      ElMessage.error('未能解析到有效数据')
-      parsing.value = false
-      return
+      ElMessage.error("未能解析到有效数据");
+      parsing.value = false;
+      return;
     }
 
     // 先设置预览数据
-    previewData.value = parsedData
-    ElMessage.success(`成功解析 ${parsedData.length} 条数据`)
+    previewData.value = parsedData;
+    ElMessage.success(`成功解析 ${parsedData.length} 条数据`);
 
     // 尝试从Excel中提取嵌入的图片
-    await extractAndUploadImagesFromExcel(data, parsedData)
+    await extractAndUploadImagesFromExcel(data, parsedData);
   } catch (error) {
-    console.error('Excel解析错误:', error)
-    ElMessage.error('Excel文件解析失败，请检查文件格式是否正确')
-    throw error
+    console.error("Excel解析错误:", error);
+    ElMessage.error("Excel文件解析失败，请检查文件格式是否正确");
+    throw error;
   } finally {
-    parsing.value = false
+    parsing.value = false;
   }
-}
+};
 
 /**
  * 从Excel中提取图片并上传
@@ -597,262 +623,293 @@ const parseExcelFile = async () => {
  * @param arrayBuffer Excel文件数据
  * @param parsedData 解析后的数据行
  */
-const extractAndUploadImagesFromExcel = async (arrayBuffer: ArrayBuffer, parsedData: any[]) => {
+const extractAndUploadImagesFromExcel = async (
+  arrayBuffer: ArrayBuffer,
+  parsedData: any[],
+) => {
   try {
-    clearLogs()
-    addLog('开始提取Excel中的图片（按视觉顺序）...', 'info')
+    clearLogs();
+    addLog("开始提取Excel中的图片（按视觉顺序）...", "info");
 
     // 提取图片（SKU列索引为4，即E列）
-    const images = await extractImagesFromExcel(arrayBuffer, 4)
+    const images = await extractImagesFromExcel(arrayBuffer, 4);
 
     if (images.length === 0) {
-      addLog('Excel中没有找到嵌入的图片', 'warning')
-      return
+      addLog("Excel中没有找到嵌入的图片", "warning");
+      return;
     }
 
-    addLog(`找到 ${images.length} 张图片，开始处理...`, 'info')
+    addLog(`找到 ${images.length} 张图片，开始处理...`, "info");
 
     // 显示提取的图片信息（按视觉顺序）
     images.forEach((img, idx) => {
-      addLog(`视觉顺序${img.visualOrder}: Excel第${img.row + 1}行, SKU=${img.sku || '无'}, 文件名=${img.filename}`, 'info')
-    })
+      addLog(
+        `视觉顺序${img.visualOrder}: Excel第${img.row + 1}行, SKU=${img.sku || "无"}, 文件名=${img.filename}`,
+        "info",
+      );
+    });
 
     // 关键修改：按视觉顺序直接匹配到对应的数据行索引
     // 第1个视觉图片 -> 第0行数据（第1行数据）
     // 第2个视觉图片 -> 第1行数据（第2行数据）
     // 以此类推...
 
-    addLog('按视觉顺序匹配图片到数据行...', 'info')
+    addLog("按视觉顺序匹配图片到数据行...", "info");
 
     // 上传每张图片
-    let successCount = 0
-    let skipCount = 0
+    let successCount = 0;
+    let skipCount = 0;
 
     for (let i = 0; i < images.length; i++) {
-      const image = images[i]
+      const image = images[i];
       // 按视觉顺序直接匹配：第i个图片对应第i行数据
-      const rowIndex = i
-      const visualOrder = image.visualOrder || (i + 1)
+      const rowIndex = i;
+      const visualOrder = image.visualOrder || i + 1;
 
       if (rowIndex >= parsedData.length) {
-        skipCount++
-        addLog(`[跳过] 视觉顺序${visualOrder} 超出数据行范围`, 'warning')
-        continue
+        skipCount++;
+        addLog(`[跳过] 视觉顺序${visualOrder} 超出数据行范围`, "warning");
+        continue;
       }
 
-      const targetSku = parsedData[rowIndex]?.sku
-      addLog(`[匹配] 视觉顺序${visualOrder} -> 数据行${rowIndex}, 图片SKU:${image.sku}, 目标SKU:${targetSku}`, 'success')
+      const targetSku = parsedData[rowIndex]?.sku;
+      addLog(
+        `[匹配] 视觉顺序${visualOrder} -> 数据行${rowIndex}, 图片SKU:${image.sku}, 目标SKU:${targetSku}`,
+        "success",
+      );
 
       try {
         // 将图片数据转换为File对象
-        const file = uint8ArrayToFile(image.imageData, image.filename, image.mimeType)
+        const file = uint8ArrayToFile(
+          image.imageData,
+          image.filename,
+          image.mimeType,
+        );
 
         // 上传图片
-        addLog(`[上传] 视觉顺序${visualOrder} 开始上传...`, 'info')
-        const response = await uploadLingxingImage(file)
+        addLog(`[上传] 视觉顺序${visualOrder} 开始上传...`, "info");
+        const response = await uploadLingxingImage(file);
 
         if (response.code === 200 && response.data?.url) {
           // 更新对应行的图片信息
-          const newData = JSON.parse(JSON.stringify(previewData.value))
+          const newData = JSON.parse(JSON.stringify(previewData.value));
           if (newData[rowIndex]) {
             newData[rowIndex] = {
               ...newData[rowIndex],
               imageUrl: response.data.url,
               cosImageUrl: response.data.url,
-              fileCode: response.data.object_key
-            }
-            previewData.value = newData
-            successCount++
-            addLog(`[上传成功] 数据行 ${rowIndex} (视觉顺序${visualOrder})`, 'success')
+              fileCode: response.data.object_key,
+            };
+            previewData.value = newData;
+            successCount++;
+            addLog(
+              `[上传成功] 数据行 ${rowIndex} (视觉顺序${visualOrder})`,
+              "success",
+            );
           }
         } else {
-          addLog(`[上传失败] 视觉顺序${visualOrder}, 响应码: ${response.code}`, 'error')
+          addLog(
+            `[上传失败] 视觉顺序${visualOrder}, 响应码: ${response.code}`,
+            "error",
+          );
         }
       } catch (error) {
-        addLog(`[上传错误] 视觉顺序${visualOrder}: ${error}`, 'error')
+        addLog(`[上传错误] 视觉顺序${visualOrder}: ${error}`, "error");
       }
     }
 
-    addLog(`[统计] 总图片: ${images.length}, 跳过: ${skipCount}, 上传成功: ${successCount}`, 'info')
+    addLog(
+      `[统计] 总图片: ${images.length}, 跳过: ${skipCount}, 上传成功: ${successCount}`,
+      "info",
+    );
 
     if (successCount > 0) {
-      ElMessage.success(`成功上传 ${successCount} 张图片`)
+      ElMessage.success(`成功上传 ${successCount} 张图片`);
     }
   } catch (error) {
-    addLog('提取并上传图片失败', 'error')
-    ElMessage.error('提取Excel图片失败')
+    addLog("提取并上传图片失败", "error");
+    ElMessage.error("提取Excel图片失败");
   }
-}
+};
 
 /**
  * 执行数据导入 - 调用后端生成领星导入文件
  */
 const executeImport = async () => {
-  importStatus.value = 'importing'
+  importStatus.value = "importing";
 
   // 检查是否选择了开发人
   if (!selectedDeveloper.value) {
-    ElMessage.warning('请先选择开发人')
-    importStatus.value = 'idle'
-    showDeveloperDialog.value = true
-    return
+    ElMessage.warning("请先选择开发人");
+    importStatus.value = "idle";
+    showDeveloperDialog.value = true;
+    return;
   }
 
   try {
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem("token");
 
     // 转换数据格式为Python脚本期望的列名
     const fieldMapping: Record<string, string> = {
-      'sku': 'SKU',
-      'productName': '产品名称',
-      'length': '长cm',
-      'width': '宽cm',
-      'height': '高cm',
-      'weight': '毛重（kg）',
-      'purchaseCost': '采购费用',
-      'supplierLink': '供应商链接',
-      'supplier': '供应商',
-      'ukCustomsCode': '英国海关编码',
-      'cnDeclarationName': '中文报关名',
-      'enDeclarationName': '英文报关名',
-      'imageUrl': '图片url'
-    }
+      sku: "SKU",
+      productName: "产品名称",
+      length: "长cm",
+      width: "宽cm",
+      height: "高cm",
+      weight: "毛重（kg）",
+      purchaseCost: "采购费用",
+      supplierLink: "供应商链接",
+      supplier: "供应商",
+      ukCustomsCode: "英国海关编码",
+      cnDeclarationName: "中文报关名",
+      enDeclarationName: "英文报关名",
+      imageUrl: "图片url",
+    };
 
-    const convertedData = previewData.value.map(row => {
-      const newRow: Record<string, any> = {}
+    const convertedData = previewData.value.map((row) => {
+      const newRow: Record<string, any> = {};
       for (const [key, value] of Object.entries(row)) {
-        const newKey = fieldMapping[key] || key
-        newRow[newKey] = value
+        const newKey = fieldMapping[key] || key;
+        newRow[newKey] = value;
       }
-      return newRow
-    })
+      return newRow;
+    });
 
     const requestBody = {
       developer: selectedDeveloper.value,
-      file_data: convertedData
-    }
+      file_data: convertedData,
+    };
 
-    const response = await fetch('/api/v1/lingxing/generate-import-file', {
-      method: 'POST',
+    const response = await fetch("/api/v1/lingxing/generate-import-file", {
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(requestBody)
-    })
+      body: JSON.stringify(requestBody),
+    });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: '生成文件失败' }))
+      const errorData = await response
+        .json()
+        .catch(() => ({ detail: "生成文件失败" }));
       if (response.status === 401) {
-        ElMessage.error('登录已过期，请重新登录')
-        importStatus.value = 'error'
-        importResult.errorMessage = '登录已过期'
-        return
+        ElMessage.error("登录已过期，请重新登录");
+        importStatus.value = "error";
+        importResult.errorMessage = "登录已过期";
+        return;
       }
-      throw new Error(errorData.detail || '生成文件失败')
+      throw new Error(errorData.detail || "生成文件失败");
     }
 
     // 获取文件名
-    const contentDisposition = response.headers.get('content-disposition')
-    let filename = '导入领星表.xlsx'
+    const contentDisposition = response.headers.get("content-disposition");
+    let filename = "导入领星表.xlsx";
     if (contentDisposition) {
-      const utf8Matches = contentDisposition.match(/filename\*=UTF-8''(.+?)(?:;|$)/)
+      const utf8Matches = contentDisposition.match(
+        /filename\*=UTF-8''(.+?)(?:;|$)/,
+      );
       if (utf8Matches) {
-        filename = decodeURIComponent(utf8Matches[1])
+        filename = decodeURIComponent(utf8Matches[1]);
       } else {
-        const matches = contentDisposition.match(/filename="(.+?)"/)
+        const matches = contentDisposition.match(/filename="(.+?)"/);
         if (matches) {
-          filename = matches[1]
+          filename = matches[1];
         }
       }
     }
 
     // 获取文件blob并下载
-    const blob = await response.blob()
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
 
-    importStatus.value = 'success'
-    importResult.successCount = previewData.value.length
-    ElMessage.success('领星导入文件生成成功')
+    importStatus.value = "success";
+    importResult.successCount = previewData.value.length;
+    ElMessage.success("领星导入文件生成成功");
 
-    activeStep.value++
+    activeStep.value++;
   } catch (error: any) {
-    console.error('生成文件失败:', error)
-    importStatus.value = 'error'
-    importResult.errorMessage = error.message || '生成文件过程中发生错误'
-    ElMessage.error(error.message || '生成文件失败')
+    console.error("生成文件失败:", error);
+    importStatus.value = "error";
+    importResult.errorMessage = error.message || "生成文件过程中发生错误";
+    ElMessage.error(error.message || "生成文件失败");
   }
-}
+};
 
 /**
  * 重置导入流程
  */
 const handleReset = () => {
-  activeStep.value = 0
-  fileList.value = []
-  previewData.value = []
-  importStatus.value = 'idle'
-}
+  activeStep.value = 0;
+  fileList.value = [];
+  previewData.value = [];
+  importStatus.value = "idle";
+};
 
 /**
  * 完成导入
  */
 const handleFinish = () => {
-  handleReset()
-  loadImportHistory()
-}
+  handleReset();
+  loadImportHistory();
+};
 
 /**
  * 加载导入历史记录
  */
 const loadImportHistory = async () => {
-  historyLoading.value = true
+  historyLoading.value = true;
   try {
     importHistory.value = [
       {
         id: 1,
-        fileName: '领星数据_20240301.xlsx',
+        fileName: "领星数据_20240301.xlsx",
         recordCount: 150,
-        status: 'success',
-        createTime: '2024-03-01 10:30:00'
+        status: "success",
+        createTime: "2024-03-01 10:30:00",
       },
       {
         id: 2,
-        fileName: '领星数据_20240228.xlsx',
+        fileName: "领星数据_20240228.xlsx",
         recordCount: 89,
-        status: 'success',
-        createTime: '2024-02-28 15:20:00'
-      }
-    ]
-    pagination.total = importHistory.value.length
+        status: "success",
+        createTime: "2024-02-28 15:20:00",
+      },
+    ];
+    pagination.total = importHistory.value.length;
   } catch (error) {
-    ElMessage.error('加载导入记录失败')
+    ElMessage.error("加载导入记录失败");
   } finally {
-    historyLoading.value = false
-    historyLoaded.value = true
+    historyLoading.value = false;
+    historyLoaded.value = true;
   }
-}
+};
 
 /**
  * 获取状态标签类型
  * @param status 状态值
  * @returns 标签类型
  */
-const getStatusType = (status: string): 'primary' | 'success' | 'warning' | 'info' | 'danger' => {
-  const typeMap: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'> = {
-    success: 'success',
-    error: 'danger',
-    pending: 'warning'
-  }
-  return typeMap[status] || 'info'
-}
+const getStatusType = (
+  status: string,
+): "primary" | "success" | "warning" | "info" | "danger" => {
+  const typeMap: Record<
+    string,
+    "primary" | "success" | "warning" | "info" | "danger"
+  > = {
+    success: "success",
+    error: "danger",
+    pending: "warning",
+  };
+  return typeMap[status] || "info";
+};
 
 /**
  * 获取状态显示文本
@@ -861,12 +918,12 @@ const getStatusType = (status: string): 'primary' | 'success' | 'warning' | 'inf
  */
 const getStatusText = (status: string) => {
   const textMap: Record<string, string> = {
-    success: '成功',
-    error: '失败',
-    pending: '处理中'
-  }
-  return textMap[status] || status
-}
+    success: "成功",
+    error: "失败",
+    pending: "处理中",
+  };
+  return textMap[status] || status;
+};
 
 /**
  * 查看导入详情
@@ -875,74 +932,77 @@ const getStatusText = (status: string) => {
 const handleViewDetail = (row: any) => {
   ElMessageBox.alert(
     `文件名: ${row.fileName}\n记录数: ${row.recordCount}\n状态: ${getStatusText(row.status)}\n导入时间: ${row.createTime}`,
-    '导入详情',
-    { confirmButtonText: '确定' }
-  )
-}
+    "导入详情",
+    { confirmButtonText: "确定" },
+  );
+};
 
 /**
  * 处理分页大小变化
  * @param size 每页条数
  */
 const handleSizeChange = (size: number) => {
-  pagination.pageSize = size
-  loadImportHistory()
-}
+  pagination.pageSize = size;
+  loadImportHistory();
+};
 
 /**
  * 处理页码变化
  * @param page 当前页码
  */
 const handlePageChange = (page: number) => {
-  pagination.page = page
-  loadImportHistory()
-}
+  pagination.page = page;
+  loadImportHistory();
+};
 
 /**
  * 处理下载模板
  */
 const handleDownloadTemplate = async () => {
   try {
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem("token");
 
-    const response = await fetch(`/api/v1/lingxing/download-template?t=${Date.now()}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
+    const response = await fetch(
+      `/api/v1/lingxing/download-template?t=${Date.now()}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
 
     if (!response.ok) {
       if (response.status === 401) {
-        ElMessage.error('登录已过期，请重新登录')
-        return
+        ElMessage.error("登录已过期，请重新登录");
+        return;
       }
-      throw new Error('下载模板失败')
+      throw new Error("下载模板失败");
     }
 
-    const blob = await response.blob()
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = '产品汇总表-模版.xlsx'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "产品汇总表-模版.xlsx";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
 
-    ElMessage.success('模板下载成功')
+    ElMessage.success("模板下载成功");
   } catch (error) {
-    console.error('下载模板失败:', error)
-    ElMessage.error('模板下载失败，请重试')
+    console.error("下载模板失败:", error);
+    ElMessage.error("模板下载失败，请重试");
   }
-}
+};
 
 /**
  * 处理行删除
  * @param index 行索引
  */
 const handleRowDelete = (index: number) => {
-  console.log('删除行:', index)
-}
+  console.log("删除行:", index);
+};
 
 /**
  * 处理图片上传
@@ -951,39 +1011,45 @@ const handleRowDelete = (index: number) => {
  */
 const handleImageUpload = async (file: UploadFile, index: number) => {
   if (!file.raw) {
-    ElMessage.error('文件不存在')
-    return
+    ElMessage.error("文件不存在");
+    return;
   }
 
   try {
-    ElMessage.info('正在上传图片...')
+    ElMessage.info("正在上传图片...");
 
-    const response = await uploadLingxingImage(file.raw)
+    const response = await uploadLingxingImage(file.raw);
 
     if (response.code === 200 && response.data?.url) {
-      const newData = [...previewData.value]
+      const newData = [...previewData.value];
       newData[index] = {
         ...newData[index],
         imageUrl: response.data.url,
         cosImageUrl: response.data.url,
-        fileCode: response.data.object_key
-      }
-      previewData.value = newData
-      ElMessage.success('图片上传成功')
+        fileCode: response.data.object_key,
+      };
+      previewData.value = newData;
+      ElMessage.success("图片上传成功");
     } else {
-      ElMessage.error(response.message || '图片上传失败')
+      ElMessage.error(response.message || "图片上传失败");
     }
   } catch (error) {
-    console.error('图片上传失败:', error)
-    ElMessage.error('图片上传失败，请重试')
+    console.error("图片上传失败:", error);
+    ElMessage.error("图片上传失败，请重试");
   }
-}
+};
 
-// 组件挂载时加载导入历史
+// 组件挂载时:
+//   1. 拉导入历史
+//   2. 拉开发人候选(供"选择开发人"对话框)
+//   3. 开发人默认填当前登录用户,允许后续手动改
 onMounted(() => {
-  loadImportHistory()
-  fetchDeveloperList()
-})
+  loadImportHistory();
+  fetchDeveloperList();
+  if (userStore.userInfo?.username) {
+    selectedDeveloper.value = userStore.userInfo.username;
+  }
+});
 </script>
 
 <style scoped lang="scss">
@@ -1168,7 +1234,7 @@ onMounted(() => {
           display: flex;
           padding: 4px 16px;
           font-size: 12px;
-          font-family: 'Courier New', monospace;
+          font-family: "Courier New", monospace;
           line-height: 1.5;
 
           &:hover {
