@@ -80,8 +80,9 @@ public class UserServiceImpl implements UserService {
         log.info("用户创建成功: username={}, role={}", user.getUsername(), user.getRole());
     }
 
-    private static final java.util.List<String> VALID_ROLES = java.util.List.of(
-            "管理员", "admin", "开发", "developer", "美术", "artist", "仓库", "warehouse", "运营", "operator", "user");
+    private static final java.util.Set<String> VALID_ROLES = java.util.Set.of(
+            "管理员", "admin", "开发", "developer", "美术", "artist", "仓库", "warehouse",
+            "运营", "operator", "采购员", "purchaser", "user", "viewer");
 
     @Override
     public void update(Long id, User user) {
@@ -107,8 +108,12 @@ public class UserServiceImpl implements UserService {
         if (user.getEmail() != null) existing.setEmail(user.getEmail());
         if (user.getRealName() != null) existing.setRealName(user.getRealName());
         if (user.getRole() != null) {
-            if (!VALID_ROLES.contains(user.getRole())) {
-                throw new BusinessException(400, "无效的角色: " + user.getRole());
+            for (String r : user.getRole().split(",")) {
+                String trimmed = r.trim();
+                if (trimmed.isEmpty()) continue;
+                if (!VALID_ROLES.contains(trimmed)) {
+                    throw new BusinessException(400, "无效的角色: " + trimmed);
+                }
             }
             existing.setRole(user.getRole());
         }
