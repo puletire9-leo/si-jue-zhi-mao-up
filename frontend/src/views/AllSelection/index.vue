@@ -2338,9 +2338,18 @@ onMounted(() => {
   };
   const tab = pathTabMap[route.path] || "all";
   activeTab.value = tab;
+
+  // 默认应用 M01 新品榜加速法(用户想上来直接看新品筛选结果);
+  // 只在通用路径(all)启用, 专用路径(zheng/new/reference)保持原意图;
+  // M01 强制 tab=new + country 归一为 UK/DE, 用户可点"退出方法"回全量
+  if (tab === "all") {
+    activeMethodCard.value = { id: "M01", name: "新品榜加速法" };
+    activeTab.value = "new";
+  }
+
   // 读取路由 query 参数，预填搜索条件
   const initParams: Record<string, any> = {};
-  if (tab === "new") {
+  if (activeTab.value === "new" || activeMethodCard.value?.id === "M01") {
     initParams.country = "UK";
   }
   if (route.query.storeName) {
