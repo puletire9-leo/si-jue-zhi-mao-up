@@ -136,6 +136,9 @@
             >
               应用方法
             </el-button>
+            <el-button size="small" link @click="openMethodDetail('M01')">
+              了解详情
+            </el-button>
             <el-button
               v-if="store.activeMethodCard"
               size="small"
@@ -182,6 +185,9 @@
               @click="applyM02Method"
             >
               应用方法
+            </el-button>
+            <el-button size="small" link @click="openMethodDetail('M02')">
+              了解详情
             </el-button>
             <el-button
               v-if="store.activeMethodCard"
@@ -463,6 +469,12 @@
       use-drawer
       data-source="selection"
     />
+
+    <!-- 方法卡详情抽屉 (复用组件) -->
+    <MethodDetailDrawer
+      v-model="methodDetailVisible"
+      :method-id="methodDetailId"
+    />
   </div>
 </template>
 
@@ -483,6 +495,7 @@ import {
 } from "@element-plus/icons-vue";
 import { useProductLineSelectionStore } from "./store";
 import ProductLineTree from "./components/ProductLineTree.vue";
+import MethodDetailDrawer from "@/components/MethodDetailDrawer/index.vue";
 import CompetitorCardGrid from "./components/CompetitorCardGrid.vue";
 import ProductDetailDialog from "@/components/ProductDetailDialog/index.vue";
 import MobileActionSheet from "@/components/MobileActionSheet/index.vue";
@@ -496,6 +509,14 @@ import { cloneRangeFilter, createEmptyRangeFilter } from "@/utils/rangeFilter";
 
 const store = useProductLineSelectionStore();
 const agentStore = useSelectionAgentStore();
+
+// 方法卡详情抽屉
+const methodDetailVisible = ref(false);
+const methodDetailId = ref<"M01" | "M02" | null>(null);
+const openMethodDetail = (id: "M01" | "M02") => {
+  methodDetailId.value = id;
+  methodDetailVisible.value = true;
+};
 
 // 跨页套用：悬浮卡在其他页套用筛选后跳转过来，这里消费暂存规则
 function consumeAgentRules() {

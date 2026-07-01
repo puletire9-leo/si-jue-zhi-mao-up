@@ -360,135 +360,6 @@
             </div>
           </div>
 
-          <!-- 方法卡详情抽屉 -->
-          <el-drawer
-            v-model="methodDetailVisible"
-            :title="methodDetail?.title || '方法卡详情'"
-            direction="rtl"
-            size="520px"
-            append-to-body
-          >
-            <div v-if="methodDetail" class="method-detail">
-              <p class="method-detail__tagline">{{ methodDetail.tagline }}</p>
-
-              <div class="method-detail__section">
-                <div class="method-detail__label">
-                  <el-icon><CircleCheck /></el-icon> 何时用
-                </div>
-                <ul>
-                  <li v-for="item in methodDetail.whenToUse" :key="item">
-                    {{ item }}
-                  </li>
-                </ul>
-              </div>
-
-              <div class="method-detail__section">
-                <div class="method-detail__label">
-                  <el-icon><CircleClose /></el-icon> 何时不用
-                </div>
-                <ul>
-                  <li v-for="item in methodDetail.whenNotToUse" :key="item">
-                    {{ item }}
-                  </li>
-                </ul>
-              </div>
-
-              <div class="method-detail__section">
-                <div class="method-detail__label">
-                  <el-icon><Warning /></el-icon> 硬门槛 (一票否决)
-                </div>
-                <div class="method-detail__criteria">
-                  <div
-                    v-for="c in methodDetail.hardCriteria"
-                    :key="c.label"
-                    class="criterion"
-                  >
-                    <span class="criterion__label">{{ c.label }}</span>
-                    <span class="criterion__value">{{ c.value }}</span>
-                    <span v-if="c.note" class="criterion__note">
-                      {{ c.note }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="method-detail__section">
-                <div class="method-detail__label">
-                  <el-icon><Aim /></el-icon> 达标逻辑
-                </div>
-                <ul>
-                  <li v-for="item in methodDetail.passLogic" :key="item">
-                    {{ item }}
-                  </li>
-                </ul>
-              </div>
-
-              <div class="method-detail__section">
-                <div class="method-detail__label">
-                  <el-icon><Lock /></el-icon> 强制固定字段
-                </div>
-                <div class="method-detail__tags">
-                  <el-tag
-                    v-for="f in methodDetail.forcedFilters"
-                    :key="f"
-                    type="info"
-                    size="small"
-                  >
-                    {{ f }}
-                  </el-tag>
-                </div>
-              </div>
-
-              <div class="method-detail__section">
-                <div class="method-detail__label">
-                  <el-icon><Close /></el-icon> 不支持的筛选
-                </div>
-                <ul>
-                  <li
-                    v-for="f in methodDetail.unsupportedFilters"
-                    :key="f"
-                    class="method-detail__unsupported"
-                  >
-                    {{ f }}
-                  </li>
-                </ul>
-              </div>
-
-              <div class="method-detail__section">
-                <div class="method-detail__label">
-                  <el-icon><DataBoard /></el-icon> 数据源
-                </div>
-                <p class="method-detail__text">{{ methodDetail.dataSource }}</p>
-              </div>
-
-              <div class="method-detail__section">
-                <div class="method-detail__label">
-                  <el-icon><Files /></el-icon> 输出
-                </div>
-                <p class="method-detail__text">{{ methodDetail.output }}</p>
-              </div>
-
-              <div class="method-detail__section">
-                <div class="method-detail__label">
-                  <el-icon><InfoFilled /></el-icon> 依据 / 为什么这样筛
-                </div>
-                <ul>
-                  <li v-for="item in methodDetail.rationale" :key="item">
-                    {{ item }}
-                  </li>
-                </ul>
-              </div>
-
-              <div
-                v-if="methodDetail.fullDocPath"
-                class="method-detail__footer"
-              >
-                完整方法卡文档：
-                <code>{{ methodDetail.fullDocPath }}</code>
-              </div>
-            </div>
-          </el-drawer>
-
           <!-- 卖家 -->
           <div class="fd-section">
             <div class="fd-label">卖家</div>
@@ -1023,6 +894,12 @@
         :source-image="imageSearchImage"
       />
     </el-dialog>
+
+    <!-- 方法卡详情抽屉 (复用组件) -->
+    <MethodDetailDrawer
+      v-model="methodDetailVisible"
+      :method-id="methodDetailId"
+    />
   </div>
 </template>
 
@@ -1095,7 +972,7 @@ import {
 } from "./composables/queryPlan";
 import { resolveSelectionQueryPlan } from "./composables/queryRuntime";
 import { useSelectionFilterState } from "./composables/filterState";
-import { METHOD_CARD_INFO } from "./composables/methodCardInfo";
+import MethodDetailDrawer from "@/components/MethodDetailDrawer/index.vue";
 import {
   fetchMySelections,
   fetchSelectionUsers,
@@ -1136,12 +1013,9 @@ const NEW_TAB_DEFAULT_RULES: QualifyRule[] = [
 const newQualifyRules = ref<QualifyRule[]>([...NEW_TAB_DEFAULT_RULES]);
 const activeMethodCard = ref<{ id: "M01" | "M02"; name: string } | null>(null);
 
-// 方法卡详情抽屉状态
+// 方法卡详情抽屉状态 (内容由 MethodDetailDrawer 组件根据 methodId 自动读取)
 const methodDetailVisible = ref(false);
 const methodDetailId = ref<"M01" | "M02" | null>(null);
-const methodDetail = computed(() =>
-  methodDetailId.value ? METHOD_CARD_INFO[methodDetailId.value] : null,
-);
 
 const openMethodDetail = (id: "M01" | "M02") => {
   methodDetailId.value = id;
@@ -2716,114 +2590,4 @@ onUnmounted(() => {
   }
 }
 
-// 方法卡详情抽屉
-.method-detail {
-  padding: 4px 6px 24px;
-
-  &__tagline {
-    margin: 0 0 20px;
-    padding: 12px 14px;
-    background: var(--el-color-primary-light-9);
-    border-left: 3px solid var(--el-color-primary);
-    border-radius: 4px;
-    font-size: 13px;
-    line-height: 1.6;
-    color: var(--el-text-color-primary);
-  }
-
-  &__section {
-    margin-bottom: 20px;
-  }
-
-  &__label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 8px;
-    font-weight: 600;
-    font-size: 13px;
-    color: var(--el-text-color-primary);
-
-    .el-icon {
-      color: var(--el-color-primary);
-      font-size: 15px;
-    }
-  }
-
-  &__text {
-    margin: 0;
-    padding-left: 22px;
-    font-size: 13px;
-    line-height: 1.6;
-    color: var(--el-text-color-regular);
-  }
-
-  ul {
-    margin: 0;
-    padding-left: 22px;
-
-    li {
-      margin-bottom: 6px;
-      font-size: 13px;
-      line-height: 1.6;
-      color: var(--el-text-color-regular);
-    }
-  }
-
-  &__unsupported {
-    color: var(--el-text-color-secondary) !important;
-    text-decoration: line-through;
-  }
-
-  &__criteria {
-    padding-left: 22px;
-
-    .criterion {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 6px;
-      font-size: 13px;
-
-      &__label {
-        min-width: 72px;
-        color: var(--el-text-color-secondary);
-      }
-
-      &__value {
-        font-weight: 600;
-        color: var(--el-color-danger);
-      }
-
-      &__note {
-        color: var(--el-text-color-secondary);
-        font-size: 12px;
-      }
-    }
-  }
-
-  &__tags {
-    padding-left: 22px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  &__footer {
-    margin-top: 24px;
-    padding: 10px 14px;
-    background: var(--el-fill-color-lighter);
-    border-radius: 4px;
-    font-size: 12px;
-    color: var(--el-text-color-secondary);
-
-    code {
-      padding: 2px 6px;
-      background: var(--el-fill-color);
-      border-radius: 3px;
-      font-family: monospace;
-      color: var(--el-text-color-regular);
-    }
-  }
-}
 </style>
