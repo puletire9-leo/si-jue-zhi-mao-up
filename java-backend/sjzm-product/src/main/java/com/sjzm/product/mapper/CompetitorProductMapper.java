@@ -72,6 +72,45 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
             " ORDER BY bsr_id, productCount DESC")
     List<Map<String, Object>> countByNodeId(@Param("marketplace") String marketplace, @Param("month") String month);
 
+    /**
+     * 统计场景：按 node_id 商品数量,应用 M01 硬筛条件 (口径与 M01 商品列表一致);
+     * SQL 与 MethodCardMapper.M01Where 完全对齐,保证树数量 = 列表可见数量.
+     * bsrMax 允许为 null (US 站点),null 时不加 BSR OR 分支.
+     */
+    @Select("<script>" +
+            "SELECT bsr_id AS bsrId, node_id AS nodeId," +
+            " MAX(node_label_path) AS nodeFullPath," +
+            " SUBSTRING_INDEX(MAX(node_label_path), ':', -1) AS nodeName," +
+            " COUNT(*) AS productCount" +
+            " FROM competitor_products_clean cp" +
+            " WHERE cp.marketplace = #{marketplace}" +
+            "<if test='month != null and month != \"\"'> AND cp.month = #{month}</if>" +
+            " AND cp.filter_mode = 'MODE1'" +
+            " AND cp.price BETWEEN #{priceMin} AND #{priceMax}" +
+            " AND cp.weight_g IS NOT NULL AND cp.weight_g &lt; #{weightMax}" +
+            " AND cp.listing_days IS NOT NULL AND cp.listing_days &lt; #{listingDaysMax}" +
+            " AND (" +
+            "  (cp.listing_days &lt;= 30 AND cp.units IS NOT NULL AND cp.units &gt;= #{sales30})" +
+            "  OR (cp.listing_days &lt;= 60 AND cp.units IS NOT NULL AND cp.units &gt;= #{sales60})" +
+            "  OR (cp.listing_days &lt;= 90 AND cp.units IS NOT NULL AND cp.units &gt;= #{sales90})" +
+            "  <if test='bsrMax != null'>OR (cp.bsr IS NOT NULL AND cp.bsr &gt; 0 AND cp.bsr &lt; #{bsrMax})</if>" +
+            " )" +
+            " GROUP BY bsr_id, node_id" +
+            " ORDER BY bsr_id, productCount DESC" +
+            "</script>")
+    List<Map<String, Object>> countByNodeIdForM01(
+            @Param("marketplace") String marketplace,
+            @Param("month") String month,
+            @Param("priceMin") java.math.BigDecimal priceMin,
+            @Param("priceMax") java.math.BigDecimal priceMax,
+            @Param("weightMax") java.math.BigDecimal weightMax,
+            @Param("listingDaysMax") Integer listingDaysMax,
+            @Param("sales30") Integer sales30,
+            @Param("sales60") Integer sales60,
+            @Param("sales90") Integer sales90,
+            @Param("bsrMax") Integer bsrMax
+    );
+
     @Select("SELECT DISTINCT bsr_id FROM competitor_products WHERE marketplace = #{marketplace}")
     Set<String> selectDistinctBsrIdByMarketplace(@Param("marketplace") String marketplace);
 

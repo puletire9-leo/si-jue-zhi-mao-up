@@ -22,11 +22,49 @@ public class ProductLineTreeService {
     private final DengZongShopService dengZongShopService;
 
     public Map<String, Object> getTree(String marketplace, String month) {
-        List<Map<String, Object>> l2Rows = competitorProductMapper.countByNodeId(marketplace, month);
+        return getTree(marketplace, month, null);
+    }
+
+    /**
+     * 带方法卡口径的品线树. methodId=M01 时 productCount 按 M01 硬筛后重算 (与方法卡商品列表一致).
+     * methodId 为 null 或非 M01 时保持原有 productCount (全量竞品).
+     */
+    public Map<String, Object> getTree(String marketplace, String month, String methodId) {
+        List<Map<String, Object>> l2Rows;
+        if ("M01".equalsIgnoreCase(methodId)) {
+            l2Rows = countByNodeIdWithM01Filter(marketplace, month);
+        } else {
+            l2Rows = competitorProductMapper.countByNodeId(marketplace, month);
+        }
         Map<String, Object> tree = buildTree(l2Rows, new HashMap<>(), new ArrayList<>(), false);
         tree.put("marketplace", marketplace);
         tree.put("month", month);
+        if (methodId != null && !methodId.isEmpty()) {
+            tree.put("methodId", methodId);
+        }
         return tree;
+    }
+
+    /**
+     * 按 M01 硬筛条件统计各 node 的商品数, 参数与 MethodCardServiceImpl.ruleFor() 严格对齐.
+     */
+    private List<Map<String, Object>> countByNodeIdWithM01Filter(String marketplace, String month) {
+        String normalized = marketplace == null ? "UK" : marketplace.toUpperCase();
+        return switch (normalized) {
+            case "DE" -> competitorProductMapper.countByNodeIdForM01(
+                    "DE", month,
+                    new java.math.BigDecimal("5.99"), new java.math.BigDecimal("18.99"),
+                    new java.math.BigDecimal("300"), 90, 4, 20, 50, 25000);
+            case "US" -> competitorProductMapper.countByNodeIdForM01(
+                    "US", month,
+                    new java.math.BigDecimal("6.99"), new java.math.BigDecimal("25.99"),
+                    new java.math.BigDecimal("300"), 90, 50, 120, 200, null);
+            case "UK" -> competitorProductMapper.countByNodeIdForM01(
+                    "UK", month,
+                    new java.math.BigDecimal("4.99"), new java.math.BigDecimal("17.99"),
+                    new java.math.BigDecimal("300"), 90, 2, 10, 30, 20000);
+            default -> throw new IllegalArgumentException("M01 暂只支持 UK / DE / US");
+        };
     }
 
     /**
