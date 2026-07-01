@@ -250,30 +250,10 @@
               <div class="lingxing-hint">
                 <el-icon><InfoFilled /></el-icon>
                 <span
-                  >导入领星时预填这三个字段,现场仍可临时修改。留空则回退到按角色
-                  (开发/运营/采购员) 自动兜底。</span
+                  >导入领星时"产品负责人"和"采购员"预填这里的默认值,现场仍可临时修改。开发人自动填当前登录用户,在导入页可另选。留空则回退到按角色
+                  (运营/采购员) 自动兜底。</span
                 >
               </div>
-
-              <el-form-item label="开发人">
-                <el-select
-                  v-model="lingxingDefaults.developer"
-                  placeholder="选择开发人 (来自 users 表)"
-                  clearable
-                  filterable
-                  style="width: 100%"
-                >
-                  <el-option
-                    v-for="name in memberOptions.developers"
-                    :key="name"
-                    :label="name"
-                    :value="name"
-                  />
-                </el-select>
-                <div class="lingxing-sub-hint">
-                  单选,来源:用户管理里角色含"开发"的用户
-                </div>
-              </el-form-item>
 
               <el-form-item label="产品负责人">
                 <el-select
