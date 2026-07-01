@@ -54,13 +54,19 @@ public class UserController {
         if (user.getPassword() == null || user.getPassword().length() < 6) {
             return Result.error(400, "密码长度不能少于6位");
         }
-        // 限制可设置的角色
+        // 限制可设置的角色。前端支持一人多角色(逗号分隔),这里拆开逐个校验。
         String role = user.getRole();
         if (role != null && !role.isBlank()) {
             java.util.Set<String> validRoles = java.util.Set.of(
-                    "admin", "管理员", "developer", "开发", "editor", "美术", "仓库", "运营", "user", "viewer");
-            if (!validRoles.contains(role)) {
-                return Result.error(400, "无效的角色: " + role);
+                    "admin", "管理员", "developer", "开发", "editor", "美术",
+                    "仓库", "warehouse", "运营", "operator", "采购员", "purchaser",
+                    "user", "viewer");
+            for (String r : role.split(",")) {
+                String trimmed = r.trim();
+                if (trimmed.isEmpty()) continue;
+                if (!validRoles.contains(trimmed)) {
+                    return Result.error(400, "无效的角色: " + trimmed);
+                }
             }
         }
         userService.create(user);
@@ -88,9 +94,17 @@ public class UserController {
         if (role == null || role.isBlank()) {
             return Result.error(400, "角色不能为空");
         }
-        java.util.List<String> validRoles = java.util.List.of("管理员", "admin", "开发", "developer", "美术", "artist", "仓库", "warehouse", "运营", "operator", "user");
-        if (!validRoles.contains(role)) {
-            return Result.error(400, "无效的角色，可选值：" + String.join(", ", validRoles));
+        java.util.Set<String> validRoles = java.util.Set.of(
+                "管理员", "admin", "开发", "developer", "美术", "artist",
+                "仓库", "warehouse", "运营", "operator", "采购员", "purchaser",
+                "user");
+        // 支持逗号分隔多角色
+        for (String r : role.split(",")) {
+            String trimmed = r.trim();
+            if (trimmed.isEmpty()) continue;
+            if (!validRoles.contains(trimmed)) {
+                return Result.error(400, "无效的角色: " + trimmed + "，可选值：" + String.join(", ", validRoles));
+            }
         }
         userService.updateRole(id, role);
         return Result.success("角色更新成功");
