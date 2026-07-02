@@ -41,6 +41,7 @@ public class DengZongShopController {
             @RequestParam(required = false) Integer bsrMax,
             @RequestParam(required = false) java.math.BigDecimal ratingMin,
             @RequestParam(required = false) String weightMax,
+            @RequestParam(required = false) Integer maxVariantCount,
             @RequestParam(required = false) String batchDate,
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String sortOrder,
@@ -51,9 +52,9 @@ public class DengZongShopController {
         int offset = (safePage - 1) * size;
         // 验证 sortOrder 防止 SQL 注入
         String safeSortOrder = "asc".equalsIgnoreCase(sortOrder) ? "ASC" : "DESC";
-        long total = dengZongShopService.countGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId, priceMin, priceMax, bsrMax, ratingMin, weightMax, batchDate);
+        long total = dengZongShopService.countGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId, priceMin, priceMax, bsrMax, ratingMin, weightMax, maxVariantCount, batchDate);
         List<DengZongShop> list = dengZongShopService.selectGroupedByParent(
-                marketplace, month, brand, sellerName, title, category, bsrId, nodeId, priceMin, priceMax, bsrMax, ratingMin, weightMax, batchDate, sortBy, safeSortOrder, offset, size);
+                marketplace, month, brand, sellerName, title, category, bsrId, nodeId, priceMin, priceMax, bsrMax, ratingMin, weightMax, maxVariantCount, batchDate, sortBy, safeSortOrder, offset, size);
 
         List<Map<String, Object>> items = list.stream().map(this::toResponse).collect(Collectors.toList());
 
@@ -108,6 +109,13 @@ public class DengZongShopController {
     @Operation(summary = "邓总店铺最新批次日期")
     public Result<String> maxBatchDate(@RequestParam(defaultValue = "UK") String marketplace) {
         return Result.success(dengZongShopService.getMaxBatchDate(marketplace));
+    }
+
+    @GetMapping("/batch-dates")
+    @Operation(summary = "郑总店铺批次日期列表")
+    public Result<List<Map<String, Object>>> batchDates(
+            @RequestParam(defaultValue = "UK") String marketplace) {
+        return Result.success(dengZongShopService.selectBatchDatesWithCount(marketplace));
     }
 
     @GetMapping("/completeness")
