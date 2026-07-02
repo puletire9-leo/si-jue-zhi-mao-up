@@ -185,18 +185,18 @@ public class DengZongShopService {
     public long countGroupedByParent(String marketplace, String month, String brand,
             String sellerName, String title, String category, String bsrId, Long nodeId,
             java.math.BigDecimal priceMin, java.math.BigDecimal priceMax, Integer bsrMax,
-            java.math.BigDecimal ratingMin, String weightMax, String batchDate) {
+            java.math.BigDecimal ratingMin, String weightMax, Integer maxVariantCount, String batchDate) {
         return mapper.countGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId,
-                priceMin, priceMax, bsrMax, ratingMin, weightMax, batchDate);
+                priceMin, priceMax, bsrMax, ratingMin, weightMax, maxVariantCount, batchDate);
     }
 
     public List<DengZongShop> selectGroupedByParent(String marketplace, String month, String brand,
             String sellerName, String title, String category, String bsrId, Long nodeId,
             java.math.BigDecimal priceMin, java.math.BigDecimal priceMax, Integer bsrMax,
-            java.math.BigDecimal ratingMin, String weightMax, String batchDate,
+            java.math.BigDecimal ratingMin, String weightMax, Integer maxVariantCount, String batchDate,
             String sortBy, String sortOrder, int offset, int size) {
         return mapper.selectGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId,
-                priceMin, priceMax, bsrMax, ratingMin, weightMax, batchDate, sortBy, sortOrder, offset, size);
+                priceMin, priceMax, bsrMax, ratingMin, weightMax, maxVariantCount, batchDate, sortBy, sortOrder, offset, size);
     }
 
     public List<DengZongShop> shopSelectList(LambdaQueryWrapper<DengZongShop> qw) {
@@ -209,6 +209,10 @@ public class DengZongShopService {
 
     public List<Map<String, Object>> selectSellerSummary(String marketplace, String batchDate) {
         return mapper.selectSellerSummary(marketplace, batchDate);
+    }
+
+    public List<Map<String, Object>> selectBatchDatesWithCount(String marketplace) {
+        return mapper.selectBatchDatesWithCount(marketplace);
     }
 
     public List<DengZongShopSeller> sellerSelectList(LambdaQueryWrapper<DengZongShopSeller> qw) {

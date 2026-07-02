@@ -49,6 +49,7 @@ public class AsinImportService {
     private static final int BATCH_SIZE = 40;
     private static final long BATCH_API_DELAY_MS = 2000;
     private static final int DB_BATCH_SIZE = 2000; // 每批写入 DB 的行数
+    private static final int RESULT_TITLE_MAX_LENGTH = 500;
     
     private static final long SELLER_API_DELAY_MS = 500;
     private static final int STATUS_CHECK_INTERVAL = 5;
@@ -328,6 +329,22 @@ public class AsinImportService {
         preview.put("discardedAsins", ctx.pass - fullBatches * BATCH_SIZE);
         log.info("流式初筛完成: taskId={}, total={}, pass={}", ctx.taskId, ctx.total, ctx.pass);
         return preview;
+    }
+
+    public void failStreamingTask(StreamingFilterContext ctx, String errorMessage) {
+        if (ctx == null) return;
+        AsinImportTask task = taskMapper.selectById(ctx.taskId);
+        if (task == null) return;
+        task.setTaskStatus("ERROR");
+        task.setTotalCount(ctx.total);
+        task.setPassCount(ctx.pass);
+        task.setPriceFailCount(ctx.priceFail);
+        task.setReviewFailCount(ctx.reviewFail);
+        task.setDuplicateCount(ctx.duplicate);
+        task.setSkipCount(ctx.skipBlacklist + ctx.skipMain);
+        task.setErrorMessage(truncateText(errorMessage, 1000));
+        task.setUpdatedAt(java.time.LocalDateTime.now());
+        taskMapper.updateById(task);
     }
 
     /**
@@ -1180,7 +1197,7 @@ public class AsinImportService {
                 AsinImportResult result = new AsinImportResult();
                 result.setTaskId(taskId);
                 result.setAsin(row.get("asin"));
-                result.setTitle(row.get("标题"));
+                result.setTitle(truncateText(row.get("标题"), RESULT_TITLE_MAX_LENGTH));
                 result.setStatus(status);
                 switch (status) {
                     case "PRICE_FAIL" -> result.setDetail("价格 " + row.get("_price") + " 不在范围 " + initialFilterConfig.getPriceMin(marketplace) + "-" + initialFilterConfig.getPriceMax(marketplace));
@@ -1288,6 +1305,11 @@ public class AsinImportService {
     private BigDecimal parsePrice(String priceStr) {
         if (priceStr == null) return null;
         try { return new BigDecimal(priceStr); } catch (Exception e) { return null; }
+    }
+
+    private String truncateText(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) return value;
+        return value.substring(0, maxLength);
     }
 
     // ---- 工具方法 ----
