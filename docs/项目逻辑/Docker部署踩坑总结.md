@@ -190,6 +190,13 @@ CREATE TABLE IF NOT EXISTS asin_import_results (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
+如果已有表且出现长标题写入失败，再补一条迁移：
+
+```sql
+ALTER TABLE asin_import_results
+    MODIFY COLUMN title VARCHAR(1000) DEFAULT NULL COMMENT '产品标题';
+```
+
 ---
 
 ## 坑 9：Docker 内 localhost 指容器自己
