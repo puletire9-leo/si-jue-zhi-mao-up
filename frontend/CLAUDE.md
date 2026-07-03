@@ -84,8 +84,13 @@ export default {
 | report.ts | Python | 脚本生成，保留 |
 | lingxing.ts | Python | COS 上传，保留 |
 
-**Java 后端已实现的前端页面：** 登录/用户管理/竞品分析/评分/ASIN 导入/筛选预设。
+**Java 后端已实现的前端页面：** 登录/用户管理/竞品分析/评分/ASIN 导入/筛选预设/领星数据对接。
 **仍在 Python 的页面：** 产品管理/选品/定稿/素材库/运营商库/图片管理/导入导出/数据看板/统计/报表/领星导入。
+
+**领星数据对接模块**（menuGroup「领星」，`modules/lingxing-{sellers,products,performance,profit}/`，API `api/lingxingProduct.ts`）：
+后端为 Java sjzm-product，对接说明见
+`java-backend/sjzm-product/src/main/java/com/sjzm/product/modules/lingxing/README.md`。
+注意先同步店铺拿 sid，产品表现/利润才能按店铺取数。
 
 ## 构建
 
