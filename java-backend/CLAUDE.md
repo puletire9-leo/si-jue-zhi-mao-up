@@ -21,8 +21,17 @@
 - ✅ ASIN 导入（Excel 解析 + 批量导入 + 任务管理）
 - ✅ 筛选预设（用户 5 槽位 CRUD）
 - ✅ 网关（JWT + RBAC + 公开路径白名单）
+- ✅ 领星对接（店铺/本地产品/产品表现/利润 4 数据域落库 + 本地产品写回）
 
 **仍在 Python 后端：** 产品/选品/定稿/素材/运营商的 CRUD。
+
+## 功能模块（modules/）
+
+| 模块 | 说明 | 详情 |
+|------|------|------|
+| bazhuayu | 八爪鱼云采集 + 以图识图 | `modules/bazhuayu/` |
+| lingxing | 领星开放平台对接（token/签名 + 4 数据域 + 写回） | [README](sjzm-product/src/main/java/com/sjzm/product/modules/lingxing/README.md) |
+| roster | 人员花名册 | `modules/roster/` |
 
 ## 包结构约定
 
