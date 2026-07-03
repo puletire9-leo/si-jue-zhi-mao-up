@@ -41,6 +41,87 @@ export interface BazhuayuTask {
   createdAt: string;
 }
 
+export interface BazhuayuTaskMapItem {
+  id: number;
+  marketplace: string;
+  importType: string;
+  status: string;
+  totalCount: number;
+  passCount: number;
+  priceFailCount: number;
+  reviewFailCount: number;
+  duplicateCount: number;
+  skipCount: number;
+  batchTotal: number;
+  batchCurrent: number;
+  apiSuccess: number;
+  apiFail: number;
+  apiRequestsUsed: number;
+  parentAsinCount: number;
+  variantAsinCount: number;
+  dataMonth: string | null;
+  errorMessage?: string | null;
+  createdAt: string;
+  completedAt: string;
+}
+
+export interface BazhuayuMarketplaceOverview {
+  marketplace: string;
+  // 当前运行（内存态）
+  currentPhase: BazhuayuPhase;
+  currentRunning: boolean;
+  currentCloudExtractCount: number;
+  currentDrainedRows: number;
+  currentError: string | null;
+  // 本周
+  weeklyRawCount: number;
+  weekTaskCount: number;
+  weekReadyCount: number;
+  weekRunningCount: number;
+  weekDoneCount: number;
+  weekErrorCount: number;
+  weekPausedCount: number;
+  // 历史累计
+  lifetimeTaskCount: number;
+  lifetimeDoneCount: number;
+  lifetimeErrorCount: number;
+  latestTask: BazhuayuTaskMapItem | null;
+}
+
+/** 跨站点汇总（后端预计算） */
+export interface BazhuayuOverviewSummary {
+  currentRunning: number;
+  currentCloudExtractCount: number;
+  weeklyRawCount: number;
+  weekTaskCount: number;
+  weekDoneCount: number;
+  weekErrorCount: number;
+  lifetimeTaskCount: number;
+  lifetimeDoneCount: number;
+  lifetimeErrorCount: number;
+}
+
+/** 当前连接的数据库（只读展示，不含账密） */
+export interface BazhuayuDatasourceInfo {
+  profile: string;
+  host: string;
+  port: string;
+  database: string;
+}
+
+export interface BazhuayuOverviewResp {
+  weekTag: string;
+  weekStart: string;
+  currentStates: BazhuayuRunState[];
+  marketplaces: BazhuayuMarketplaceOverview[];
+  /** 本周内产生的任务（createdAt >= weekStart） */
+  weekTasks: BazhuayuTaskMapItem[];
+  /** 历史全部任务 */
+  lifetimeTasks: BazhuayuTaskMapItem[];
+  summary: BazhuayuOverviewSummary;
+  datasource: BazhuayuDatasourceInfo;
+}
+
 /** 一条龙运行阶段 */
 export type BazhuayuPhase =
   | "IDLE"
@@ -170,6 +251,13 @@ export const bazhuayuApi = {
     ).then((d) => (Array.isArray(d) ? d : []));
   },
 
+  /** 控制台总览：当前态 + 历史任务 + 周原始量 */
+  overview(): Promise<BazhuayuOverviewResp> {
+    return unwrap<BazhuayuOverviewResp>(
+      request({ url: "/api/v1/modules/bazhuayu/overview", method: "get" }),
+    );
+  },
+
   /** 更新任务组→站点→任务ID 映射 */
   updateMapping(
     mapping: Record<string, Record<string, string>>,
@@ -184,7 +272,10 @@ export const bazhuayuApi = {
   },
 
   /** 以图识图：对一个 ASIN 发起英国 stylesnap 视觉搜索（同步等待，约数分钟） */
-  imageSearch(asin: string, forceRefresh = false): Promise<ImageSearchResult[]> {
+  imageSearch(
+    asin: string,
+    forceRefresh = false,
+  ): Promise<ImageSearchResult[]> {
     return unwrap<ImageSearchResult[]>(
       request({
         url: "/api/v1/modules/bazhuayu/image-search",

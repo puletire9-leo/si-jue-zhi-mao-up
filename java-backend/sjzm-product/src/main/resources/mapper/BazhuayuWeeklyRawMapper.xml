@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.mapper.BazhuayuWeeklyRawMapper">
+
+    <insert id="insertBatchIgnoreDup" parameterType="list">
+        INSERT IGNORE INTO bazhuayu_weekly_raw (
+            id, marketplace, asin, price, reviews, title, raw_json, week_tag, lot_no, scraped_at
+        ) VALUES
+        <foreach collection="list" item="r" separator=",">
+            (#{r.id}, #{r.marketplace}, #{r.asin}, #{r.price}, #{r.reviews}, #{r.title},
+             #{r.rawJson}, #{r.weekTag}, #{r.lotNo}, #{r.scrapedAt})
+        </foreach>
+    </insert>
+
+</mapper>

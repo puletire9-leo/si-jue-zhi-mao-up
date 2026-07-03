@@ -370,6 +370,17 @@ public class CompetitorService {
         if (StringUtils.hasText(request.getTitle())) {
             wrapper.like(CompetitorProduct::getTitle, request.getTitle());
         }
+        if (StringUtils.hasText(request.getCategory())) {
+            List<String> categories = splitCsv(request.getCategory());
+            if (!categories.isEmpty()) {
+                String placeholders = IntStream.range(0, categories.size())
+                        .mapToObj(i -> "{" + i + "}")
+                        .collect(Collectors.joining(","));
+                wrapper.apply(
+                        "TRIM(SUBSTRING_INDEX(node_label_path, ':', 1)) IN (" + placeholders + ")",
+                        categories.toArray());
+            }
+        }
         if (StringUtils.hasText(request.getGrade())) {
             List<String> grades = java.util.Arrays.asList(request.getGrade().split(","));
             if (grades.size() == 1) {
@@ -723,5 +734,16 @@ public class CompetitorService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private List<String> splitCsv(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return List.of();
+        }
+        return Arrays.stream(raw.split(","))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .collect(Collectors.toList());
     }
 }

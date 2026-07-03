@@ -26,7 +26,7 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "  <if test='brand != null'> AND ds.brand LIKE CONCAT('%',#{brand},'%')</if>" +
         "  <if test='sellerName != null'> AND ds.seller_name LIKE CONCAT('%',#{sellerName},'%')</if>" +
         "  <if test='title != null'> AND ds.title LIKE CONCAT('%',#{title},'%')</if>" +
-        "  <if test='category != null'> AND SUBSTRING_INDEX(ds.node_label_path, ':', 1) = #{category}</if>" +
+        "  <if test='category != null'> AND FIND_IN_SET(TRIM(SUBSTRING_INDEX(ds.node_label_path, ':', 1)), #{category}) &gt; 0</if>" +
         "  <if test='bsrId != null'> AND ds.bsr_id = #{bsrId}</if>" +
         "  <if test='nodeId != null'> AND ds.node_id = #{nodeId}</if>" +
         "  <if test='priceMin != null'> AND ds.price &gt;= #{priceMin}</if>" +
@@ -34,8 +34,9 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "  <if test='bsrMax != null'> AND ds.bsr &lt;= #{bsrMax}</if>" +
         "  <if test='ratingMin != null'> AND ds.rating &gt;= #{ratingMin}</if>" +
         "  <if test='weightMax != null'> AND ds.weight &lt;= #{weightMax}</if>" +
-        "  <if test='batchDate != null'> AND (ds.batch_date = #{batchDate} OR ds.batch_date IS NULL)</if>" +
+        "  <if test='batchDate != null'> AND (FIND_IN_SET(ds.batch_date, #{batchDate}) &gt; 0 OR ds.batch_date IS NULL)</if>" +
         ") t WHERE t.rn = 1" +
+        "  <if test='maxVariantCount != null'> AND t.variantCount &lt;= #{maxVariantCount}</if>" +
         "<if test='sortBy != null and sortOrder != null'>" +
         "  ORDER BY " +
         "  <choose>" +
@@ -67,6 +68,7 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
             @Param("bsrMax") Integer bsrMax,
             @Param("ratingMin") java.math.BigDecimal ratingMin,
             @Param("weightMax") String weightMax,
+            @Param("maxVariantCount") Integer maxVariantCount,
             @Param("batchDate") String batchDate,
             @Param("sortBy") String sortBy,
             @Param("sortOrder") String sortOrder,
@@ -75,14 +77,14 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
 
     @Select("<script>" +
         "SELECT COUNT(*) FROM (" +
-        "  SELECT COALESCE(NULLIF(ds.parent_asin,''), ds.asin) as grp" +
+        "  SELECT COALESCE(NULLIF(ds.parent_asin,''), ds.asin) as grp, COUNT(*) as variantCount" +
         "  FROM deng_zong_shop ds WHERE ds.title IS NOT NULL" +
         "  <if test='marketplace != null'> AND ds.marketplace = #{marketplace}</if>" +
         "  <if test='month != null'> AND ds.month = #{month}</if>" +
         "  <if test='brand != null'> AND ds.brand LIKE CONCAT('%',#{brand},'%')</if>" +
         "  <if test='sellerName != null'> AND ds.seller_name LIKE CONCAT('%',#{sellerName},'%')</if>" +
         "  <if test='title != null'> AND ds.title LIKE CONCAT('%',#{title},'%')</if>" +
-        "  <if test='category != null'> AND SUBSTRING_INDEX(ds.node_label_path, ':', 1) = #{category}</if>" +
+        "  <if test='category != null'> AND FIND_IN_SET(TRIM(SUBSTRING_INDEX(ds.node_label_path, ':', 1)), #{category}) &gt; 0</if>" +
         "  <if test='bsrId != null'> AND ds.bsr_id = #{bsrId}</if>" +
         "  <if test='nodeId != null'> AND ds.node_id = #{nodeId}</if>" +
         "  <if test='priceMin != null'> AND ds.price &gt;= #{priceMin}</if>" +
@@ -90,9 +92,10 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "  <if test='bsrMax != null'> AND ds.bsr &lt;= #{bsrMax}</if>" +
         "  <if test='ratingMin != null'> AND ds.rating &gt;= #{ratingMin}</if>" +
         "  <if test='weightMax != null'> AND ds.weight &lt;= #{weightMax}</if>" +
-        "  <if test='batchDate != null'> AND (ds.batch_date = #{batchDate} OR ds.batch_date IS NULL)</if>" +
+        "  <if test='batchDate != null'> AND (FIND_IN_SET(ds.batch_date, #{batchDate}) &gt; 0 OR ds.batch_date IS NULL)</if>" +
         "  GROUP BY COALESCE(NULLIF(ds.parent_asin,''), ds.asin)" +
         ") g" +
+        " <if test='maxVariantCount != null'> WHERE g.variantCount &lt;= #{maxVariantCount}</if>" +
         "</script>")
     long countGroupedByParent(
             @Param("marketplace") String marketplace,
@@ -108,7 +111,20 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
             @Param("bsrMax") Integer bsrMax,
             @Param("ratingMin") java.math.BigDecimal ratingMin,
             @Param("weightMax") String weightMax,
+            @Param("maxVariantCount") Integer maxVariantCount,
             @Param("batchDate") String batchDate);
+
+    @Select("<script>" +
+        "SELECT batch_date AS batchDate, COUNT(*) AS count" +
+        " FROM deng_zong_shop" +
+        " WHERE title IS NOT NULL" +
+        " <if test='marketplace != null'> AND marketplace = #{marketplace}</if>" +
+        " AND batch_date IS NOT NULL AND batch_date != ''" +
+        " GROUP BY batch_date" +
+        " ORDER BY batch_date DESC" +
+        "</script>")
+    List<Map<String, Object>> selectBatchDatesWithCount(
+            @Param("marketplace") String marketplace);
 
     // 以登记名单(deng_zong_shop_seller)为主表 LEFT JOIN 数据表，
     // 保证每个登记的「卖家×站点」都出现——没数据的店铺商品数/营收为 0，
