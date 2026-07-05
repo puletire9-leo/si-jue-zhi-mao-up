@@ -1,10 +1,9 @@
 """
-[参考] 导出功能API - 待废弃
+[实际] 导出功能API - 仍在 Python 运行（唯一实现）
 =========================
 
-[WARN] 此模块已迁移到 Java 后端: ExportController.java
-
-最终删除日期：项目稳定运行后
+[注意] Java 后端并无 ExportController，此前"已迁移"标注为误标（2026-07-03 核实）。
+       导出功能（pandas 生成 Excel）目前只有本 Python 实现，前端直接依赖，删除前必须先真正迁移。
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import FileResponse

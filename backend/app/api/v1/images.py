@@ -1,10 +1,9 @@
 """
-[参考] 图片管理API - 待废弃
+[实际] 图片管理API - 仍在 Python 运行（唯一实现，含向量/AI 能力）
 =========================
 
-[WARN] 此模块已迁移到 Java 后端: ImageController.java
-
-最终删除日期：项目稳定运行后
+[注意] Java 后端并无 ImageController，此前"已迁移"标注为误标（2026-07-03 核实）。
+       图片管理（含以图搜图/向量检索）依赖 Python AI 生态，是 Python 的核心保留域，不应迁 Java。
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, Body
 from fastapi.responses import FileResponse, Response
