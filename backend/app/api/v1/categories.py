@@ -1,10 +1,9 @@
 """
-[参考] 分类管理API - 待废弃
+[实际] 分类管理API - 仍在 Python 运行（唯一实现）
 =========================
 
-[WARN] 此模块已迁移到 Java 后端: CategoryController.java
-
-最终删除日期：项目稳定运行后
+[注意] Java 后端并无 CategoryController（modules/category-tree 是 bazhuayu 大类榜单只读树，业务域不同），
+       此前"已迁移"标注为误标（2026-07-03 核实）。分类 CRUD 只有本 Python 实现，删除前必须先真正迁移。
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional, List

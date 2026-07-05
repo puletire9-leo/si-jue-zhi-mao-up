@@ -1,3 +1,4 @@
+import asyncio
 import aiomysql
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
@@ -76,40 +77,66 @@ class MySQLRepository:
             'query_types': {}
         }
     
+    # 连接池创建重试参数：兜底容器启动竞态（MySQL 未就绪 / 中途重启）。
+    # docker compose 的 depends_on 只在 up 时生效，对 docker restart 和开机自启无效，
+    # 故必须在代码层重试，避免后端"带病运行"（pool=None → 所有查库接口 500）。
+    CONNECT_MAX_RETRIES = 10
+    CONNECT_RETRY_DELAY = 3  # 秒
+
     async def connect(self):
         """
-        创建数据库连接池
-        
+        创建数据库连接池（带启动重试）。
+
+        MySQL 未就绪时（如 2003 Can't connect）会按固定间隔重试，
+        全部失败才抛异常。建表/索引在池创建成功后只执行一次，不参与重试。
+
         Raises:
-            Exception: 连接失败时抛出异常
+            Exception: 重试耗尽仍连接失败时抛出
         """
+        last_error = None
+        for attempt in range(1, self.CONNECT_MAX_RETRIES + 1):
+            try:
+                self.pool = await aiomysql.create_pool(
+                    host=self.host,
+                    port=self.port,
+                    user=self.user,
+                    password=self.password,
+                    db=self.database,
+                    minsize=5,  # 优化：增加最小连接数
+                    maxsize=self.pool_size + self.max_overflow,  # 考虑溢出连接
+                    pool_recycle=self.pool_recycle,
+                    echo=self.echo,
+                    charset='utf8mb4',
+                    autocommit=False,
+                    connect_timeout=10
+                )
+                logger.info(f"[OK] MySQL连接池创建成功 | 数据库: {self.database}, 连接池大小: {self.pool_size}, 最大溢出: {self.max_overflow}")
+                break
+            except Exception as e:
+                last_error = e
+                if attempt < self.CONNECT_MAX_RETRIES:
+                    logger.warning(
+                        f"[RETRY] MySQL连接池创建失败（第 {attempt}/{self.CONNECT_MAX_RETRIES} 次），"
+                        f"{self.CONNECT_RETRY_DELAY}秒后重试: {e}"
+                    )
+                    await asyncio.sleep(self.CONNECT_RETRY_DELAY)
+                else:
+                    logger.error(f"[FAIL] MySQL连接池创建失败（已重试 {self.CONNECT_MAX_RETRIES} 次）: {e}")
+                    raise
+        if self.pool is None:  # 理论不可达（失败会 raise），防御性兜底
+            raise last_error
+
         try:
-            self.pool = await aiomysql.create_pool(
-                host=self.host,
-                port=self.port,
-                user=self.user,
-                password=self.password,
-                db=self.database,
-                minsize=5,  # 优化：增加最小连接数
-                maxsize=self.pool_size + self.max_overflow,  # 考虑溢出连接
-                pool_recycle=self.pool_recycle,
-                echo=self.echo,
-                charset='utf8mb4',
-                autocommit=False,
-                connect_timeout=10
-            )
-            logger.info(f"[OK] MySQL连接池创建成功 | 数据库: {self.database}, 连接池大小: {self.pool_size}, 最大溢出: {self.max_overflow}")
-            
             # 检查并创建image_access_logs表
             await self._check_and_create_image_access_logs_table()
-            
+
             # 检查并创建系统日志相关表
             await self._check_and_create_system_log_tables()
-            
+
             # 创建必要的索引
             await self._create_necessary_indexes()
         except Exception as e:
-            logger.error(f"[FAIL] MySQL连接池创建失败: {e}")
+            logger.error(f"[FAIL] MySQL 建表/索引初始化失败: {e}")
             raise
     
     async def _check_and_create_image_access_logs_table(self):
