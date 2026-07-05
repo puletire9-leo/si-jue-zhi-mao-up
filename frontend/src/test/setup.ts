@@ -14,6 +14,7 @@ config.global.stubs = {
   'el-input': true,
   'el-select': true,
   'el-option': true,
+  'el-date-picker': true,
   'el-pagination': true,
   'el-dialog': true,
   'el-upload': true,

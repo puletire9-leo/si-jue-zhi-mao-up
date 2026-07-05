@@ -76,6 +76,7 @@ export interface SearchTypeOption {
  * 组件Props接口
  */
 export interface SelectionQueryFormProps {
+  modelValue?: Partial<SelectionQueryParams>;
   /** 页面类型 */
   pageType: "all" | "new" | "reference" | "recycle";
   /** 是否显示来源筛选 */
@@ -116,6 +117,7 @@ export interface SelectionQueryFormProps {
  * 组件Emits类型定义
  */
 export interface SelectionQueryFormEmits {
+  (e: "update:modelValue", params: SelectionQueryParams): void;
   /** 搜索事件 */
   (e: "search", params: SelectionQueryParams): void;
   /** 重置事件 */

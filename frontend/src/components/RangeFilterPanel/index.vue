@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from "vue";
 import { QuestionFilled } from "@element-plus/icons-vue";
-import { getCreatedWeeks } from "@/api/competitor";
+import { getCreatedWeeks, getDengZongBatchDates } from "@/api/competitor";
 
 export interface RangeFilterValue {
   priceMin: number | null;
@@ -24,9 +24,8 @@ const props = withDefaults(
   defineProps<{
     modelValue?: RangeFilterValue;
     country?: string;
-    /** 来源（如 '新品榜' / '竞品店铺'），用于把入库批次下拉对齐到查询口径 */
     source?: string;
-    /** 嵌入抽屉/卡片时为 true：去掉自身灰底边框，与外层风格统一 */
+    snapshotKind?: "competitor_created_week" | "deng_zong_batch";
     embedded?: boolean;
   }>(),
   {
@@ -48,6 +47,7 @@ const props = withDefaults(
     }),
     country: "US",
     source: "",
+    snapshotKind: "competitor_created_week",
     embedded: false,
   },
 );
@@ -83,13 +83,22 @@ const TOOLTIPS = {
   units: "设置月销量区间筛选商品",
   listingDays: "设置上架天数区间筛选商品",
   variantCount: "仅显示变体数量不超过该值的商品",
-  bsr: "仅显示BSR排名不超过该值的商品",
+  bsr: "仅显示 BSR 排名不超过该值的商品",
   weight: "仅显示重量不超过该值（克）的商品",
-  fulfillment: "按配送方式筛选商品，AMZ=亚马逊自营，FBA=亚马逊物流，FBM=自发货",
+  fulfillment:
+    "按配送方式筛选商品，AMZ=亚马逊自营，FBA=亚马逊物流，FBM=自发货",
   grade: "按评分等级筛选商品",
 } as const;
 
 const currencySymbol = computed(() => CURRENCY_MAP[props.country] ?? "$");
+const snapshotLabel = computed(() =>
+  props.snapshotKind === "deng_zong_batch" ? "入库批次（批次日）" : "入库批次（周）",
+);
+const snapshotPlaceholder = computed(() =>
+  props.snapshotKind === "deng_zong_batch"
+    ? "选择批次日期（默认最新）"
+    : "选择周批次（默认最新）",
+);
 
 function clone(v: RangeFilterValue): RangeFilterValue {
   return {
@@ -156,17 +165,33 @@ function clearListingPreset() {
   local.value.listingDaysMax = null;
 }
 
-const availableWeeks = ref<Array<{ week: string; count: number }>>([]);
+const availableSnapshots = ref<
+  Array<{ value: string; label: string; count: number }>
+>([]);
 
 async function loadAvailableWeeks() {
+  if (props.snapshotKind === "deng_zong_batch") {
+    const res = await getDengZongBatchDates(props.country);
+    availableSnapshots.value = (res?.data ?? []).map((item) => ({
+      value: item.batchDate,
+      label: item.batchDate,
+      count: item.count,
+    }));
+    return;
+  }
+
   const res = await getCreatedWeeks(props.country, props.source || undefined);
-  availableWeeks.value = res?.data ?? [];
+  availableSnapshots.value = (res?.data ?? []).map((item) => ({
+    value: item.week,
+    label: item.week,
+    count: item.count,
+  }));
 }
 
 onMounted(loadAvailableWeeks);
 
 watch(
-  () => [props.country, props.source],
+  () => [props.country, props.source, props.snapshotKind],
   loadAvailableWeeks,
 );
 </script>
@@ -175,21 +200,21 @@ watch(
   <div class="rfp" :class="{ 'rfp--embedded': embedded }">
     <div class="rfp__week-row">
       <div class="rfp__field">
-        <label class="rfp__label">入库批次（周）</label>
+        <label class="rfp__label">{{ snapshotLabel }}</label>
         <el-select
           v-model="local.createdWeeks"
           multiple
           collapse-tags
           collapse-tags-tooltip
-          placeholder="选择周批次（默认最新）"
+          :placeholder="snapshotPlaceholder"
           clearable
           style="width: 100%"
         >
           <el-option
-            v-for="w in availableWeeks"
-            :key="w.week"
-            :label="`${w.week} (${w.count})`"
-            :value="w.week"
+            v-for="item in availableSnapshots"
+            :key="item.value"
+            :label="`${item.label} (${item.count})`"
+            :value="item.value"
           />
         </el-select>
       </div>
@@ -439,7 +464,6 @@ watch(
   }
 }
 
-// 嵌入抽屉时：去掉灰底/边框/内边距，列改为纵向堆叠，风格与其他分区一致
 .rfp--embedded {
   background: transparent;
   border: none;
