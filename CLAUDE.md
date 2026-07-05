@@ -16,9 +16,9 @@
 | 职责 | 后端 | 状态 |
 |------|------|------|
 | 认证 + 用户管理 | Java（sjzm-user） | ✅ |
-| 竞品分析 + 评分 + ASIN 导入 | Java（sjzm-product） | ✅ |
+| 竞品分析 + 评分 + ASIN 导入 + 领星数据对接 | Java（sjzm-product） | ✅ |
 | 产品/选品/定稿/素材/运营商 CRUD | Python | 待迁移 |
-| 图片管理/导入导出/报表/领星 | Python | 保留 |
+| 图片管理/导入导出/报表/领星导入(Excel/COS) | Python | 保留 |
 
 ## 铁律
 
