@@ -1,10 +1,9 @@
 """
-[参考] 公共回收站API - 待废弃
+[实际] 公共回收站API - 仍在 Python 运行（唯一实现）
 =========================
 
-[WARN] 此模块已迁移到 Java 后端: RecycleBinController.java
-
-最终删除日期：项目稳定运行后
+[注意] Java 后端并无 RecycleBinController，此前"已迁移"标注为误标（2026-07-03 核实）。
+       公共回收站目前只有本 Python 实现，前端直接依赖，删除前必须先真正迁移。
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Body

@@ -1,10 +1,9 @@
 """
-[参考] 健康检查API - 待废弃
+[实际] 健康检查API - 仍在 Python 运行（唯一实现）
 =========================
 
-[WARN] 此模块已迁移到 Java 后端: HealthController.java
-
-最终删除日期：项目稳定运行后
+[注意] Java 后端并无 HealthController，此前"已迁移"标注为误标（2026-07-03 核实）。
+       本 Python 健康检查仍在使用，删除前需确认无依赖。
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request
