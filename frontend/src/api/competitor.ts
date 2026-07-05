@@ -125,6 +125,7 @@ export interface CompetitorListParams {
   listingDaysMin?: number;
   listingDaysMax?: number;
   keywords?: string;
+  bsrId?: string;
   nodeId?: number | string;
   /** 入库周次（ISO 周，如 2026-W19），后端按 created_at 实时过滤 */
   createdWeek?: string;
@@ -408,6 +409,19 @@ export const competitorApi = {
 
 export function getDengZongMaxBatchDate(marketplace: string) {
   return request.get("/api/v1/deng-zong-shop/max-batch-date", {
+    params: { marketplace },
+  });
+}
+
+export interface DengZongBatchDate {
+  batchDate: string;
+  count: number;
+}
+
+export function getDengZongBatchDates(
+  marketplace: string,
+): Promise<ApiResponse<DengZongBatchDate[]>> {
+  return request.get("/api/v1/deng-zong-shop/batch-dates", {
     params: { marketplace },
   });
 }

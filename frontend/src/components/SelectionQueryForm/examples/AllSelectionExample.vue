@@ -61,10 +61,11 @@
 
           <!-- 使用 SelectionQueryForm 组件替换原有的查询表单 -->
           <SelectionQueryForm
-            ref="queryFormRef"
+            :model-value="queryParamsState"
             page-type="all"
             :categories="categories"
             :total="pagination.total"
+            @update:model-value="onQueryParamsChange"
             @search="handleSearch"
             @reset="handleReset"
             @image-search="handleSearchByImage"
@@ -128,16 +129,19 @@ import {
 import UniversalCard from '@/components/UniversalCard/index.vue'
 import SkeletonWrapper from '@/components/SkeletonWrapper/index.vue'
 import SelectionQueryForm from '@/components/SelectionQueryForm/index.vue'
-import type { SelectionQueryParams } from '@/components/SelectionQueryForm/types'
+import {
+  defaultQueryParams,
+  type SelectionQueryParams
+} from '@/components/SelectionQueryForm/types'
 import { selectionApi } from '@/api/selection'
 
 const router = useRouter()
-const queryFormRef = ref<InstanceType<typeof SelectionQueryForm>>()
 
 // 数据
 const productList = ref([])
 const selectedIds = ref<string[]>([])
 const categories = ref([])
+const queryParamsState = ref<SelectionQueryParams>({ ...defaultQueryParams })
 const loading = ref(false)
 const exporting = ref(false)
 const hasLoaded = ref(false)
@@ -164,7 +168,7 @@ const loadProducts = async (params?: SelectionQueryParams) => {
   loading.value = true
   try {
     // 如果没有传入参数，从组件获取当前参数
-    const queryParams = params || queryFormRef.value?.getQueryParams()
+    const queryParams = params || queryParamsState.value
     
     const apiParams: any = {
       page: pagination.page,
@@ -191,7 +195,12 @@ const loadProducts = async (params?: SelectionQueryParams) => {
 }
 
 // 处理搜索
+const onQueryParamsChange = (params: SelectionQueryParams) => {
+  queryParamsState.value = { ...params }
+}
+
 const handleSearch = (params: SelectionQueryParams) => {
+  queryParamsState.value = { ...params }
   pagination.page = 1
   loadProducts(params)
 }

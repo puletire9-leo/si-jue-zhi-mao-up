@@ -5,7 +5,7 @@
  * @author AI Assistant
  * @version 1.3.0
  */
-import { ref, reactive, computed, watch, onMounted } from "vue";
+import { ref, reactive, computed, watch, onMounted, nextTick } from "vue";
 import {
   Search,
   Refresh,
@@ -46,6 +46,7 @@ const props = withDefaults(defineProps<SelectionQueryFormProps>(), {
 
 // Emits 定义
 const emit = defineEmits<{
+  "update:modelValue": [params: SelectionQueryParams];
   search: [params: SelectionQueryParams];
   reset: [];
   imageSearch: [];
@@ -53,10 +54,26 @@ const emit = defineEmits<{
 }>();
 
 // 表单数据
-const formData = reactive<SelectionQueryParams>({
-  ...defaultQueryParams,
-  ...props.initialParams,
-});
+function normalizeQueryParams(
+  params?: Partial<SelectionQueryParams>,
+): SelectionQueryParams {
+  const next = {
+    ...defaultQueryParams,
+    ...(params || {}),
+  } as SelectionQueryParams & { category?: string | string[] };
+  if (Array.isArray(next.category)) {
+    next.category = next.category.join(",");
+  }
+  return next;
+}
+
+const formData = reactive<SelectionQueryParams>(
+  normalizeQueryParams({
+    ...props.initialParams,
+    ...props.modelValue,
+  }),
+);
+const syncingExternalState = ref(false);
 
 // 紧凑模式下的搜索类型和搜索内容
 const compactSearchType = ref("asin");
@@ -160,6 +177,38 @@ const displayTitle = computed(() => {
 });
 
 // 监听日期范围变化
+const syncDerivedState = (params: SelectionQueryParams) => {
+  dateRange.value =
+    params.startDate && params.endDate
+      ? [params.startDate, params.endDate]
+      : [];
+  listingDateRange.value =
+    params.listingDateStart && params.listingDateEnd
+      ? [params.listingDateStart, params.listingDateEnd]
+      : [];
+
+  const compactFields: Array<
+    ["asin" | "productTitle" | "storeName" | "category", string]
+  > = [
+    ["asin", params.asin],
+    ["productTitle", params.productTitle],
+    ["storeName", params.storeName],
+    ["category", params.category],
+  ];
+  const activeCompactField = compactFields.find(([, value]) => value?.trim());
+  compactSearchType.value = activeCompactField?.[0] || params.searchType || "asin";
+  compactSearchContent.value = activeCompactField?.[1] || "";
+};
+
+const applyExternalQueryParams = (params?: Partial<SelectionQueryParams>) => {
+  syncingExternalState.value = true;
+  Object.assign(formData, normalizeQueryParams(params));
+  syncDerivedState(formData);
+  void nextTick(() => {
+    syncingExternalState.value = false;
+  });
+};
+
 watch(
   dateRange,
   (newVal) => {
@@ -170,7 +219,6 @@ watch(
       formData.startDate = "";
       formData.endDate = "";
     }
-    emit("change", { ...formData });
   },
   { deep: true },
 );
@@ -186,7 +234,6 @@ watch(
       formData.listingDateStart = "";
       formData.listingDateEnd = "";
     }
-    emit("change", { ...formData });
   },
   { deep: true },
 );
@@ -194,8 +241,11 @@ watch(
 // 监听表单数据变化
 watch(
   formData,
-  (newVal) => {
-    emit("change", { ...newVal });
+  () => {
+    if (syncingExternalState.value) return;
+    const params = normalizeQueryParams(formData);
+    emit("update:modelValue", params);
+    emit("change", params);
   },
   { deep: true },
 );
@@ -206,12 +256,23 @@ watch(
   (newVal) => {
     loadSellers(newVal || undefined);
     // 切换国家时清空卖家选择
-    formData.sellerSelect = "";
+    if (!syncingExternalState.value) {
+      formData.sellerSelect = "";
+    }
   },
 );
 
 // 组件挂载时加载卖家列表
+watch(
+  () => props.modelValue,
+  (newVal) => {
+    applyExternalQueryParams(newVal);
+  },
+  { deep: true, immediate: true },
+);
+
 onMounted(() => {
+  syncDerivedState(formData);
   loadSellers(formData.country || undefined);
 });
 
@@ -245,14 +306,14 @@ const handleCompactSearch = () => {
       break;
   }
 
-  emit("search", { ...formData });
+  emit("search", readQueryParams());
 };
 
 /**
  * 处理搜索
  */
 const handleSearch = () => {
-  emit("search", getQueryParams());
+  emit("search", readQueryParams());
 };
 
 /**
@@ -261,7 +322,7 @@ const handleSearch = () => {
 const handleSellerChange = (val: string) => {
   // 选中卖家时，同步设置 storeName 用于搜索
   formData.storeName = val || "";
-  emit("search", getQueryParams());
+  emit("search", readQueryParams());
 };
 
 /**
@@ -282,7 +343,7 @@ const handleReset = () => {
   // 触发重置事件
   emit("reset");
   // 触发搜索（重置后重新加载数据）
-  emit("search", { ...formData });
+  emit("search", readQueryParams());
 };
 
 /**
@@ -364,44 +425,26 @@ const handleAdvancedSearch = () => {
   advancedSearchDialogVisible.value = false;
 
   // 触发搜索
-  emit("search", { ...formData });
+  emit("search", readQueryParams());
 };
 
-/**
- * 获取当前查询参数
- */
-const getQueryParams = (): SelectionQueryParams => {
-  const params = { ...formData };
-  // 多选 category 数组转逗号分隔字符串
-  if (Array.isArray(params.category)) {
-    params.category = params.category.join(",");
-  }
-  return params;
+const readQueryParams = (): SelectionQueryParams => normalizeQueryParams(formData);
+
+const patchQueryParams = (params: Partial<SelectionQueryParams>) => {
+  applyExternalQueryParams({
+    ...formData,
+    ...params,
+  });
 };
 
-/**
- * 设置查询参数
- */
-const setQueryParams = (params: Partial<SelectionQueryParams>) => {
-  // category 字符串转数组（多选模式）
-  if (params.category && typeof params.category === "string") {
-    params.category = params.category.split(",").filter(Boolean) as any;
-  }
-  Object.assign(formData, params);
-  // 同步更新日期范围
-  if (params.startDate && params.endDate) {
-    dateRange.value = [params.startDate, params.endDate];
-  }
-  // 同步更新上架时间范围
-  if (params.listingDateStart && params.listingDateEnd) {
-    listingDateRange.value = [params.listingDateStart, params.listingDateEnd];
-  }
-};
+const getQueryParams = readQueryParams;
+const setQueryParams = patchQueryParams;
 
-// 暴露方法给父组件
 defineExpose({
-  getQueryParams,
-  setQueryParams,
+  readQueryParams,
+  patchQueryParams,
+  getQueryParams: readQueryParams,
+  setQueryParams: patchQueryParams,
   handleSearch,
   handleReset,
   openAdvancedSearchDialog,
