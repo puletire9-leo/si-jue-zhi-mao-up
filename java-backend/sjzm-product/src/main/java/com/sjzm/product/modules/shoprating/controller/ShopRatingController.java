@@ -2,7 +2,9 @@ package com.sjzm.product.modules.shoprating.controller;
 
 import com.sjzm.common.Result;
 import com.sjzm.product.entity.StoreRating;
+import com.sjzm.product.modules.shoprating.dto.ShopMethodRankItem;
 import com.sjzm.product.modules.shoprating.dto.ShopRatingResult;
+import com.sjzm.product.modules.shoprating.service.ShopMethodRankService;
 import com.sjzm.product.modules.shoprating.service.ShopRatingService;
 import com.sjzm.product.modules.shoprating.service.impl.ShopRatingServiceImpl;
 import io.swagger.v3.oas.annotations.Operation;
@@ -21,6 +23,18 @@ public class ShopRatingController {
 
     private final ShopRatingService shopRatingService;
     private final ShopRatingServiceImpl shopRatingServiceImpl;
+    private final ShopMethodRankService shopMethodRankService;
+
+    @GetMapping("/method-rank")
+    @Operation(summary = "按方法卡命中数给店铺排名（M01：产出合格新品越多越靠前）")
+    public Result<List<ShopMethodRankItem>> methodRank(
+            @RequestParam(defaultValue = "UK") String marketplace,
+            @RequestParam(defaultValue = "M01") String methodId,
+            @RequestParam(defaultValue = "1") Integer minCount,
+            @RequestParam(defaultValue = "100") Integer limit) {
+        // 目前仅 M01；未来加卡片时在此按 methodId 分派
+        return Result.success(shopMethodRankService.rankByM01(marketplace, minCount, limit));
+    }
 
     @GetMapping("/candidates")
     @Operation(summary = "获取候选店铺（新品榜 >10 新品）")

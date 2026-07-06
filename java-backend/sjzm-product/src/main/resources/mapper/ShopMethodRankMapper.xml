@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.modules.shoprating.mapper.ShopMethodRankMapper">
+
+    <!--
+      店铺 M01 命中数排名：走 clean 表（已去变体），只读 m01_active=1（打标好的合格品）。
+      不实时算 DATEDIFF —— 时效由导入补标 + 每日摘标维护，查询秒出。
+      主打子类目 = 该店命中品里出现最多的 node_label_path 末级。
+    -->
+    <select id="selectM01ShopRanking"
+            resultType="com.sjzm.product.modules.shoprating.dto.ShopMethodRankItem">
+        SELECT
+            c.seller_name   AS sellerName,
+            c.marketplace   AS marketplace,
+            COUNT(*)        AS hitCount,
+            ROUND(AVG(c.price), 2) AS avgPrice,
+            (
+                SELECT SUBSTRING_INDEX(c2.node_label_path, ':', -1)
+                FROM competitor_products_clean c2
+                WHERE c2.marketplace = c.marketplace
+                  AND c2.seller_name = c.seller_name
+                  AND c2.m01_active = 1
+                  AND c2.node_label_path IS NOT NULL AND c2.node_label_path != ''
+                GROUP BY SUBSTRING_INDEX(c2.node_label_path, ':', -1)
+                ORDER BY COUNT(*) DESC
+                LIMIT 1
+            ) AS topCategory
+        FROM competitor_products_clean c
+        WHERE c.marketplace = #{marketplace}
+          AND c.m01_active = 1
+          AND c.seller_name IS NOT NULL AND c.seller_name != ''
+        GROUP BY c.seller_name, c.marketplace
+        HAVING COUNT(*) &gt;= #{minCount}
+        ORDER BY hitCount DESC, avgPrice ASC
+        LIMIT #{limit}
+    </select>
+
+    <!--
+      每日摘标：把上架已满 listingDaysMax 天的过期品 m01_active 置 0。
+      只动 m01_active=1 且已超期的行（增量小操作）。用真实上架日实时算天数。
+    -->
+    <update id="expireM01Active">
+        UPDATE competitor_products
+        SET m01_active = 0
+        WHERE marketplace = #{marketplace}
+          AND m01_active = 1
+          AND (
+              available_date IS NULL OR available_date &lt;= 0
+              OR DATEDIFF(NOW(), FROM_UNIXTIME(available_date / 1000)) &gt;= #{listingDaysMax}
+          )
+    </update>
+
+    <update id="expireM01ActiveClean">
+        UPDATE competitor_products_clean
+        SET m01_active = 0
+        WHERE marketplace = #{marketplace}
+          AND m01_active = 1
+          AND (
+              available_date IS NULL OR available_date &lt;= 0
+              OR DATEDIFF(NOW(), FROM_UNIXTIME(available_date / 1000)) &gt;= #{listingDaysMax}
+          )
+    </update>
+
+</mapper>

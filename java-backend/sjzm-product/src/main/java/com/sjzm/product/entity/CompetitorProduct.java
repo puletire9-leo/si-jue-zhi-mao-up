@@ -90,6 +90,13 @@ public class CompetitorProduct {
     private String weekTag;
     private Integer isCurrent;
 
+    /**
+     * M01 合格标记：1=当前命中 M01 合格标准（够新且达标），0=否。
+     * 导入时按 M01Rule 补标；每日 0 点摘标上架超 90 天的过期品。
+     * 供竞品店铺品级（方法卡命中数）复用，避免每次全表实时算。
+     */
+    private Integer m01Active;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 

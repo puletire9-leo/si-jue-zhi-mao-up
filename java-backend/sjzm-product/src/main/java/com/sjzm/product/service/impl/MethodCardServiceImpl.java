@@ -4,6 +4,7 @@ import com.sjzm.common.PageResult;
 import com.sjzm.product.dto.MethodCardProductResponse;
 import com.sjzm.product.dto.MethodCardQueryRequest;
 import com.sjzm.product.mapper.MethodCardMapper;
+import com.sjzm.product.methodrule.M01Rule;
 import com.sjzm.product.service.MethodCardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,7 +30,7 @@ public class MethodCardServiceImpl implements MethodCardService {
 
     @Override
     public PageResult<MethodCardProductResponse> queryM01Products(MethodCardQueryRequest request) {
-        M01Rule rule = ruleFor(request.getMarketplace());
+        M01Rule rule = M01Rule.forMarketplace(request.getMarketplace());
         int page = Math.max(1, request.getPage() == null ? 1 : request.getPage());
         int size = Math.max(1, Math.min(request.getSize() == null ? 60 : request.getSize(), 100));
         int offset = (page - 1) * size;
@@ -134,22 +135,8 @@ public class MethodCardServiceImpl implements MethodCardService {
         if (StringUtils.hasText(request.getMonth())) {
             return null;
         }
-        return methodCardMapper.selectLatestM01EffectiveWeek(ruleFor(request.getMarketplace()).marketplace());
-    }
-
-    private static M01Rule ruleFor(String marketplace) {
-        String normalized = normalizeMarketplace(marketplace);
-        return switch (normalized) {
-            case "DE" -> new M01Rule("DE", new BigDecimal("5.99"), new BigDecimal("18.99"),
-                    new BigDecimal("300"), 90, 4, 20, 50, 25000);
-            case "UK" -> new M01Rule("UK", new BigDecimal("4.99"), new BigDecimal("17.99"),
-                    new BigDecimal("300"), 90, 2, 10, 30, 20000);
-            // US: M01 文档 (docs/选品方法库/3_消费层/方法卡片/M01_新品榜加速法.md) 阈值,
-            // BSR 阈值文档标注为 — ,故 bsrMax=null (SQL 判空跳过 BSR OR 分支)
-            case "US" -> new M01Rule("US", new BigDecimal("6.99"), new BigDecimal("25.99"),
-                    new BigDecimal("300"), 90, 50, 120, 200, null);
-            default -> throw new IllegalArgumentException("M01 暂只支持 UK / DE / US");
-        };
+        return methodCardMapper.selectLatestM01EffectiveWeek(
+                M01Rule.forMarketplace(request.getMarketplace()).marketplace());
     }
 
     private static List<String> hitReasons(MethodCardProductResponse item, M01Rule rule) {
@@ -228,16 +215,5 @@ public class MethodCardServiceImpl implements MethodCardService {
 
     private static String blankToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
-    }
-
-    private record M01Rule(String marketplace,
-                           BigDecimal priceMin,
-                           BigDecimal priceMax,
-                           BigDecimal weightMax,
-                           Integer listingDaysMax,
-                           Integer sales30,
-                           Integer sales60,
-                           Integer sales90,
-                           Integer bsrMax) {
     }
 }
