@@ -3,6 +3,7 @@ package com.sjzm.product.service;
 import com.baomidou.mybatisplus.extension.toolkit.Db;
 import com.sjzm.product.entity.*;
 import com.sjzm.product.mapper.*;
+import com.sjzm.product.methodrule.M01Rule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,6 +38,9 @@ public class CompetitorFilterService {
         List<Shop> shops = new ArrayList<>();
         Set<String> shopIdSet = new HashSet<>();
 
+        // M01 合格标准（方法卡分档口径），用于给 m01_active 打标。整批同站点，取一次。
+        M01Rule m01Rule = m01RuleQuietly(marketplace);
+
         for (CompetitorProduct p : products) {
             // 1. 计算上架天数
             int listingDays = calcListingDays(p.getAvailableDate());
@@ -45,6 +49,12 @@ public class CompetitorFilterService {
             // 2. 提取重量克数
             BigDecimal weightG = extractWeightGrams(p.getWeight());
             p.setWeightG(weightG);
+
+            // 2.5 M01 合格标记（方法卡分档口径；仅在真实上架日存在时才可能命中）
+            boolean m01Hit = m01Rule != null
+                    && p.getAvailableDate() != null && p.getAvailableDate() > 0
+                    && m01Rule.matches(listingDays, p.getPrice(), weightG, p.getUnits(), p.getBsr());
+            p.setM01Active(m01Hit ? 1 : 0);
 
             // 3. 生成商品链接
             String productUrl = buildProductUrl(p.getAsin(), marketplace);
@@ -117,6 +127,16 @@ public class CompetitorFilterService {
                 result.totalCount, result.mode1Count, result.mode2Count,
                 result.failCount, result.newProductPassed);
         return result;
+    }
+
+    /** 取 M01 规则；站点不支持（非 UK/DE/US）时返回 null，不打标、不中断导入。 */
+    private M01Rule m01RuleQuietly(String marketplace) {
+        try {
+            return M01Rule.forMarketplace(marketplace);
+        } catch (Exception e) {
+            log.warn("站点 {} 无 M01 规则，跳过 m01_active 打标", marketplace);
+            return null;
+        }
     }
 
     private int calcListingDays(Long availableDate) {
