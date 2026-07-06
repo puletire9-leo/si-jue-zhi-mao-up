@@ -178,4 +178,93 @@
         LIMIT #{offset}, #{size}
     </select>
 
+    <!--
+      ═══════════════════════════════════════════════════════════════════
+      M03 FBM 自发货简单道
+      与 M01/M02 严格独立: 独立 WHERE 片段, 独立 select/count, 独立最新周查询.
+
+      判定 (三条硬门槛):
+        1. fulfillment = 'FBM' (身份定义, 大小写不敏感)
+        2. cp.listing_days < listingDaysMax (默认 90)
+        3. cp.units >= sales90 (UK=5 / DE=10 / US=20)
+
+      与 M01 的关键差异:
+        - source 不再限「新品榜」(FBM 可能来自新品榜也可能来自竞品店铺)
+        - 不看 BSR 代理 (自发货逻辑, BSR 不适用)
+        - 不做价格带 / 重量过滤 (FBM 打法约束不同)
+        - 不做 30/60/90 分档 (90 天单段门槛, 见方法卡文档〔依据〕)
+      ═══════════════════════════════════════════════════════════════════
+    -->
+    <sql id="M03Where">
+        cp.marketplace = #{marketplace}
+        AND cp.title IS NOT NULL
+        AND UPPER(TRIM(cp.fulfillment)) = 'FBM'
+        <if test="month != null and month != ''">
+            AND cp.month = #{month}
+        </if>
+        <if test="effectiveWeekTag != null and effectiveWeekTag != ''">
+            AND cp.effective_week_tag = #{effectiveWeekTag}
+        </if>
+        AND cp.listing_days IS NOT NULL
+        AND cp.listing_days &lt; #{listingDaysMax}
+        AND cp.units IS NOT NULL
+        AND cp.units &gt;= #{sales90}
+    </sql>
+
+    <select id="selectLatestM03EffectiveWeek" resultType="java.lang.String">
+        SELECT cp.effective_week_tag
+        FROM competitor_products_clean cp
+        WHERE cp.marketplace = #{marketplace}
+          AND cp.effective_week_tag IS NOT NULL
+          AND UPPER(TRIM(cp.fulfillment)) = 'FBM'
+        GROUP BY cp.effective_week_tag
+        ORDER BY MAX(cp.created_at) DESC, cp.effective_week_tag DESC
+        LIMIT 1
+    </select>
+
+    <select id="countM03Products" resultType="long">
+        SELECT COUNT(1)
+        FROM competitor_products_clean cp
+        WHERE <include refid="M03Where" />
+    </select>
+
+    <select id="selectM03Products" resultType="com.sjzm.product.dto.MethodCardProductResponse">
+        SELECT
+            cp.id,
+            cp.marketplace,
+            cp.asin,
+            cp.parent_asin,
+            cp.dedup_key,
+            cp.month,
+            cp.effective_week_tag,
+            cp.effective_week_tag AS created_week,
+            cp.title,
+            cp.brand,
+            cp.image_url,
+            cp.node_id,
+            cp.node_label_path,
+            cp.bsr_id,
+            cp.units,
+            cp.bsr,
+            cp.price,
+            cp.listing_days,
+            DATE_FORMAT(FROM_UNIXTIME(cp.available_date / 1000), '%Y-%m-%d') AS available_date,
+            cp.weight_g,
+            cp.rating,
+            cp.ratings,
+            cp.fulfillment,
+            cp.source,
+            cp.product_url,
+            cp.similar_url,
+            cp.created_at
+        FROM competitor_products_clean cp
+        WHERE <include refid="M03Where" />
+        ORDER BY
+            cp.units DESC,
+            CASE WHEN cp.listing_days IS NULL THEN 1 ELSE 0 END ASC,
+            cp.listing_days ASC,
+            cp.asin ASC
+        LIMIT #{offset}, #{size}
+    </select>
+
 </mapper>

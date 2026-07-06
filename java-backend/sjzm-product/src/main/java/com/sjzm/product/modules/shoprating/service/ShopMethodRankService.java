@@ -1,8 +1,8 @@
 package com.sjzm.product.modules.shoprating.service;
 
+import com.sjzm.product.mapper.ShopMethodRankMapper;
 import com.sjzm.product.methodrule.M01Rule;
 import com.sjzm.product.modules.shoprating.dto.ShopMethodRankItem;
-import com.sjzm.product.modules.shoprating.mapper.ShopMethodRankMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;

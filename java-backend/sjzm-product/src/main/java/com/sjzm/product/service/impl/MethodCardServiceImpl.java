@@ -5,6 +5,7 @@ import com.sjzm.product.dto.MethodCardProductResponse;
 import com.sjzm.product.dto.MethodCardQueryRequest;
 import com.sjzm.product.mapper.MethodCardMapper;
 import com.sjzm.product.methodrule.M01Rule;
+import com.sjzm.product.methodrule.M03Rule;
 import com.sjzm.product.service.MethodCardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,8 @@ public class MethodCardServiceImpl implements MethodCardService {
     private static final String METHOD_NAME_M01 = "新品榜加速法";
     private static final String METHOD_ID_M02 = "M02";
     private static final String METHOD_NAME_M02 = "郑总同行品线跟随法";
+    private static final String METHOD_ID_M03 = "M03";
+    private static final String METHOD_NAME_M03 = "FBM 自发货简单道";
 
     private final MethodCardMapper methodCardMapper;
 
@@ -126,6 +129,81 @@ public class MethodCardServiceImpl implements MethodCardService {
             item.setRuleSnapshot(snapshot);
         }
         return PageResult.of(list, total, (long) page, (long) size);
+    }
+
+    // ─── M03 FBM 自发货简单道 ─────────────────────────────────────
+    // sibling to queryM01Products. 不共用任何路径, 独立 Rule + SQL + 命中原因 + snapshot.
+    @Override
+    public PageResult<MethodCardProductResponse> queryM03Products(MethodCardQueryRequest request) {
+        M03Rule rule = M03Rule.forMarketplace(request.getMarketplace());
+        int page = Math.max(1, request.getPage() == null ? 1 : request.getPage());
+        int size = Math.max(1, Math.min(request.getSize() == null ? 60 : request.getSize(), 100));
+        int offset = (page - 1) * size;
+
+        String effectiveWeekTag = resolveM03EffectiveWeekTag(request, rule.marketplace());
+        long total = methodCardMapper.countM03Products(
+                rule.marketplace(),
+                blankToNull(request.getMonth()),
+                effectiveWeekTag,
+                rule.listingDaysMax(),
+                rule.sales90()
+        );
+        if (total == 0) {
+            return PageResult.empty((long) page, (long) size);
+        }
+
+        List<MethodCardProductResponse> list = methodCardMapper.selectM03Products(
+                rule.marketplace(),
+                blankToNull(request.getMonth()),
+                effectiveWeekTag,
+                rule.listingDaysMax(),
+                rule.sales90(),
+                offset,
+                size
+        );
+
+        Map<String, Object> snapshot = m03RuleSnapshot(rule, effectiveWeekTag);
+        for (MethodCardProductResponse item : list) {
+            item.setMethodId(METHOD_ID_M03);
+            item.setMethodName(METHOD_NAME_M03);
+            item.setHitReasons(m03HitReasons(item, rule));
+            item.setRuleSnapshot(snapshot);
+        }
+        return PageResult.of(list, total, (long) page, (long) size);
+    }
+
+    private String resolveM03EffectiveWeekTag(MethodCardQueryRequest request, String marketplace) {
+        if (StringUtils.hasText(request.getCreatedWeek())) {
+            return request.getCreatedWeek().trim();
+        }
+        if (StringUtils.hasText(request.getMonth())) {
+            return null;
+        }
+        return methodCardMapper.selectLatestM03EffectiveWeek(marketplace);
+    }
+
+    private static List<String> m03HitReasons(MethodCardProductResponse item, M03Rule rule) {
+        List<String> reasons = new ArrayList<>();
+        reasons.add("FBM_FULFILLMENT");
+        if (item.getListingDays() != null && item.getListingDays() < rule.listingDaysMax()) {
+            reasons.add("LISTING_UNDER_90D");
+        }
+        if (item.getUnits() != null && item.getUnits() >= rule.sales90()) {
+            reasons.add("SALES_90D_PASS");
+        }
+        return reasons;
+    }
+
+    private static Map<String, Object> m03RuleSnapshot(M03Rule rule, String effectiveWeekTag) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("methodId", METHOD_ID_M03);
+        snapshot.put("methodName", METHOD_NAME_M03);
+        snapshot.put("marketplace", rule.marketplace());
+        snapshot.put("listingDaysMax", rule.listingDaysMax());
+        snapshot.put("sales90", rule.sales90());
+        snapshot.put("fulfillment", "FBM");
+        snapshot.put("effectiveWeekTag", effectiveWeekTag);
+        return snapshot;
     }
 
     private String resolveEffectiveWeekTag(MethodCardQueryRequest request) {

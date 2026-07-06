@@ -215,6 +215,44 @@ describe("buildSelectionQueryPlan", () => {
     expect(plan.unsupportedFilters).not.toContain("snapshotKeys");
   });
 
+  it("keeps M03 independent from stale snapshots and product-line scope", () => {
+    const intent = buildSelectionFilterIntent({
+      scene: "fbm",
+      methodId: "M03",
+      queryParams: createQueryParams(),
+      activeFilters: createFilterState({
+        range: {
+          ...createRange(),
+          createdWeeks: ["2026-W26"],
+        },
+      }),
+      useCleanTable: true,
+      overrides: {
+        bsrId: "2076534031",
+        nodeId: 2076534031,
+      },
+    });
+
+    const plan = buildSelectionQueryPlan({
+      intent,
+      page: 1,
+      size: 60,
+    });
+
+    expect(intent.scope.businessSource).toBeUndefined();
+    expect(plan.executor).toBe("method_card");
+    if (plan.executor !== "method_card") {
+      throw new Error("expected method card plan");
+    }
+
+    expect(plan.methodId).toBe("M03");
+    expect(plan.params.createdWeek).toBeUndefined();
+    expect(plan.params.bsrId).toBeUndefined();
+    expect(plan.params.nodeId).toBeUndefined();
+    expect(plan.forcedFilters).toContain("latestM03EffectiveWeek");
+    expect(plan.unsupportedFilters).toContain("snapshotKeys");
+  });
+
   it("marks multi-selected snapshots unsupported for single-snapshot method cards", () => {
     const intent = buildSelectionFilterIntent({
       scene: "all",
