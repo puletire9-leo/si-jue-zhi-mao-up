@@ -28,12 +28,20 @@ public class ShopRatingController {
     @GetMapping("/method-rank")
     @Operation(summary = "按方法卡命中数给店铺排名（M01：产出合格新品越多越靠前）")
     public Result<List<ShopMethodRankItem>> methodRank(
-            @RequestParam(defaultValue = "UK") String marketplace,
+            @RequestParam(required = false) String marketplace,
             @RequestParam(defaultValue = "M01") String methodId,
             @RequestParam(defaultValue = "1") Integer minCount,
             @RequestParam(defaultValue = "100") Integer limit) {
         // 目前仅 M01；未来加卡片时在此按 methodId 分派
         return Result.success(shopMethodRankService.rankByM01(marketplace, minCount, limit));
+    }
+
+    @PostMapping("/method-rank/backfill")
+    @Operation(summary = "回填 M01 方法卡命中标记", description = "按 M01Rule 重算原始表 m01_active，并同步 clean 表")
+    public Result<Map<String, Object>> backfillMethodRank(
+            @RequestParam(defaultValue = "UK") String marketplace,
+            @RequestParam(defaultValue = "M01") String methodId) {
+        return Result.success(shopMethodRankService.backfillM01Active(marketplace));
     }
 
     @GetMapping("/candidates")
