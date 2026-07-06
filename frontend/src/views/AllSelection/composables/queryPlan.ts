@@ -3,18 +3,15 @@ import type { MethodCardListParams } from "@/api/methodCards";
 import type { RangeFilterValue } from "@/components/RangeFilterPanel/index.vue";
 import type { SelectionQueryParams } from "@/components/SelectionQueryForm/types";
 
-export type SelectionScene = "all" | "new" | "reference" | "zheng";
-export type SelectionMethodId = "M01" | "M02";
+export type SelectionScene = "all" | "new" | "reference" | "zheng" | "fbm";
+export type SelectionMethodId = "M01" | "M02" | "M03";
 export type SelectionDataView = "clean" | "raw";
 export type SelectionLensId = "default" | SelectionMethodId;
 export type SelectionExecutor = "competitor" | "deng_zong" | "method_card";
 export type SelectionSnapshotKind =
-  | "competitor_created_week"
-  | "deng_zong_batch";
+  "competitor_created_week" | "deng_zong_batch";
 export type SelectionTargetSource =
-  | "competitor_clean"
-  | "competitor_raw"
-  | "deng_zong";
+  "competitor_clean" | "competitor_raw" | "deng_zong";
 export type SelectionSemanticFilterKey =
   | "asin"
   | "title"
@@ -135,9 +132,7 @@ export interface MethodCardQueryPlan extends SelectionQueryPlanBase {
 }
 
 export type SelectionQueryPlan =
-  | CompetitorQueryPlan
-  | DengZongQueryPlan
-  | MethodCardQueryPlan;
+  CompetitorQueryPlan | DengZongQueryPlan | MethodCardQueryPlan;
 
 interface SelectionMethodLensDefinition {
   lensId: SelectionMethodId;
@@ -283,17 +278,54 @@ export const METHOD_LENS_DEFINITIONS: Record<
       qualifyRules: "unsupported",
     }),
   },
+  // M03 FBM 自发货简单道 - 数据源 competitor_products_clean (与 M01 同源不同筛)
+  // 特点: fulfillment='FBM' 硬门槛, 无价格/重量/BSR 约束, 90 天单段销量门槛
+  M03: {
+    lensId: "M03",
+    methodId: "M03",
+    targetSource: "competitor_clean",
+    executor: "method_card",
+    forcedFilters: [
+      "dataView=clean",
+      "fulfillment=FBM",
+      "method=M03",
+      "latestM03EffectiveWeek",
+    ],
+    lockedScene: "fbm",
+    lockedDataView: "clean",
+    snapshotSupport: "unsupported",
+    supports: createSupportMap({
+      snapshotKeys: "unsupported",
+      asin: "unsupported",
+      title: "unsupported",
+      sellerName: "unsupported",
+      category: "unsupported",
+      filterMode: "unsupported",
+      weekTag: "unsupported",
+      createdAtRange: "unsupported",
+      price: "unsupported",
+      units: "unsupported",
+      listingDays: "unsupported",
+      bsrMax: "unsupported",
+      weightMax: "unsupported",
+      variantCount: "unsupported",
+      fulfillment: "unsupported",
+      grade: "unsupported",
+      qualifyRules: "unsupported",
+    }),
+  },
 };
 
 export function resolveSceneBusinessSource(
   scene: SelectionScene,
 ): string | undefined {
-  const map: Record<SelectionScene, string | undefined> = {
+  const map: Partial<Record<SelectionScene, string | undefined>> = {
     all: undefined,
     new: "新品榜",
     reference: "竞品店铺",
     zheng: "郑总店铺",
   };
+  if (scene === "fbm") return undefined;
   return map[scene];
 }
 
@@ -463,9 +495,11 @@ function buildMethodCardQueryPlan(input: {
     marketplace,
     page,
     size,
-    bsrId: intent.scope.bsrId,
-    nodeId: intent.scope.nodeId,
   };
+  if (lens.methodId !== "M03") {
+    params.bsrId = intent.scope.bsrId;
+    params.nodeId = intent.scope.nodeId;
+  }
   if (lens.snapshotParam === "createdWeek" && snapshotValue) {
     params.createdWeek = snapshotValue;
   }

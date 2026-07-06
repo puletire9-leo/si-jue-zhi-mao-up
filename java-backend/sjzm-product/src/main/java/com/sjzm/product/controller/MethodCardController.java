@@ -32,4 +32,11 @@ public class MethodCardController {
     public Result<PageResult<MethodCardProductResponse>> getM02Products(@Valid MethodCardQueryRequest request) {
         return Result.success(methodCardService.queryM02Products(request));
     }
+
+    @GetMapping("/M03/products")
+    @Operation(summary = "M03 FBM 自发货简单道候选",
+            description = "从 competitor_products_clean 查询 fulfillment=FBM 且 90 天销量达标的候选商品 (UK=5/DE=10/US=20)")
+    public Result<PageResult<MethodCardProductResponse>> getM03Products(@Valid MethodCardQueryRequest request) {
+        return Result.success(methodCardService.queryM03Products(request));
+    }
 }

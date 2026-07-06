@@ -46,4 +46,20 @@ export const methodCardsApi = {
       return res;
     });
   },
+
+  // M03 FBM 自发货简单道 - 与 M01/M02 独立平行, 后端 /api/v1/method-cards/M03/products
+  getM03Products(
+    params: MethodCardListParams,
+  ): Promise<ApiResponse<CompetitorListResponse>> {
+    return request({
+      url: "/api/v1/method-cards/M03/products",
+      method: "get",
+      params,
+    }).then((res: any) => {
+      if (res.data?.list) {
+        res.data.list = res.data.list.map(normalizeProduct);
+      }
+      return res;
+    });
+  },
 };

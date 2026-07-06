@@ -1,7 +1,4 @@
-import {
-  competitorApi,
-  type CompetitorListResponse,
-} from "@/api/competitor";
+import { competitorApi, type CompetitorListResponse } from "@/api/competitor";
 import { methodCardsApi, type MethodCardListParams } from "@/api/methodCards";
 import type {
   SelectionQueryPlan,
@@ -55,9 +52,7 @@ async function resolveMethodCardPlan(
 ): Promise<ResolvedQueryResponse> {
   if (plan.methodId === "M01") {
     const res: ApiResponse<CompetitorListResponse> =
-      await methodCardsApi.getM01Products(
-        plan.params as MethodCardListParams,
-      );
+      await methodCardsApi.getM01Products(plan.params as MethodCardListParams);
     return {
       plan,
       result: {
@@ -68,9 +63,18 @@ async function resolveMethodCardPlan(
   }
   if (plan.methodId === "M02") {
     const res: ApiResponse<CompetitorListResponse> =
-      await methodCardsApi.getM02Products(
-        plan.params as MethodCardListParams,
-      );
+      await methodCardsApi.getM02Products(plan.params as MethodCardListParams);
+    return {
+      plan,
+      result: {
+        list: res.data?.list ?? [],
+        total: res.data?.total ?? 0,
+      },
+    };
+  }
+  if (plan.methodId === "M03") {
+    const res: ApiResponse<CompetitorListResponse> =
+      await methodCardsApi.getM03Products(plan.params as MethodCardListParams);
     return {
       plan,
       result: {

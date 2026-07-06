@@ -293,9 +293,9 @@
               </div>
               <div class="method-card__actions">
                 <el-button
+                  v-if="activeMethodCard?.id !== 'M01'"
                   type="primary"
                   size="small"
-                  :loading="loading && activeMethodCard?.id === 'M01'"
                   @click="applyM01Method"
                 >
                   应用方法
@@ -304,7 +304,7 @@
                   了解详情
                 </el-button>
                 <el-button
-                  v-if="activeMethodCard"
+                  v-if="activeMethodCard?.id === 'M01'"
                   size="small"
                   link
                   @click="clearMethodCard"
@@ -338,9 +338,9 @@
               </div>
               <div class="method-card__actions">
                 <el-button
+                  v-if="activeMethodCard?.id !== 'M02'"
                   type="primary"
                   size="small"
-                  :loading="loading && activeMethodCard?.id === 'M02'"
                   @click="applyM02Method"
                 >
                   应用方法
@@ -349,7 +349,53 @@
                   了解详情
                 </el-button>
                 <el-button
-                  v-if="activeMethodCard"
+                  v-if="activeMethodCard?.id === 'M02'"
+                  size="small"
+                  link
+                  @click="clearMethodCard"
+                >
+                  退出方法
+                </el-button>
+              </div>
+            </div>
+
+            <div class="method-card method-card--m03">
+              <div class="method-card__body">
+                <div class="method-card__head">
+                  <div class="method-card__name">M03 FBM 自发货简单道</div>
+                  <el-tag
+                    v-if="activeMethodCard?.id === 'M03'"
+                    type="success"
+                    effect="light"
+                    size="small"
+                  >
+                    已应用
+                  </el-tag>
+                </div>
+                <div class="method-card__desc">
+                  clean 表里过滤 fulfillment=FBM，用 90 天单一销量门槛快速找 FBM
+                  自发货候选。
+                </div>
+                <div class="method-card__meta">
+                  <span>适合：FBM 自发货打法</span>
+                  <span>站点：UK≥5 / DE≥10 / US≥20</span>
+                  <span>输出：候选 + 命中原因</span>
+                </div>
+              </div>
+              <div class="method-card__actions">
+                <el-button
+                  v-if="activeMethodCard?.id !== 'M03'"
+                  type="primary"
+                  size="small"
+                  @click="applyM03Method"
+                >
+                  应用方法
+                </el-button>
+                <el-button size="small" link @click="openMethodDetail('M03')">
+                  了解详情
+                </el-button>
+                <el-button
+                  v-if="activeMethodCard?.id === 'M03'"
                   size="small"
                   link
                   @click="clearMethodCard"
@@ -417,6 +463,7 @@
               :country="activeFilters.country || 'UK'"
               :source="currentSource"
               :snapshot-kind="currentSnapshotKind"
+              :auto-select-latest-week="!activeMethodCard"
               embedded
             />
           </div>
@@ -967,11 +1014,12 @@ import type { QualifyRule } from "@/api/competitor";
 import {
   buildSelectionFilterIntent,
   buildSelectionQueryPlan,
+  type SelectionScene,
   type SelectionFilterState as QueryPlanFilterState,
   type SelectionQueryPlan,
 } from "./composables/queryPlan";
 import { resolveSelectionQueryPlan } from "./composables/queryRuntime";
-import { useSelectionFilterState } from "./composables/filterState";
+import { emptyRange, useSelectionFilterState } from "./composables/filterState";
 import MethodDetailDrawer from "@/components/MethodDetailDrawer/index.vue";
 import {
   fetchMySelections,
@@ -1011,13 +1059,16 @@ const NEW_TAB_DEFAULT_RULES: QualifyRule[] = [
   },
 ];
 const newQualifyRules = ref<QualifyRule[]>([...NEW_TAB_DEFAULT_RULES]);
-const activeMethodCard = ref<{ id: "M01" | "M02"; name: string } | null>(null);
+const activeMethodCard = ref<{
+  id: "M01" | "M02" | "M03";
+  name: string;
+} | null>(null);
 
 // 方法卡详情抽屉状态 (内容由 MethodDetailDrawer 组件根据 methodId 自动读取)
 const methodDetailVisible = ref(false);
-const methodDetailId = ref<"M01" | "M02" | null>(null);
+const methodDetailId = ref<"M01" | "M02" | "M03" | null>(null);
 
-const openMethodDetail = (id: "M01" | "M02") => {
+const openMethodDetail = (id: "M01" | "M02" | "M03") => {
   methodDetailId.value = id;
   methodDetailVisible.value = true;
 };
@@ -1054,6 +1105,7 @@ const activeImportType = computed(() => {
 // 标签页切换处理
 const handleTabChange = (tab: string): void => {
   activeTab.value = tab;
+  activeMethodCard.value = null;
 
   const productTypeMap: Record<string, "new" | "reference" | "zheng" | ""> = {
     all: "",
@@ -1076,11 +1128,13 @@ const handleTabChange = (tab: string): void => {
 
 // 获取当前区域标题
 const getSectionTitle = (): string => {
+  if (activeMethodCard.value?.id === "M03") return "FBM 自发货";
   const titles = {
     all: "全部选品",
     new: "新品榜",
     reference: "竞品店铺",
     zheng: "郑总店铺上新",
+    fbm: "FBM 自发货",
   };
   return titles[activeTab.value as keyof typeof titles] || "选品管理";
 };
@@ -1111,11 +1165,13 @@ const currentSource = computed(() => {
 const effectiveScene = computed(() => {
   if (activeMethodCard.value?.id === "M01") return "new";
   if (activeMethodCard.value?.id === "M02") return "zheng";
+  if (activeMethodCard.value?.id === "M03") return "fbm";
   if (
     activeTab.value === "all" ||
     activeTab.value === "new" ||
     activeTab.value === "reference" ||
-    activeTab.value === "zheng"
+    activeTab.value === "zheng" ||
+    activeTab.value === "fbm"
   ) {
     return activeTab.value;
   }
@@ -1274,13 +1330,15 @@ const loadCategories = async () => {
 };
 
 const lastQueryPlan = ref<SelectionQueryPlan | null>(null);
+let productsReqId = 0;
 
 const loadProducts = async (params?: SelectionQueryParams) => {
+  const reqId = ++productsReqId;
   loading.value = true;
   try {
     const queryParams = params || queryParamsState.value;
     const intent = buildSelectionFilterIntent({
-      scene: effectiveScene.value as "all" | "new" | "reference" | "zheng",
+      scene: effectiveScene.value as SelectionScene,
       methodId: activeMethodCard.value?.id ?? null,
       queryParams,
       activeFilters: activeFilters.value,
@@ -1292,27 +1350,30 @@ const loadProducts = async (params?: SelectionQueryParams) => {
       page: pagination.page,
       size: pagination.size,
     });
-    const resolved = await resolveSelectionQueryPlan(plan);
-    lastQueryPlan.value = resolved.plan;
-
     console.log("[selection-query-plan]", {
-      executor: resolved.plan.executor,
+      executor: plan.executor,
       scene: effectiveScene.value,
-      methodId: resolved.plan.methodId,
-      forcedFilters: resolved.plan.forcedFilters,
-      unsupportedFilters: resolved.plan.unsupportedFilters,
-      params: resolved.plan.params,
+      methodId: plan.methodId,
+      forcedFilters: plan.forcedFilters,
+      unsupportedFilters: plan.unsupportedFilters,
+      params: plan.params,
     });
+    const resolved = await resolveSelectionQueryPlan(plan);
+    if (reqId !== productsReqId) return;
+    lastQueryPlan.value = resolved.plan;
 
     productList.value = resolved.result.list;
     pagination.total = resolved.result.total;
     await loadSelections();
   } catch (error) {
+    if (reqId !== productsReqId) return;
     console.error("加载选品列表失败:", error);
     ElMessage.error("加载选品列表失败");
   } finally {
-    loading.value = false;
-    hasLoaded.value = true;
+    if (reqId === productsReqId) {
+      loading.value = false;
+      hasLoaded.value = true;
+    }
   }
 };
 
@@ -1323,12 +1384,36 @@ const normalizeM01Marketplace = (value?: string): "UK" | "DE" | "US" => {
   return "UK";
 };
 
+const createMethodFilterState = (country: string): FilterState => ({
+  country,
+  sellerSelect: "",
+  category: [],
+  sortField: "score",
+  sortOrder: "desc",
+  range: emptyRange(),
+});
+
+const resetFiltersForMethodCard = () => {
+  const country = normalizeM01Marketplace(activeFilters.value.country);
+  activeFilters.value = createMethodFilterState(country);
+  draftFilters.value = createMethodFilterState(country);
+  applyQueryParams({
+    country,
+    storeName: "",
+    sellerSelect: "",
+    category: "",
+    dataFilterMode: "",
+    listingDateStart: "",
+    listingDateEnd: "",
+    grade: "",
+    weekTag: "",
+  });
+};
+
 const applyM01Method = () => {
   activeMethodCard.value = { id: "M01", name: "新品榜加速法" };
   activeTab.value = "new";
-  activeFilters.value.country = normalizeM01Marketplace(
-    activeFilters.value.country,
-  );
+  resetFiltersForMethodCard();
   filterDrawerVisible.value = false;
   pagination.page = 1;
   loadCategories();
@@ -1337,9 +1422,19 @@ const applyM01Method = () => {
 
 const applyM02Method = () => {
   activeMethodCard.value = { id: "M02", name: "郑总同行品线跟随法" };
-  activeFilters.value.country = normalizeM01Marketplace(
-    activeFilters.value.country,
-  );
+  activeTab.value = "zheng";
+  resetFiltersForMethodCard();
+  filterDrawerVisible.value = false;
+  pagination.page = 1;
+  loadCategories();
+  loadProducts();
+};
+
+// M03 FBM 自发货简单道 - 独立 handler, 不共用 M01/new 视角逻辑
+const applyM03Method = () => {
+  activeMethodCard.value = { id: "M03", name: "FBM 自发货简单道" };
+  activeTab.value = "fbm";
+  resetFiltersForMethodCard();
   filterDrawerVisible.value = false;
   pagination.page = 1;
   loadCategories();
@@ -1539,6 +1634,10 @@ watch(
     const config = pathMap[newPath];
     if (config) {
       activeTab.value = config.tab;
+      activeMethodCard.value =
+        config.tab === "new" || config.tab === "reference"
+          ? { id: "M01", name: "新品榜加速法" }
+          : null;
       const defaults = config.tab === "new" ? { country: "UK" } : {};
       applyQueryParams({
         productType: config.productType,
@@ -2216,16 +2315,15 @@ onMounted(() => {
   const tab = pathTabMap[route.path] || "all";
   activeTab.value = tab;
 
-  // 各入口默认应用对应方法卡, 用户可点"退出方法"回全量:
-  //   /all-selection  → M01 (新品榜加速法) + 强制 tab=new
-  //   /new-products   → M01 (对应新品视角)
-  //   /zheng-products → M02 (郑总同行品线跟随法)
-  //   /reference-products → 无 (参考竞品店铺没有对应方法卡)
-  if (tab === "all" || tab === "new") {
+  // 自动应用方法卡的路由白名单 (只有以下两个入口自动绑 M01):
+  //   /new-products       → M01 (新品榜加速法)
+  //   /reference-products → M01 (竞品店铺也走新品榜加速法)
+  //
+  // 明确不自动应用 (进页面默认全量视图, 用户点方法卡才应用):
+  //   /all-selection  → 全量选品视图, 不自动应用任何方法卡
+  //   /zheng-products → 用户手动点 M02 才应用, 默认郑总店铺全量
+  if (tab === "new" || tab === "reference") {
     activeMethodCard.value = { id: "M01", name: "新品榜加速法" };
-    activeTab.value = "new";
-  } else if (tab === "zheng") {
-    activeMethodCard.value = { id: "M02", name: "郑总同行品线跟随法" };
   }
 
   // 读取路由 query 参数，预填搜索条件

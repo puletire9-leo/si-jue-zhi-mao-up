@@ -15,6 +15,7 @@ import { createEmptyRangeFilter } from "@/utils/rangeFilter";
 import {
   buildSelectionFilterIntent,
   buildSelectionQueryPlan,
+  type SelectionScene,
   type SelectionFilterState,
 } from "@/views/AllSelection/composables/queryPlan";
 import { resolveSelectionQueryPlan } from "@/views/AllSelection/composables/queryRuntime";
@@ -85,7 +86,7 @@ export const useProductLineSelectionStore = defineStore(
     // ---- 灵活合格规则（已由面板的上架天数/月销区间承担，默认空=不限）----
     const qualifyRules = ref<QualifyRule[]>([]);
     const activeMethodCard = ref<{
-      id: "M01" | "M02";
+      id: "M01" | "M02" | "M03";
       name: string;
     } | null>(null);
 
@@ -335,12 +336,14 @@ export const useProductLineSelectionStore = defineStore(
             : comboFilters.map((f) => f.value).join(" ");
 
         // scene 按方法卡分派: M01=新品榜, M02=郑总同行, 无卡=全量
-        const methodScene =
+        const methodScene: SelectionScene =
           activeMethodCard.value?.id === "M01"
             ? "new"
-            : activeMethodCard.value?.id === "M02"
-              ? "zheng"
-              : "all";
+            : activeMethodCard.value?.id === "M03"
+              ? "fbm"
+              : activeMethodCard.value?.id === "M02"
+                ? "zheng"
+                : "all";
         const intent = buildSelectionFilterIntent({
           scene: methodScene,
           methodId: activeMethodCard.value?.id ?? null,

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.sjzm.product.modules.shoprating.mapper.ShopMethodRankMapper">
+<mapper namespace="com.sjzm.product.mapper.ShopMethodRankMapper">
 
     <!--
       店铺 M01 命中数排名：走 clean 表（已去变体），只读 m01_active=1（打标好的合格品）。

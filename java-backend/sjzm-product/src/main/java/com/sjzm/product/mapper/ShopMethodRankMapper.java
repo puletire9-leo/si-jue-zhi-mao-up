@@ -1,4 +1,4 @@
-package com.sjzm.product.modules.shoprating.mapper;
+package com.sjzm.product.mapper;
 
 import com.sjzm.product.modules.shoprating.dto.ShopMethodRankItem;
 import org.apache.ibatis.annotations.Mapper;
@@ -7,7 +7,9 @@ import org.apache.ibatis.annotations.Param;
 import java.util.List;
 
 /**
- * 店铺方法卡命中数排名 + m01_active 每日摘标。
+ * 店铺方法卡命中数排名 + m01_active 每日摘标（shoprating 模块）。
+ *
+ * <p>放 com.sjzm.product.mapper（@MapperScan 只扫这个包）。
  * 与相似度评级（ShopRatingServiceImpl）并存，各自独立。
  */
 @Mapper

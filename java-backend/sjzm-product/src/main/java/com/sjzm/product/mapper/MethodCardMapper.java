@@ -57,4 +57,24 @@ public interface MethodCardMapper {
                                                       @Param("nodeId") Long nodeId,
                                                       @Param("offset") Integer offset,
                                                       @Param("size") Integer size);
+
+    // ─── M03 FBM 自发货简单道 ─────────────────────────────────────
+    // 与 M01/M02 严格独立: 不共用参数, 不共用 SQL, 不共用 WHERE 片段
+    // 判定极简: fulfillment='FBM' + 上架 < listingDaysMax + 90 天销量 >= sales90
+
+    String selectLatestM03EffectiveWeek(@Param("marketplace") String marketplace);
+
+    long countM03Products(@Param("marketplace") String marketplace,
+                          @Param("month") String month,
+                          @Param("effectiveWeekTag") String effectiveWeekTag,
+                          @Param("listingDaysMax") Integer listingDaysMax,
+                          @Param("sales90") Integer sales90);
+
+    List<MethodCardProductResponse> selectM03Products(@Param("marketplace") String marketplace,
+                                                      @Param("month") String month,
+                                                      @Param("effectiveWeekTag") String effectiveWeekTag,
+                                                      @Param("listingDaysMax") Integer listingDaysMax,
+                                                      @Param("sales90") Integer sales90,
+                                                      @Param("offset") Integer offset,
+                                                      @Param("size") Integer size);
 }

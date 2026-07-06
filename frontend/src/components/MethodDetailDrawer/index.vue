@@ -195,7 +195,7 @@ interface Props {
   /** v-model 控制显示 */
   modelValue: boolean;
   /** 要展示的方法卡 id */
-  methodId: "M01" | "M02" | null;
+  methodId: "M01" | "M02" | "M03" | null;
 }
 
 const props = defineProps<Props>();

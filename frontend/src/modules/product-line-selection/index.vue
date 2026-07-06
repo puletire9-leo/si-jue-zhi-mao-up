@@ -127,11 +127,9 @@
           </div>
           <div class="method-card__actions">
             <el-button
+              v-if="store.activeMethodCard?.id !== 'M01'"
               type="primary"
               size="small"
-              :loading="
-                store.treeLoading && store.activeMethodCard?.id === 'M01'
-              "
               @click="applyM01Method"
             >
               应用方法
@@ -140,7 +138,7 @@
               了解详情
             </el-button>
             <el-button
-              v-if="store.activeMethodCard"
+              v-if="store.activeMethodCard?.id === 'M01'"
               size="small"
               link
               @click="clearMethodCard"
@@ -177,11 +175,9 @@
           </div>
           <div class="method-card__actions">
             <el-button
+              v-if="store.activeMethodCard?.id !== 'M02'"
               type="primary"
               size="small"
-              :loading="
-                store.treeLoading && store.activeMethodCard?.id === 'M02'
-              "
               @click="applyM02Method"
             >
               应用方法
@@ -190,7 +186,7 @@
               了解详情
             </el-button>
             <el-button
-              v-if="store.activeMethodCard"
+              v-if="store.activeMethodCard?.id === 'M02'"
               size="small"
               link
               @click="clearMethodCard"
@@ -215,7 +211,9 @@
           :key="store.marketplace"
           v-model="draftRange"
           :country="store.marketplace"
-          source="郑总店铺"
+          :source="drawerRangeSource"
+          :snapshot-kind="drawerSnapshotKind"
+          :auto-select-latest-week="drawerAutoSelectLatestWeek"
           embedded
         />
       </div>
@@ -563,6 +561,19 @@ const filterDrawerVisible = ref(false);
 const draftSeller = ref("");
 const draftBrand = ref("");
 const draftRange = ref<RangeFilterValue>(createEmptyRangeFilter());
+const drawerSnapshotKind = computed<
+  "competitor_created_week" | "deng_zong_batch"
+>(() =>
+  store.activeMethodCard?.id === "M02"
+    ? "deng_zong_batch"
+    : "competitor_created_week",
+);
+const drawerRangeSource = computed(() => {
+  if (store.activeMethodCard?.id === "M01") return "新品榜";
+  if (store.activeMethodCard?.id === "M02") return "郑总店铺";
+  return "";
+});
+const drawerAutoSelectLatestWeek = computed(() => !store.activeMethodCard);
 
 function openFilterDrawer() {
   draftSeller.value = store.searchSellerName;

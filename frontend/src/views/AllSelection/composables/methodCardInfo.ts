@@ -16,7 +16,7 @@ export interface MethodCardCriterion {
 }
 
 export interface MethodCardInfo {
-  id: "M01" | "M02";
+  id: "M01" | "M02" | "M03";
   /** 卡片标题 */
   title: string;
   /** 一句话概述 */
@@ -43,7 +43,7 @@ export interface MethodCardInfo {
   fullDocPath?: string;
 }
 
-export const METHOD_CARD_INFO: Record<"M01" | "M02", MethodCardInfo> = {
+export const METHOD_CARD_INFO: Record<"M01" | "M02" | "M03", MethodCardInfo> = {
   M01: {
     id: "M01",
     title: "M01 · 新品榜加速法",
@@ -146,5 +146,60 @@ export const METHOD_CARD_INFO: Record<"M01" | "M02", MethodCardInfo> = {
       "deng_zong_shop 是 M02 的证据源,不是所有品线分析的默认模型",
     ],
     fullDocPath: "docs/选品方法库/3_消费层/方法卡片/M02_郑总同行品线跟随法.md",
+  },
+
+  M03: {
+    id: "M03",
+    title: "M03 · FBM 自发货简单道",
+    tagline:
+      "只看 FBM 自发货品的候选池,用 90 天单一销量门槛过筛,不走 M01 的分档 + BSR 逻辑",
+    whenToUse: [
+      "只想看 FBM(自发货)品,过滤掉 FBA",
+      "需要「简单粗暴」的一档筛选,不想被账龄分段和 BSR 代理绕",
+      "FBM 打法候选池 - UK/DE/US 站点都可用",
+    ],
+    whenNotToUse: [
+      "找主流 FBA 铺量新品 → 走 M01 新品榜加速法(分档 + BSR)",
+      "找「小而无人抢 + 有价差」的冷门 → 走 M02 郑总同行品线跟随法",
+      "老品跟卖或成熟盘子的机会评估",
+    ],
+    hardCriteria: [
+      {
+        label: "配送方式",
+        value: "= FBM",
+        note: "身份定义,非 FBM 一律不出现在候选",
+      },
+      { label: "上架天数", value: "< 90 天", note: "限定「新品」的时间口径" },
+    ],
+    passLogic: [
+      "🇬🇧 UK:90 天销量 ≥ 5",
+      "🇩🇪 DE:90 天销量 ≥ 10",
+      "🇺🇸 US:90 天销量 ≥ 20",
+      "无价格带 / 无重量上限 / 无 BSR 代理 — 只看 fulfillment + 上架天数 + 销量",
+    ],
+    forcedFilters: [
+      "dataView = clean (去变体污染表)",
+      "fulfillment = FBM (M03 身份定义)",
+      "method = M03",
+    ],
+    unsupportedFilters: [
+      "asin / 商品标题 / 卖家名 精确搜索",
+      "大类榜单 category 多选",
+      "filterMode / weekTag / 上架日期区间",
+      "价格/销量/上架天数/BSR/重量/变体数 手动区间",
+      "配送方式 fulfillment (强制 FBM) / 商品评级 grade",
+      "自定义 qualifyRules (方法卡自带内置规则)",
+    ],
+    output:
+      "FBM 候选清单 + 每个候选的 90 天销量命中标注 + 可一键回灌的 filterRules",
+    dataSource:
+      "competitor_products_clean 表 (与 M01 同源不同筛,过滤 fulfillment=FBM)",
+    rationale: [
+      "为什么和 M01 分卡:M01 是「分档 + BSR 代理」的复合逻辑,FBM 完全不适用 - BSR 是 FBA 排名系统的产物",
+      "为什么单段不分档:FBM 自发货体量本身小,分 30/60/90 反而误杀早期爬量的品",
+      "为什么门槛比 M01 低:FBA 主流通道流量大门槛可以高;FBM 是长尾通道,能过 5/10/20 已经是能盈利的品",
+      "为什么不设价格 / 重量:FBM 打法可以做贵重小件、超轻件,不预设约束由用户在筛选面板自己叠加",
+    ],
+    fullDocPath: "docs/选品方法库/3_消费层/方法卡片/M03_FBM自发货简单道.md",
   },
 };
