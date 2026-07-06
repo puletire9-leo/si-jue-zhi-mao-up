@@ -33,6 +33,12 @@ public class MethodCardProductResponse {
     private Integer bsr;
     private BigDecimal price;
     private Integer listingDays;
+    /**
+     * 上架亚马逊日期，"yyyy-MM-dd" 字符串。
+     * 与竞品 DTO 保持一致格式（源 DB 列是 bigint 毫秒时间戳，Service 层格式化后写入）。
+     * 前端卡片同时展示上架日 + 入库日, 让用户一眼看到两者差异。
+     */
+    private String availableDate;
     private BigDecimal weightG;
     private BigDecimal rating;
     private Integer ratings;

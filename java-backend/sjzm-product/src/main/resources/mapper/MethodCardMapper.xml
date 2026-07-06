@@ -76,6 +76,8 @@
             cp.bsr,
             cp.price,
             cp.listing_days,
+            <!-- 上架日 bigint(毫秒) → 直接格式化为 yyyy-MM-dd 字符串, 对齐 CompetitorProductResponse.availableDate -->
+            DATE_FORMAT(FROM_UNIXTIME(cp.available_date / 1000), '%Y-%m-%d') AS available_date,
             cp.weight_g,
             cp.rating,
             cp.ratings,
@@ -152,6 +154,8 @@
                 dz.bsr,
                 dz.price,
                 NULL AS listing_days,
+                <!-- 上架日 bigint(毫秒) → yyyy-MM-dd, 与 M01/竞品 DTO 对齐 -->
+                DATE_FORMAT(FROM_UNIXTIME(dz.available_date / 1000), '%Y-%m-%d') AS available_date,
                 NULL AS weight_g,
                 dz.rating,
                 dz.ratings,

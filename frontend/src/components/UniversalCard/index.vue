@@ -1,12 +1,16 @@
 <template>
-  <div class="universal-card" :class="{ selected: isSelected }" @click="handleCardClick">
+  <div
+    class="universal-card"
+    :class="{ selected: isSelected }"
+    @click="handleCardClick"
+  >
     <el-checkbox
       v-model="isSelected"
       class="card-checkbox"
       @click.stop
       @change="handleSelect"
     />
-    
+
     <div class="card-image-wrapper">
       <el-image
         :src="imageUrl"
@@ -22,18 +26,26 @@
           </div>
         </template>
       </el-image>
-      
-      <div v-if="showTypeBadge && productType" class="card-type-badge" :class="productType">
+
+      <div
+        v-if="showTypeBadge && productType"
+        class="card-type-badge"
+        :class="productType"
+      >
         {{ typeBadgeText }}
       </div>
-      
+
       <div v-if="showSalesVolume && salesVolume" class="card-sales-badge">
         <el-icon><TrendCharts /></el-icon>
         <span>{{ formatSalesVolume(salesVolume) }}</span>
       </div>
 
       <!-- 等级徽章 -->
-      <div v-if="grade" class="card-grade-badge" :style="{ background: gradeColor }">
+      <div
+        v-if="grade"
+        class="card-grade-badge"
+        :style="{ background: gradeColor }"
+      >
         {{ grade }}
       </div>
 
@@ -41,19 +53,27 @@
       <div v-if="timeTag" class="card-time-tag" :class="timeTagClass">
         {{ timeTag }}
       </div>
-      
+
       <!-- 一键打开按钮 -->
       <div v-if="props.product.asin" class="card-link-buttons">
-        <div class="card-link-button open-link" @click.stop="handleOpenProductLink" title="一键打开">
+        <div
+          class="card-link-button open-link"
+          @click.stop="handleOpenProductLink"
+          title="一键打开"
+        >
           <el-icon><Promotion /></el-icon>
           <span class="link-text">一键打开</span>
         </div>
-        <div class="card-link-button image-search-link" @click.stop="handleImageSearch" title="以图识图">
+        <div
+          class="card-link-button image-search-link"
+          @click.stop="handleImageSearch"
+          title="以图识图"
+        >
           <el-icon><Search /></el-icon>
           <span class="link-text">以图识图</span>
         </div>
       </div>
-      
+
       <div class="card-actions">
         <el-button
           v-if="showViewButton"
@@ -72,7 +92,7 @@
         />
       </div>
     </div>
-    
+
     <div class="card-content">
       <div v-if="showId" class="card-id" :title="idText">
         {{ idText }}
@@ -98,7 +118,7 @@
           <span class="meta-value">{{ category }}</span>
         </div>
       </div>
-      
+
       <div v-if="showTags && tags && tags.length > 0" class="card-tags">
         <el-tag
           v-for="(tag, index) in visibleTags"
@@ -118,25 +138,52 @@
           +{{ extraTagsCount }}
         </el-tag>
       </div>
-      
+
       <div v-if="showTypeTag && typeTagText" class="card-type-tag">
         <el-tag :type="typeTagType" size="small">
           {{ typeTagText }}
         </el-tag>
       </div>
-      
-      <div v-if="(showCreateTime && createTime) || (props.mode === 'selection' && (props.product.listingDate || props.product.availableDate))" class="card-footer">
-        <span class="create-time">
-          {{ footerDateText }}
+
+      <!--
+        卡片底部并排展示两条时间, 让数据错位直接摆在明面上:
+        · 上架亚马逊(available_date) + 实时天数(今天 - available_date)
+        · 入库时间(created_at)         — 这条数据行进本地 DB 的时间
+        两者不同天时说明产品早于我们导入,数值差异一眼可见。
+      -->
+      <div
+        v-if="props.mode === 'selection' && (listingInfo.text || createTime)"
+        class="card-footer"
+      >
+        <span v-if="listingInfo.text" class="footer-line">
+          上架 <strong>{{ listingInfo.text }}</strong>
+          <em v-if="listingInfo.days !== null" class="footer-days">
+            · {{ listingInfo.days }} 天
+          </em>
+        </span>
+        <span v-if="createTime" class="footer-line footer-created">
+          入库 <strong>{{ createTime }}</strong>
+        </span>
+      </div>
+      <div v-else-if="showCreateTime && createTime" class="card-footer">
+        <span class="footer-line">
+          {{ formatCreateTime(createTime) }}
         </span>
       </div>
     </div>
 
-    <div class="card-select-bar" :class="{ selected: props.isSelectedByMe }" @click.stop="handleSelectProduct">
+    <div
+      class="card-select-bar"
+      :class="{ selected: props.isSelectedByMe }"
+      @click.stop="handleSelectProduct"
+    >
       <el-icon :size="18"><Select /></el-icon>
-      <span>{{ props.isSelectedByMe ? '已选中' : '选中此产品' }}</span>
+      <span>{{ props.isSelectedByMe ? "已选中" : "选中此产品" }}</span>
     </div>
-    <div v-if="props.selectedByUsers && props.selectedByUsers.length > 0" class="card-select-users">
+    <div
+      v-if="props.selectedByUsers && props.selectedByUsers.length > 0"
+      class="card-select-users"
+    >
       <el-icon :size="12"><Select /></el-icon>
       <span class="select-users-text">{{ selectedByUsersText }}</span>
     </div>
@@ -144,68 +191,82 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
-import { Picture, Money, Shop, Folder, View, Delete, TrendCharts, Select, Promotion, Search } from '@element-plus/icons-vue'
-import { trackClick } from '@/api/clickLog'
-import { getProductType } from '@/api/competitor'
+import { ref, watch, computed } from "vue";
+import {
+  Picture,
+  Money,
+  Shop,
+  Folder,
+  View,
+  Delete,
+  TrendCharts,
+  Select,
+  Promotion,
+  Search,
+} from "@element-plus/icons-vue";
+import { trackClick } from "@/api/clickLog";
+import { getProductType } from "@/api/competitor";
 
 interface Props {
-  product: Record<string, any>
-  selected?: boolean
-  mode?: 'product' | 'selection'
-  isSelectedByMe?: boolean
-  selectedByUsers?: { userId: number; userName: string }[]
+  product: Record<string, any>;
+  selected?: boolean;
+  mode?: "product" | "selection";
+  isSelectedByMe?: boolean;
+  selectedByUsers?: { userId: number; userName: string }[];
   /** 是否显示 S/A/B/C/D 品级徽章（老品级系统，默认关闭，不干扰视线） */
-  showGrade?: boolean
+  showGrade?: boolean;
 }
 
 interface Emits {
-  (e: 'click', product: Record<string, any>): void
-  (e: 'select', id: string | number, selected: boolean): void
-  (e: 'toggle-select', asin: string, selected: boolean): void
-  (e: 'delete', product: Record<string, any>): void
-  (e: 'view', product: Record<string, any>): void
-  (e: 'image-search', product: Record<string, any>): void
+  (e: "click", product: Record<string, any>): void;
+  (e: "select", id: string | number, selected: boolean): void;
+  (e: "toggle-select", asin: string, selected: boolean): void;
+  (e: "delete", product: Record<string, any>): void;
+  (e: "view", product: Record<string, any>): void;
+  (e: "image-search", product: Record<string, any>): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   selected: false,
-  mode: 'product',
+  mode: "product",
   isSelectedByMe: false,
   selectedByUsers: () => [],
-  showGrade: false
-})
+  showGrade: false,
+});
 
-const emit = defineEmits<Emits>()
+const emit = defineEmits<Emits>();
 
-const isSelected = ref<boolean>(props.selected)
+const isSelected = ref<boolean>(props.selected);
 
-watch(() => props.selected, (newVal: boolean) => {
-  isSelected.value = newVal
-})
+watch(
+  () => props.selected,
+  (newVal: boolean) => {
+    isSelected.value = newVal;
+  },
+);
 
 const modeConfig = computed(() => {
-  if (props.mode === 'selection') {
+  if (props.mode === "selection") {
     return {
       showId: true,
-      idField: 'asin',
+      idField: "asin",
       showTitle: true,
-      titleField: 'productTitle',
+      titleField: "productTitle",
       showMeta: true,
       showTags: true,
       showTypeBadge: true,
-      typeField: 'productType',
+      typeField: "productType",
       showTypeTag: false,
       showCreateTime: true,
       showViewButton: true,
-      showSalesVolume: true
-    }
+      showSalesVolume: true,
+    };
   }
   return {
     showId: true,
-    idField: 'sku',
+    idField: "sku",
     showTitle: true,
-    titleField: 'name',
+    titleField: "name",
     showMeta: false,
     showTags: false,
     showTypeBadge: false,
@@ -213,287 +274,336 @@ const modeConfig = computed(() => {
     showTypeTag: true,
     showCreateTime: false,
     showViewButton: false,
-    showSalesVolume: false
-  }
-})
+    showSalesVolume: false,
+  };
+});
 
-const showId = computed(() => modeConfig.value.showId)
-const idText = computed(() => props.product[modeConfig.value.idField] || '')
-const showTitle = computed(() => modeConfig.value.showTitle)
+const showId = computed(() => modeConfig.value.showId);
+const idText = computed(() => props.product[modeConfig.value.idField] || "");
+const showTitle = computed(() => modeConfig.value.showTitle);
 const titleText = computed(() => {
-  const field = modeConfig.value.titleField
-  return props.product[field] || props.product['title'] || props.product['productTitle'] || ''
-})
-const showMeta = computed(() => modeConfig.value.showMeta)
-const price = computed(() => props.product.price)
-const storeName = computed(() => props.product.storeName || props.product.sellerName || '')
-const category = computed(() => props.product.mainCategoryName || props.product.category)
-const showTags = computed(() => modeConfig.value.showTags)
-const tags = computed(() => props.product.tags)
+  const field = modeConfig.value.titleField;
+  return (
+    props.product[field] ||
+    props.product["title"] ||
+    props.product["productTitle"] ||
+    ""
+  );
+});
+const showMeta = computed(() => modeConfig.value.showMeta);
+const price = computed(() => props.product.price);
+const storeName = computed(
+  () => props.product.storeName || props.product.sellerName || "",
+);
+const category = computed(
+  () => props.product.mainCategoryName || props.product.category,
+);
+const showTags = computed(() => modeConfig.value.showTags);
+const tags = computed(() => props.product.tags);
 const productType = computed(() => {
-  const raw = props.product[modeConfig.value.typeField]
-  if (raw) return raw
-  return getProductType(props.product.source || '')
-})
+  const raw = props.product[modeConfig.value.typeField];
+  if (raw) return raw;
+  return getProductType(props.product.source || "");
+});
 const typeBadgeText = computed(() => {
-  if (props.mode === 'selection') {
-    const pt = productType.value || props.product.productType
-    if (pt === 'new') return '新品'
-    if (pt === 'zheng') return '郑总'
-    return '竞品'
+  if (props.mode === "selection") {
+    const pt = productType.value || props.product.productType;
+    if (pt === "new") return "新品";
+    if (pt === "zheng") return "郑总";
+    return "竞品";
   }
-  return ''
-})
-const showTypeBadge = computed(() => modeConfig.value.showTypeBadge)
-const typeTagText = computed(() => props.product.type || '')
-const showTypeTag = computed(() => modeConfig.value.showTypeTag)
-const showCreateTime = computed(() => modeConfig.value.showCreateTime)
-const createTime = computed(() => props.product.createdAt || props.product.created_at)
-const showViewButton = computed(() => modeConfig.value.showViewButton)
-const showSalesVolume = computed(() => modeConfig.value.showSalesVolume)
-const salesVolume = computed(() => props.product.salesVolume || props.product.units || 0)
+  return "";
+});
+const showTypeBadge = computed(() => modeConfig.value.showTypeBadge);
+const typeTagText = computed(() => props.product.type || "");
+const showTypeTag = computed(() => modeConfig.value.showTypeTag);
+const showCreateTime = computed(() => modeConfig.value.showCreateTime);
+const createTime = computed(
+  () => props.product.createdAt || props.product.created_at,
+);
+const showViewButton = computed(() => modeConfig.value.showViewButton);
+const showSalesVolume = computed(() => modeConfig.value.showSalesVolume);
+const salesVolume = computed(
+  () => props.product.salesVolume || props.product.units || 0,
+);
 const productLink = computed(() => {
-  const raw = props.product.productLink || props.product.productUrl || ''
-  if (raw) return raw
+  const raw = props.product.productLink || props.product.productUrl || "";
+  if (raw) return raw;
   // 从 ASIN + 站点生成 Amazon 链接
-  const asin = props.product.asin
-  const mkp = props.product.marketplace
+  const asin = props.product.asin;
+  const mkp = props.product.marketplace;
   if (asin && mkp) {
     const domains: Record<string, string> = {
-      US: 'www.amazon.com', UK: 'www.amazon.co.uk', DE: 'www.amazon.de',
-      CA: 'www.amazon.ca', JP: 'www.amazon.co.jp', FR: 'www.amazon.fr',
-      IT: 'www.amazon.it', ES: 'www.amazon.es',
-    }
-    return `https://${domains[mkp] || 'www.amazon.com'}/dp/${asin}`
+      US: "www.amazon.com",
+      UK: "www.amazon.co.uk",
+      DE: "www.amazon.de",
+      CA: "www.amazon.ca",
+      JP: "www.amazon.co.jp",
+      FR: "www.amazon.fr",
+      IT: "www.amazon.it",
+      ES: "www.amazon.es",
+    };
+    return `https://${domains[mkp] || "www.amazon.com"}/dp/${asin}`;
   }
-  return ''
-})
+  return "";
+});
 
-const similarProductsLink = computed(() => props.product.similarProducts || props.product.similarUrl || '')
+const similarProductsLink = computed(
+  () => props.product.similarProducts || props.product.similarUrl || "",
+);
 
-const visibleTags = computed(() => (props.product.tags || []).slice(0, 3))
-const extraTagsCount = computed(() => Math.max(0, (props.product.tags || []).length - 3))
+const visibleTags = computed(() => (props.product.tags || []).slice(0, 3));
+const extraTagsCount = computed(() =>
+  Math.max(0, (props.product.tags || []).length - 3),
+);
 
 const selectedByUsersText = computed(() =>
-  (props.selectedByUsers || []).map((u: any) => u.userName).join('、')
-)
+  (props.selectedByUsers || []).map((u: any) => u.userName).join("、"),
+);
 
-const footerDateText = computed(() => {
-  // selection 模式页脚展示商品在亚马逊的「上架日」(available_date) + 实时上架天数
-  // （今天 - 上架日，每天自动增长）。与角标 timeTag 的「入库时间」(created_at) 是两个概念。
-  if (props.mode === 'selection' && (props.product.listingDate || props.product.availableDate)) {
-    const raw = props.product.listingDate || props.product.availableDate
-    const text = formatListingDate(raw)
-    if (!text) return ''
-    const val = typeof raw === 'string' ? raw.trim() : raw
-    const isEpochMs =
-      typeof val === 'number' || (typeof val === 'string' && /^\d{10,}$/.test(val))
-    const date = isEpochMs ? new Date(Number(val)) : new Date(raw)
-    if (!Number.isNaN(date.getTime())) {
-      const days = Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000))
-      return `上架 ${text} · ${days}天`
-    }
-    return `上架 ${text}`
+/**
+ * 上架信息：把 available_date 解析成 {text, days}。
+ * text 是 yyyy-M-d 显示串; days 是实时天数(今天-上架日), null 表示日期解析失败。
+ * 卡片底部与 createTime(入库时间)并列展示, 让两个日期错位一眼可见。
+ */
+const listingInfo = computed<{ text: string; days: number | null }>(() => {
+  const raw = props.product.listingDate || props.product.availableDate;
+  if (raw === null || raw === undefined || raw === "") {
+    return { text: "", days: null };
   }
-  return formatCreateTime(createTime.value)
-})
+  const val = typeof raw === "string" ? raw.trim() : raw;
+  const isEpochMs =
+    typeof val === "number" ||
+    (typeof val === "string" && /^\d{10,}$/.test(val));
+  const date = isEpochMs ? new Date(Number(val)) : new Date(raw);
+  const text = formatListingDate(raw);
+  if (!text || Number.isNaN(date.getTime())) {
+    return { text, days: null };
+  }
+  const days = Math.max(
+    0,
+    Math.floor((Date.now() - date.getTime()) / 86400000),
+  );
+  return { text, days };
+});
 
 const grade = computed(() => {
-  const filterMode = props.product.dataFilterMode || props.product.filterMode || ''
-  if (filterMode === 'FAIL') return '不通过'
+  const filterMode =
+    props.product.dataFilterMode || props.product.filterMode || "";
+  if (filterMode === "FAIL") return "不通过";
   // S/A/B/C/D 老品级系统默认关闭，避免干扰视线；仅在显式开启时展示
-  return props.showGrade ? props.product.grade : ''
-})
+  return props.showGrade ? props.product.grade : "";
+});
 const gradeColor = computed(() => {
-  const filterMode = props.product.dataFilterMode || props.product.filterMode || ''
-  if (filterMode === 'FAIL') return '#F56C6C'
+  const filterMode =
+    props.product.dataFilterMode || props.product.filterMode || "";
+  if (filterMode === "FAIL") return "#F56C6C";
   const colors: Record<string, string> = {
-    'S': '#67C23A',
-    'A': '#409EFF',
-    'B': '#E6A23C',
-    'C': '#909399',
-    'D': '#F56C6C'
-  }
-  return colors[props.product.grade] || '#909399'
-})
+    S: "#67C23A",
+    A: "#409EFF",
+    B: "#E6A23C",
+    C: "#909399",
+    D: "#F56C6C",
+  };
+  return colors[props.product.grade] || "#909399";
+});
 
 // 时效标签：根据 created_at/createdAt 判断
 const timeTag = computed(() => {
   // 兼容后端返回的 created_at 和前端使用的 createdAt
-  const createdAt = props.product.createdAt || props.product.created_at
-  if (!createdAt) return null
+  const createdAt = props.product.createdAt || props.product.created_at;
+  if (!createdAt) return null;
 
-  const now = new Date()
-  const created = new Date(createdAt)
+  const now = new Date();
+  const created = new Date(createdAt);
 
   // 调试信息（开发时使用）
   // FIXED: MED-9 — 删除遗留 console.log
 
   // 计算本周一（ISO 周，周一开始）
-  const dayOfWeek = now.getDay() || 7 // 周日=7
-  const monday = new Date(now)
-  monday.setDate(now.getDate() - dayOfWeek + 1)
-  monday.setHours(0, 0, 0, 0)
+  const dayOfWeek = now.getDay() || 7; // 周日=7
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - dayOfWeek + 1);
+  monday.setHours(0, 0, 0, 0);
 
   if (created >= monday) {
-    return '本周入库'
+    return "本周入库";
   }
 
   // 计算天数差
-  const diffDays = Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24))
+  const diffDays = Math.floor(
+    (now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24),
+  );
 
   if (diffDays > 30) {
-    return '过时'
+    return "过时";
   } else if (diffDays > 7) {
-    return `${diffDays}天前`
+    return `${diffDays}天前`;
   } else if (diffDays > 0) {
-    return `${diffDays}天前`
+    return `${diffDays}天前`;
   } else {
-    return '今天'
+    return "今天";
   }
-})
+});
 
 const timeTagClass = computed(() => {
-  const tag = timeTag.value
-  if (tag === '本周入库' || tag === '今天') return 'time-current'
-  if (tag === '过时') return 'time-outdated'
-  return 'time-normal'
-})
+  const tag = timeTag.value;
+  if (tag === "本周入库" || tag === "今天") return "time-current";
+  if (tag === "过时") return "time-outdated";
+  return "time-normal";
+});
 
 const imageUrl = computed((): string => {
   // 优先显示参考图
-  const referenceImages = props.product.reference_images || props.product.referenceImages || []
+  const referenceImages =
+    props.product.reference_images || props.product.referenceImages || [];
   if (Array.isArray(referenceImages) && referenceImages.length > 0) {
-    return referenceImages[0]
+    return referenceImages[0];
   }
-  
+
   // 检查单个参考图字段
   if (props.product.referenceImage) {
-    return props.product.referenceImage
+    return props.product.referenceImage;
   }
-  
+
   // 原有的图片显示逻辑
   if (props.product.thumbPath) {
-    return `/images/${props.product.thumbPath}`
+    return `/images/${props.product.thumbPath}`;
   }
   if (props.product.localPath) {
-    return `/images/${props.product.localPath}`
+    return `/images/${props.product.localPath}`;
   }
   if (props.product.imageUrl) {
-    return props.product.imageUrl
+    return props.product.imageUrl;
   }
   if (props.product.image) {
-    return props.product.image
+    return props.product.image;
   }
-  return '/images/default.png'
-})
+  return "/images/default.png";
+});
 
 const formatCreateTime = (dateString: string): string => {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
   if (days === 0) {
-    const hours = Math.floor(diff / (1000 * 60 * 60))
+    const hours = Math.floor(diff / (1000 * 60 * 60));
     if (hours === 0) {
-      const minutes = Math.floor(diff / (1000 * 60))
-      return minutes < 1 ? '刚刚' : `${minutes}分钟前`
+      const minutes = Math.floor(diff / (1000 * 60));
+      return minutes < 1 ? "刚刚" : `${minutes}分钟前`;
     }
-    return `${hours}小时前`
+    return `${hours}小时前`;
   } else if (days < 7) {
-    return `${days}天前`
+    return `${days}天前`;
   } else {
-    return date.toLocaleDateString('zh-CN')
+    return date.toLocaleDateString("zh-CN");
   }
-}
+};
 
 const formatListingDate = (dateValue: string | number): string => {
-  if (dateValue === null || dateValue === undefined || dateValue === '') return ''
+  if (dateValue === null || dateValue === undefined || dateValue === "")
+    return "";
   // available_date 是毫秒时间戳（bigint），JSON 里可能是数字或纯数字字符串。
-  const raw = typeof dateValue === 'string' ? dateValue.trim() : dateValue
+  const raw = typeof dateValue === "string" ? dateValue.trim() : dateValue;
   const isEpochMs =
-    typeof raw === 'number' || (typeof raw === 'string' && /^\d{10,}$/.test(raw))
-  const date = isEpochMs ? new Date(Number(raw)) : new Date(raw)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toLocaleDateString('zh-CN')
-}
+    typeof raw === "number" ||
+    (typeof raw === "string" && /^\d{10,}$/.test(raw));
+  const date = isEpochMs ? new Date(Number(raw)) : new Date(raw);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("zh-CN");
+};
 
 const formatSalesVolume = (volume: number | null | undefined): string => {
-  if (!volume) return '0'
+  if (!volume) return "0";
   if (volume >= 10000) {
-    return `${(volume / 10000).toFixed(1)}万`
+    return `${(volume / 10000).toFixed(1)}万`;
   }
-  return volume.toString()
-}
+  return volume.toString();
+};
 
-const typeTagType = computed((): 'primary' | 'success' | 'warning' | 'info' | 'danger' => {
-  const type = props.product.type
-  if (type === '普通产品') return 'info'
-  if (type === '组合产品') return 'warning'
-  if (type === '定制产品') return 'success'
-  return 'info'
-})
+const typeTagType = computed(
+  (): "primary" | "success" | "warning" | "info" | "danger" => {
+    const type = props.product.type;
+    if (type === "普通产品") return "info";
+    if (type === "组合产品") return "warning";
+    if (type === "定制产品") return "success";
+    return "info";
+  },
+);
 
-const getTrackParams = (action: 'click' | 'select') => ({
-  asin: props.product.asin || '',
-  marketplace: props.product.marketplace || '',
-  source: props.product.source || ({ new: '新品榜', reference: '竞品', zheng: '郑总店铺' } as Record<string, string>)[productType.value] || '未知来源',
+const getTrackParams = (action: "click" | "select") => ({
+  asin: props.product.asin || "",
+  marketplace: props.product.marketplace || "",
+  source:
+    props.product.source ||
+    (
+      { new: "新品榜", reference: "竞品", zheng: "郑总店铺" } as Record<
+        string,
+        string
+      >
+    )[productType.value] ||
+    "未知来源",
   action,
-  productTitle: titleText.value || props.product.title || '',
-})
+  productTitle: titleText.value || props.product.title || "",
+});
 
 const handleClick = (): void => {
-  emit('click', props.product)
-}
+  emit("click", props.product);
+};
 
 const handleSelect = (value: any): void => {
-  const id = props.product[modeConfig.value.idField]
-  emit('select', id, !!value)
-}
+  const id = props.product[modeConfig.value.idField];
+  emit("select", id, !!value);
+};
 
 const handleCardClick = (): void => {
-  trackClick(getTrackParams('click'))
-  emit('click', props.product)
-}
+  trackClick(getTrackParams("click"));
+  emit("click", props.product);
+};
 
 const handleImageClick = (): void => {
-  trackClick(getTrackParams('click'))
-  emit('click', props.product)
-}
+  trackClick(getTrackParams("click"));
+  emit("click", props.product);
+};
 
 const handleSelectProduct = (): void => {
-  const asin = props.product.asin || ''
-  const newState = !props.isSelectedByMe
-  emit('toggle-select', asin, newState)
-}
+  const asin = props.product.asin || "";
+  const newState = !props.isSelectedByMe;
+  emit("toggle-select", asin, newState);
+};
 
 const handleView = (): void => {
-  emit('view', props.product)
-}
+  emit("view", props.product);
+};
 
 const handleDelete = (): void => {
-  emit('delete', props.product)
-}
+  emit("delete", props.product);
+};
 
 const handleOpenProductLink = (): void => {
   // 打开商品链接
   if (productLink.value) {
-    window.open(productLink.value, '_blank')
+    window.open(productLink.value, "_blank");
   }
   // 同时打开所有相似链接
-  const raw = similarProductsLink.value
+  const raw = similarProductsLink.value;
   if (raw) {
-    raw.split(',').map(l => l.trim()).filter(Boolean).forEach(url => {
-      window.open(url, '_blank')
-    })
+    raw
+      .split(",")
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .forEach((url) => {
+        window.open(url, "_blank");
+      });
   }
-}
+};
 
 const handleImageSearch = (): void => {
-  emit('image-search', props.product)
-}
+  emit("image-search", props.product);
+};
 </script>
 
 <style scoped lang="scss">
@@ -504,7 +614,9 @@ const handleImageSearch = (): void => {
   border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   display: flex;
   flex-direction: column;
 
@@ -637,7 +749,7 @@ const handleImageSearch = (): void => {
     white-space: nowrap;
 
     &.time-current {
-      background: linear-gradient(135deg, #67C23A, #85ce61);
+      background: linear-gradient(135deg, #67c23a, #85ce61);
       box-shadow: 0 2px 6px rgba(103, 194, 58, 0.4);
     }
 
@@ -647,7 +759,7 @@ const handleImageSearch = (): void => {
     }
 
     &.time-normal {
-      background: linear-gradient(135deg, #409EFF, #66b1ff);
+      background: linear-gradient(135deg, #409eff, #66b1ff);
       box-shadow: 0 2px 6px rgba(64, 158, 255, 0.4);
     }
   }
@@ -672,7 +784,9 @@ const handleImageSearch = (): void => {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    transition:
+      transform 0.3s ease,
+      box-shadow 0.3s ease;
     gap: 4px;
 
     &:hover {
@@ -761,7 +875,7 @@ const handleImageSearch = (): void => {
 .card-variant-badge {
   display: inline-block;
   font-size: 11px;
-  color: #409EFF;
+  color: #409eff;
   background: #ecf5ff;
   border-radius: 4px;
   padding: 2px 6px;
@@ -821,49 +935,52 @@ const handleImageSearch = (): void => {
 }
 
 .card-select-bar {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 6px;
-	padding: 10px 0;
-	margin: 0 12px 12px;
-	border-radius: 10px;
-	background: #f1f5f9;
-	color: #64748b;
-	font-size: 14px;
-	font-weight: 600;
-	cursor: pointer;
-	transition: background 0.2s ease, color 0.2s ease, border 0.2s ease;
-	user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 0;
+  margin: 0 12px 12px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    border 0.2s ease;
+  user-select: none;
 }
 .card-select-bar:hover {
-	background: #dbeafe;
-	color: #2563eb;
+  background: #dbeafe;
+  color: #2563eb;
 }
 .card-select-bar.selected {
-	background: #dcfce7;
-	color: #16a34a;
-	border: 2px solid #86efac;
+  background: #dcfce7;
+  color: #16a34a;
+  border: 2px solid #86efac;
 }
 .card-select-bar.selected:hover {
-	background: #bbf7d0;
+  background: #bbf7d0;
 }
 
 .card-select-users {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	padding: 6px 12px;
-	margin: 0 12px;
-	font-size: 12px;
-	color: #16a34a;
-	background: #f0fdf4;
-	border-radius: 0 0 8px 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  margin: 0 12px;
+  font-size: 12px;
+  color: #16a34a;
+  background: #f0fdf4;
+  border-radius: 0 0 8px 8px;
 
-	.select-users-text {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
+  .select-users-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 </style>
