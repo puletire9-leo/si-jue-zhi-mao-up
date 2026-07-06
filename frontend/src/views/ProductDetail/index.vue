@@ -59,14 +59,14 @@
               </div>
 
               <div
-                v-if="product.listingDays"
+                v-if="product.listingDays || product.availableDate"
                 class="info-item"
               >
                 <div class="info-label">
                   上架时间：
                 </div>
                 <div class="info-value">
-                  {{ formatListingDate(product.listingDays) }}
+                  {{ formatListingDate(product) }}
                 </div>
               </div>
 
@@ -326,20 +326,33 @@ const formatDate = (dateString) => {
   })
 }
 
-const formatListingDate = (listingDays) => {
-  if (!listingDays || listingDays <= 0) return '无记录'
-  
-  // 计算上架日期：当前时间减去上架天数
-  const currentDate = new Date()
-  const listingDate = new Date(currentDate.getTime() - listingDays * 24 * 60 * 60 * 1000)
-  
-  return listingDate.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  }) + ` (${listingDays}天前)`
+// 把 available_date（毫秒时间戳，可能是数字或纯数字字符串）解析成 Date
+const parseAvailableDate = (availableDate) => {
+  if (availableDate == null || availableDate === '') return null
+  const raw =
+    typeof availableDate === 'string' ? availableDate.trim() : availableDate
+  const isEpochMs =
+    typeof raw === 'number' || (typeof raw === 'string' && /^\d{10,}$/.test(raw))
+  const date = isEpochMs ? new Date(Number(raw)) : new Date(raw)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+// 上架时间展示：显示真实上架日期 + 「实时」上架天数（今天 - 上架日，每天自动增长）。
+// 天数一律实时计算，不用冻结的 listing_days 快照。
+const formatListingDate = (product) => {
+  const date = parseAvailableDate(product?.availableDate ?? product?.available_date)
+  if (date) {
+    const text = date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+    const days = Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000))
+    return `${text}（上架 ${days} 天）`
+  }
+  return '无记录'
 }
 
 const goBack = () => {
