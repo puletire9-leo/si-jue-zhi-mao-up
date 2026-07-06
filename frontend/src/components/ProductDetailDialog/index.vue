@@ -57,12 +57,14 @@
 
                 <div
                   v-if="
-                    mode === 'selection' && product.listingDays !== undefined
+                    mode === 'selection' &&
+                    realtimeListingDays(product) !== undefined &&
+                    realtimeListingDays(product) !== null
                   "
                   class="info-item"
                 >
-                  <div class="info-label">上架时间(天)：</div>
-                  <div class="info-value">{{ product.listingDays }} 天</div>
+                  <div class="info-label">上架天数：</div>
+                  <div class="info-value">{{ realtimeListingDays(product) }} 天</div>
                 </div>
 
                 <div v-if="product.type" class="info-item">
@@ -619,9 +621,17 @@ const getPreviewImages = () => {
   return images;
 };
 
-const formatDate = (dateString) => {
-  if (!dateString) return "无记录";
-  const date = new Date(dateString);
+const formatDate = (dateValue) => {
+  if (dateValue === null || dateValue === undefined || dateValue === "")
+    return "无记录";
+  // available_date 是毫秒时间戳（bigint），JSON 里可能是数字或纯数字字符串；
+  // 其余情况按普通日期字符串解析。
+  const raw = typeof dateValue === "string" ? dateValue.trim() : dateValue;
+  const isEpochMs =
+    typeof raw === "number" ||
+    (typeof raw === "string" && /^\d{10,}$/.test(raw));
+  const date = isEpochMs ? new Date(Number(raw)) : new Date(raw);
+  if (Number.isNaN(date.getTime())) return "无记录";
   return date.toLocaleString("zh-CN", {
     year: "numeric",
     month: "2-digit",
@@ -629,6 +639,24 @@ const formatDate = (dateString) => {
     hour: "2-digit",
     minute: "2-digit",
   });
+};
+
+// 实时上架天数：优先用 available_date（今天 - 上架日，每天自动增长）；
+// 没有真实上架时间戳时，回退到后端 listing_days 快照。
+const realtimeListingDays = (product) => {
+  const availableDate = product?.availableDate ?? product?.listingDate;
+  if (availableDate != null && availableDate !== "") {
+    const raw =
+      typeof availableDate === "string" ? availableDate.trim() : availableDate;
+    const isEpochMs =
+      typeof raw === "number" ||
+      (typeof raw === "string" && /^\d{10,}$/.test(raw));
+    const date = isEpochMs ? new Date(Number(raw)) : new Date(raw);
+    if (!Number.isNaN(date.getTime())) {
+      return Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000));
+    }
+  }
+  return product?.listingDays;
 };
 
 const formatSalesVolume = (volume) => {

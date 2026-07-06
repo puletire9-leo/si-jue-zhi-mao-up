@@ -1258,7 +1258,7 @@ const loadCategories = async () => {
   // 根据当前标签页获取分类来源
   const sourceMap: Record<string, string> = {
     new: "新品榜",
-    reference: "竞品",
+    reference: "竞品店铺",
     zheng: "郑总店铺",
     all: "",
   };

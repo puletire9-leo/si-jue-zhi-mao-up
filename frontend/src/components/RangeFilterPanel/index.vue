@@ -24,8 +24,12 @@ const props = withDefaults(
   defineProps<{
     modelValue?: RangeFilterValue;
     country?: string;
+    /** 来源（如 '新品榜' / '竞品店铺'，与数据库 source 一致），用于把入库批次下拉对齐到查询口径 */
     source?: string;
     snapshotKind?: "competitor_created_week" | "deng_zong_batch";
+    /** 是否在加载批次列表后自动默认选中最新一项（首次进入时）。默认 true */
+    autoSelectLatestWeek?: boolean;
+    /** 嵌入抽屉/卡片时为 true：去掉自身灰底边框，与外层风格统一 */
     embedded?: boolean;
   }>(),
   {
@@ -49,6 +53,7 @@ const props = withDefaults(
     source: "",
     snapshotKind: "competitor_created_week",
     embedded: false,
+    autoSelectLatestWeek: true,
   },
 );
 
@@ -166,8 +171,48 @@ function clearListingPreset() {
 }
 
 const availableSnapshots = ref<
-  Array<{ value: string; label: string; count: number }>
+  Array<{
+    value: string;
+    label: string;
+    count: number;
+    startDate?: string;
+    endDate?: string;
+  }>
 >([]);
+// 记录已自动填充过默认最新项的 (country|source|snapshotKind) 组合，
+// 避免用户主动清空后又被填回。
+const autoFilledKeys = new Set<string>();
+
+/** 把某个日期(YYYY-MM-DD 等)转成 M/D */
+function toMd(d?: string): string {
+  if (!d) return "";
+  const date = new Date(d);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
+/**
+ * 批次下拉 label：周批次显示日期范围（如 7/6-7/12），比 ISO 周号（2026-W28）直观；
+ * 郑总批次日等无起止范围的，退回原 label。统一带条数。
+ */
+function formatSnapshotLabel(item: {
+  label: string;
+  count: number;
+  startDate?: string;
+  endDate?: string;
+}): string {
+  const start = toMd(item.startDate);
+  const end = toMd(item.endDate);
+  const range = start && end ? `${start}-${end}` : item.label;
+  return `${range}（${item.count}）`;
+}
+
+/** 最新一项摘要：日期范围 + 条数，让用户一眼看到最新导入了多少数据 */
+const latestWeekSummary = computed(() => {
+  const w = availableSnapshots.value[0];
+  if (!w) return "";
+  return formatSnapshotLabel(w);
+});
 
 async function loadAvailableWeeks() {
   if (props.snapshotKind === "deng_zong_batch") {
@@ -177,15 +222,30 @@ async function loadAvailableWeeks() {
       label: item.batchDate,
       count: item.count,
     }));
-    return;
+  } else {
+    const res = await getCreatedWeeks(props.country, props.source || undefined);
+    availableSnapshots.value = (res?.data ?? []).map((item) => ({
+      value: item.week,
+      label: item.week,
+      count: item.count,
+      startDate: item.startDate,
+      endDate: item.endDate,
+    }));
   }
 
-  const res = await getCreatedWeeks(props.country, props.source || undefined);
-  availableSnapshots.value = (res?.data ?? []).map((item) => ({
-    value: item.week,
-    label: item.week,
-    count: item.count,
-  }));
+  // 默认选中最新一项（列表第一项即最新批次）：仅在开启、当前无已选、
+  // 且该 country+source+snapshotKind 组合尚未自动填充过时执行，尊重用户的手动清空。
+  if (
+    props.autoSelectLatestWeek &&
+    availableSnapshots.value.length > 0 &&
+    local.value.createdWeeks.length === 0
+  ) {
+    const key = `${props.country}|${props.source}|${props.snapshotKind}`;
+    if (!autoFilledKeys.has(key)) {
+      autoFilledKeys.add(key);
+      local.value.createdWeeks = [availableSnapshots.value[0].value];
+    }
+  }
 }
 
 onMounted(loadAvailableWeeks);
@@ -200,7 +260,12 @@ watch(
   <div class="rfp" :class="{ 'rfp--embedded': embedded }">
     <div class="rfp__week-row">
       <div class="rfp__field">
-        <label class="rfp__label">{{ snapshotLabel }}</label>
+        <label class="rfp__label">
+          {{ snapshotLabel }}
+          <span v-if="latestWeekSummary" class="rfp__latest-hint">
+            最新 {{ latestWeekSummary }}
+          </span>
+        </label>
         <el-select
           v-model="local.createdWeeks"
           multiple
@@ -213,7 +278,7 @@ watch(
           <el-option
             v-for="item in availableSnapshots"
             :key="item.value"
-            :label="`${item.label} (${item.count})`"
+            :label="formatSnapshotLabel(item)"
             :value="item.value"
           />
         </el-select>
@@ -524,6 +589,15 @@ watch(
   font-weight: $font-weight-medium;
   letter-spacing: 0.02em;
   user-select: none;
+}
+
+.rfp__latest-hint {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: $font-weight-medium;
+  color: #409eff;
+  background: rgba(64, 158, 255, 0.1);
 }
 
 .rfp__range {

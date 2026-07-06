@@ -155,6 +155,8 @@ interface Props {
   mode?: 'product' | 'selection'
   isSelectedByMe?: boolean
   selectedByUsers?: { userId: number; userName: string }[]
+  /** 是否显示 S/A/B/C/D 品级徽章（老品级系统，默认关闭，不干扰视线） */
+  showGrade?: boolean
 }
 
 interface Emits {
@@ -170,7 +172,8 @@ const props = withDefaults(defineProps<Props>(), {
   selected: false,
   mode: 'product',
   isSelectedByMe: false,
-  selectedByUsers: () => []
+  selectedByUsers: () => [],
+  showGrade: false
 })
 
 const emit = defineEmits<Emits>()
@@ -276,8 +279,21 @@ const selectedByUsersText = computed(() =>
 )
 
 const footerDateText = computed(() => {
+  // selection 模式页脚展示商品在亚马逊的「上架日」(available_date) + 实时上架天数
+  // （今天 - 上架日，每天自动增长）。与角标 timeTag 的「入库时间」(created_at) 是两个概念。
   if (props.mode === 'selection' && (props.product.listingDate || props.product.availableDate)) {
-    return formatListingDate(props.product.listingDate || props.product.availableDate)
+    const raw = props.product.listingDate || props.product.availableDate
+    const text = formatListingDate(raw)
+    if (!text) return ''
+    const val = typeof raw === 'string' ? raw.trim() : raw
+    const isEpochMs =
+      typeof val === 'number' || (typeof val === 'string' && /^\d{10,}$/.test(val))
+    const date = isEpochMs ? new Date(Number(val)) : new Date(raw)
+    if (!Number.isNaN(date.getTime())) {
+      const days = Math.max(0, Math.floor((Date.now() - date.getTime()) / 86400000))
+      return `上架 ${text} · ${days}天`
+    }
+    return `上架 ${text}`
   }
   return formatCreateTime(createTime.value)
 })
@@ -285,7 +301,8 @@ const footerDateText = computed(() => {
 const grade = computed(() => {
   const filterMode = props.product.dataFilterMode || props.product.filterMode || ''
   if (filterMode === 'FAIL') return '不通过'
-  return props.product.grade
+  // S/A/B/C/D 老品级系统默认关闭，避免干扰视线；仅在显式开启时展示
+  return props.showGrade ? props.product.grade : ''
 })
 const gradeColor = computed(() => {
   const filterMode = props.product.dataFilterMode || props.product.filterMode || ''
@@ -319,7 +336,7 @@ const timeTag = computed(() => {
   monday.setHours(0, 0, 0, 0)
 
   if (created >= monday) {
-    return '本周上架'
+    return '本周入库'
   }
 
   // 计算天数差
@@ -338,7 +355,7 @@ const timeTag = computed(() => {
 
 const timeTagClass = computed(() => {
   const tag = timeTag.value
-  if (tag === '本周上架' || tag === '今天') return 'time-current'
+  if (tag === '本周入库' || tag === '今天') return 'time-current'
   if (tag === '过时') return 'time-outdated'
   return 'time-normal'
 })
@@ -392,9 +409,14 @@ const formatCreateTime = (dateString: string): string => {
   }
 }
 
-const formatListingDate = (dateString: string): string => {
-  if (!dateString) return ''
-  const date = new Date(dateString)
+const formatListingDate = (dateValue: string | number): string => {
+  if (dateValue === null || dateValue === undefined || dateValue === '') return ''
+  // available_date 是毫秒时间戳（bigint），JSON 里可能是数字或纯数字字符串。
+  const raw = typeof dateValue === 'string' ? dateValue.trim() : dateValue
+  const isEpochMs =
+    typeof raw === 'number' || (typeof raw === 'string' && /^\d{10,}$/.test(raw))
+  const date = isEpochMs ? new Date(Number(raw)) : new Date(raw)
+  if (Number.isNaN(date.getTime())) return ''
   return date.toLocaleDateString('zh-CN')
 }
 
