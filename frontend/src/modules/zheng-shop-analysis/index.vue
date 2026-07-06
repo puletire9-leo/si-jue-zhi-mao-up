@@ -52,7 +52,7 @@
               size="small"
               style="width: 120px"
             >
-              <el-option label="商品数量" value="productCount" />
+              <el-option label="M01命中数" value="productCount" />
               <el-option label="店铺评分" value="storeScore" />
               <el-option label="等级" value="grade" />
               <el-option label="匹配度评级" value="ratingScore" />
@@ -199,9 +199,13 @@
                   <span v-if="shop.data.lastSyncedAt" class="shop-sync-time">{{
                     formatSyncTime(shop.data.lastSyncedAt)
                   }}</span>
-                  <span class="product-count-badge"
-                    >{{ shop.data.productCount }} 个商品</span
-                  >
+                  <span class="product-count-badge">
+                    {{
+                      shop.data.methodHitCount != null
+                        ? `${shop.data.methodHitCount} M01命中`
+                        : `${shop.data.productCount} 个商品`
+                    }}
+                  </span>
                 </div>
                 <div class="shop-meta">
                   <template v-if="shop.data.source === 'zheng'">
@@ -222,8 +226,17 @@
                     >
                   </template>
                   <template v-else>
-                    <span>店铺评分 {{ shop.data.storeScore }}</span>
+                    <span v-if="shop.data.methodHitCount != null">
+                      方法卡 M01 命中 {{ shop.data.methodHitCount }}
+                    </span>
+                    <span v-else>店铺评分 {{ shop.data.storeScore }}</span>
                     <span class="divider">|</span>
+                    <span v-if="shop.data.topCategory">
+                      主类目 {{ shop.data.topCategory }}
+                    </span>
+                    <span v-else-if="shop.data.avgPrice != null">
+                      均价 {{ currencySymbol(shop.data.marketplace) }}{{ shop.data.avgPrice }}
+                    </span>
                     <span v-if="shop.data.gradeDistribution">
                       <span
                         v-if="shop.data.gradeDistribution.S"
@@ -415,7 +428,6 @@ import { useRouter, useRoute } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import request from "@/utils/request";
 import { competitorApi, getDengZongMaxBatchDate } from "@/api/competitor";
-import { selectionApi } from "@/api/selection";
 import { asinImportApi } from "@/api/asinImport";
 import SkeletonWrapper from "@/components/SkeletonWrapper/index.vue";
 
@@ -453,6 +465,29 @@ interface UnifiedStore {
   ratingScore?: number | null;
   ratingGrade?: string | null;
   ratingBestMatch?: string | null;
+  methodId?: string;
+  methodHitCount?: number;
+  topCategory?: string | null;
+  avgPrice?: number | null;
+}
+
+interface ShopRatingRecord {
+  sellerName: string;
+  marketplace?: string;
+  productCount?: number;
+  ratingScore?: number;
+  ratingGrade?: string;
+  bestMatchSeller?: string;
+  finalScore?: number;
+  grade?: string;
+}
+
+interface MethodRankRecord {
+  sellerName: string;
+  marketplace?: string;
+  hitCount?: number;
+  topCategory?: string | null;
+  avgPrice?: number | null;
 }
 
 const STORE_PAGE_SIZE = 20;
@@ -524,9 +559,7 @@ const filteredStores = computed(() => {
 
   // 站点筛选（仅对郑总店铺生效，选品店铺无站点信息）
   if (marketplace.value) {
-    list = list.filter(
-      (s) => s.source !== "zheng" || s.marketplace === marketplace.value,
-    );
+    list = list.filter((s) => !s.marketplace || s.marketplace === marketplace.value);
   }
 
   // 等级筛选：郑总店铺仅在"郑总"tab显示，不串台到其他等级
@@ -634,12 +667,12 @@ const gradeLabel = (grade: StoreGrade) => {
 
 const ratingTagType = (
   grade?: string | null,
-): "success" | "" | "warning" | "danger" => {
+): "primary" | "success" | "warning" | "info" | "danger" => {
   switch (grade) {
     case "A":
       return "success";
     case "B":
-      return "";
+      return "primary";
     case "C":
       return "warning";
     case "D":
@@ -647,7 +680,7 @@ const ratingTagType = (
     case "F":
       return "danger";
     default:
-      return "info" as any;
+      return "info";
   }
 };
 
@@ -721,15 +754,32 @@ const loadZhengShops = async (): Promise<UnifiedStore[]> => {
 // 加载选品店铺
 const loadSelectionStores = async (): Promise<UnifiedStore[]> => {
   try {
-    const res = await selectionApi.getStores();
-    const list = res.data || [];
-    return list.map((s: any) => ({
-      storeName: s.store_name,
-      marketplace: s.marketplace || "",
-      storeUrl: s.store_url,
+    const params: Record<string, string | number> = {
+      methodId: "M01",
+      minCount: 1,
+      limit: 500,
+    };
+    if (marketplace.value) params.marketplace = marketplace.value;
+    const res = await request.get("/api/v1/modules/shop-rating/method-rank", {
+      params,
+    });
+    const list = (res.data || []) as MethodRankRecord[];
+    return list.map((s) => ({
+      storeName: s.sellerName,
+      marketplace: s.marketplace || marketplace.value,
+      storeUrl: "",
       source: "selection" as StoreSource,
-      productCount: s.count || 0,
-      grade: "unrated" as StoreGrade, // 未评级，评级后会更新
+      productCount: s.hitCount || 0,
+      methodHitCount: s.hitCount || 0,
+      methodId: "M01",
+      topCategory: s.topCategory || null,
+      avgPrice: s.avgPrice ?? null,
+      grade:
+        s.hitCount >= 10
+          ? ("premium" as StoreGrade)
+          : s.hitCount >= 3
+            ? ("normal" as StoreGrade)
+            : ("unrated" as StoreGrade),
     }));
   } catch {
     ElMessage.error("加载选品店铺失败");
@@ -741,9 +791,11 @@ const loadSelectionStores = async (): Promise<UnifiedStore[]> => {
 const loadSavedRatings = async () => {
   try {
     const res = await request.get("/api/v1/modules/shop-rating/ratings");
-    const ratings = res.data || [];
+    const ratings = (res.data || []) as ShopRatingRecord[];
     if (!ratings.length) return;
-    const ratingMap = new Map(ratings.map((r: any) => [r.sellerName, r]));
+    const ratingMap = new Map<string, ShopRatingRecord>(
+      ratings.map((r) => [r.sellerName, r]),
+    );
     for (const store of stores.value) {
       const r = ratingMap.get(store.storeName);
       if (r) {
@@ -868,7 +920,10 @@ const handleStartRating = async () => {
           // 合并评级结果到 stores
           if (data.results) {
             const ratingMap = new Map(
-              data.results.map((r: any) => [r.sellerName, r]),
+              (data.results as ShopRatingRecord[]).map((r) => [
+                r.sellerName,
+                r,
+              ]),
             );
             // 更新已有店铺的评级
             for (const store of stores.value) {

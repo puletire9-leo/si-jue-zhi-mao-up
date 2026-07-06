@@ -26,14 +26,64 @@
                 LIMIT 1
             ) AS topCategory
         FROM competitor_products_clean c
-        WHERE c.marketplace = #{marketplace}
-          AND c.m01_active = 1
+        WHERE c.m01_active = 1
+          <if test="marketplace != null and marketplace != ''">
+          AND c.marketplace = #{marketplace}
+          </if>
           AND c.seller_name IS NOT NULL AND c.seller_name != ''
         GROUP BY c.seller_name, c.marketplace
         HAVING COUNT(*) &gt;= #{minCount}
         ORDER BY hitCount DESC, avgPrice ASC
         LIMIT #{limit}
     </select>
+
+    <update id="backfillM01Active">
+        UPDATE competitor_products cp
+        SET cp.m01_active =
+            CASE
+                WHEN cp.available_date IS NOT NULL
+                 AND cp.available_date &gt; 0
+                 AND cp.price IS NOT NULL
+                 AND cp.price &gt;= #{priceMin}
+                 AND cp.price &lt;= #{priceMax}
+                 AND cp.weight_g IS NOT NULL
+                 AND cp.weight_g &lt; #{weightMax}
+                 AND DATEDIFF(NOW(), FROM_UNIXTIME(cp.available_date / 1000)) &lt; #{listingDaysMax}
+                 AND (
+                    (
+                        cp.units IS NOT NULL
+                        AND (
+                            (DATEDIFF(NOW(), FROM_UNIXTIME(cp.available_date / 1000)) &lt;= 30 AND cp.units &gt;= #{sales30})
+                            OR (DATEDIFF(NOW(), FROM_UNIXTIME(cp.available_date / 1000)) &lt;= 60 AND cp.units &gt;= #{sales60})
+                            OR (DATEDIFF(NOW(), FROM_UNIXTIME(cp.available_date / 1000)) &lt;= 90 AND cp.units &gt;= #{sales90})
+                        )
+                    )
+                    <if test="bsrMax != null">
+                    OR (cp.bsr IS NOT NULL AND cp.bsr &gt; 0 AND cp.bsr &lt; #{bsrMax})
+                    </if>
+                 )
+                THEN 1
+                ELSE 0
+            END
+        WHERE cp.marketplace = #{marketplace}
+    </update>
+
+    <update id="syncCleanM01Active">
+        UPDATE competitor_products_clean c
+        JOIN (
+            SELECT
+                marketplace,
+                COALESCE(NULLIF(parent_asin, ''), asin) AS dedup_key,
+                MAX(m01_active) AS m01_active
+            FROM competitor_products
+            WHERE marketplace = #{marketplace}
+            GROUP BY marketplace, COALESCE(NULLIF(parent_asin, ''), asin)
+        ) raw
+          ON raw.marketplace = c.marketplace
+         AND raw.dedup_key = c.dedup_key
+        SET c.m01_active = raw.m01_active
+        WHERE c.marketplace = #{marketplace}
+    </update>
 
     <!--
       每日摘标：把上架已满 listingDaysMax 天的过期品 m01_active 置 0。

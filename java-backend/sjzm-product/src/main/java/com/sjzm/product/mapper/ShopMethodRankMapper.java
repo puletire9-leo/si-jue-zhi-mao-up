@@ -4,6 +4,7 @@ import com.sjzm.product.modules.shoprating.dto.ShopMethodRankItem;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -24,6 +25,18 @@ public interface ShopMethodRankMapper {
     List<ShopMethodRankItem> selectM01ShopRanking(@Param("marketplace") String marketplace,
                                                   @Param("minCount") int minCount,
                                                   @Param("limit") int limit);
+
+    int backfillM01Active(@Param("marketplace") String marketplace,
+                          @Param("priceMin") BigDecimal priceMin,
+                          @Param("priceMax") BigDecimal priceMax,
+                          @Param("weightMax") BigDecimal weightMax,
+                          @Param("listingDaysMax") int listingDaysMax,
+                          @Param("sales30") int sales30,
+                          @Param("sales60") int sales60,
+                          @Param("sales90") int sales90,
+                          @Param("bsrMax") Integer bsrMax);
+
+    int syncCleanM01Active(@Param("marketplace") String marketplace);
 
     /**
      * 每日摘标：把上架已满 listingDaysMax 天的过期品 m01_active 置 0。

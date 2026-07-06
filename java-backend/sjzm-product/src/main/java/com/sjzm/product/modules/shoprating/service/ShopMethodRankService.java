@@ -8,7 +8,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * 店铺方法卡命中数排名 + m01_active 每日摘标。
@@ -33,10 +36,41 @@ public class ShopMethodRankService {
      * @param limit       返回条数上限（默认 100）
      */
     public List<ShopMethodRankItem> rankByM01(String marketplace, Integer minCount, Integer limit) {
-        String mp = M01Rule.normalizeMarketplace(marketplace);
+        String mp = normalizeRankMarketplace(marketplace);
         int min = minCount == null || minCount < 1 ? 1 : minCount;
         int lim = limit == null || limit < 1 ? 100 : Math.min(limit, 500);
         return mapper.selectM01ShopRanking(mp, min, lim);
+    }
+
+    private String normalizeRankMarketplace(String marketplace) {
+        if (marketplace == null || marketplace.isBlank()) {
+            return null;
+        }
+        String mp = marketplace.trim().toUpperCase(Locale.ROOT);
+        return "ALL".equals(mp) ? null : M01Rule.normalizeMarketplace(mp);
+    }
+
+    public Map<String, Object> backfillM01Active(String marketplace) {
+        String mp = M01Rule.normalizeMarketplace(marketplace);
+        M01Rule rule = M01Rule.forMarketplace(mp);
+        int raw = mapper.backfillM01Active(
+                rule.marketplace(),
+                rule.priceMin(),
+                rule.priceMax(),
+                rule.weightMax(),
+                rule.listingDaysMax(),
+                rule.sales30(),
+                rule.sales60(),
+                rule.sales90(),
+                rule.bsrMax()
+        );
+        int clean = mapper.syncCleanM01Active(rule.marketplace());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("marketplace", rule.marketplace());
+        result.put("methodId", "M01");
+        result.put("rawAffectedRows", raw);
+        result.put("cleanAffectedRows", clean);
+        return result;
     }
 
     /**
