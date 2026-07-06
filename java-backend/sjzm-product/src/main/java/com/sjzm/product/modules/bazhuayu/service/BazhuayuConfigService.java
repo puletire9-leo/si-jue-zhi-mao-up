@@ -73,6 +73,79 @@ public class BazhuayuConfigService {
     }
 
     /**
+     * 获取当前生效的完整映射 {function: {marketplace: taskId}}（供 GET /config/mapping 前端读回）。
+     * 语义与 {@link #parseMapping()} 相同：DB 优先，env 回退。
+     */
+    public Map<String, Map<String, String>> getMapping() {
+        return parseMapping();
+    }
+
+    /**
+     * 判断映射当前是否来自 DB。用于前端提示：DB 已覆盖 env 时才提醒"改 dev.env 无效"。
+     */
+    public boolean isMappingFromDb() {
+        String json = readConfig(KEY_TASK_MAPPING);
+        return json != null && !json.isBlank();
+    }
+
+    /**
+     * 按 function + marketplace 删除单个映射条目（DB 层）。返回删除后剩余的完整映射。
+     * 若删除后 DB 里那条 config 变空 map，就把整条 api_config 记录清掉，让代码回退到 env。
+     */
+    public Map<String, Map<String, String>> deleteMappingEntry(String function, String marketplace) {
+        if (function == null || function.isBlank()) throw new IllegalArgumentException("function 不能为空");
+        if (marketplace == null || marketplace.isBlank()) throw new IllegalArgumentException("marketplace 不能为空");
+
+        // 从当前生效映射(DB或env)拷贝一份出来做修改，写回 DB
+        Map<String, Map<String, String>> current = new LinkedHashMap<>();
+        for (Map.Entry<String, Map<String, String>> e : parseMapping().entrySet()) {
+            current.put(e.getKey(), new LinkedHashMap<>(e.getValue()));
+        }
+        Map<String, String> siteMap = current.get(function);
+        if (siteMap != null) {
+            siteMap.remove(marketplace);
+            if (siteMap.isEmpty()) current.remove(function);
+        }
+        // 全部删空 → 直接删除 DB 记录，回退 env；否则序列化写回 DB
+        if (current.isEmpty()) {
+            deleteConfig(KEY_TASK_MAPPING);
+            log.info("八爪鱼任务映射已清空(回退 env): 删除 {}.{}", function, marketplace);
+        } else {
+            try {
+                String json = objectMapper.writeValueAsString(current);
+                saveConfig(KEY_TASK_MAPPING, json, "八爪鱼任务组→站点→任务ID 映射");
+                log.info("八爪鱼任务映射已删除条目: {}.{}", function, marketplace);
+            } catch (Exception e) {
+                throw new IllegalStateException("重新序列化映射失败: " + e.getMessage(), e);
+            }
+        }
+        return current;
+    }
+
+    /**
+     * 按 function + marketplace 新增或更新单条映射（不用整包重写，配合前端 CRUD 面板）。
+     */
+    public Map<String, Map<String, String>> upsertMappingEntry(String function, String marketplace, String taskId) {
+        if (function == null || function.isBlank()) throw new IllegalArgumentException("function 不能为空");
+        if (marketplace == null || marketplace.isBlank()) throw new IllegalArgumentException("marketplace 不能为空");
+        if (taskId == null || taskId.isBlank()) throw new IllegalArgumentException("taskId 不能为空");
+
+        Map<String, Map<String, String>> current = new LinkedHashMap<>();
+        for (Map.Entry<String, Map<String, String>> e : parseMapping().entrySet()) {
+            current.put(e.getKey(), new LinkedHashMap<>(e.getValue()));
+        }
+        current.computeIfAbsent(function, k -> new LinkedHashMap<>()).put(marketplace, taskId.trim());
+        try {
+            String json = objectMapper.writeValueAsString(current);
+            saveConfig(KEY_TASK_MAPPING, json, "八爪鱼任务组→站点→任务ID 映射");
+            log.info("八爪鱼任务映射 upsert: {}.{}={}", function, marketplace, taskId);
+        } catch (Exception e) {
+            throw new IllegalStateException("重新序列化映射失败: " + e.getMessage(), e);
+        }
+        return current;
+    }
+
+    /**
      * 解析整张映射 {function: {marketplace: taskId}}。DB(api_config) 优先，缺失回退 env。
      * 解析失败或未配置返回空 map（调用方各自兜底）。
      */
@@ -137,6 +210,18 @@ public class BazhuayuConfigService {
             }
         } catch (Exception e) {
             log.warn("持久化配置 {} 失败: {}", key, e.getMessage());
+        }
+    }
+
+    /**
+     * 删除一条 api_config 记录（用于清空 DB 映射, 让代码回退到 env）。
+     * 与 saveConfig 一样 catch Exception 不外抛, 只写日志——配置写不进去也不该阻塞主流程。
+     */
+    private void deleteConfig(String key) {
+        try {
+            apiConfigMapper.delete(new LambdaQueryWrapper<ApiConfig>().eq(ApiConfig::getConfigKey, key));
+        } catch (Exception e) {
+            log.warn("删除配置 {} 失败: {}", key, e.getMessage());
         }
     }
 }

@@ -86,6 +86,25 @@ export interface BazhuayuMarketplaceOverview {
   lifetimeDoneCount: number;
   lifetimeErrorCount: number;
   latestTask: BazhuayuTaskMapItem | null;
+  // 云端行数快照（后端每小时刷 + 前端可手动刷；null = 未同步过）
+  cloudStatsBangdan: BazhuayuCloudStat | null;
+  cloudStatsYitushitu: BazhuayuCloudStat | null;
+}
+
+/** 云端行数快照，来自 BazhuayuCloudStatsService */
+export interface BazhuayuCloudStat {
+  function: string;
+  marketplace: string;
+  taskId: string;
+  /** 云端返回的原始状态: Finished / Running / Stopped / "" */
+  cloudStatus: string | null;
+  /** 云端当前已采集条数 */
+  cloudCount: number;
+  /** 上次刷新成功时间 ISO 字符串 */
+  lastSyncAt: string | null;
+  /** 上次刷新失败的错误信息(可能非空但 lastSyncAt 也非空,代表最近一次失败) */
+  lastError: string | null;
+  lastErrorAt: string | null;
 }
 
 /** 跨站点汇总（后端预计算） */
@@ -258,7 +277,20 @@ export const bazhuayuApi = {
     );
   },
 
-  /** 更新任务组→站点→任务ID 映射 */
+  /** 读回当前生效的任务映射（DB 优先，env 回退）+ 来源标识 */
+  getMapping(): Promise<{
+    mapping: Record<string, Record<string, string>>;
+    fromDb: boolean;
+  }> {
+    return unwrap(
+      request({
+        url: "/api/v1/modules/bazhuayu/config/mapping",
+        method: "get",
+      }),
+    );
+  },
+
+  /** 整包覆盖任务映射（旧接口，PUT，JSON） */
   updateMapping(
     mapping: Record<string, Record<string, string>>,
   ): Promise<void> {
@@ -267,6 +299,71 @@ export const bazhuayuApi = {
         url: "/api/v1/modules/bazhuayu/config/mapping",
         method: "put",
         data: { mapping },
+      }),
+    );
+  },
+
+  /** 新增或更新单条映射 (function+marketplace → taskId)，前端 CRUD 行内保存用 */
+  upsertMappingEntry(
+    function_: string,
+    marketplace: string,
+    taskId: string,
+  ): Promise<Record<string, Record<string, string>>> {
+    return unwrap(
+      request({
+        url: "/api/v1/modules/bazhuayu/config/mapping/entry",
+        method: "post",
+        data: { function: function_, marketplace, taskId },
+      }),
+    );
+  },
+
+  /** 删除单条映射，删空整表则代码回退 env */
+  deleteMappingEntry(
+    function_: string,
+    marketplace: string,
+  ): Promise<Record<string, Record<string, string>>> {
+    return unwrap(
+      request({
+        url: "/api/v1/modules/bazhuayu/config/mapping/entry",
+        method: "delete",
+        params: { function: function_, marketplace },
+      }),
+    );
+  },
+
+  /** 查询云端行数快照（后端每小时刷 + 手动刷；进程内缓存） */
+  cloudStats(): Promise<Record<string, BazhuayuCloudStat>> {
+    return unwrap<Record<string, BazhuayuCloudStat>>(
+      request({
+        url: "/api/v1/modules/bazhuayu/cloud-stats",
+        method: "get",
+      }),
+    ).then((d) => d ?? {});
+  },
+
+  /**
+   * 手动触发云端行数刷新。
+   * 不带参数=全刷；带 function+marketplace=单条刷（避免云端 API 限流）。
+   */
+  refreshCloudStats(
+    function_?: string,
+    marketplace?: string,
+  ): Promise<{
+    refreshed: number;
+    stat?: BazhuayuCloudStat;
+    snapshot?: Record<string, BazhuayuCloudStat>;
+  }> {
+    return unwrap(
+      request({
+        url: "/api/v1/modules/bazhuayu/cloud-stats/refresh",
+        method: "post",
+        params: {
+          ...(function_ ? { function: function_ } : {}),
+          ...(marketplace ? { marketplace } : {}),
+        },
+        // 全刷需要串 6 个云端 API + 云端限流，放到 90s
+        timeout: 90000,
       }),
     );
   },

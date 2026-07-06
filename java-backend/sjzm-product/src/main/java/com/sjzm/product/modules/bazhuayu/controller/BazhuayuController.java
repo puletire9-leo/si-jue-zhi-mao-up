@@ -8,6 +8,7 @@ import com.sjzm.product.mapper.AsinImportTaskMapper;
 import com.sjzm.product.mapper.BazhuayuWeeklyRawMapper;
 import com.sjzm.product.modules.bazhuayu.entity.BazhuayuWeeklyRaw;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuClient;
+import com.sjzm.product.modules.bazhuayu.service.BazhuayuCloudStatsService;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuConfigService;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuImageSearchService;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuRunStateService;
@@ -43,6 +44,7 @@ public class BazhuayuController {
     private final BazhuayuScheduledService scheduledService;
     private final BazhuayuConfigService configService;
     private final BazhuayuRunStateService runStateService;
+    private final BazhuayuCloudStatsService cloudStatsService;
     private final BazhuayuClient client;
     private final BazhuayuImageSearchService imageSearchService;
     private final BazhuayuWeeklyRawMapper rawMapper;
@@ -159,6 +161,10 @@ public class BazhuayuController {
             row.put("lifetimeDoneCount", lifetimeStatus.getOrDefault("DONE", 0L));
             row.put("lifetimeErrorCount", lifetimeStatus.getOrDefault("ERROR", 0L));
             row.put("latestTask", latestTask != null ? taskToMap(latestTask) : null);
+            // 云端行数快照（进程内缓存, 每小时定时刷 + 前端可手动刷）
+            // 榜单 taskId 一定接进了业务链路; 以图识图独立展示, 不参与其它段汇总
+            row.put("cloudStatsBangdan", cloudStatsService.get(BazhuayuConfigService.FUNC_BANGDAN, marketplace));
+            row.put("cloudStatsYitushitu", cloudStatsService.get(BazhuayuConfigService.FUNC_YITUSHITU, marketplace));
             marketplaceRows.add(row);
         }
 
@@ -304,6 +310,60 @@ public class BazhuayuController {
             throw new IllegalArgumentException("映射序列化失败: " + e.getMessage());
         }
         return Result.success();
+    }
+
+    @GetMapping("/config/mapping")
+    @Operation(summary = "读回当前生效的任务映射（DB 优先，env 回退，含来源标识）",
+            description = "返回 {mapping:{function:{marketplace:taskId}}, fromDb:boolean}。前端 CRUD 面板用来渲染。")
+    public Result<Map<String, Object>> getMapping() {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("mapping", configService.getMapping());
+        data.put("fromDb", configService.isMappingFromDb());
+        return Result.success(data);
+    }
+
+    @GetMapping("/cloud-stats")
+    @Operation(summary = "云端行数快照（进程内内存缓存）",
+            description = "返回每个 (function, marketplace) 的云端已采行数 + 上次同步时间。定时任务每小时刷; 前端可点手动刷新。")
+    public Result<Map<String, BazhuayuCloudStatsService.CloudStat>> cloudStats() {
+        return Result.success(cloudStatsService.snapshot());
+    }
+
+    @PostMapping("/cloud-stats/refresh")
+    @Operation(summary = "立刻刷新云端行数（不带参数=全刷；带 function+marketplace=单条刷）")
+    public Result<Map<String, Object>> refreshCloudStats(
+            @RequestParam(required = false) String function,
+            @RequestParam(required = false) String marketplace) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        if (function != null && !function.isBlank() && marketplace != null && !marketplace.isBlank()) {
+            String taskId = configService.getTaskId(function, marketplace);
+            boolean ok = cloudStatsService.refreshOne(function, marketplace, taskId);
+            data.put("refreshed", ok ? 1 : 0);
+            data.put("stat", cloudStatsService.get(function, marketplace));
+        } else {
+            data.put("refreshed", cloudStatsService.refreshAll());
+            data.put("snapshot", cloudStatsService.snapshot());
+        }
+        return Result.success(data);
+    }
+
+    @PostMapping("/config/mapping/entry")
+    @Operation(summary = "新增或更新单条映射(function+marketplace → taskId)",
+            description = "面板行内保存/新增按钮用。写入 DB 会覆盖 env 生效。")
+    public Result<Map<String, Map<String, String>>> upsertMappingEntry(@RequestBody Map<String, String> body) {
+        String function = body.get("function");
+        String marketplace = body.get("marketplace");
+        String taskId = body.get("taskId");
+        return Result.success(configService.upsertMappingEntry(function, marketplace, taskId));
+    }
+
+    @DeleteMapping("/config/mapping/entry")
+    @Operation(summary = "删除单条映射(function+marketplace)",
+            description = "面板行删除按钮用。若删空则清除 DB 记录, 让代码回退到 env(dev.env)。")
+    public Result<Map<String, Map<String, String>>> deleteMappingEntry(
+            @RequestParam String function,
+            @RequestParam String marketplace) {
+        return Result.success(configService.deleteMappingEntry(function, marketplace));
     }
 
     @PostMapping("/mark-all-exported")
