@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>单店详情 - UK Smart Home Deals</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style id="theme-vars">
+/* =============================================
+   Shop Profile Design System
+   Orange Warm Tone - Operations Console Style
+   ============================================= */
+
+/* --- Brand Prefix: sp --- */
+
+/* --- Color System (Orange Warm Tone) --- */
+:root {
+  /* Primary Orange */
+  --sp-color-primary: #E8621C;
+  --sp-color-primary-hover: #D4570F;
+  --sp-color-primary-light: #FFF4EE;
+  --sp-color-primary-lighter: #FFF9F5;
+  --sp-color-primary-subtle: rgba(232, 98, 28, 0.08);
+
+  /* Neutral Palette */
+  --sp-color-bg: #F7F5F3;
+  --sp-color-bg-elevated: #FFFFFF;
+  --sp-color-bg-inset: #F0EDEA;
+  --sp-color-bg-sunken: #EBE8E4;
+
+  --sp-color-fg: #1A1612;
+  --sp-color-fg-secondary: #5C554D;
+  --sp-color-fg-tertiary: #8A837A;
+  --sp-color-fg-quaternary: #B0A99F;
+  --sp-color-fg-inverse: #FFFFFF;
+
+  /* Border */
+  --sp-color-border: #E2DDD8;
+  --sp-color-border-light: #EDEAE7;
+  --sp-color-border-focus: #E8621C;
+
+  /* Status Colors */
+  --sp-state-success: #2E8B57;
+  --sp-state-success-bg: #ECFDF5;
+  --sp-state-warning: #D97706;
+  --sp-state-warning-bg: #FFFBEB;
+  --sp-state-error: #DC2626;
+  --sp-state-error-bg: #FEF2F2;
+  --sp-state-info: #2563EB;
+  --sp-state-info-bg: #EFF6FF;
+
+  /* Sales Tier Colors */
+  --sp-tier-a: #E8621C;
+  --sp-tier-a-bg: #FFF4EE;
+  --sp-tier-b: #D97706;
+  --sp-tier-b-bg: #FFFBEB;
+  --sp-tier-c: #2563EB;
+  --sp-tier-c-bg: #EFF6FF;
+  --sp-tier-d: #8A837A;
+  --sp-tier-d-bg: #F5F3F1;
+  --sp-tier-unknown: #B0A99F;
+  --sp-tier-unknown-bg: #F9F7F5;
+  --sp-tier-abc: #7C3AED;
+  --sp-tier-abc-bg: #F5F3FF;
+
+  /* Semantic Colors */
+  --sp-color-link: #E8621C;
+  --sp-color-link-hover: #D4570F;
+  --sp-color-similarity-high: #2E8B57;
+  --sp-color-similarity-medium: #D97706;
+  --sp-color-similarity-low: #DC2626;
+
+  /* Radius */
+  --sp-radius-sm: 4px;
+  --sp-radius-md: 8px;
+  --sp-radius-lg: 12px;
+  --sp-radius-full: 9999px;
+
+  /* Shadow */
+  --sp-shadow-sm: 0 1px 2px rgba(26, 22, 18, 0.04);
+  --sp-shadow-md: 0 2px 8px rgba(26, 22, 18, 0.06);
+  --sp-shadow-lg: 0 8px 24px rgba(26, 22, 18, 0.08);
+
+  /* Typography */
+  --sp-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+  --sp-font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+
+  --sp-font-size-xs: 12px;
+  --sp-font-size-sm: 13px;
+  --sp-font-size-base: 14px;
+  --sp-font-size-md: 15px;
+  --sp-font-size-lg: 16px;
+  --sp-font-size-xl: 18px;
+  --sp-font-size-2xl: 20px;
+  --sp-font-size-3xl: 24px;
+
+  --sp-line-height-tight: 1.25;
+  --sp-line-height-normal: 1.5;
+  --sp-line-height-relaxed: 1.625;
+
+  --sp-letter-spacing-tight: -0.025em;
+  --sp-letter-spacing-normal: 0;
+  --sp-letter-spacing-wide: 0.025em;
+
+  --sp-font-weight-normal: 400;
+  --sp-font-weight-medium: 500;
+  --sp-font-weight-semibold: 600;
+  --sp-font-weight-bold: 700;
+
+  /* Spacing */
+  --sp-space-1: 4px;
+  --sp-space-2: 8px;
+  --sp-space-3: 12px;
+  --sp-space-4: 16px;
+  --sp-space-5: 20px;
+  --sp-space-6: 24px;
+  --sp-space-8: 32px;
+
+  /* Layout */
+  --sp-sidebar-width: 220px;
+  --sp-header-height: 56px;
+  --sp-content-max-width: 1440px;
+}
+
+/* --- Dark Mode --- */
+html.dark {
+  --sp-color-primary: #F08A4B;
+  --sp-color-primary-hover: #E97D3A;
+  --sp-color-primary-light: rgba(240, 138, 75, 0.12);
+  --sp-color-primary-lighter: rgba(240, 138, 75, 0.06);
+  --sp-color-primary-subtle: rgba(240, 138, 75, 0.06);
+
+  --sp-color-bg: #121010;
+  --sp-color-bg-elevated: #1C1917;
+  --sp-color-bg-inset: #242120;
+  --sp-color-bg-sunken: #1C1917;
+
+  --sp-color-fg: #F5F3F0;
+  --sp-color-fg-secondary: #A8A19A;
+  --sp-color-fg-tertiary: #78716C;
+  --sp-color-fg-quaternary: #57534E;
+  --sp-color-fg-inverse: #1A1612;
+
+  --sp-color-border: #2C2825;
+  --sp-color-border-light: #1F1C1A;
+  --sp-color-border-focus: #F08A4B;
+
+  --sp-state-success-bg: rgba(46, 139, 87, 0.12);
+  --sp-state-warning-bg: rgba(217, 119, 6, 0.12);
+  --sp-state-error-bg: rgba(220, 38, 38, 0.12);
+  --sp-state-info-bg: rgba(37, 99, 235, 0.12);
+
+  --sp-tier-a-bg: rgba(240, 138, 75, 0.12);
+  --sp-tier-b-bg: rgba(217, 119, 6, 0.12);
+  --sp-tier-c-bg: rgba(37, 99, 235, 0.12);
+  --sp-tier-d-bg: rgba(138, 131, 122, 0.12);
+  --sp-tier-unknown-bg: rgba(176, 169, 159, 0.08);
+  --sp-tier-abc-bg: rgba(124, 58, 237, 0.12);
+
+  --sp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --sp-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --sp-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* --- Typography Classes --- */
+.sp-text-heading-1 {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-3xl);
+  font-weight: var(--sp-font-weight-bold);
+  line-height: var(--sp-line-height-tight);
+  letter-spacing: var(--sp-letter-spacing-tight);
+  color: var(--sp-color-fg);
+}
+
+.sp-text-heading-2 {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-2xl);
+  font-weight: var(--sp-font-weight-semibold);
+  line-height: var(--sp-line-height-tight);
+  letter-spacing: var(--sp-letter-spacing-tight);
+  color: var(--sp-color-fg);
+}
+
+.sp-text-heading-3 {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-xl);
+  font-weight: var(--sp-font-weight-semibold);
+  line-height: var(--sp-line-height-tight);
+  color: var(--sp-color-fg);
+}
+
+.sp-text-body {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-base);
+  font-weight: var(--sp-font-weight-normal);
+  line-height: var(--sp-line-height-normal);
+  color: var(--sp-color-fg-secondary);
+}
+
+.sp-text-caption {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-sm);
+  font-weight: var(--sp-font-weight-normal);
+  line-height: var(--sp-line-height-normal);
+  color: var(--sp-color-fg-tertiary);
+}
+
+.sp-text-mono {
+  font-family: var(--sp-font-mono);
+  font-size: var(--sp-font-size-sm);
+  line-height: var(--sp-line-height-normal);
+  color: var(--sp-color-fg);
+}
+
+    </style>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-primary: var(--sp-color-primary);
+    --color-primary-hover: var(--sp-color-primary-hover);
+    --color-primary-light: var(--sp-color-primary-light);
+    --color-foreground: var(--sp-color-fg);
+    --color-background: var(--sp-color-bg);
+    --color-surface: var(--sp-color-bg-elevated);
+    --color-border: var(--sp-color-border);
+    --color-muted: var(--sp-color-fg-tertiary);
+  }
+  @layer base {
+    body { background: var(--sp-color-bg); color: var(--sp-color-fg); font-family: var(--sp-font-family); }
+    td, th { word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body class="min-h-screen">
+  <!-- Breadcrumb -->
+  <div class="max-w-7xl mx-auto px-6 pt-4 pb-2">
+    <div class="flex items-center justify-between">
+      <nav class="flex items-center text-sm text-gray-500 gap-1">
+        <span>店铺画像</span>
+        <span class="mx-1">/</span>
+        <span>列表</span>
+        <span class="mx-1">/</span>
+        <span class="text-gray-900 font-medium">UK Smart Home Deals</span>
+      </nav>
+      <button class="text-sm px-3 py-1.5 border border-gray-300 rounded-md text-gray-600 hover:bg-gray-50 transition">
+        返回列表
+      </button>
+    </div>
+  </div>
+
+  <!-- Shop Header -->
+  <div class="max-w-7xl mx-auto px-6 py-4">
+    <div class="card p-5">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-white text-lg font-bold">UK</div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="text-xl font-bold text-gray-900">UK Smart Home Deals</h1>
+              <span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">UK</span>
+            </div>
+            <div class="flex items-center gap-4 mt-1 text-sm text-gray-500">
+              <span>批次 <span class="text-gray-700 font-medium">2025-06-15</span></span>
+              <span>商品数 <span class="text-gray-700 font-medium">342</span></span>
+              <span>变体模式 <span class="text-gray-700 font-medium">Y</span></span>
+            </div>
+          </div>
+        </div>
+        <a href="#" class="w-9 h-9 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50 hover:text-orange-600 transition" title="Amazon店铺">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Structure Overview -->
+  <div class="max-w-7xl mx-auto px-6 pb-4">
+    <div class="grid grid-cols-3 gap-4">
+      <!-- Tier Distribution -->
+      <div class="card p-5">
+        <h3 class="text-sm font-semibold text-gray-700 mb-4">等级分布</h3>
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded text-xs font-bold tier-a flex items-center justify-center">A</span>
+              <span class="text-sm text-gray-600">利润层</span>
+            </div>
+            <div class="text-right">
+              <span class="text-sm font-semibold text-gray-900">47</span>
+              <span class="text-xs text-gray-400 ml-1">13.7%</span>
+            </div>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:13.7%; background:#E8621C;"></div></div>
+
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded text-xs font-bold tier-b flex items-center justify-center">B</span>
+              <span class="text-sm text-gray-600">成长层</span>
+            </div>
+            <div class="text-right">
+              <span class="text-sm font-semibold text-gray-900">98</span>
+              <span class="text-xs text-gray-400 ml-1">28.7%</span>
+            </div>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:28.7%; background:#D97706;"></div></div>
+
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded text-xs font-bold tier-c flex items-center justify-center">C</span>
+              <span class="text-sm text-gray-600">稳定层</span>
+            </div>
+            <div class="text-right">
+              <span class="text-sm font-semibold text-gray-900">125</span>
+              <span class="text-xs text-gray-400 ml-1">36.5%</span>
+            </div>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:36.5%; background:#2563EB;"></div></div>
+
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded text-xs font-bold tier-d flex items-center justify-center">D</span>
+              <span class="text-sm text-gray-600">测品池</span>
+            </div>
+            <div class="text-right">
+              <span class="text-sm font-semibold text-gray-900">72</span>
+              <span class="text-xs text-gray-400 ml-1">21.1%</span>
+            </div>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:21.1%; background:#8A837A;"></div></div>
+        </div>
+      </div>
+
+      <!-- Top Categories -->
+      <div class="card p-5">
+        <h3 class="text-sm font-semibold text-gray-700 mb-4">核心类目</h3>
+        <div class="space-y-3">
+          <div class="flex items-center justify-between p-2.5 rounded-lg bg-orange-50">
+            <div class="flex items-center gap-2">
+              <span class="w-5 h-5 rounded text-[10px] font-bold tier-a flex items-center justify-center">A</span>
+              <span class="text-sm text-gray-800">Home & Kitchen > Kitchen Tools</span>
+            </div>
+            <span class="text-xs font-medium text-gray-500">52 SKUs</span>
+          </div>
+          <div class="flex items-center justify-between p-2.5 rounded-lg bg-gray-50">
+            <div class="flex items-center gap-2">
+              <span class="w-5 h-5 rounded text-[10px] font-bold tier-b flex items-center justify-center">A</span>
+              <span class="text-sm text-gray-800">Home & Garden > Lighting</span>
+            </div>
+            <span class="text-xs font-medium text-gray-500">38 SKUs</span>
+          </div>
+          <div class="flex items-center justify-between p-2.5 rounded-lg bg-gray-50">
+            <div class="flex items-center gap-2">
+              <span class="w-5 h-5 rounded text-[10px] font-bold tier-c flex items-center justify-center">B</span>
+              <span class="text-sm text-gray-800">Electronics > Smart Home</span>
+            </div>
+            <span class="text-xs font-medium text-gray-500">31 SKUs</span>
+          </div>
+          <div class="flex items-center justify-between p-2.5 rounded-lg bg-gray-50">
+            <div class="flex items-center gap-2">
+              <span class="w-5 h-5 rounded text-[10px] font-bold tier-c flex items-center justify-center">C</span>
+              <span class="text-sm text-gray-800">Health & Personal Care</span>
+            </div>
+            <span class="text-xs font-medium text-gray-500">24 SKUs</span>
+          </div>
+          <div class="flex items-center justify-between p-2.5 rounded-lg bg-gray-50">
+            <div class="flex items-center gap-2">
+              <span class="w-5 h-5 rounded text-[10px] font-bold tier-d flex items-center justify-center">D</span>
+              <span class="text-sm text-gray-800">Sports & Outdoors</span>
+            </div>
+            <span class="text-xs font-medium text-gray-500">18 SKUs</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profile Type -->
+      <div class="card p-5">
+        <h3 class="text-sm font-semibold text-gray-700 mb-4">画像类型</h3>
+        <div class="flex flex-col items-center justify-center py-4">
+          <div class="w-16 h-16 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 flex items-center justify-center mb-3">
+            <span class="text-2xl font-bold text-orange-600">A</span>
+          </div>
+          <span class="text-base font-semibold text-gray-900">均衡型</span>
+          <span class="text-xs text-gray-400 mt-0.5">Balanced Profile</span>
+        </div>
+        <div class="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-100">
+          <p class="text-xs text-amber-800 leading-relaxed">
+            <span class="font-medium">经营建议：</span>该店铺ABC类目结构均衡，利润层占比适中，建议关注D类目测品转化率，提升A层商品利润贡献。
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="card">
+      <div class="flex items-center border-b border-gray-200 px-5">
+        <button class="tab-active px-4 py-3 text-sm font-medium transition">全部商品</button>
+        <button class="tab-inactive px-4 py-3 text-sm font-medium hover:text-gray-700 transition">A 利润层</button>
+        <button class="tab-inactive px-4 py-3 text-sm font-medium hover:text-gray-700 transition">ABC 稳定盘</button>
+        <button class="tab-inactive px-4 py-3 text-sm font-medium hover:text-gray-700 transition">D 测品池</button>
+        <button class="tab-inactive px-4 py-3 text-sm font-medium hover:text-gray-700 transition">类目结构</button>
+      </div>
+
+      <!-- Product Table -->
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-gray-100 bg-gray-50/50">
+              <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">图片</th>
+              <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">ASIN</th>
+              <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">父ASIN</th>
+              <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">标题</th>
+              <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">等级</th>
+              <th class="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">月销量</th>
+              <th class="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">BSR</th>
+              <th class="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">价格</th>
+              <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">评分/评论</th>
+              <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">榜单类目</th>
+              <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">链接</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <!-- Row 1 -->
+            <tr class="hover:bg-gray-50/50 transition">
+              <td class="px-4 py-3"><div class="w-[60px] h-[60px] rounded-lg bg-gray-100 flex items-center justify-center"><svg class="w-6 h-6 text-gray-300" fill="currentColor" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div></td>
+              <td class="px-4 py-3 mono text-gray-700">B0D7K2M9PL</td>
+              <td class="px-4 py-3 mono text-gray-400">B0D7K2M9XX</td>
+              <td class="px-4 py-3 truncate-cell text-gray-800">Smart LED Strip Lights 10M RGB WiFi...</td>
+              <td class="px-4 py-3 text-center"><span class="inline-block text-xs font-bold px-2 py-0.5 rounded tier-a">A</span></td>
+              <td class="px-4 py-3 text-right font-medium text-gray-900">3,241</td>
+              <td class="px-4 py-3 text-right text-gray-600">#1,205</td>
+              <td class="px-4 py-3 text-right font-medium text-gray-900">£15.99</td>
+              <td class="px-4 py-3 text-center"><span class="text-gray-900 font-medium">4.5</span><span class="text-gray-400 ml-0.5">(1,203)</span></td>
+              <td class="px-4 py-3 text-gray-600 text-xs">Lighting > LED Strips</td>
+              <td class="px-4 py-3 text-center"><a href="#" class="text-gray-400 hover:text-orange-600"><svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg></a></td>
+            </tr>
+            <!-- Row 2 -->
+            <tr class="hover:bg-gray-50/50 transition">
+              <td class="px-4 py-3"><div class="w-[60px] h-[60px] rounded-lg bg-gray-100 flex items-center justify-center"><svg class="w-6 h-6 text-gray-300" fill="currentColor" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div></td>
+              <td class="px-4 py-3 mono text-gray-700">B0C9R1N8QM</td>
+              <td class="px-4 py-3 mono text-gray-400">B0C9R1N8XX</td>
+              <td class="px-4 py-3 truncate-cell text-gray-800">Electric Milk Frother Handheld Rechargeable...</td>
+              <td class="px-4 py-3 text-center"><span class="inline-block text-xs font-bold px-2 py-0.5 rounded tier-a">A</span></td>
+              <td class="px-4 py-3 text-right font-medium text-gray-900">2,856</td>
+              <td class="px-4 py-3 text-right text-gray-600">#892</td>
+              <td class="px-4 py-3 text-right font-medium text-gray-900">£12.49</td>
+              <td class="px-4 py-3 text-center"><span class="text-gray-900 font-medium">4.6</span><span class="text-gray-400 ml-0.5">(2,847)</span></td>
+              <td class="px-4 py-3 text-gray-600 text-xs">Kitchen > Small Appliances</td>
+              <td class="px-4 py-3 text-center"><a href="#" class="text-gray-400 hover:text-orange-600"><svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg></a></td>
+            </tr>
+            <!-- Row 3 -->
+            <tr class="hover:bg-gray-50/50 transition">
+              <td class="px-4 py-3"><div class="w-[60px] h-[60px] rounded-lg bg-gray-100 flex items-center justify-center"><svg class="w-6 h-6 text-gray-300" fill="currentColor" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div></td>
+              <td class="px-4 py-3 mono text-gray-700">B0E3T5W7PK</td>
+              <td class="px-4 py-3 mono text-gray-400">B0E3T5W7XX</td>
+              <td class="px-4 py-3 truncate-cell text-gray-800">Bamboo Cutting Board Set with Juice Groove...</td>
+              <td class="px-4 py-3 text-center"><span class="inline-block text-xs font-bold px-2 py-0.5 rounded tier-b">B</span></td>
+              <td class="px-4 py-3 text-right font-medium text-gray-900">1,923</td>
+              <td class="px-4 py-3 text-right text-gray-600">#2,410</td>
+              <td class="px-4 py-3 text-right font-medium text-gray-900">£18.99</td>
+              <td class="px-4 py-3 text-center"><span class="text-gray-900 font-medium">4.4</span><span class="text-gray-400 ml-0.5">(856)</span></td>
+              <td class="px-4 py-3 text-gray-600 text-xs">Kitchen > Cookware</td>
+              <td class="px-4 py-3 text-center"><a href="#" class="text-gray-400 hover:text-orange-600"><svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg></a></td>
+            </tr>
+            <!-- Row 4 -->
+            <tr class="hover:bg-gray-50/50 transition">
+              <td class="px-4 py-3"><div class="w-[60px] h-[60px] rounded-lg bg-gray-100 flex items-center justify-center"><svg class="w-6 h-6 text-gray-300" fill="currentColor" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div></td>
+              <td class="px-4 py-3 mono text-gray-700">B0A8N3K6RT</td>
+              <td class="px-4 py-3 mono text-gray-400">B0A8N3K6XX</td>
+              <td class="px-4 py-3 truncate-cell text-gray-800">Wireless Doorbell Camera with Chime 2K HD...</td>
+              <td class="px-4 py-3 text-center"><span class="inline-block text-xs font-bold px-2 py-0.5 rounded tier-b">B</span></td>
+              <td class="px-4 py-3 text-right font-medium text-gray-900">1,567</td>
+              <td class="px-4 py-3 text-right text-gray-600">#3,890</td>
+              <td class="px-4 py-3 text-right font-medium text-gray-900">£24.99</td>
+              <td class="px-4 py-3 text-center"><span class="text-gray-900 font-medium">4.2</span><span class="text-gray-400 ml-0.5">(432)</span></td>
+              <td class="px-4 py-3 text-gray-600 text-xs">Electronics > Security</td>
+              <td class="px-4 py-3 text-center"><a href="#" class="text-gray-400 hover:text-orange-600"><svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg></a></td>
+            </tr>
+            <!-- Row 5 -->
+            <tr class="hover:bg-gray-50/50 transition">
+              <td class="px-4 py-3"><div class="w-[60px] h-[60px] rounded-lg bg-gray-100 flex items-center justify-center"><svg class="w-6 h-6 text-gray-300" fill="currentColor" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div></td>
+              <td class="px-4 py-3 mono text-gray-700">B0F2M9P4KL</td>
+              <td class="px-4 py-3 mono text-gray-400">B0F2M9P4XX</td>
+              <td class="px-4 py-3 truncate-cell text-gray-800">Stainless Steel Insulated Water Bottle 750ml...</td>
+              <td class="px-4 py-3 text-center"><span class="inline-block text-xs font-bold px-2 py-0.5 rounded tier-c">C</span></td>
+              <td class="px-4 py-3 text-right font-medium text-gray-900">987</td>
+              <td class="px-4 py-3 text-right text-gray-600">#8,234</td>
+              <td class="px-4 py-3 text-right font-medium text-gray-900">£9.99</td>
+              <td class="px-4 py-3 text-center"><span class="text-gray-900 font-medium">4.3</span><span class="text-gray-400 ml-0.5">(1,102)</span></td>
+              <td class="px-4 py-3 text-gray-600 text-xs">Sports > Water Bottles</td>
+              <td class="px-4 py-3 text-center"><a href="#" class="text-gray-400 hover:text-orange-600"><svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg></a></td>
+            </tr>
+            <!-- Row 6 -->
+            <tr class="hover:bg-gray-50/50 transition">
+              <td class="px-4 py-3"><div class="w-[60px] h-[60px] rounded-lg bg-gray-100 flex items-center justify-center"><svg class="w-6 h-6 text-gray-300" fill="currentColor" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div></td>
+              <td class="px-4 py-3 mono text-gray-700">B0D1R6H2MN</td>
+              <td class="px-4 py-3 mono text-gray-400">B0D1R6H2XX</td>
+              <td class="px-4 py-3 truncate-cell text-gray-800">Silicone Cooking Utensils Set 12 Pieces Heat...</td>
+              <td class="px-4 py-3 text-center"><span class="inline-block text-xs font-bold px-2 py-0.5 rounded tier-c">C</span></td>
+              <td class="px-4 py-3 text-right font-medium text-gray-900">756</td>
+              <td class="px-4 py-3 text-right text-gray-600">#12,567</td>
+              <td class="px-4 py-3 text-right font-medium text-gray-900">£14.99</td>
+              <td class="px-4 py-3 text-center"><span class="text-gray-900 font-medium">4.1</span><span class="text-gray-400 ml-0.5">(623)</span></td>
+              <td class="px-4 py-3 text-gray-600 text-xs">Kitchen > Utensils</td>
+              <td class="px-4 py-3 text-center"><a href="#" class="text-gray-400 hover:text-orange-600"><svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg></a></td>
+            </tr>
+            <!-- Row 7 -->
+            <tr class="hover:bg-gray-50/50 transition">
+              <td class="px-4 py-3"><div class="w-[60px] h-[60px] rounded-lg bg-gray-100 flex items-center justify-center"><svg class="w-6 h-6 text-gray-300" fill="currentColor" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div></td>
+              <td class="px-4 py-3 mono text-gray-700">B0G7Q3S8TZ</td>
+              <td class="px-4 py-3 mono text-gray-400">B0G7Q3S8XX</td>
+              <td class="px-4 py-3 truncate-cell text-gray-800">Portable Neck Fan USB Rechargeable Bladeless...</td>
+              <td class="px-4 py-3 text-center"><span class="inline-block text-xs font-bold px-2 py-0.5 rounded tier-d">D</span></td>
+              <td class="px-4 py-3 text-right font-medium text-gray-900">234</td>
+              <td class="px-4 py-3 text-right text-gray-600">#45,891</td>
+              <td class="px-4 py-3 text-right font-medium text-gray-900">£8.49</td>
+              <td class="px-4 py-3 text-center"><span class="text-gray-900 font-medium">3.8</span><span class="text-gray-400 ml-0.5">(87)</span></td>
+              <td class="px-4 py-3 text-gray-600 text-xs">Home > Personal Care</td>
+              <td class="px-4 py-3 text-center"><a href="#" class="text-gray-400 hover:text-orange-600"><svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg></a></td>
+            </tr>
+            <!-- Row 8 -->
+            <tr class="hover:bg-gray-50/50 transition">
+              <td class="px-4 py-3"><div class="w-[60px] h-[60px] rounded-lg bg-gray-100 flex items-center justify-center"><svg class="w-6 h-6 text-gray-300" fill="currentColor" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div></td>
+              <td class="px-4 py-3 mono text-gray-700">B0H5K1N7WX</td>
+              <td class="px-4 py-3 mono text-gray-400">B0H5K1N7XX</td>
+              <td class="px-4 py-3 truncate-cell text-gray-800">Magnetic Phone Mount for Car Dashboard Vent...</td>
+              <td class="px-4 py-3 text-center"><span class="inline-block text-xs font-bold px-2 py-0.5 rounded tier-d">D</span></td>
+              <td class="px-4 py-3 text-right font-medium text-gray-900">156</td>
+              <td class="px-4 py-3 text-right text-gray-600">#67,234</td>
+              <td class="px-4 py-3 text-right font-medium text-gray-900">£6.99</td>
+              <td class="px-4 py-3 text-center"><span class="text-gray-900 font-medium">3.5</span><span class="text-gray-400 ml-0.5">(34)</span></td>
+              <td class="px-4 py-3 text-gray-600 text-xs">Electronics > Accessories</td>
+              <td class="px-4 py-3 text-center"><a href="#" class="text-gray-400 hover:text-orange-600"><svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg></a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div class="flex items-center justify-between px-5 py-4 border-t border-gray-100">
+        <span class="text-sm text-gray-500">共 <span class="font-medium text-gray-700">342</span> 条记录</span>
+        <div class="flex items-center gap-1">
+          <button class="w-8 h-8 rounded-md border border-gray-200 flex items-center justify-center text-gray-400 hover:bg-gray-50">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          <button class="w-8 h-8 rounded-md bg-orange-500 text-white text-sm font-medium">1</button>
+          <button class="w-8 h-8 rounded-md border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">2</button>
+          <button class="w-8 h-8 rounded-md border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">3</button>
+          <span class="text-gray-400 px-1">...</span>
+          <button class="w-8 h-8 rounded-md border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">43</button>
+          <button class="w-8 h-8 rounded-md border border-gray-200 flex items-center justify-center text-gray-400 hover:bg-gray-50">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+    <style>
+    body { font-family: 'Inter', system-ui, sans-serif; font-size: 14px; background: #F7F5F3; color: #1F2937; }
+    table { font-size: 13px; }
+    .tier-a { background: #FFF4EE; color: #E8621C; }
+    .tier-b { background: #FFFBEB; color: #D97706; }
+    .tier-c { background: #EFF6FF; color: #2563EB; }
+    .tier-d { background: #F5F3F1; color: #8A837A; }
+    .card { background: #fff; border-radius: 8px; border: 1px solid #E5E7EB; }
+    .tab-active { color: #E8621C; border-bottom: 2px solid #E8621C; }
+    .tab-inactive { color: #6B7280; border-bottom: 2px solid transparent; }
+    .progress-bar { height: 6px; border-radius: 3px; background: #E5E7EB; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 3px; }
+    .mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; }
+    .truncate-cell { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  </style>
+</body>
+</html>

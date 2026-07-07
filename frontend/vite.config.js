@@ -133,6 +133,14 @@ export default defineConfig(({ mode }) => {
           timeout: 30000,
           logLevel: 'warn'
         },
+        // 店铺画像 / 店铺基线 / 基线定位（含 /shop-profile/baselines 子路径）
+        '/api/v1/shop-profile': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 300000,
+          logLevel: 'warn'
+        },
         '/api/v1/modules': {
           target: javaTarget,
           changeOrigin: true,

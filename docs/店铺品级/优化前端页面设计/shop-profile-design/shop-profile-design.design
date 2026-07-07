@@ -1,0 +1,62 @@
+{
+  "data": [
+    {
+      "id": "page-shop-profile-list",
+      "title": "店铺画像列表",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1783417640000,
+      "canvasData": {
+        "x": 0,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/shop-profile-list.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-shop-detail",
+      "title": "单店详情",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1783417640000,
+      "canvasData": {
+        "x": 620,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/shop-detail.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-baselines",
+      "title": "基线管理",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1783417640000,
+      "canvasData": {
+        "x": 1240,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/baselines.html",
+        "interactions": []
+      }
+    }
+  ],
+  "config": {
+    "autoLayout": true,
+    "deviceType": "desktop",
+    "projectName": "店铺画像运营后台",
+    "designLibrary": null,
+    "windowSize": {
+      "width": 800,
+      "height": 600
+    }
+  }
+}

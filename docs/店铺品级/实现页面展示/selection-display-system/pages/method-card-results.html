@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>方法卡结果中心</title>
+    <style id="theme-vars">
+:root {
+  --background: #faf9f5;
+  --foreground: #1b1b19;
+  --card: #ffffff;
+  --card-foreground: #1b1b19;
+  --popover: #ffffff;
+  --popover-foreground: #1b1b19;
+  --primary: #d97757;
+  --primary-foreground: #ffffff;
+  --secondary: #f0ece3;
+  --secondary-foreground: #46443b;
+  --muted: #e9e6dc;
+  --muted-foreground: #6e6d68;
+  --accent: #f5f4ee;
+  --accent-foreground: #d8d6cd;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #d8d6cd;
+  --input: #d8d6cd;
+  --ring: #d97757;
+  --chart-1: #b05730;
+  --chart-2: #9c87f5;
+  --chart-3: #f5f4ee;
+  --chart-4: #e9e6dc;
+  --chart-5: #b4552d;
+  --sidebar: #f5f4ee;
+  --sidebar-foreground: #3d3d3a;
+  --sidebar-primary: #c96442;
+  --sidebar-primary-foreground: #fbfbfb;
+  --sidebar-accent: #e9e6dc;
+  --sidebar-accent-foreground: #343434;
+  --brand-50: #f8e3d8;
+  --brand-100: #f0c6b3;
+  --brand-200: #e8a98f;
+  --brand-300: #e08d6f;
+  --brand-400: #b0683f;
+  --brand-500: #d97757;
+  --brand-600: #c96442;
+  --brand-700: #8a5740;
+  --brand-800: #6b4533;
+  --brand-900: #3a2a22;
+  --text-50: #faf9f5;
+  --text-100: #f1f1ef;
+  --text-200: #d8d6cd;
+  --text-300: #b7b5a9;
+  --text-400: #908e84;
+  --text-500: #6e6d68;
+  --text-600: #46443b;
+  --text-700: #30302e;
+  --text-800: #2c2c2b;
+  --text-900: #1b1b19;
+  --icon-50: #1b1b19;
+  --icon-100: #2c2c2b;
+  --icon-200: #46443b;
+  --icon-300: #6e6d68;
+  --icon-400: #908e84;
+  --icon-500: #b7b5a9;
+  --icon-600: #d8d6cd;
+  --icon-700: #f1f1ef;
+  --icon-800: #f8f8f6;
+  --icon-900: #ffffff;
+  --border-50: #f1f1ef;
+  --border-100: #e9e6dc;
+  --border-200: #d8d6cd;
+  --border-300: #b7b5a9;
+  --border-400: #908e84;
+  --border-500: #6e6d68;
+  --border-600: #46443b;
+  --border-700: #30302e;
+  --border-800: #2c2c2b;
+  --border-900: #1b1b19;
+  --success-50: #edf2e4;
+  --success-100: #d6dfc8;
+  --success-200: #bccaa8;
+  --success-300: #a3b58a;
+  --success-400: #8ca06f;
+  --success-500: #708353;
+  --success-600: #556640;
+  --success-700: #3f4d30;
+  --success-800: #2e3823;
+  --success-900: #232a1c;
+  --error-50: #fcdede;
+  --error-100: #f9b9b9;
+  --error-200: #f59292;
+  --error-300: #f26b6b;
+  --error-400: #ef4444;
+  --error-500: #c43a39;
+  --error-600: #93302f;
+  --error-700: #6e2c2c;
+  --error-800: #4d2424;
+  --error-900: #3a1f1f;
+  --bg-50: #faf9f5;
+  --bg-100: #f5f4ee;
+  --bg-200: #ffffff;
+  --bg-300: #f1f1ef;
+  --bg-400: #e9e6dc;
+  --bg-500: #d8d6cd;
+  --bg-600: #b7b5a9;
+  --bg-700: #908e84;
+  --bg-800: #6e6d68;
+  --bg-900: #46443b;
+  --font-display: Newsreader, Georgia, ui-serif, serif;
+  --font-sans: Poppins, ui-sans-serif, system-ui, sans-serif;
+  --font-serif: Lora, Georgia, ui-serif, serif;
+  --font-mono: Geist Mono, ui-monospace, monospace;
+}
+
+.font-display { font-family: "Newsreader", Georgia, ui-serif, serif; }
+.font-sans { font-family: "Poppins", ui-sans-serif, system-ui, sans-serif; }
+.font-serif { font-family: "Lora", Georgia, ui-serif, serif; }
+.font-mono { font-family: "Geist Mono", ui-monospace, monospace; }
+
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen font-sans antialiased">
+<style>
+/* ========== GLOBAL RESET & BASE ========== */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--bg-50);
+  color: var(--text-900);
+}
+
+/* ========== UTILITY ========== */
+.min-h-screen { min-height: 100vh; }
+.antialiased { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+/* ========== PAGE HEADER ========== */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.page-header-left {
+  display: flex;
+  flex-direction: column;
+}
+.page-header-left h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-900);
+  margin-bottom: 2px;
+}
+.page-header-left p {
+  font-size: 12px;
+  color: var(--text-400);
+}
+.page-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ========== BUTTONS ========== */
+.btn-primary {
+  background: var(--brand-500);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: 'Poppins', sans-serif;
+  cursor: pointer;
+  height: 32px;
+  transition: background 0.15s;
+}
+.btn-primary:hover { background: var(--brand-600); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-500);
+  border: 1px solid var(--border-300);
+  border-radius: 6px;
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 400;
+  font-family: 'Poppins', sans-serif;
+  cursor: pointer;
+  height: 32px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.btn-ghost:hover { border-color: var(--text-400); color: var(--text-600); }
+
+/* ========== CARD ========== */
+.card {
+  background: var(--bg-200);
+  border: 1px solid var(--border-200);
+  border-radius: 8px;
+}
+
+/* ========== FILTER BAR ========== */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 16px;
+}
+.filter-bar-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.filter-input,
+.filter-select {
+  background: var(--bg-200);
+  border: 1px solid var(--border-200);
+  border-radius: 6px;
+  color: var(--text-800);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: 'Poppins', sans-serif;
+  outline: none;
+  height: 32px;
+}
+.filter-input { cursor: text; }
+.filter-input:focus,
+.filter-select:focus {
+  border-color: var(--brand-500);
+}
+.filter-input::placeholder {
+  color: var(--text-400);
+}
+.filter-select {
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23908e84' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 26px;
+}
+.filter-select-mp { width: 100px; }
+.filter-select-date { width: 140px; }
+.filter-select-week { width: 140px; }
+.filter-select-method { width: 180px; }
+.filter-select-cat { width: 140px; }
+.filter-input-search { width: 200px; }
+
+/* ========== TAB BAR ========== */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border-200);
+  margin-top: 16px;
+}
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-400);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.tab-item:hover { color: var(--text-600); }
+.tab-item.active {
+  color: var(--brand-500);
+  border-bottom-color: var(--brand-500);
+}
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--bg-400);
+  color: var(--text-500);
+  line-height: 1;
+}
+.tab-item.active .tab-badge {
+  background: var(--brand-100);
+  color: var(--brand-500);
+}
+
+/* ========== MAIN PANELS LAYOUT ========== */
+.main-panels {
+  display: flex;
+  gap: 16px;
+  margin-top: 16px;
+}
+.left-panel {
+  flex: 3;
+  min-width: 0;
+  overflow-x: auto;
+}
+.right-panel {
+  flex: 1;
+  min-width: 260px;
+  max-width: 320px;
+}
+.right-panel-inner {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ========== DATA TABLE ========== */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.data-table thead th {
+  background: var(--bg-100);
+  color: var(--text-500);
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-200);
+  white-space: nowrap;
+}
+.data-table tbody td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-100);
+  color: var(--text-700);
+  vertical-align: middle;
+}
+.data-table tbody tr:hover td {
+  background: var(--bg-100);
+}
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.data-table input[type="checkbox"] {
+  cursor: pointer;
+}
+
+/* ========== CELL STYLES ========== */
+.cell-asin {
+  font-weight: 500;
+  color: var(--text-800);
+}
+.cell-title {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cell-shop {
+  color: var(--text-400);
+}
+.cell-units {
+  font-weight: 500;
+  color: var(--text-800);
+}
+.cell-bsr-value {
+  font-weight: 500;
+  color: var(--text-800);
+}
+.cell-category {
+  color: var(--text-400);
+  font-size: 11px;
+}
+.cell-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ========== TAGS ========== */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  line-height: 1.6;
+}
+.tag-brand { background: var(--brand-100); color: var(--brand-500); }
+.tag-success { background: var(--success-50); color: var(--success-600); }
+.tag-purple { background: var(--bg-200); color: var(--chart-2); }
+.tag-error { background: var(--error-50); color: var(--error-400); }
+.tag-muted { background: var(--bg-300); color: var(--text-500); }
+.tag-muted-orange { background: var(--brand-50); color: var(--brand-400); }
+.tag-muted-green { background: var(--success-50); color: var(--success-500); }
+.tag-muted-blue { background: var(--bg-200); color: var(--chart-2); }
+.tag-muted-pink { background: var(--error-50); color: var(--error-400); }
+
+/* ========== IMAGE PLACEHOLDER ========== */
+.img-placeholder {
+  width: 40px;
+  height: 40px;
+  background: var(--bg-300);
+  border-radius: 4px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-200);
+}
+
+/* ========== BSR BAR ========== */
+.bsr-bar {
+  width: 60px;
+  height: 4px;
+  background: var(--bg-300);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+.bsr-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+}
+
+/* ========== PRICE / WEIGHT ========== */
+.price-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.price-main {
+  font-weight: 500;
+  color: var(--text-800);
+}
+.price-sub {
+  font-size: 10px;
+  color: var(--text-400);
+}
+
+/* ========== ACTION LINKS ========== */
+.action-link {
+  font-size: 11px;
+  color: var(--brand-500);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.action-link:hover { text-decoration: underline; }
+
+/* ========== PAGINATION ========== */
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+.pagination-info {
+  font-size: 11px;
+  color: var(--text-400);
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-500);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: 'Poppins', sans-serif;
+}
+.page-btn:hover { background: var(--bg-300); }
+.page-btn.active {
+  background: var(--brand-500);
+  color: #fff;
+  border-color: var(--brand-500);
+}
+.page-btn-disabled {
+  color: var(--text-300);
+  pointer-events: none;
+}
+
+/* ========== SIDEBAR CARDS ========== */
+.sidebar-card {
+  background: var(--bg-200);
+  border: 1px solid var(--border-200);
+  border-radius: 8px;
+  padding: 16px;
+}
+.sidebar-card h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-800);
+  margin-bottom: 10px;
+}
+.sidebar-card p {
+  font-size: 12px;
+  color: var(--text-400);
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+.sidebar-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* ========== CRITERIA LIST ========== */
+.criteria-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+.criteria-list {
+  list-style: none;
+  padding: 0;
+}
+.criteria-list li {
+  font-size: 11px;
+  color: var(--text-500);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border-100);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.criteria-list li:last-child { border-bottom: none; }
+.criteria-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--brand-500);
+  flex-shrink: 0;
+}
+
+/* ========== STAT ITEMS ========== */
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-100);
+}
+.stat-item:last-child { border-bottom: none; }
+.stat-label { font-size: 11px; color: var(--text-400); }
+.stat-value { font-size: 13px; font-weight: 600; color: var(--text-800); }
+.stat-value-brand { color: var(--brand-500); }
+.stat-value-sm { font-size: 12px; }
+
+.stat-divider {
+  height: 1px;
+  background: var(--border-200);
+  margin: 10px 0;
+}
+
+.stat-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stat-bar-track {
+  width: 50px;
+  height: 4px;
+  background: var(--bg-300);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.stat-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+}
+
+/* ========== MAIN CONTAINER ========== */
+.main-container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 16px 24px;
+}
+</style>
+
+    <main class="main-container">
+
+      <!-- Page Header -->
+      <div class="page-header">
+        <div class="page-header-left">
+          <h1>方法卡结果中心</h1>
+          <p>查看各方法卡的命中产品列表，筛选并操作选品结果</p>
+        </div>
+        <div class="page-header-actions">
+          <button class="btn-ghost">导出结果</button>
+          <button class="btn-primary">批量加入候选池</button>
+        </div>
+      </div>
+
+      <!-- 1. Top Filter Bar -->
+      <div class="card">
+        <div class="filter-bar">
+          <select class="filter-select filter-select-mp">
+            <option value="">Marketplace</option>
+            <option value="UK" selected>UK</option>
+            <option value="DE">DE</option>
+            <option value="US">US</option>
+          </select>
+          <input type="date" class="filter-input filter-select-date" value="2026-07-07" title="batchDate">
+          <select class="filter-select filter-select-week">
+            <option value="">createdWeek</option>
+            <option value="2026W27" selected>2026-W27</option>
+            <option value="2026W26">2026-W26</option>
+            <option value="2026W25">2026-W25</option>
+          </select>
+          <select class="filter-select filter-select-method">
+            <option value="">全部方法卡</option>
+            <option value="M01" selected>M01 新品榜加速法</option>
+            <option value="M02">M02 同行品线跟随法</option>
+            <option value="M03">M03 FBM自发货简单道</option>
+            <option value="M06">M06 爆款多店验证法</option>
+          </select>
+          <select class="filter-select filter-select-cat">
+            <option value="">全部类目</option>
+            <option value="home">Home &amp; Kitchen</option>
+            <option value="garden">Garden</option>
+            <option value="sports">Sports</option>
+            <option value="toys">Toys &amp; Games</option>
+            <option value="beauty">Beauty</option>
+          </select>
+          <input type="text" class="filter-input filter-input-search" placeholder="搜索 ASIN / 标题 / 店铺">
+          <div class="filter-bar-actions">
+            <button class="btn-primary">搜索</button>
+            <button class="btn-ghost">重置</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Tab Bar -->
+      <div class="tab-bar">
+        <div class="tab-item active" data-tab="M01">
+          <span>M01 新品榜加速法</span>
+          <span class="tab-badge">56</span>
+        </div>
+        <div class="tab-item" data-tab="M02">
+          <span>M02 郑总同行品线跟随法</span>
+          <span class="tab-badge">34</span>
+        </div>
+        <div class="tab-item" data-tab="M03">
+          <span>M03 FBM 自发货简单道</span>
+          <span class="tab-badge">78</span>
+        </div>
+        <div class="tab-item" data-tab="M06">
+          <span>M06 爆款多店验证法</span>
+          <span class="tab-badge">12</span>
+        </div>
+      </div>
+
+      <!-- 3. Main Content: Two Panels -->
+      <div class="main-panels">
+
+        <!-- Left Panel: Hit Products Table -->
+        <div class="left-panel">
+          <div class="card" style="overflow: hidden;">
+            <div style="overflow-x: auto;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th style="width: 50px;"><input type="checkbox"></th>
+                    <th>方法卡</th>
+                    <th>图片</th>
+                    <th>ASIN</th>
+                    <th>标题</th>
+                    <th>店铺</th>
+                    <th>月销量</th>
+                    <th>上架天数</th>
+                    <th>BSR</th>
+                    <th>价格/重量</th>
+                    <th>类目</th>
+                    <th>命中原因</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Row 1 -->
+                  <tr>
+                    <td><input type="checkbox"></td>
+                    <td><span class="tag tag-brand">M01</span></td>
+                    <td><div class="img-placeholder"></div></td>
+                    <td class="cell-asin">B0DXXXXK7</td>
+                    <td class="cell-title">Foldable Storage Basket Set...Organizer</td>
+                    <td class="cell-shop">HomeStore UK</td>
+                    <td class="cell-units">1,247</td>
+                    <td>18</td>
+                    <td>
+                      <div class="cell-bsr-value">3,218</div>
+                      <div class="bsr-bar"><div class="bsr-bar-fill" style="width: 82%; background: var(--brand-500);"></div></div>
+                    </td>
+                    <td>
+                      <div class="price-row">
+                        <span class="price-main">&pound;14.99</span>
+                        <span class="price-sub">380g</span>
+                      </div>
+                    </td>
+                    <td class="cell-category">Home &amp; Kitchen</td>
+                    <td><span class="tag tag-muted-orange">新品+低BSR</span></td>
+                    <td>
+                      <div class="cell-actions">
+                        <a class="action-link">加入候选池</a>
+                        <a class="action-link">查看详情</a>
+                        <a class="action-link">以图识图</a>
+                      </div>
+                    </td>
+                  </tr>
+                  <!-- Row 2 -->
+                  <tr>
+                    <td><input type="checkbox"></td>
+                    <td><span class="tag tag-brand">M01</span></td>
+                    <td><div class="img-placeholder"></div></td>
+                    <td class="cell-asin">B0DYYYM3</td>
+                    <td class="cell-title">LED Desk Lamp Dimmable Touch...Night Light</td>
+                    <td class="cell-shop">BrightLife Ltd</td>
+                    <td class="cell-units">892</td>
+                    <td>12</td>
+                    <td>
+                      <div class="cell-bsr-value">1,543</div>
+                      <div class="bsr-bar"><div class="bsr-bar-fill" style="width: 90%; background: var(--brand-500);"></div></div>
+                    </td>
+                    <td>
+                      <div class="price-row">
+                        <span class="price-main">&pound;22.50</span>
+                        <span class="price-sub">520g</span>
+                      </div>
+                    </td>
+                    <td class="cell-category">Home &amp; Kitchen</td>
+                    <td>
+                      <span class="tag tag-muted-orange" style="margin-right: 4px;">新品+低BSR</span>
+                      <span class="tag tag-muted">高评分</span>
+                    </td>
+                    <td>
+                      <div class="cell-actions">
+                        <a class="action-link">加入候选池</a>
+                        <a class="action-link">查看详情</a>
+                        <a class="action-link">以图识图</a>
+                      </div>
+                    </td>
+                  </tr>
+                  <!-- Row 3 -->
+                  <tr>
+                    <td><input type="checkbox"></td>
+                    <td><span class="tag tag-success">M02</span></td>
+                    <td><div class="img-placeholder"></div></td>
+                    <td class="cell-asin">B0DZZZP1</td>
+                    <td class="cell-title">Garden Plant Support Stakes...Metal Cage</td>
+                    <td class="cell-shop">GreenGrow DE</td>
+                    <td class="cell-units">2,580</td>
+                    <td>45</td>
+                    <td>
+                      <div class="cell-bsr-value">8,912</div>
+                      <div class="bsr-bar"><div class="bsr-bar-fill" style="width: 55%; background: var(--success-500);"></div></div>
+                    </td>
+                    <td>
+                      <div class="price-row">
+                        <span class="price-main">&euro;16.90</span>
+                        <span class="price-sub">750g</span>
+                      </div>
+                    </td>
+                    <td class="cell-category">Garden</td>
+                    <td><span class="tag tag-muted-green">同行跟卖</span></td>
+                    <td>
+                      <div class="cell-actions">
+                        <a class="action-link">加入候选池</a>
+                        <a class="action-link">查看详情</a>
+                        <a class="action-link">以图识图</a>
+                      </div>
+                    </td>
+                  </tr>
+                  <!-- Row 4 -->
+                  <tr>
+                    <td><input type="checkbox"></td>
+                    <td><span class="tag tag-success">M02</span></td>
+                    <td><div class="img-placeholder"></div></td>
+                    <td class="cell-asin">B0EAAAQ9</td>
+                    <td class="cell-title">Dog Poop Bag Dispenser...Waste Bags Refill</td>
+                    <td class="cell-shop">PetPal UK</td>
+                    <td class="cell-units">3,420</td>
+                    <td>90</td>
+                    <td>
+                      <div class="cell-bsr-value">12,305</div>
+                      <div class="bsr-bar"><div class="bsr-bar-fill" style="width: 38%; background: var(--success-500);"></div></div>
+                    </td>
+                    <td>
+                      <div class="price-row">
+                        <span class="price-main">&pound;9.99</span>
+                        <span class="price-sub">180g</span>
+                      </div>
+                    </td>
+                    <td class="cell-category">Home &amp; Kitchen</td>
+                    <td>
+                      <span class="tag tag-muted-green" style="margin-right: 4px;">同行跟卖</span>
+                      <span class="tag tag-muted">高复购</span>
+                    </td>
+                    <td>
+                      <div class="cell-actions">
+                        <a class="action-link">加入候选池</a>
+                        <a class="action-link">查看详情</a>
+                        <a class="action-link">以图识图</a>
+                      </div>
+                    </td>
+                  </tr>
+                  <!-- Row 5 -->
+                  <tr>
+                    <td><input type="checkbox"></td>
+                    <td><span class="tag tag-purple">M03</span></td>
+                    <td><div class="img-placeholder"></div></td>
+                    <td class="cell-asin">B0EBBBR4</td>
+                    <td class="cell-title">Yoga Mat Non-Slip Exercise...Fitness Equipment</td>
+                    <td class="cell-shop">FitPro DE</td>
+                    <td class="cell-units">654</td>
+                    <td>120</td>
+                    <td>
+                      <div class="cell-bsr-value">15,672</div>
+                      <div class="bsr-bar"><div class="bsr-bar-fill" style="width: 28%; background: var(--chart-2);"></div></div>
+                    </td>
+                    <td>
+                      <div class="price-row">
+                        <span class="price-main">&euro;24.99</span>
+                        <span class="price-sub">1.2kg</span>
+                      </div>
+                    </td>
+                    <td class="cell-category">Sports</td>
+                    <td><span class="tag tag-muted-blue">FBM+低价</span></td>
+                    <td>
+                      <div class="cell-actions">
+                        <a class="action-link">加入候选池</a>
+                        <a class="action-link">查看详情</a>
+                        <a class="action-link">以图识图</a>
+                      </div>
+                    </td>
+                  </tr>
+                  <!-- Row 6 -->
+                  <tr>
+                    <td><input type="checkbox"></td>
+                    <td><span class="tag tag-purple">M03</span></td>
+                    <td><div class="img-placeholder"></div></td>
+                    <td class="cell-asin">B0ECCCX6</td>
+                    <td class="cell-title">Kids Building Blocks Educational...STEM Toys</td>
+                    <td class="cell-shop">ToyWorld UK</td>
+                    <td class="cell-units">412</td>
+                    <td>200</td>
+                    <td>
+                      <div class="cell-bsr-value">22,100</div>
+                      <div class="bsr-bar"><div class="bsr-bar-fill" style="width: 18%; background: var(--chart-2);"></div></div>
+                    </td>
+                    <td>
+                      <div class="price-row">
+                        <span class="price-main">&pound;18.50</span>
+                        <span class="price-sub">680g</span>
+                      </div>
+                    </td>
+                    <td class="cell-category">Toys &amp; Games</td>
+                    <td>
+                      <span class="tag tag-muted-blue" style="margin-right: 4px;">FBM+低价</span>
+                      <span class="tag tag-muted">轻量化</span>
+                    </td>
+                    <td>
+                      <div class="cell-actions">
+                        <a class="action-link">加入候选池</a>
+                        <a class="action-link">查看详情</a>
+                        <a class="action-link">以图识图</a>
+                      </div>
+                    </td>
+                  </tr>
+                  <!-- Row 7 -->
+                  <tr>
+                    <td><input type="checkbox"></td>
+                    <td><span class="tag tag-error">M06</span></td>
+                    <td><div class="img-placeholder"></div></td>
+                    <td class="cell-asin">B0EDDDT8</td>
+                    <td class="cell-title">Portable Blender USB Rechargeable...Juice Mixer</td>
+                    <td class="cell-shop">LifeStyle DE</td>
+                    <td class="cell-units">5,230</td>
+                    <td>60</td>
+                    <td>
+                      <div class="cell-bsr-value">4,560</div>
+                      <div class="bsr-bar"><div class="bsr-bar-fill" style="width: 72%; background: var(--error-400);"></div></div>
+                    </td>
+                    <td>
+                      <div class="price-row">
+                        <span class="price-main">&euro;19.99</span>
+                        <span class="price-sub">450g</span>
+                      </div>
+                    </td>
+                    <td class="cell-category">Home &amp; Kitchen</td>
+                    <td><span class="tag tag-muted-pink">多店验证</span></td>
+                    <td>
+                      <div class="cell-actions">
+                        <a class="action-link">加入候选池</a>
+                        <a class="action-link">查看详情</a>
+                        <a class="action-link">以图识图</a>
+                      </div>
+                    </td>
+                  </tr>
+                  <!-- Row 8 -->
+                  <tr>
+                    <td><input type="checkbox"></td>
+                    <td><span class="tag tag-error">M06</span></td>
+                    <td><div class="img-placeholder"></div></td>
+                    <td class="cell-asin">B0EEEEU2</td>
+                    <td class="cell-title">Silicone Kitchen Utensils Set...Cooking Tools</td>
+                    <td class="cell-shop">ChefPro UK</td>
+                    <td class="cell-units">3,890</td>
+                    <td>30</td>
+                    <td>
+                      <div class="cell-bsr-value">6,780</div>
+                      <div class="bsr-bar"><div class="bsr-bar-fill" style="width: 62%; background: var(--error-400);"></div></div>
+                    </td>
+                    <td>
+                      <div class="price-row">
+                        <span class="price-main">&pound;12.99</span>
+                        <span class="price-sub">290g</span>
+                      </div>
+                    </td>
+                    <td class="cell-category">Home &amp; Kitchen</td>
+                    <td>
+                      <span class="tag tag-muted-pink" style="margin-right: 4px;">多店验证</span>
+                      <span class="tag tag-muted">轻量化</span>
+                    </td>
+                    <td>
+                      <div class="cell-actions">
+                        <a class="action-link">加入候选池</a>
+                        <a class="action-link">查看详情</a>
+                        <a class="action-link">以图识图</a>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 4. Pagination -->
+          <div class="pagination-bar">
+            <div class="pagination-info">
+              共 56 条结果，显示 1-8 条
+            </div>
+            <div class="pagination">
+              <button class="page-btn page-btn-disabled">&laquo;</button>
+              <button class="page-btn active">1</button>
+              <button class="page-btn">2</button>
+              <button class="page-btn">3</button>
+              <button class="page-btn">4</button>
+              <button class="page-btn">5</button>
+              <button class="page-btn">6</button>
+              <button class="page-btn">7</button>
+              <button class="page-btn">&raquo;</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Sidebar -->
+        <div class="right-panel">
+          <div class="right-panel-inner">
+
+            <!-- Method Card Rule Explanation -->
+            <div class="sidebar-card">
+              <div class="sidebar-card-header">
+                <span class="tag tag-brand" style="font-size: 12px; padding: 3px 10px;">M01</span>
+                <h3 style="margin-bottom: 0;">新品榜加速法</h3>
+              </div>
+              <p>识别近30天内上架、BSR排名快速上升的新品。这类产品通常处于增长初期，竞争较小，是切入市场的优质时机。</p>
+              <div class="criteria-label">关键筛选条件</div>
+              <ul class="criteria-list">
+                <li><span class="criteria-dot"></span>上架天数 &le; 30 天</li>
+                <li><span class="criteria-dot"></span>BSR 排名 &lt; 50,000</li>
+                <li><span class="criteria-dot"></span>月销量 &ge; 300</li>
+                <li><span class="criteria-dot"></span>评分 &ge; 4.0 或 无评分</li>
+                <li><span class="criteria-dot"></span>价格 &pound;8 - &pound;35 / &euro;10 - &euro;40</li>
+                <li><span class="criteria-dot"></span>重量 &lt; 1.5kg (便于FBA)</li>
+                <li><span class="criteria-dot"></span>近7天 BSR 上升幅度 &ge; 30%</li>
+              </ul>
+            </div>
+
+            <!-- Current Filter Hit Statistics -->
+            <div class="sidebar-card">
+              <h3>当前筛选命中统计</h3>
+
+              <div class="stat-item">
+                <span class="stat-label">总命中数</span>
+                <span class="stat-value stat-value-brand">56</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">A级 (高优先)</span>
+                <span class="stat-value">12</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">B级 (中优先)</span>
+                <span class="stat-value">28</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">C级 (观察)</span>
+                <span class="stat-value">16</span>
+              </div>
+
+              <div class="stat-divider"></div>
+
+              <div class="criteria-label">命中类目分布</div>
+              <div class="stat-item">
+                <span class="stat-label">Home &amp; Kitchen</span>
+                <div class="stat-bar-wrap">
+                  <div class="stat-bar-track">
+                    <div class="stat-bar-fill" style="width: 68%; background: var(--brand-500);"></div>
+                  </div>
+                  <span class="stat-value stat-value-sm">38</span>
+                </div>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Garden</span>
+                <div class="stat-bar-wrap">
+                  <div class="stat-bar-track">
+                    <div class="stat-bar-fill" style="width: 20%; background: var(--success-500);"></div>
+                  </div>
+                  <span class="stat-value stat-value-sm">9</span>
+                </div>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Sports</span>
+                <div class="stat-bar-wrap">
+                  <div class="stat-bar-track">
+                    <div class="stat-bar-fill" style="width: 14%; background: var(--chart-2);"></div>
+                  </div>
+                  <span class="stat-value stat-value-sm">6</span>
+                </div>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Toys &amp; Games</span>
+                <div class="stat-bar-wrap">
+                  <div class="stat-bar-track">
+                    <div class="stat-bar-fill" style="width: 7%; background: var(--error-400);"></div>
+                  </div>
+                  <span class="stat-value stat-value-sm">3</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+
+    <script>
+    document.querySelectorAll('.tab-item').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+      });
+    });
+    </script>
+
+</body>
+</html>

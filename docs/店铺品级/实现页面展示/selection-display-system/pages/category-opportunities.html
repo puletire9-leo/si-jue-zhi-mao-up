@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>类目机会榜</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style id="theme-vars">
+:root {
+  --background: #faf9f5;
+  --foreground: #1b1b19;
+  --card: #ffffff;
+  --card-foreground: #1b1b19;
+  --popover: #ffffff;
+  --popover-foreground: #1b1b19;
+  --primary: #d97757;
+  --primary-foreground: #ffffff;
+  --secondary: #f0ece3;
+  --secondary-foreground: #46443b;
+  --muted: #e9e6dc;
+  --muted-foreground: #6e6d68;
+  --accent: #f5f4ee;
+  --accent-foreground: #d8d6cd;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #d8d6cd;
+  --input: #d8d6cd;
+  --ring: #d97757;
+  --chart-1: #b05730;
+  --chart-2: #9c87f5;
+  --chart-3: #f5f4ee;
+  --chart-4: #e9e6dc;
+  --chart-5: #b4552d;
+  --sidebar: #f5f4ee;
+  --sidebar-foreground: #3d3d3a;
+  --sidebar-primary: #c96442;
+  --sidebar-primary-foreground: #fbfbfb;
+  --sidebar-accent: #e9e6dc;
+  --sidebar-accent-foreground: #343434;
+  --brand-50: #f8e3d8;
+  --brand-100: #f0c6b3;
+  --brand-200: #e8a98f;
+  --brand-300: #e08d6f;
+  --brand-400: #b0683f;
+  --brand-500: #d97757;
+  --brand-600: #c96442;
+  --brand-700: #8a5740;
+  --brand-800: #6b4533;
+  --brand-900: #3a2a22;
+  --text-50: #faf9f5;
+  --text-100: #f1f1ef;
+  --text-200: #d8d6cd;
+  --text-300: #b7b5a9;
+  --text-400: #908e84;
+  --text-500: #6e6d68;
+  --text-600: #46443b;
+  --text-700: #30302e;
+  --text-800: #2c2c2b;
+  --text-900: #1b1b19;
+  --icon-50: #1b1b19;
+  --icon-100: #2c2c2b;
+  --icon-200: #46443b;
+  --icon-300: #6e6d68;
+  --icon-400: #908e84;
+  --icon-500: #b7b5a9;
+  --icon-600: #d8d6cd;
+  --icon-700: #f1f1ef;
+  --icon-800: #f8f8f6;
+  --icon-900: #ffffff;
+  --border-50: #f1f1ef;
+  --border-100: #e9e6dc;
+  --border-200: #d8d6cd;
+  --border-300: #b7b5a9;
+  --border-400: #908e84;
+  --border-500: #6e6d68;
+  --border-600: #46443b;
+  --border-700: #30302e;
+  --border-800: #2c2c2b;
+  --border-900: #1b1b19;
+  --success-50: #edf2e4;
+  --success-100: #d6dfc8;
+  --success-200: #bccaa8;
+  --success-300: #a3b58a;
+  --success-400: #8ca06f;
+  --success-500: #708353;
+  --success-600: #556640;
+  --success-700: #3f4d30;
+  --success-800: #2e3823;
+  --success-900: #232a1c;
+  --error-50: #fcdede;
+  --error-100: #f9b9b9;
+  --error-200: #f59292;
+  --error-300: #f26b6b;
+  --error-400: #ef4444;
+  --error-500: #c43a39;
+  --error-600: #93302f;
+  --error-700: #6e2c2c;
+  --error-800: #4d2424;
+  --error-900: #3a1f1f;
+  --bg-50: #faf9f5;
+  --bg-100: #f5f4ee;
+  --bg-200: #ffffff;
+  --bg-300: #f1f1ef;
+  --bg-400: #e9e6dc;
+  --bg-500: #d8d6cd;
+  --bg-600: #b7b5a9;
+  --bg-700: #908e84;
+  --bg-800: #6e6d68;
+  --bg-900: #46443b;
+  --font-display: Newsreader, Georgia, ui-serif, serif;
+  --font-sans: Poppins, ui-sans-serif, system-ui, sans-serif;
+  --font-serif: Lora, Georgia, ui-serif, serif;
+  --font-mono: Geist Mono, ui-monospace, monospace;
+}
+    </style>
+</head>
+<body>
+<style>
+/* === Global Reset & Base === */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  background: var(--bg-50);
+  color: var(--text-900);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* === Page Container === */
+.page-container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px 32px;
+}
+
+/* === Page Header === */
+.page-header { margin-bottom: 24px; }
+.page-title { font-size: 20px; font-weight: 600; color: var(--text-900); }
+.page-subtitle { font-size: 13px; color: var(--text-400); margin-top: 4px; }
+
+/* === Filter Bar === */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.tab-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg-100);
+  border: 1px solid var(--border-200);
+  border-radius: 8px;
+  padding: 3px;
+}
+.tab-btn {
+  padding: 5px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: transparent;
+  color: var(--text-400);
+  font-family: inherit;
+}
+.tab-btn:hover { color: var(--text-700); }
+.tab-btn.active {
+  background: var(--brand-500);
+  color: #141413;
+}
+.filter-field { display: flex; align-items: center; gap: 8px; }
+.filter-label { font-size: 12px; color: var(--text-400); white-space: nowrap; }
+.input-field {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  border: 1px solid var(--border-200);
+  background: var(--bg-100);
+  color: var(--text-900);
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+.input-field::placeholder { color: var(--text-400); }
+.input-field:focus { border-color: var(--brand-500); }
+.filter-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.btn-primary {
+  padding: 6px 20px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  background: var(--brand-500);
+  color: #141413;
+  transition: opacity 0.15s;
+  font-family: inherit;
+}
+.btn-primary:hover { background: var(--brand-600); }
+.btn-ghost {
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border-200);
+  background: transparent;
+  color: var(--text-500);
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.btn-ghost:hover { border-color: var(--border-400); background: var(--bg-200); }
+
+/* === Summary Cards === */
+.summary-row { display: flex; gap: 16px; margin-bottom: 20px; }
+.summary-card {
+  background: var(--bg-200);
+  border: 1px solid var(--border-200);
+  border-radius: 8px;
+  padding: 20px 24px;
+  flex: 1;
+  min-width: 0;
+}
+.summary-label { font-size: 12px; font-weight: 500; color: var(--text-400); margin-bottom: 8px; }
+.summary-value { font-size: 24px; font-weight: 600; }
+.summary-value.val-success { color: var(--success-500); }
+.summary-value.val-brand { color: var(--brand-500); }
+.summary-value.val-chart2 { color: var(--chart-2); }
+
+/* === Table === */
+.table-container {
+  background: var(--bg-200);
+  border: 1px solid var(--border-200);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.table-scroll { overflow-x: auto; }
+.rank-table { width: 100%; border-collapse: collapse; }
+.rank-table th {
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-400);
+  text-align: left;
+  border-bottom: 1px solid var(--border-200);
+  background: var(--bg-100);
+  white-space: nowrap;
+}
+.rank-table td {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text-700);
+  border-bottom: 1px solid var(--border-200);
+}
+.rank-table tr:last-child td { border-bottom: none; }
+.rank-table tr:hover td { background: rgba(255,255,255,0.02); }
+.sort-header {
+  cursor: pointer;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-400);
+}
+.sort-header:hover { color: var(--brand-500); }
+.sort-icon { color: var(--brand-500); opacity: 0.5; font-size: 10px; }
+.sort-header:hover .sort-icon { opacity: 1; }
+.td-rank { color: var(--text-900); font-weight: 500; }
+.td-num { color: var(--text-900); font-weight: 500; }
+.cat-path-dim { color: var(--text-400); }
+.cat-path-bold { color: var(--text-900); }
+
+/* === Stacked Bar === */
+.stacked-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 2px;
+  overflow: hidden;
+  min-width: 80px;
+  max-width: 120px;
+}
+.stacked-bar > div { height: 100%; }
+.bar-a { background: var(--success-500); }
+.bar-b { background: var(--brand-500); }
+.bar-c { background: var(--brand-700); }
+.bar-d { background: var(--text-300); }
+
+/* === BSR Health === */
+.bsr-good { color: var(--success-500); font-weight: 500; }
+.bsr-mid { color: var(--brand-500); font-weight: 500; }
+.bsr-low { color: var(--error-500); font-weight: 500; }
+
+/* === Badges === */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.badge-success { background: var(--success-500); color: #141413; }
+.badge-brand { background: var(--brand-500); color: #141413; }
+.badge-chart2 { background: var(--chart-2); color: #141413; }
+.badge-error { background: var(--error-500); color: #ffffff; }
+
+/* === Link Action === */
+.link-action {
+  color: var(--brand-500);
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+  font-weight: 500;
+}
+.link-action:hover { text-decoration: underline; }
+
+/* === Pagination === */
+.pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding: 0 4px;
+}
+.pagination-info { font-size: 12px; color: var(--text-400); }
+.pagination-btns { display: flex; align-items: center; gap: 6px; }
+.page-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid var(--border-200);
+  background: transparent;
+  color: var(--text-500);
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.page-btn:hover { border-color: var(--border-400); background: var(--bg-200); }
+.page-btn.active { background: var(--brand-500); border-color: var(--brand-500); color: #141413; }
+.page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.page-ellipsis {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--text-400);
+  border: none;
+  background: none;
+  cursor: default;
+}
+</style>
+
+<main class="page-container">
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1 class="page-title">类目机会榜</h1>
+        <p class="page-subtitle">基于全量类目数据的新品机会识别与排名</p>
+    </div>
+
+    <!-- Top Filter Bar -->
+    <div class="filter-bar">
+        <!-- Marketplace Tabs -->
+        <div class="tab-group">
+            <button class="tab-btn active">UK</button>
+            <button class="tab-btn">DE</button>
+            <button class="tab-btn">US</button>
+        </div>
+
+        <!-- Category Level Toggle -->
+        <div class="tab-group">
+            <button class="tab-btn">L1</button>
+            <button class="tab-btn active">L2</button>
+            <button class="tab-btn">叶子类目</button>
+        </div>
+
+        <div class="filter-field">
+            <span class="filter-label">最低商品数</span>
+            <input type="number" class="input-field" style="width:100px;" placeholder="50" value="50">
+        </div>
+
+        <div class="filter-field">
+            <span class="filter-label">最低新品数</span>
+            <input type="number" class="input-field" style="width:100px;" placeholder="10" value="10">
+        </div>
+
+        <div class="filter-field">
+            <span class="filter-label">搜索类目</span>
+            <input type="text" class="input-field" style="width:200px;" placeholder="输入类目关键词...">
+        </div>
+
+        <div class="filter-actions">
+            <button class="btn-primary">搜索</button>
+            <button class="btn-ghost">重置</button>
+        </div>
+    </div>
+
+    <!-- Summary Cards Row -->
+    <div class="summary-row">
+        <div class="summary-card">
+            <div class="summary-label">总类目数</div>
+            <div class="summary-value">156</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-label">有新品类目</div>
+            <div class="summary-value val-success">89</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-label">优质店铺覆盖</div>
+            <div class="summary-value val-brand">67</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-label">高机会类目</div>
+            <div class="summary-value val-chart2">23</div>
+        </div>
+    </div>
+
+    <!-- Category Ranking Table -->
+    <div class="table-container">
+        <div class="table-scroll">
+            <table class="rank-table">
+                <thead>
+                    <tr>
+                        <th style="width:50px;"><span class="sort-header">排名 <span class="sort-icon">&#9650;</span></span></th>
+                        <th style="min-width:220px;"><span class="sort-header">类目路径 <span class="sort-icon">&#9650;</span></span></th>
+                        <th><span class="sort-header">商品数 <span class="sort-icon">&#9650;</span></span></th>
+                        <th><span class="sort-header">新品数 <span class="sort-icon">&#9650;</span></span></th>
+                        <th style="min-width:140px;">A/B/C/D 分布</th>
+                        <th><span class="sort-header">方法卡命中 <span class="sort-icon">&#9650;</span></span></th>
+                        <th><span class="sort-header">优质店铺数 <span class="sort-icon">&#9650;</span></span></th>
+                        <th><span class="sort-header">中位销量 <span class="sort-icon">&#9650;</span></span></th>
+                        <th><span class="sort-header">BSR健康度 <span class="sort-icon">&#9650;</span></span></th>
+                        <th>机会标签</th>
+                        <th style="width:80px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Row 1 -->
+                    <tr>
+                        <td class="td-rank">1</td>
+                        <td><span class="cat-path-dim">Home > Kitchen > </span><span class="cat-path-bold">Coffee Makers</span></td>
+                        <td class="td-num">2,341</td>
+                        <td class="td-num">187</td>
+                        <td>
+                            <div class="stacked-bar">
+                                <div class="bar-a" style="width:35%;"></div>
+                                <div class="bar-b" style="width:25%;"></div>
+                                <div class="bar-c" style="width:22%;"></div>
+                                <div class="bar-d" style="width:18%;"></div>
+                            </div>
+                        </td>
+                        <td class="td-num">12</td>
+                        <td class="td-num">34</td>
+                        <td class="td-num">1,205</td>
+                        <td><span class="bsr-good">92%</span></td>
+                        <td><span class="badge badge-success">起量中</span></td>
+                        <td><a class="link-action" href="#">查看详情</a></td>
+                    </tr>
+                    <!-- Row 2 -->
+                    <tr>
+                        <td class="td-rank">2</td>
+                        <td><span class="cat-path-dim">Home > Garden > </span><span class="cat-path-bold">Solar Garden Lights</span></td>
+                        <td class="td-num">1,876</td>
+                        <td class="td-num">243</td>
+                        <td>
+                            <div class="stacked-bar">
+                                <div class="bar-a" style="width:28%;"></div>
+                                <div class="bar-b" style="width:22%;"></div>
+                                <div class="bar-c" style="width:28%;"></div>
+                                <div class="bar-d" style="width:22%;"></div>
+                            </div>
+                        </td>
+                        <td class="td-num">8</td>
+                        <td class="td-num">21</td>
+                        <td class="td-num">856</td>
+                        <td><span class="bsr-good">88%</span></td>
+                        <td><span class="badge badge-brand">测品多</span></td>
+                        <td><a class="link-action" href="#">查看详情</a></td>
+                    </tr>
+                    <!-- Row 3 -->
+                    <tr>
+                        <td class="td-rank">3</td>
+                        <td><span class="cat-path-dim">Electronics > Accessories > </span><span class="cat-path-bold">Phone Stands</span></td>
+                        <td class="td-num">3,102</td>
+                        <td class="td-num">156</td>
+                        <td>
+                            <div class="stacked-bar">
+                                <div class="bar-a" style="width:30%;"></div>
+                                <div class="bar-b" style="width:25%;"></div>
+                                <div class="bar-c" style="width:25%;"></div>
+                                <div class="bar-d" style="width:20%;"></div>
+                            </div>
+                        </td>
+                        <td class="td-num">15</td>
+                        <td class="td-num">48</td>
+                        <td class="td-num">2,340</td>
+                        <td><span class="bsr-mid">78%</span></td>
+                        <td><span class="badge badge-chart2">稳定盘厚</span></td>
+                        <td><a class="link-action" href="#">查看详情</a></td>
+                    </tr>
+                    <!-- Row 4 -->
+                    <tr>
+                        <td class="td-rank">4</td>
+                        <td><span class="cat-path-dim">Sports > Fitness > </span><span class="cat-path-bold">Resistance Bands</span></td>
+                        <td class="td-num">1,453</td>
+                        <td class="td-num">98</td>
+                        <td>
+                            <div class="stacked-bar">
+                                <div class="bar-a" style="width:32%;"></div>
+                                <div class="bar-b" style="width:28%;"></div>
+                                <div class="bar-c" style="width:24%;"></div>
+                                <div class="bar-d" style="width:16%;"></div>
+                            </div>
+                        </td>
+                        <td class="td-num">6</td>
+                        <td class="td-num">19</td>
+                        <td class="td-num">923</td>
+                        <td><span class="bsr-good">85%</span></td>
+                        <td><span class="badge badge-success">起量中</span></td>
+                        <td><a class="link-action" href="#">查看详情</a></td>
+                    </tr>
+                    <!-- Row 5 -->
+                    <tr>
+                        <td class="td-rank">5</td>
+                        <td><span class="cat-path-dim">Home > Decor > </span><span class="cat-path-bold">LED Strip Lights</span></td>
+                        <td class="td-num">4,567</td>
+                        <td class="td-num">312</td>
+                        <td>
+                            <div class="stacked-bar">
+                                <div class="bar-a" style="width:20%;"></div>
+                                <div class="bar-b" style="width:22%;"></div>
+                                <div class="bar-c" style="width:28%;"></div>
+                                <div class="bar-d" style="width:30%;"></div>
+                            </div>
+                        </td>
+                        <td class="td-num">18</td>
+                        <td class="td-num">56</td>
+                        <td class="td-num">678</td>
+                        <td><span class="bsr-low">45%</span></td>
+                        <td><span class="badge badge-error">竞争过热</span></td>
+                        <td><a class="link-action" href="#">查看详情</a></td>
+                    </tr>
+                    <!-- Row 6 -->
+                    <tr>
+                        <td class="td-rank">6</td>
+                        <td><span class="cat-path-dim">Beauty > Skin Care > </span><span class="cat-path-bold">Face Jade Rollers</span></td>
+                        <td class="td-num">987</td>
+                        <td class="td-num">76</td>
+                        <td>
+                            <div class="stacked-bar">
+                                <div class="bar-a" style="width:38%;"></div>
+                                <div class="bar-b" style="width:24%;"></div>
+                                <div class="bar-c" style="width:20%;"></div>
+                                <div class="bar-d" style="width:18%;"></div>
+                            </div>
+                        </td>
+                        <td class="td-num">5</td>
+                        <td class="td-num">12</td>
+                        <td class="td-num">1,890</td>
+                        <td><span class="bsr-good">91%</span></td>
+                        <td><span class="badge badge-success">起量中</span></td>
+                        <td><a class="link-action" href="#">查看详情</a></td>
+                    </tr>
+                    <!-- Row 7 -->
+                    <tr>
+                        <td class="td-rank">7</td>
+                        <td><span class="cat-path-dim">Pet Supplies > Cats > </span><span class="cat-path-bold">Automatic Feeders</span></td>
+                        <td class="td-num">1,234</td>
+                        <td class="td-num">134</td>
+                        <td>
+                            <div class="stacked-bar">
+                                <div class="bar-a" style="width:26%;"></div>
+                                <div class="bar-b" style="width:30%;"></div>
+                                <div class="bar-c" style="width:24%;"></div>
+                                <div class="bar-d" style="width:20%;"></div>
+                            </div>
+                        </td>
+                        <td class="td-num">9</td>
+                        <td class="td-num">28</td>
+                        <td class="td-num">1,456</td>
+                        <td><span class="bsr-mid">76%</span></td>
+                        <td><span class="badge badge-chart2">稳定盘厚</span></td>
+                        <td><a class="link-action" href="#">查看详情</a></td>
+                    </tr>
+                    <!-- Row 8 -->
+                    <tr>
+                        <td class="td-rank">8</td>
+                        <td><span class="cat-path-dim">Home > Office > </span><span class="cat-path-bold">Desk Organizers</span></td>
+                        <td class="td-num">2,089</td>
+                        <td class="td-num">201</td>
+                        <td>
+                            <div class="stacked-bar">
+                                <div class="bar-a" style="width:25%;"></div>
+                                <div class="bar-b" style="width:26%;"></div>
+                                <div class="bar-c" style="width:26%;"></div>
+                                <div class="bar-d" style="width:23%;"></div>
+                            </div>
+                        </td>
+                        <td class="td-num">11</td>
+                        <td class="td-num">39</td>
+                        <td class="td-num">734</td>
+                        <td><span class="bsr-mid">62%</span></td>
+                        <td><span class="badge badge-brand">测品多</span></td>
+                        <td><a class="link-action" href="#">查看详情</a></td>
+                    </tr>
+                    <!-- Row 9 -->
+                    <tr>
+                        <td class="td-rank">9</td>
+                        <td><span class="cat-path-dim">Electronics > Audio > </span><span class="cat-path-bold">Bluetooth Speakers</span></td>
+                        <td class="td-num">5,432</td>
+                        <td class="td-num">287</td>
+                        <td>
+                            <div class="stacked-bar">
+                                <div class="bar-a" style="width:22%;"></div>
+                                <div class="bar-b" style="width:23%;"></div>
+                                <div class="bar-c" style="width:25%;"></div>
+                                <div class="bar-d" style="width:30%;"></div>
+                            </div>
+                        </td>
+                        <td class="td-num">22</td>
+                        <td class="td-num">72</td>
+                        <td class="td-num">412</td>
+                        <td><span class="bsr-low">38%</span></td>
+                        <td><span class="badge badge-error">竞争过热</span></td>
+                        <td><a class="link-action" href="#">查看详情</a></td>
+                    </tr>
+                    <!-- Row 10 -->
+                    <tr>
+                        <td class="td-rank">10</td>
+                        <td><span class="cat-path-dim">Garden > Tools > </span><span class="cat-path-bold">Pruning Shears</span></td>
+                        <td class="td-num">678</td>
+                        <td class="td-num">54</td>
+                        <td>
+                            <div class="stacked-bar">
+                                <div class="bar-a" style="width:40%;"></div>
+                                <div class="bar-b" style="width:22%;"></div>
+                                <div class="bar-c" style="width:20%;"></div>
+                                <div class="bar-d" style="width:18%;"></div>
+                            </div>
+                        </td>
+                        <td class="td-num">3</td>
+                        <td class="td-num">8</td>
+                        <td class="td-num">2,567</td>
+                        <td><span class="bsr-good">95%</span></td>
+                        <td><span class="badge badge-success">起量中</span></td>
+                        <td><a class="link-action" href="#">查看详情</a></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Bottom Pagination -->
+    <div class="pagination-row">
+        <div class="pagination-info">显示 1-10 条，共 156 条类目</div>
+        <div class="pagination-btns">
+            <button class="page-btn" disabled>&laquo;</button>
+            <button class="page-btn active">1</button>
+            <button class="page-btn">2</button>
+            <button class="page-btn">3</button>
+            <button class="page-btn">4</button>
+            <span class="page-ellipsis">...</span>
+            <button class="page-btn">16</button>
+            <button class="page-btn">&raquo;</button>
+        </div>
+    </div>
+
+</main>
+</body>
+</html>

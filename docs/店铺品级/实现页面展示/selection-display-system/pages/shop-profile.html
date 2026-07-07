@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>店铺画像</title>
+    <style id="theme-vars">
+:root {
+  --background: #faf9f5;
+  --foreground: #1b1b19;
+  --card: #ffffff;
+  --card-foreground: #1b1b19;
+  --popover: #ffffff;
+  --popover-foreground: #1b1b19;
+  --primary: #d97757;
+  --primary-foreground: #ffffff;
+  --secondary: #f0ece3;
+  --secondary-foreground: #46443b;
+  --muted: #e9e6dc;
+  --muted-foreground: #6e6d68;
+  --accent: #f5f4ee;
+  --accent-foreground: #d8d6cd;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #d8d6cd;
+  --input: #d8d6cd;
+  --ring: #d97757;
+  --chart-1: #b05730;
+  --chart-2: #9c87f5;
+  --chart-3: #f5f4ee;
+  --chart-4: #e9e6dc;
+  --chart-5: #b4552d;
+  --sidebar: #f5f4ee;
+  --sidebar-foreground: #3d3d3a;
+  --sidebar-primary: #c96442;
+  --sidebar-primary-foreground: #fbfbfb;
+  --sidebar-accent: #e9e6dc;
+  --sidebar-accent-foreground: #343434;
+  --brand-50: #f8e3d8;
+  --brand-100: #f0c6b3;
+  --brand-200: #e8a98f;
+  --brand-300: #e08d6f;
+  --brand-400: #b0683f;
+  --brand-500: #d97757;
+  --brand-600: #c96442;
+  --brand-700: #8a5740;
+  --brand-800: #6b4533;
+  --brand-900: #3a2a22;
+  --text-50: #faf9f5;
+  --text-100: #f1f1ef;
+  --text-200: #d8d6cd;
+  --text-300: #b7b5a9;
+  --text-400: #908e84;
+  --text-500: #6e6d68;
+  --text-600: #46443b;
+  --text-700: #30302e;
+  --text-800: #2c2c2b;
+  --text-900: #1b1b19;
+  --icon-50: #1b1b19;
+  --icon-100: #2c2c2b;
+  --icon-200: #46443b;
+  --icon-300: #6e6d68;
+  --icon-400: #908e84;
+  --icon-500: #b7b5a9;
+  --icon-600: #d8d6cd;
+  --icon-700: #f1f1ef;
+  --icon-800: #f8f8f6;
+  --icon-900: #ffffff;
+  --border-50: #f1f1ef;
+  --border-100: #e9e6dc;
+  --border-200: #d8d6cd;
+  --border-300: #b7b5a9;
+  --border-400: #908e84;
+  --border-500: #6e6d68;
+  --border-600: #46443b;
+  --border-700: #30302e;
+  --border-800: #2c2c2b;
+  --border-900: #1b1b19;
+  --success-50: #edf2e4;
+  --success-100: #d6dfc8;
+  --success-200: #bccaa8;
+  --success-300: #a3b58a;
+  --success-400: #8ca06f;
+  --success-500: #708353;
+  --success-600: #556640;
+  --success-700: #3f4d30;
+  --success-800: #2e3823;
+  --success-900: #232a1c;
+  --error-50: #fcdede;
+  --error-100: #f9b9b9;
+  --error-200: #f59292;
+  --error-300: #f26b6b;
+  --error-400: #ef4444;
+  --error-500: #c43a39;
+  --error-600: #93302f;
+  --error-700: #6e2c2c;
+  --error-800: #4d2424;
+  --error-900: #3a1f1f;
+  --bg-50: #faf9f5;
+  --bg-100: #f5f4ee;
+  --bg-200: #ffffff;
+  --bg-300: #f1f1ef;
+  --bg-400: #e9e6dc;
+  --bg-500: #d8d6cd;
+  --bg-600: #b7b5a9;
+  --bg-700: #908e84;
+  --bg-800: #6e6d68;
+  --bg-900: #46443b;
+  --font-display: Newsreader, Georgia, ui-serif, serif;
+  --font-sans: Poppins, ui-sans-serif, system-ui, sans-serif;
+  --font-serif: Lora, Georgia, ui-serif, serif;
+  --font-mono: Geist Mono, ui-monospace, monospace;
+}
+
+.font-display { font-family: "Newsreader", Georgia, ui-serif, serif; }
+.font-sans { font-family: "Poppins", ui-sans-serif, system-ui, sans-serif; }
+.font-serif { font-family: "Lora", Georgia, ui-serif, serif; }
+.font-mono { font-family: "Geist Mono", ui-monospace, monospace; }
+
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen font-sans antialiased">
+<style>
+/* ========== UTILITY ========== */
+.min-h-screen { min-height: 100vh; }
+.antialiased { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+/* ========== GLOBAL RESET & BASE ========== */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--bg-50);
+  color: var(--text-900);
+}
+
+/* ========== TOP BAR ========== */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: var(--bg-100);
+  border-bottom: 1px solid var(--border-300);
+}
+.top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.shop-selector-wrap {
+  position: relative;
+}
+.shop-selector {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 6px 32px 6px 12px;
+  font-size: 13px;
+  border-radius: 6px;
+  outline: none;
+  font-family: 'Poppins', sans-serif;
+  background: var(--bg-400);
+  color: var(--text-900);
+  border: 1px solid var(--border-400);
+  min-width: 220px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23908e84' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+.mp-tabs {
+  display: flex;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border-400);
+}
+.mp-tab {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  font-family: 'Poppins', sans-serif;
+  background: var(--bg-400);
+  color: var(--text-500);
+  transition: background 0.15s, color 0.15s;
+}
+.mp-tab.active {
+  background: var(--brand-500);
+  color: var(--text-50);
+}
+.recalc-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-family: 'Poppins', sans-serif;
+  background: var(--brand-500);
+  color: var(--text-50);
+}
+
+/* ========== MAIN CONTAINER ========== */
+.main-content {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.content-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ========== CARD ========== */
+.card {
+  background: var(--bg-200);
+  border: 1px solid var(--border-200);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+/* ========== SHOP OVERVIEW ========== */
+.overview-flex {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.overview-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.shop-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  background: var(--bg-400);
+  color: var(--brand-500);
+}
+.shop-info {
+  display: flex;
+  flex-direction: column;
+}
+.shop-info h1 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-900);
+  margin-bottom: 4px;
+}
+.shop-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.badge-marketplace {
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  background: var(--border-500);
+  color: var(--text-800);
+}
+.badge-baseline {
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  background: var(--brand-500);
+  color: var(--text-50);
+}
+.shop-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-500);
+}
+.shop-meta strong {
+  color: var(--text-700);
+}
+
+/* ========== KEY METRICS ========== */
+.overview-right {}
+.metrics-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 12px;
+}
+.metric-item {
+  text-align: center;
+}
+.metric-label {
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+.metric-label-a { color: var(--success-500); }
+.metric-label-b { color: var(--brand-500); }
+.metric-label-c { color: var(--brand-700); }
+.metric-label-d { color: var(--icon-400); }
+.metric-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-900);
+}
+.metrics-divider {
+  width: 1px;
+  height: 32px;
+  background: var(--border-400);
+}
+.metric-sub-label {
+  font-size: 10px;
+  margin-bottom: 2px;
+  color: var(--text-500);
+}
+.metric-sub-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-800);
+}
+
+/* ========== SIMILARITY BAR ========== */
+.similarity-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.similarity-label {
+  font-size: 10px;
+  color: var(--text-500);
+}
+.similarity-track {
+  width: 128px;
+  height: 8px;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: var(--bg-500);
+}
+.similarity-fill {
+  height: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, var(--brand-400), var(--brand-500));
+}
+.similarity-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand-500);
+}
+
+/* ========== TWO COL GRID ========== */
+.two-col-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.card h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-800);
+  margin-bottom: 16px;
+}
+
+/* ========== STACKED BAR ========== */
+.stacked-bar {
+  width: 100%;
+  height: 32px;
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  margin-bottom: 16px;
+}
+.stacked-bar-segment { height: 100%; }
+.stacked-bar-a { background: var(--success-500); }
+.stacked-bar-b { background: var(--brand-500); }
+.stacked-bar-c { background: var(--brand-700); }
+.stacked-bar-d { background: var(--icon-400); }
+
+/* ========== LEGEND ========== */
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 12px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-600);
+}
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+}
+.legend-dot-a { background: var(--success-500); }
+.legend-dot-b { background: var(--brand-500); }
+.legend-dot-c { background: var(--brand-700); }
+.legend-dot-d { background: var(--icon-400); }
+
+/* ========== TREND MINI CHART ========== */
+.trend-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-500);
+  margin-top: 20px;
+  margin-bottom: 12px;
+}
+.trend-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  height: 60px;
+}
+.trend-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.trend-stack {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 4px;
+  overflow: hidden;
+  height: 52px;
+}
+.trend-segment-a { background: var(--success-500); }
+.trend-segment-b { background: var(--brand-500); }
+.trend-segment-c { background: var(--brand-700); }
+.trend-segment-d { background: var(--icon-400); }
+.trend-label {
+  font-size: 9px;
+  color: var(--text-400);
+}
+
+/* ========== CATEGORY BARS ========== */
+.cat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.cat-row:last-child { margin-bottom: 0; }
+.cat-name {
+  font-size: 11px;
+  width: 112px;
+  color: var(--text-600);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cat-bar-track {
+  flex: 1;
+  height: 16px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg-500);
+}
+.cat-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--brand-400);
+}
+.cat-count {
+  font-size: 11px;
+  width: 32px;
+  text-align: right;
+  color: var(--text-500);
+}
+
+/* ========== PRODUCTS TABLE ========== */
+.table-card {
+  background: var(--bg-200);
+  border: 1px solid var(--border-200);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid var(--border-200);
+}
+.table-header h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-800);
+  margin-bottom: 0;
+}
+.table-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.table-filter-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 4px 28px 4px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  font-family: 'Poppins', sans-serif;
+  background: var(--bg-400);
+  color: var(--text-700);
+  border: 1px solid var(--border-400);
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23908e84' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+.table-search-wrap {
+  position: relative;
+}
+.table-search-input {
+  padding: 4px 12px 4px 28px;
+  font-size: 12px;
+  border-radius: 4px;
+  font-family: 'Poppins', sans-serif;
+  background: var(--bg-400);
+  color: var(--text-700);
+  border: 1px solid var(--border-400);
+  width: 180px;
+  outline: none;
+}
+.table-search-input::placeholder { color: var(--text-400); }
+.table-search-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-400);
+}
+
+/* ========== DATA TABLE ========== */
+.products-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.products-table thead th {
+  text-align: left;
+  padding: 8px 12px;
+  font-weight: 500;
+  color: var(--text-500);
+  background: var(--bg-300);
+  white-space: nowrap;
+}
+.products-table thead th.text-right { text-align: right; }
+.products-table thead th.text-center { text-align: center; }
+.products-table tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-100);
+  color: var(--text-700);
+  vertical-align: middle;
+}
+.products-table tbody tr:nth-child(even) { background: var(--bg-200); }
+.products-table tbody tr:hover { background: var(--bg-100); }
+.products-table tbody tr:last-child td { border-bottom: none; }
+
+.cell-img {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  background: var(--bg-400);
+}
+.cell-asin {
+  font-family: 'Geist Mono', ui-monospace, monospace;
+  color: var(--brand-600);
+}
+.cell-title {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-700);
+}
+.cell-units {
+  text-align: right;
+  font-weight: 600;
+  color: var(--text-900);
+}
+.cell-category {
+  color: var(--text-500);
+}
+.cell-methods {
+  text-align: center;
+}
+
+/* ========== TIER BADGE ========== */
+.tier-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.tier-badge-a { background: var(--success-500); color: var(--text-50); }
+.tier-badge-b { background: var(--brand-500); color: var(--text-50); }
+.tier-badge-c { background: var(--brand-700); color: var(--text-50); }
+.tier-badge-d { background: var(--icon-400); color: var(--text-50); }
+
+/* ========== METHOD COUNT TAG ========== */
+.method-count-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--brand-100);
+  color: var(--brand-600);
+}
+.method-count-none {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-400);
+  color: var(--text-500);
+}
+
+/* ========== ACTION BUTTONS ========== */
+.row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.row-action-btn {
+  padding: 4px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.row-action-btn:hover { opacity: 0.8; }
+.row-action-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ========== TABLE PAGINATION ========== */
+.table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border-200);
+}
+.table-pagination-info {
+  font-size: 12px;
+  color: var(--text-500);
+}
+.table-pagination-btns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pg-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid var(--border-400);
+  background: var(--bg-400);
+  color: var(--text-600);
+  cursor: pointer;
+  font-family: 'Poppins', sans-serif;
+}
+.pg-btn.active {
+  background: var(--brand-500);
+  color: var(--text-50);
+  border-color: var(--brand-500);
+  font-weight: 500;
+}
+.pg-btn-disabled {
+  color: var(--text-500);
+  opacity: 0.5;
+  cursor: default;
+}
+.pg-ellipsis {
+  font-size: 12px;
+  padding: 4px;
+  color: var(--text-500);
+}
+</style>
+
+    <main>
+      <!-- Top Bar -->
+      <div class="top-bar">
+        <div class="top-bar-left">
+          <div class="shop-selector-wrap">
+            <select class="shop-selector">
+              <option>BrightHome Living Ltd</option>
+              <option>Shop Alpha GmbH</option>
+              <option>Shop Beta LLC</option>
+            </select>
+          </div>
+          <div class="mp-tabs">
+            <button class="mp-tab active">UK</button>
+            <button class="mp-tab">DE</button>
+            <button class="mp-tab">US</button>
+          </div>
+        </div>
+        <button class="recalc-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+          重新计算
+        </button>
+      </div>
+
+      <div class="main-content">
+        <div class="content-sections">
+
+          <!-- ===== Shop Overview Card ===== -->
+          <div class="card">
+            <div class="overview-flex">
+              <!-- Left: Shop Info -->
+              <div class="overview-left">
+                <div class="shop-avatar">BL</div>
+                <div class="shop-info">
+                  <div class="shop-badges">
+                    <h1>BrightHome Living Ltd</h1>
+                    <span class="badge-marketplace">UK</span>
+                    <span class="badge-baseline">郑总相似店</span>
+                  </div>
+                  <div class="shop-meta">
+                    <span>Total Products: <strong>1,247</strong></span>
+                    <span>|</span>
+                    <span>A: <strong>156</strong></span>
+                    <span>B: <strong>289</strong></span>
+                    <span>C: <strong>412</strong></span>
+                    <span>D: <strong>390</strong></span>
+                    <span>|</span>
+                    <span>稳定盘: <strong>445</strong></span>
+                    <span>测品池: <strong>390</strong></span>
+                    <span>Last Updated: 2026-07-06</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right: Key Metrics -->
+              <div class="overview-right">
+                <div class="metrics-row">
+                  <div class="metric-item">
+                    <div class="metric-label metric-label-a">A</div>
+                    <div class="metric-value">156</div>
+                  </div>
+                  <div class="metric-item">
+                    <div class="metric-label metric-label-b">B</div>
+                    <div class="metric-value">289</div>
+                  </div>
+                  <div class="metric-item">
+                    <div class="metric-label metric-label-c">C</div>
+                    <div class="metric-value">412</div>
+                  </div>
+                  <div class="metric-item">
+                    <div class="metric-label metric-label-d">D</div>
+                    <div class="metric-value">390</div>
+                  </div>
+                  <div class="metrics-divider"></div>
+                  <div class="metric-item">
+                    <div class="metric-sub-label">稳定盘</div>
+                    <div class="metric-sub-value">445</div>
+                  </div>
+                  <div class="metric-item">
+                    <div class="metric-sub-label">测品池</div>
+                    <div class="metric-sub-value">390</div>
+                  </div>
+                </div>
+                <!-- Similarity Score -->
+                <div class="similarity-row">
+                  <span class="similarity-label">Similarity</span>
+                  <div class="similarity-track">
+                    <div class="similarity-fill" style="width: 87.3%;"></div>
+                  </div>
+                  <span class="similarity-value">87.3%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== ABC/D Distribution Section ===== -->
+          <div class="two-col-grid">
+            <!-- Left: ABC Stacked Bar + Trend -->
+            <div class="card">
+              <h2>ABC/D Distribution</h2>
+              <!-- Stacked Bar -->
+              <div class="stacked-bar">
+                <div class="stacked-bar-segment stacked-bar-a" style="width: 12.5%;" title="A: 156 (12.5%)"></div>
+                <div class="stacked-bar-segment stacked-bar-b" style="width: 23.2%;" title="B: 289 (23.2%)"></div>
+                <div class="stacked-bar-segment stacked-bar-c" style="width: 33%;" title="C: 412 (33%)"></div>
+                <div class="stacked-bar-segment stacked-bar-d" style="width: 31.3%;" title="D: 390 (31.3%)"></div>
+              </div>
+              <!-- Legend -->
+              <div class="legend-row">
+                <div class="legend-item">
+                  <span class="legend-dot legend-dot-a"></span>
+                  <span>A: 156 (12.5%)</span>
+                </div>
+                <div class="legend-item">
+                  <span class="legend-dot legend-dot-b"></span>
+                  <span>B: 289 (23.2%)</span>
+                </div>
+                <div class="legend-item">
+                  <span class="legend-dot legend-dot-c"></span>
+                  <span>C: 412 (33%)</span>
+                </div>
+                <div class="legend-item">
+                  <span class="legend-dot legend-dot-d"></span>
+                  <span>D: 390 (31.3%)</span>
+                </div>
+              </div>
+              <!-- 4-week trend mini chart -->
+              <div class="trend-title">Recent ABC Stability (4 Weeks)</div>
+              <div class="trend-chart">
+                <!-- Week 1 -->
+                <div class="trend-col">
+                  <div class="trend-stack">
+                    <div class="trend-segment-a" style="height: 20%;"></div>
+                    <div class="trend-segment-b" style="height: 28%;"></div>
+                    <div class="trend-segment-c" style="height: 30%;"></div>
+                    <div class="trend-segment-d" style="height: 22%;"></div>
+                  </div>
+                  <span class="trend-label">W1</span>
+                </div>
+                <!-- Week 2 -->
+                <div class="trend-col">
+                  <div class="trend-stack">
+                    <div class="trend-segment-a" style="height: 22%;"></div>
+                    <div class="trend-segment-b" style="height: 25%;"></div>
+                    <div class="trend-segment-c" style="height: 31%;"></div>
+                    <div class="trend-segment-d" style="height: 22%;"></div>
+                  </div>
+                  <span class="trend-label">W2</span>
+                </div>
+                <!-- Week 3 -->
+                <div class="trend-col">
+                  <div class="trend-stack">
+                    <div class="trend-segment-a" style="height: 18%;"></div>
+                    <div class="trend-segment-b" style="height: 26%;"></div>
+                    <div class="trend-segment-c" style="height: 32%;"></div>
+                    <div class="trend-segment-d" style="height: 24%;"></div>
+                  </div>
+                  <span class="trend-label">W3</span>
+                </div>
+                <!-- Week 4 -->
+                <div class="trend-col">
+                  <div class="trend-stack">
+                    <div class="trend-segment-a" style="height: 18%;"></div>
+                    <div class="trend-segment-b" style="height: 24%;"></div>
+                    <div class="trend-segment-c" style="height: 33%;"></div>
+                    <div class="trend-segment-d" style="height: 25%;"></div>
+                  </div>
+                  <span class="trend-label">W4</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Category Distribution -->
+            <div class="card">
+              <h2>Top 8 Categories</h2>
+              <div class="cat-row">
+                <span class="cat-name">Home & Kitchen</span>
+                <div class="cat-bar-track"><div class="cat-bar-fill" style="width: 78%;"></div></div>
+                <span class="cat-count">198</span>
+              </div>
+              <div class="cat-row">
+                <span class="cat-name">Electronics</span>
+                <div class="cat-bar-track"><div class="cat-bar-fill" style="width: 62%;"></div></div>
+                <span class="cat-count">156</span>
+              </div>
+              <div class="cat-row">
+                <span class="cat-name">Sports & Outdoors</span>
+                <div class="cat-bar-track"><div class="cat-bar-fill" style="width: 50%;"></div></div>
+                <span class="cat-count">124</span>
+              </div>
+              <div class="cat-row">
+                <span class="cat-name">Beauty & Care</span>
+                <div class="cat-bar-track"><div class="cat-bar-fill" style="width: 42%;"></div></div>
+                <span class="cat-count">105</span>
+              </div>
+              <div class="cat-row">
+                <span class="cat-name">Toys & Games</span>
+                <div class="cat-bar-track"><div class="cat-bar-fill" style="width: 36%;"></div></div>
+                <span class="cat-count">89</span>
+              </div>
+              <div class="cat-row">
+                <span class="cat-name">Garden & Patio</span>
+                <div class="cat-bar-track"><div class="cat-bar-fill" style="width: 30%;"></div></div>
+                <span class="cat-count">76</span>
+              </div>
+              <div class="cat-row">
+                <span class="cat-name">Pet Supplies</span>
+                <div class="cat-bar-track"><div class="cat-bar-fill" style="width: 26%;"></div></div>
+                <span class="cat-count">64</span>
+              </div>
+              <div class="cat-row">
+                <span class="cat-name">Automotive</span>
+                <div class="cat-bar-track"><div class="cat-bar-fill" style="width: 22%;"></div></div>
+                <span class="cat-count">54</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== Products Table ===== -->
+          <div class="table-card">
+            <!-- Table Header / Filters -->
+            <div class="table-header">
+              <h2>Products (1,247)</h2>
+              <div class="table-filters">
+                <select class="table-filter-select">
+                  <option>All Tiers</option>
+                  <option>A - High</option>
+                  <option>B - Medium</option>
+                  <option>C - Low</option>
+                  <option>D - Minimal</option>
+                </select>
+                <select class="table-filter-select">
+                  <option>All Categories</option>
+                  <option>Home & Kitchen</option>
+                  <option>Electronics</option>
+                  <option>Sports & Outdoors</option>
+                  <option>Beauty & Care</option>
+                </select>
+                <div class="table-search-wrap">
+                  <input type="text" placeholder="Search ASIN / Title..." class="table-search-input" />
+                  <svg class="table-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </div>
+              </div>
+            </div>
+
+            <!-- Table -->
+            <div style="overflow-x: auto;">
+              <table class="products-table">
+                <thead>
+                  <tr>
+                    <th>图片</th>
+                    <th>ASIN</th>
+                    <th>标题</th>
+                    <th class="text-right">月销量</th>
+                    <th class="text-center">销量等级</th>
+                    <th class="text-right">上架天数</th>
+                    <th class="text-right">BSR</th>
+                    <th class="text-right">价格</th>
+                    <th>类目</th>
+                    <th class="text-center">方法卡命中</th>
+                    <th class="text-center">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Row 1 -->
+                  <tr>
+                    <td><div class="cell-img"></div></td>
+                    <td class="cell-asin">B09XK7FQ2M</td>
+                    <td class="cell-title">Stainless Steel Insulated Water Bottle 750ml - Double Wall Vacuum</td>
+                    <td class="cell-units">2,340</td>
+                    <td class="text-center"><span class="tier-badge tier-badge-a">A</span></td>
+                    <td style="text-align: right; color: var(--text-600);">412</td>
+                    <td style="text-align: right; color: var(--text-600);">#1,234</td>
+                    <td style="text-align: right; color: var(--text-700);">&pound;24.99</td>
+                    <td class="cell-category">Home & Kitchen</td>
+                    <td class="cell-methods"><span class="method-count-tag">3 methods</span></td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="row-action-btn" style="color: var(--brand-500);" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                        <button class="row-action-btn" style="color: var(--text-500);" title="More"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <!-- Row 2 -->
+                  <tr>
+                    <td><div class="cell-img"></div></td>
+                    <td class="cell-asin">B0C8L2N5KQ</td>
+                    <td class="cell-title">Wireless Bluetooth Earbuds ANC Pro - Active Noise Cancelling 40h Battery</td>
+                    <td class="cell-units">1,890</td>
+                    <td class="text-center"><span class="tier-badge tier-badge-b">B</span></td>
+                    <td style="text-align: right; color: var(--text-600);">256</td>
+                    <td style="text-align: right; color: var(--text-600);">#3,567</td>
+                    <td style="text-align: right; color: var(--text-700);">&pound;34.99</td>
+                    <td class="cell-category">Electronics</td>
+                    <td class="cell-methods"><span class="method-count-tag">2 methods</span></td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="row-action-btn" style="color: var(--brand-500);" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                        <button class="row-action-btn" style="color: var(--text-500);" title="More"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <!-- Row 3 -->
+                  <tr>
+                    <td><div class="cell-img"></div></td>
+                    <td class="cell-asin">B0DF3R7W9A</td>
+                    <td class="cell-title">Yoga Mat Non-Slip Premium 6mm - Extra Thick Eco Friendly TPE Material</td>
+                    <td class="cell-units">1,456</td>
+                    <td class="text-center"><span class="tier-badge tier-badge-a">A</span></td>
+                    <td style="text-align: right; color: var(--text-600);">380</td>
+                    <td style="text-align: right; color: var(--text-600);">#2,890</td>
+                    <td style="text-align: right; color: var(--text-700);">&pound;18.99</td>
+                    <td class="cell-category">Sports & Outdoors</td>
+                    <td class="cell-methods"><span class="method-count-tag">1 method</span></td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="row-action-btn" style="color: var(--brand-500);" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                        <button class="row-action-btn" style="color: var(--text-500);" title="More"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <!-- Row 4 -->
+                  <tr>
+                    <td><div class="cell-img"></div></td>
+                    <td class="cell-asin">B0E5T9Q2P7</td>
+                    <td class="cell-title">LED Desk Lamp with Wireless Charger - 5 Brightness Levels Touch Control</td>
+                    <td class="cell-units">987</td>
+                    <td class="text-center"><span class="tier-badge tier-badge-c">C</span></td>
+                    <td style="text-align: right; color: var(--text-600);">189</td>
+                    <td style="text-align: right; color: var(--text-600);">#8,432</td>
+                    <td style="text-align: right; color: var(--text-700);">&pound;27.50</td>
+                    <td class="cell-category">Home & Kitchen</td>
+                    <td class="cell-methods"><span class="method-count-none">--</span></td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="row-action-btn" style="color: var(--brand-500);" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                        <button class="row-action-btn" style="color: var(--text-500);" title="More"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <!-- Row 5 -->
+                  <tr>
+                    <td><div class="cell-img"></div></td>
+                    <td class="cell-asin">B0F2W6K4M1</td>
+                    <td class="cell-title">Organic Bamboo Cutting Board Set - 3 Piece Juice Groove Kitchen Accessory</td>
+                    <td class="cell-units">756</td>
+                    <td class="text-center"><span class="tier-badge tier-badge-b">B</span></td>
+                    <td style="text-align: right; color: var(--text-600);">310</td>
+                    <td style="text-align: right; color: var(--text-600);">#5,210</td>
+                    <td style="text-align: right; color: var(--text-700);">&pound;22.99</td>
+                    <td class="cell-category">Home & Kitchen</td>
+                    <td class="cell-methods"><span class="method-count-tag">4 methods</span></td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="row-action-btn" style="color: var(--brand-500);" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                        <button class="row-action-btn" style="color: var(--text-500);" title="More"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <!-- Row 6 -->
+                  <tr>
+                    <td><div class="cell-img"></div></td>
+                    <td class="cell-asin">B0G7R8N3T5</td>
+                    <td class="cell-title">Portable Camping Hammock with Straps - 400lb Capacity Nylon Parachute</td>
+                    <td class="cell-units">543</td>
+                    <td class="text-center"><span class="tier-badge tier-badge-c">C</span></td>
+                    <td style="text-align: right; color: var(--text-600);">525</td>
+                    <td style="text-align: right; color: var(--text-600);">#12,670</td>
+                    <td style="text-align: right; color: var(--text-700);">&pound;15.99</td>
+                    <td class="cell-category">Sports & Outdoors</td>
+                    <td class="cell-methods"><span class="method-count-none">--</span></td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="row-action-btn" style="color: var(--brand-500);" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                        <button class="row-action-btn" style="color: var(--text-500);" title="More"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <!-- Row 7 -->
+                  <tr>
+                    <td><div class="cell-img"></div></td>
+                    <td class="cell-asin">B0H4P2Q7W6</td>
+                    <td class="cell-title">Electric Milk Frother Handheld - Rechargeable USB-C 3 Speed Settings</td>
+                    <td class="cell-units">321</td>
+                    <td class="text-center"><span class="tier-badge tier-badge-d">D</span></td>
+                    <td style="text-align: right; color: var(--text-600);">98</td>
+                    <td style="text-align: right; color: var(--text-600);">#34,120</td>
+                    <td style="text-align: right; color: var(--text-700);">&pound;12.99</td>
+                    <td class="cell-category">Home & Kitchen</td>
+                    <td class="cell-methods"><span class="method-count-none">--</span></td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="row-action-btn" style="color: var(--brand-500);" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                        <button class="row-action-btn" style="color: var(--text-500);" title="More"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <!-- Row 8 -->
+                  <tr>
+                    <td><div class="cell-img"></div></td>
+                    <td class="cell-asin">B0J8K5M2R3</td>
+                    <td class="cell-title">Silicone Dog Paw Cleaner Cup - Gentle Wash Mud Dirt Removal Portable</td>
+                    <td class="cell-units">198</td>
+                    <td class="text-center"><span class="tier-badge tier-badge-d">D</span></td>
+                    <td style="text-align: right; color: var(--text-600);">67</td>
+                    <td style="text-align: right; color: var(--text-600);">#56,890</td>
+                    <td style="text-align: right; color: var(--text-700);">&pound;9.99</td>
+                    <td class="cell-category">Pet Supplies</td>
+                    <td class="cell-methods"><span class="method-count-none">--</span></td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="row-action-btn" style="color: var(--brand-500);" title="View"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                        <button class="row-action-btn" style="color: var(--text-500);" title="More"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="table-pagination">
+              <span class="table-pagination-info">共 1,247 条，显示 1-8 条</span>
+              <div class="table-pagination-btns">
+                <button class="pg-btn pg-btn-disabled">Prev</button>
+                <button class="pg-btn active">1</button>
+                <button class="pg-btn">2</button>
+                <button class="pg-btn">3</button>
+                <span class="pg-ellipsis">...</span>
+                <button class="pg-btn">156</button>
+                <button class="pg-btn">Next</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </main>
+
+</body>
+</html>

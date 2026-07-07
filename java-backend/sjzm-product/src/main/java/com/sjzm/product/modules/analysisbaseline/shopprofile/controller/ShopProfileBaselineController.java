@@ -23,7 +23,7 @@ public class ShopProfileBaselineController {
     @Operation(summary = "查询店铺基线列表")
     public Result<List<ShopProfileBaseline>> listBaselines(
             @RequestParam(required = false) String baselineType,
-            @RequestParam(required = false, defaultValue = "ACTIVE") String status) {
+            @RequestParam(required = false) String status) {
         return Result.success(baselineService.listBaselines(baselineType, status));
     }
 

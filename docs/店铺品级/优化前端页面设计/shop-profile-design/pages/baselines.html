@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>基线管理 - 运营控制台</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style id="theme-vars">
+/* =============================================
+   Shop Profile Design System
+   Orange Warm Tone - Operations Console Style
+   ============================================= */
+
+/* --- Brand Prefix: sp --- */
+
+/* --- Color System (Orange Warm Tone) --- */
+:root {
+  /* Primary Orange */
+  --sp-color-primary: #E8621C;
+  --sp-color-primary-hover: #D4570F;
+  --sp-color-primary-light: #FFF4EE;
+  --sp-color-primary-lighter: #FFF9F5;
+  --sp-color-primary-subtle: rgba(232, 98, 28, 0.08);
+
+  /* Neutral Palette */
+  --sp-color-bg: #F7F5F3;
+  --sp-color-bg-elevated: #FFFFFF;
+  --sp-color-bg-inset: #F0EDEA;
+  --sp-color-bg-sunken: #EBE8E4;
+
+  --sp-color-fg: #1A1612;
+  --sp-color-fg-secondary: #5C554D;
+  --sp-color-fg-tertiary: #8A837A;
+  --sp-color-fg-quaternary: #B0A99F;
+  --sp-color-fg-inverse: #FFFFFF;
+
+  /* Border */
+  --sp-color-border: #E2DDD8;
+  --sp-color-border-light: #EDEAE7;
+  --sp-color-border-focus: #E8621C;
+
+  /* Status Colors */
+  --sp-state-success: #2E8B57;
+  --sp-state-success-bg: #ECFDF5;
+  --sp-state-warning: #D97706;
+  --sp-state-warning-bg: #FFFBEB;
+  --sp-state-error: #DC2626;
+  --sp-state-error-bg: #FEF2F2;
+  --sp-state-info: #2563EB;
+  --sp-state-info-bg: #EFF6FF;
+
+  /* Sales Tier Colors */
+  --sp-tier-a: #E8621C;
+  --sp-tier-a-bg: #FFF4EE;
+  --sp-tier-b: #D97706;
+  --sp-tier-b-bg: #FFFBEB;
+  --sp-tier-c: #2563EB;
+  --sp-tier-c-bg: #EFF6FF;
+  --sp-tier-d: #8A837A;
+  --sp-tier-d-bg: #F5F3F1;
+  --sp-tier-unknown: #B0A99F;
+  --sp-tier-unknown-bg: #F9F7F5;
+  --sp-tier-abc: #7C3AED;
+  --sp-tier-abc-bg: #F5F3FF;
+
+  /* Semantic Colors */
+  --sp-color-link: #E8621C;
+  --sp-color-link-hover: #D4570F;
+  --sp-color-similarity-high: #2E8B57;
+  --sp-color-similarity-medium: #D97706;
+  --sp-color-similarity-low: #DC2626;
+
+  /* Radius */
+  --sp-radius-sm: 4px;
+  --sp-radius-md: 8px;
+  --sp-radius-lg: 12px;
+  --sp-radius-full: 9999px;
+
+  /* Shadow */
+  --sp-shadow-sm: 0 1px 2px rgba(26, 22, 18, 0.04);
+  --sp-shadow-md: 0 2px 8px rgba(26, 22, 18, 0.06);
+  --sp-shadow-lg: 0 8px 24px rgba(26, 22, 18, 0.08);
+
+  /* Typography */
+  --sp-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+  --sp-font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+
+  --sp-font-size-xs: 12px;
+  --sp-font-size-sm: 13px;
+  --sp-font-size-base: 14px;
+  --sp-font-size-md: 15px;
+  --sp-font-size-lg: 16px;
+  --sp-font-size-xl: 18px;
+  --sp-font-size-2xl: 20px;
+  --sp-font-size-3xl: 24px;
+
+  --sp-line-height-tight: 1.25;
+  --sp-line-height-normal: 1.5;
+  --sp-line-height-relaxed: 1.625;
+
+  --sp-letter-spacing-tight: -0.025em;
+  --sp-letter-spacing-normal: 0;
+  --sp-letter-spacing-wide: 0.025em;
+
+  --sp-font-weight-normal: 400;
+  --sp-font-weight-medium: 500;
+  --sp-font-weight-semibold: 600;
+  --sp-font-weight-bold: 700;
+
+  /* Spacing */
+  --sp-space-1: 4px;
+  --sp-space-2: 8px;
+  --sp-space-3: 12px;
+  --sp-space-4: 16px;
+  --sp-space-5: 20px;
+  --sp-space-6: 24px;
+  --sp-space-8: 32px;
+
+  /* Layout */
+  --sp-sidebar-width: 220px;
+  --sp-header-height: 56px;
+  --sp-content-max-width: 1440px;
+}
+
+/* --- Dark Mode --- */
+html.dark {
+  --sp-color-primary: #F08A4B;
+  --sp-color-primary-hover: #E97D3A;
+  --sp-color-primary-light: rgba(240, 138, 75, 0.12);
+  --sp-color-primary-lighter: rgba(240, 138, 75, 0.06);
+  --sp-color-primary-subtle: rgba(240, 138, 75, 0.06);
+
+  --sp-color-bg: #121010;
+  --sp-color-bg-elevated: #1C1917;
+  --sp-color-bg-inset: #242120;
+  --sp-color-bg-sunken: #1C1917;
+
+  --sp-color-fg: #F5F3F0;
+  --sp-color-fg-secondary: #A8A19A;
+  --sp-color-fg-tertiary: #78716C;
+  --sp-color-fg-quaternary: #57534E;
+  --sp-color-fg-inverse: #1A1612;
+
+  --sp-color-border: #2C2825;
+  --sp-color-border-light: #1F1C1A;
+  --sp-color-border-focus: #F08A4B;
+
+  --sp-state-success-bg: rgba(46, 139, 87, 0.12);
+  --sp-state-warning-bg: rgba(217, 119, 6, 0.12);
+  --sp-state-error-bg: rgba(220, 38, 38, 0.12);
+  --sp-state-info-bg: rgba(37, 99, 235, 0.12);
+
+  --sp-tier-a-bg: rgba(240, 138, 75, 0.12);
+  --sp-tier-b-bg: rgba(217, 119, 6, 0.12);
+  --sp-tier-c-bg: rgba(37, 99, 235, 0.12);
+  --sp-tier-d-bg: rgba(138, 131, 122, 0.12);
+  --sp-tier-unknown-bg: rgba(176, 169, 159, 0.08);
+  --sp-tier-abc-bg: rgba(124, 58, 237, 0.12);
+
+  --sp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --sp-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --sp-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* --- Typography Classes --- */
+.sp-text-heading-1 {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-3xl);
+  font-weight: var(--sp-font-weight-bold);
+  line-height: var(--sp-line-height-tight);
+  letter-spacing: var(--sp-letter-spacing-tight);
+  color: var(--sp-color-fg);
+}
+
+.sp-text-heading-2 {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-2xl);
+  font-weight: var(--sp-font-weight-semibold);
+  line-height: var(--sp-line-height-tight);
+  letter-spacing: var(--sp-letter-spacing-tight);
+  color: var(--sp-color-fg);
+}
+
+.sp-text-heading-3 {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-xl);
+  font-weight: var(--sp-font-weight-semibold);
+  line-height: var(--sp-line-height-tight);
+  color: var(--sp-color-fg);
+}
+
+.sp-text-body {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-base);
+  font-weight: var(--sp-font-weight-normal);
+  line-height: var(--sp-line-height-normal);
+  color: var(--sp-color-fg-secondary);
+}
+
+.sp-text-caption {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-sm);
+  font-weight: var(--sp-font-weight-normal);
+  line-height: var(--sp-line-height-normal);
+  color: var(--sp-color-fg-tertiary);
+}
+
+.sp-text-mono {
+  font-family: var(--sp-font-mono);
+  font-size: var(--sp-font-size-sm);
+  line-height: var(--sp-line-height-normal);
+  color: var(--sp-color-fg);
+}
+
+    </style>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-primary: var(--sp-color-primary);
+    --color-primary-hover: var(--sp-color-primary-hover);
+    --color-primary-light: var(--sp-color-primary-light);
+    --color-foreground: var(--sp-color-fg);
+    --color-background: var(--sp-color-bg);
+    --color-surface: var(--sp-color-bg-elevated);
+    --color-border: var(--sp-color-border);
+    --color-muted: var(--sp-color-fg-tertiary);
+  }
+  @layer base {
+    body { background: var(--sp-color-bg); color: var(--sp-color-fg); font-family: var(--sp-font-family); }
+    td, th { word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body>
+  <div style="max-width: var(--sp-content-max-width); margin: 0 auto; padding: 20px 24px;">
+
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb" style="margin-bottom: 14px;">
+      <a href="#">店铺画像</a>
+      <span class="breadcrumb__sep">/</span>
+      <span class="breadcrumb__current">基线管理</span>
+    </nav>
+
+    <!-- ============================== -->
+    <!-- SECTION 1: Baseline List       -->
+    <!-- ============================== -->
+
+    <!-- Page Title -->
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+      <h1 style="font-size: var(--sp-font-size-xl); font-weight: var(--sp-font-weight-bold); color: var(--sp-color-fg); margin: 0;">
+        基线管理
+      </h1>
+      <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--sp-color-fg-tertiary);">
+        <span>共 <span class="mono" style="color: var(--sp-color-fg);">4</span> 条基线</span>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div style="background: var(--sp-color-bg-elevated); border: 1px solid var(--sp-color-border); border-radius: var(--sp-radius-md); padding: 12px 16px; margin-bottom: 12px; box-shadow: var(--sp-shadow-sm);">
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: nowrap;">
+
+        <!-- Create Baseline Button -->
+        <button class="btn btn--primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          创建基线
+        </button>
+
+        <!-- Divider -->
+        <div style="width: 1px; height: 24px; background: var(--sp-color-border);"></div>
+
+        <!-- Type Filter -->
+        <select class="ctrl-select" style="width: 120px;" title="基线类型">
+          <option value="">全部类型</option>
+          <option value="ZHENG">ZHENG</option>
+          <option value="CUSTOM">CUSTOM</option>
+          <option value="LEGACY">LEGACY</option>
+        </select>
+
+        <!-- Status Filter -->
+        <select class="ctrl-select" style="width: 120px;" title="状态">
+          <option value="">全部状态</option>
+          <option value="ACTIVE">ACTIVE</option>
+          <option value="INACTIVE">INACTIVE</option>
+        </select>
+
+        <!-- Divider -->
+        <div style="width: 1px; height: 24px; background: var(--sp-color-border);"></div>
+
+        <!-- Search -->
+        <input type="text" class="ctrl-input" style="width: 200px;" placeholder="搜索基线名称/编码..." title="搜索">
+
+        <!-- Spacer -->
+        <div style="flex: 1;"></div>
+
+        <!-- Refresh Button -->
+        <button class="btn btn--outline" title="刷新">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+          刷新
+        </button>
+      </div>
+    </div>
+
+    <!-- Baseline Table -->
+    <div style="background: var(--sp-color-bg-elevated); border: 1px solid var(--sp-color-border); border-radius: var(--sp-radius-md); overflow: auto; box-shadow: var(--sp-shadow-sm);">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="min-width: 200px;">基线编码</th>
+            <th style="min-width: 180px;">基线名称</th>
+            <th style="width: 90px;">类型</th>
+            <th style="width: 120px;">适用市场</th>
+            <th style="width: 70px; text-align: right;">店铺数</th>
+            <th style="width: 100px;">状态</th>
+            <th style="width: 200px;">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Row 1: ZHENG_UK_DE -->
+          <tr>
+            <td class="mono" style="font-size: 12px; color: var(--sp-color-fg);">ZHENG_UK_DE</td>
+            <td style="font-weight: var(--sp-font-weight-medium);">郑总 UK/DE 精铺基线</td>
+            <td><span class="badge-type badge-type--zheng">ZHENG</span></td>
+            <td>
+              <span class="badge-market badge-market--uk" style="margin-right: 4px;">UK</span>
+              <span class="badge-market badge-market--de">DE</span>
+            </td>
+            <td class="mono" style="text-align: right; font-weight: var(--sp-font-weight-semibold); color: var(--sp-color-fg);">23</td>
+            <td>
+              <span class="status-indicator">
+                <span class="status-dot status-dot--active"></span>
+                <span style="color: var(--sp-state-success);">ACTIVE</span>
+              </span>
+            </td>
+            <td>
+              <div class="action-group">
+                <button class="btn btn--outline btn--sm">查看成员</button>
+                <button class="btn btn--outline btn--sm">编辑</button>
+                <button class="btn btn--primary btn--sm">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v4m0 12v4m-10-10h4m12 0h4"></path><path d="M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83m0-14.14l-2.83 2.83M7.76 16.24l-2.83 2.83"></path></svg>
+                  定位
+                </button>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Row 2: OWN_PREMIUM_UK -->
+          <tr>
+            <td class="mono" style="font-size: 12px; color: var(--sp-color-fg);">OWN_PREMIUM_UK</td>
+            <td style="font-weight: var(--sp-font-weight-medium);">自有优质店基线</td>
+            <td><span class="badge-type badge-type--custom">CUSTOM</span></td>
+            <td>
+              <span class="badge-market badge-market--uk">UK</span>
+            </td>
+            <td class="mono" style="text-align: right; font-weight: var(--sp-font-weight-semibold); color: var(--sp-color-fg);">15</td>
+            <td>
+              <span class="status-indicator">
+                <span class="status-dot status-dot--active"></span>
+                <span style="color: var(--sp-state-success);">ACTIVE</span>
+              </span>
+            </td>
+            <td>
+              <div class="action-group">
+                <button class="btn btn--outline btn--sm">查看成员</button>
+                <button class="btn btn--outline btn--sm">编辑</button>
+                <button class="btn btn--primary btn--sm">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v4m0 12v4m-10-10h4m12 0h4"></path><path d="M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83m0-14.14l-2.83 2.83M7.76 16.24l-2.83 2.83"></path></svg>
+                  定位
+                </button>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Row 3: METHOD_CARD_HIGH -->
+          <tr>
+            <td class="mono" style="font-size: 12px; color: var(--sp-color-fg);">METHOD_CARD_HIGH</td>
+            <td style="font-weight: var(--sp-font-weight-medium);">方法卡高命中店基线</td>
+            <td><span class="badge-type badge-type--custom">CUSTOM</span></td>
+            <td>
+              <span class="badge-market badge-market--uk" style="margin-right: 4px;">UK</span>
+              <span class="badge-market badge-market--de">DE</span>
+            </td>
+            <td class="mono" style="text-align: right; font-weight: var(--sp-font-weight-semibold); color: var(--sp-color-fg);">42</td>
+            <td>
+              <span class="status-indicator">
+                <span class="status-dot status-dot--active"></span>
+                <span style="color: var(--sp-state-success);">ACTIVE</span>
+              </span>
+            </td>
+            <td>
+              <div class="action-group">
+                <button class="btn btn--outline btn--sm">查看成员</button>
+                <button class="btn btn--outline btn--sm">编辑</button>
+                <button class="btn btn--primary btn--sm">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v4m0 12v4m-10-10h4m12 0h4"></path><path d="M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83m0-14.14l-2.83 2.83M7.76 16.24l-2.83 2.83"></path></svg>
+                  定位
+                </button>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Row 4: LEGACY_US_V1 -->
+          <tr>
+            <td class="mono" style="font-size: 12px; color: var(--sp-color-fg);">LEGACY_US_V1</td>
+            <td style="font-weight: var(--sp-font-weight-medium); color: var(--sp-color-fg-secondary);">US 遗留基线 V1</td>
+            <td><span class="badge-type badge-type--legacy">LEGACY</span></td>
+            <td>
+              <span class="badge-market badge-market--us">US</span>
+            </td>
+            <td class="mono" style="text-align: right; font-weight: var(--sp-font-weight-semibold); color: var(--sp-color-fg);">8</td>
+            <td>
+              <span class="status-indicator">
+                <span class="status-dot status-dot--inactive"></span>
+                <span style="color: var(--sp-color-fg-tertiary);">INACTIVE</span>
+              </span>
+            </td>
+            <td>
+              <div class="action-group">
+                <button class="btn btn--outline btn--sm" style="opacity: 0.5;">查看成员</button>
+                <button class="btn btn--outline btn--sm" style="opacity: 0.5;">编辑</button>
+                <button class="btn btn--primary btn--sm" style="opacity: 0.5;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v4m0 12v4m-10-10h4m12 0h4"></path><path d="M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83m0-14.14l-2.83 2.83M7.76 16.24l-2.83 2.83"></path></svg>
+                  定位
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Table Footer -->
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-top: 1px solid var(--sp-color-border-light); font-size: 12px; color: var(--sp-color-fg-tertiary);">
+        <span>共 <span class="mono" style="color: var(--sp-color-fg);">4</span> 条基线，当前显示 <span class="mono" style="color: var(--sp-color-fg);">1-4</span></span>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span>每页</span>
+          <select class="ctrl-select" style="width: 65px; height: 26px; font-size: 12px;">
+            <option>20</option>
+            <option>50</option>
+            <option>100</option>
+          </select>
+          <span>条</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section Divider -->
+    <div class="section-divider"></div>
+
+    <!-- ============================== -->
+    <!-- SECTION 2: Positioning Panel    -->
+    <!-- ============================== -->
+
+    <div class="positioning-panel">
+      <!-- Panel Header -->
+      <div class="positioning-panel__header">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--sp-color-primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v4m0 12v4m-10-10h4m12 0h4"></path><path d="M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83m0-14.14l-2.83 2.83M7.76 16.24l-2.83 2.83"></path></svg>
+        <h2 style="font-size: var(--sp-font-size-lg); font-weight: var(--sp-font-weight-semibold); color: var(--sp-color-fg); margin: 0;">
+          基线定位 — 郑总 UK/DE 精铺基线
+        </h2>
+        <span class="mono" style="font-size: 11px; color: var(--sp-color-fg-quaternary); margin-left: 8px;">ZHENG_UK_DE</span>
+      </div>
+
+      <!-- Filter Bar -->
+      <div style="padding: 12px 20px; border-bottom: 1px solid var(--sp-color-border-light); display: flex; align-items: center; gap: 10px;">
+        <!-- Marketplace Segmented Control -->
+        <span style="font-size: 12px; color: var(--sp-color-fg-tertiary); font-weight: var(--sp-font-weight-medium);">Marketplace</span>
+        <div class="seg-group">
+          <button class="seg-btn seg-btn--active" data-market="uk">UK</button>
+          <button class="seg-btn" data-market="de">DE</button>
+          <button class="seg-btn" data-market="us">US</button>
+        </div>
+
+        <!-- Divider -->
+        <div style="width: 1px; height: 24px; background: var(--sp-color-border);"></div>
+
+        <!-- Batch Date -->
+        <span style="font-size: 12px; color: var(--sp-color-fg-tertiary); font-weight: var(--sp-font-weight-medium);">批次日期</span>
+        <input type="date" class="ctrl-input" style="width: 150px;" value="2025-06-15" title="批次日期">
+
+        <!-- Limit -->
+        <span style="font-size: 12px; color: var(--sp-color-fg-tertiary); font-weight: var(--sp-font-weight-medium);">Limit</span>
+        <input type="number" class="ctrl-input mono" style="width: 70px;" value="50" title="返回条数限制">
+
+        <!-- Divider -->
+        <div style="width: 1px; height: 24px; background: var(--sp-color-border);"></div>
+
+        <!-- Shop Search -->
+        <input type="text" class="ctrl-input" style="width: 180px;" placeholder="搜索店铺名称..." title="店铺名称搜索">
+
+        <!-- Spacer -->
+        <div style="flex: 1;"></div>
+
+        <!-- Compute Button -->
+        <button class="btn btn--primary" style="height: 34px; padding: 0 18px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"></rect><rect x="9" y="9" width="6" height="6"></rect><path d="M15 2v2m-6-2v2m6 16v2m-6-2v2"></path><path d="M2 15h2m-2-6h2m16 6h2m-16-6h2"></path></svg>
+          计算定位
+        </button>
+      </div>
+
+      <!-- Positioning Results Table -->
+      <div class="positioning-panel__body" style="overflow: auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="min-width: 160px;">店铺</th>
+              <th style="width: 150px;">相似度</th>
+              <th style="width: 100px;">定位标签</th>
+              <th style="width: 70px; text-align: right;">商品数</th>
+              <th style="width: 75px; text-align: right;">A占比</th>
+              <th style="width: 80px; text-align: right;">AB占比</th>
+              <th style="width: 80px; text-align: right;">ABC占比</th>
+              <th style="width: 75px; text-align: right;">D占比</th>
+              <th style="width: 90px; text-align: right;">类目匹配分</th>
+              <th style="min-width: 200px;">解释</th>
+              <th style="width: 90px;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Positioning Row 1: High similarity -->
+            <tr>
+              <td><a class="shop-name-link" href="#">TechGear Direct UK</a></td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="mono" style="font-weight: var(--sp-font-weight-semibold); color: var(--sp-color-similarity-high);">0.92</span>
+                  <span class="badge-sim badge-sim--high">高度相似</span>
+                </div>
+                <div class="sim-bar-track">
+                  <div class="sim-bar-fill sim-bar-fill--high" style="width: 92%;"></div>
+                </div>
+              </td>
+              <td><span class="badge-label badge-label--match">精准匹配</span></td>
+              <td class="mono" style="text-align: right;">1,247</td>
+              <td style="text-align: right;">
+                <span class="mono">12.1%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 12%; background: var(--sp-tier-a);"></span></span>
+              </td>
+              <td style="text-align: right;">
+                <span class="mono">30.2%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 30%; background: var(--sp-tier-b);"></span></span>
+              </td>
+              <td style="text-align: right;">
+                <span class="mono">54.8%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 55%; background: var(--sp-tier-c);"></span></span>
+              </td>
+              <td style="text-align: right;">
+                <span class="mono">45.2%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 45%; background: var(--sp-tier-d);"></span></span>
+              </td>
+              <td class="mono" style="text-align: right; color: var(--sp-state-success);">0.95</td>
+              <td><span class="text-truncate" title="店铺结构与基线高度一致，A/AB/ABC/D占比分布曲线几乎完全重合，类目结构匹配度极高，属于典型的精铺模式店铺。">店铺结构与基线高度一致，A/AB/ABC/D占比分布曲线几乎完全重合，类目结构匹配度极高，属于典型的精铺模式店铺。</span></td>
+              <td>
+                <div class="action-group">
+                  <button class="btn btn--outline btn--sm">查看详情</button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- Positioning Row 2: High similarity -->
+            <tr>
+              <td><a class="shop-name-link" href="#">HomeStyle Collections</a></td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="mono" style="font-weight: var(--sp-font-weight-semibold); color: var(--sp-color-similarity-high);">0.87</span>
+                  <span class="badge-sim badge-sim--high">高度相似</span>
+                </div>
+                <div class="sim-bar-track">
+                  <div class="sim-bar-fill sim-bar-fill--high" style="width: 87%;"></div>
+                </div>
+              </td>
+              <td><span class="badge-label badge-label--match">高度相似</span></td>
+              <td class="mono" style="text-align: right;">862</td>
+              <td style="text-align: right;">
+                <span class="mono">27.8%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 28%; background: var(--sp-tier-a);"></span></span>
+              </td>
+              <td style="text-align: right;">
+                <span class="mono">50.1%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 50%; background: var(--sp-tier-b);"></span></span>
+              </td>
+              <td style="text-align: right;">
+                <span class="mono">70.2%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 70%; background: var(--sp-tier-c);"></span></span>
+              </td>
+              <td style="text-align: right;">
+                <span class="mono">29.8%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 30%; background: var(--sp-tier-d);"></span></span>
+              </td>
+              <td class="mono" style="text-align: right; color: var(--sp-state-success);">0.88</td>
+              <td><span class="text-truncate" title="商品数略低于基线均值，但结构分布合理，A类占比较高，整体运营健康度良好。">商品数略低于基线均值，但结构分布合理，A类占比较高，整体运营健康度良好。</span></td>
+              <td>
+                <div class="action-group">
+                  <button class="btn btn--outline btn--sm">查看详情</button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- Positioning Row 3: Medium similarity -->
+            <tr>
+              <td><a class="shop-name-link" href="#">AutoParts Express</a></td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="mono" style="font-weight: var(--sp-font-weight-semibold); color: var(--sp-color-similarity-medium);">0.65</span>
+                  <span class="badge-sim badge-sim--medium">中度相似</span>
+                </div>
+                <div class="sim-bar-track">
+                  <div class="sim-bar-fill sim-bar-fill--medium" style="width: 65%;"></div>
+                </div>
+              </td>
+              <td><span class="badge-label badge-label--medium">中度偏离</span></td>
+              <td class="mono" style="text-align: right;">534</td>
+              <td style="text-align: right;">
+                <span class="mono">34.6%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 35%; background: var(--sp-tier-a);"></span></span>
+              </td>
+              <td style="text-align: right;">
+                <span class="mono">59.8%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 60%; background: var(--sp-tier-b);"></span></span>
+              </td>
+              <td style="text-align: right;">
+                <span class="mono">82.0%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 82%; background: var(--sp-tier-c);"></span></span>
+              </td>
+              <td style="text-align: right;">
+                <span class="mono">18.0%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 18%; background: var(--sp-tier-d);"></span></span>
+              </td>
+              <td class="mono" style="text-align: right; color: var(--sp-state-warning);">0.62</td>
+              <td><span class="text-truncate" title="商品数量偏低，但A类集中度极高，属于小而精类型。主要偏离点在于总SKU数与基线均值差距较大。">商品数量偏低，但A类集中度极高，属于小而精类型。主要偏离点在于总SKU数与基线均值差距较大。</span></td>
+              <td>
+                <div class="action-group">
+                  <button class="btn btn--outline btn--sm">查看详情</button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- Positioning Row 4: Medium similarity -->
+            <tr>
+              <td><a class="shop-name-link" href="#">NaturKraft GmbH</a></td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="mono" style="font-weight: var(--sp-font-weight-semibold); color: var(--sp-color-similarity-medium);">0.58</span>
+                  <span class="badge-sim badge-sim--medium">中度相似</span>
+                </div>
+                <div class="sim-bar-track">
+                  <div class="sim-bar-fill sim-bar-fill--medium" style="width: 58%;"></div>
+                </div>
+              </td>
+              <td><span class="badge-label badge-label--close">结构接近</span></td>
+              <td class="mono" style="text-align: right;">2,103</td>
+              <td style="text-align: right;">
+                <span class="mono">7.9%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 8%; background: var(--sp-tier-a);"></span></span>
+              </td>
+              <td style="text-align: right;">
+                <span class="mono">22.1%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 22%; background: var(--sp-tier-b);"></span></span>
+              </td>
+              <td style="text-align: right;">
+                <span class="mono">49.6%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 50%; background: var(--sp-tier-c);"></span></span>
+              </td>
+              <td style="text-align: right;">
+                <span class="mono">50.4%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 50%; background: var(--sp-tier-d);"></span></span>
+              </td>
+              <td class="mono" style="text-align: right; color: var(--sp-state-warning);">0.55</td>
+              <td><span class="text-truncate" title="商品数远超基线均值，D类占比偏高，属于铺货型店铺。类目结构与基线有一定重叠但差异化明显。">商品数远超基线均值，D类占比偏高，属于铺货型店铺。类目结构与基线有一定重叠但差异化明显。</span></td>
+              <td>
+                <div class="action-group">
+                  <button class="btn btn--outline btn--sm">查看详情</button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- Positioning Row 5: Low similarity -->
+            <tr>
+              <td><a class="shop-name-link" href="#">BuroBestellungen.de</a></td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="mono" style="font-weight: var(--sp-font-weight-semibold); color: var(--sp-color-similarity-low);">0.41</span>
+                  <span class="badge-sim badge-sim--low">低度相似</span>
+                </div>
+                <div class="sim-bar-track">
+                  <div class="sim-bar-fill sim-bar-fill--low" style="width: 41%;"></div>
+                </div>
+              </td>
+              <td><span class="badge-label badge-label--diff">差异化较大</span></td>
+              <td class="mono" style="text-align: right;">1,891</td>
+              <td style="text-align: right;">
+                <span class="mono">17.5%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 18%; background: var(--sp-tier-a);"></span></span>
+              </td>
+              <td style="text-align: right;">
+                <span class="mono">37.8%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 38%; background: var(--sp-tier-b);"></span></span>
+              </td>
+              <td style="text-align: right;">
+                <span class="mono">60.3%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 60%; background: var(--sp-tier-c);"></span></span>
+              </td>
+              <td style="text-align: right;">
+                <span class="mono">39.7%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 40%; background: var(--sp-tier-d);"></span></span>
+              </td>
+              <td class="mono" style="text-align: right; color: var(--sp-state-error);">0.38</td>
+              <td><span class="text-truncate" title="类目结构以办公文具为主，与基线消费电子类目差异显著，不建议归入当前基线分组。">类目结构以办公文具为主，与基线消费电子类目差异显著，不建议归入当前基线分组。</span></td>
+              <td>
+                <div class="action-group">
+                  <button class="btn btn--outline btn--sm">查看详情</button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- Positioning Row 6: Low similarity -->
+            <tr>
+              <td><a class="shop-name-link" href="#">PetPal Supplies Ltd</a></td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="mono" style="font-weight: var(--sp-font-weight-semibold); color: var(--sp-color-similarity-low);">0.33</span>
+                  <span class="badge-sim badge-sim--low">低度相似</span>
+                </div>
+                <div class="sim-bar-track">
+                  <div class="sim-bar-fill sim-bar-fill--low" style="width: 33%;"></div>
+                </div>
+              </td>
+              <td><span class="badge-label badge-label--diff">差异化较大</span></td>
+              <td class="mono" style="text-align: right;">675</td>
+              <td style="text-align: right;">
+                <span class="mono">21.8%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 22%; background: var(--sp-tier-a);"></span></span>
+              </td>
+              <td style="text-align: right;">
+                <span class="mono">45.6%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 46%; background: var(--sp-tier-b);"></span></span>
+              </td>
+              <td style="text-align: right;">
+                <span class="mono">65.0%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 65%; background: var(--sp-tier-c);"></span></span>
+              </td>
+              <td style="text-align: right;">
+                <span class="mono">35.0%</span>
+                <span class="mini-bar-track"><span class="mini-bar-fill" style="width: 35%; background: var(--sp-tier-d);"></span></span>
+              </td>
+              <td class="mono" style="text-align: right; color: var(--sp-state-error);">0.29</td>
+              <td><span class="text-truncate" title="宠物用品垂直店铺，类目完全不同，ABC分布虽有相似度但维度不具参考价值。">宠物用品垂直店铺，类目完全不同，ABC分布虽有相似度但维度不具参考价值。</span></td>
+              <td>
+                <div class="action-group">
+                  <button class="btn btn--outline btn--sm">查看详情</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Positioning Table Footer -->
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-top: 1px solid var(--sp-color-border-light); font-size: 12px; color: var(--sp-color-fg-tertiary);">
+          <span>共 <span class="mono" style="color: var(--sp-color-fg);">6</span> 条定位结果，当前显示 <span class="mono" style="color: var(--sp-color-fg);">1-6</span></span>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-size: 11px;">
+              <span style="display: inline-flex; align-items: center; gap: 4px;"><span class="status-dot status-dot--active" style="width: 6px; height: 6px;"></span>高度相似 (>=0.8)</span>
+              <span style="margin-left: 12px; display: inline-flex; align-items: center; gap: 4px;"><span style="width: 6px; height: 6px; border-radius: 50%; background: var(--sp-state-warning);"></span>中度相似 (0.5-0.8)</span>
+              <span style="margin-left: 12px; display: inline-flex; align-items: center; gap: 4px;"><span style="width: 6px; height: 6px; border-radius: 50%; background: var(--sp-state-error);"></span>低度相似 (<0.5)</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Segmented Control Interactivity -->
+  <script>
+    document.querySelectorAll('.seg-group').forEach(group => {
+      group.querySelectorAll('.seg-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          group.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('seg-btn--active'));
+          btn.classList.add('seg-btn--active');
+        });
+      });
+    });
+  </script>
+
+    <style>
+    body {
+      font-family: var(--sp-font-family);
+      font-size: var(--sp-font-size-sm);
+      background: var(--sp-color-bg);
+      color: var(--sp-color-fg);
+      line-height: var(--sp-line-height-normal);
+      margin: 0;
+      padding: 0;
+      min-width: 1366px;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--sp-color-bg-inset); }
+    ::-webkit-scrollbar-thumb { background: var(--sp-color-fg-quaternary); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--sp-color-fg-tertiary); }
+
+    /* Mono for numbers */
+    .mono { font-family: var(--sp-font-mono); font-size: var(--sp-font-size-sm); }
+
+    /* Compact inputs */
+    .ctrl-input,
+    .ctrl-select {
+      height: 32px;
+      padding: 0 10px;
+      border: 1px solid var(--sp-color-border);
+      border-radius: var(--sp-radius-sm);
+      background: var(--sp-color-bg-elevated);
+      color: var(--sp-color-fg);
+      font-size: var(--sp-font-size-sm);
+      font-family: var(--sp-font-family);
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      line-height: 30px;
+    }
+    .ctrl-input:focus,
+    .ctrl-select:focus {
+      border-color: var(--sp-color-border-focus);
+      box-shadow: 0 0 0 2px var(--sp-color-primary-subtle);
+    }
+    .ctrl-input::placeholder { color: var(--sp-color-fg-quaternary); }
+
+    /* Segmented control */
+    .seg-group {
+      display: inline-flex;
+      border: 1px solid var(--sp-color-border);
+      border-radius: var(--sp-radius-sm);
+      overflow: hidden;
+    }
+    .seg-btn {
+      height: 32px;
+      padding: 0 16px;
+      border: none;
+      background: var(--sp-color-bg-elevated);
+      color: var(--sp-color-fg-secondary);
+      font-size: var(--sp-font-size-sm);
+      font-family: var(--sp-font-family);
+      font-weight: var(--sp-font-weight-medium);
+      cursor: pointer;
+      transition: all 0.15s;
+      border-right: 1px solid var(--sp-color-border);
+      line-height: 32px;
+    }
+    .seg-btn:last-child { border-right: none; }
+    .seg-btn:hover:not(.seg-btn--active) {
+      background: var(--sp-color-bg-inset);
+      color: var(--sp-color-fg);
+    }
+    .seg-btn--active {
+      background: var(--sp-color-primary);
+      color: var(--sp-color-fg-inverse);
+    }
+
+    /* Buttons */
+    .btn {
+      height: 32px;
+      padding: 0 14px;
+      border-radius: var(--sp-radius-sm);
+      font-size: var(--sp-font-size-sm);
+      font-family: var(--sp-font-family);
+      font-weight: var(--sp-font-weight-medium);
+      cursor: pointer;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .btn--outline {
+      border: 1px solid var(--sp-color-border);
+      background: var(--sp-color-bg-elevated);
+      color: var(--sp-color-fg-secondary);
+    }
+    .btn--outline:hover {
+      border-color: var(--sp-color-fg-tertiary);
+      color: var(--sp-color-fg);
+      background: var(--sp-color-bg-inset);
+    }
+    .btn--primary {
+      border: 1px solid var(--sp-color-primary);
+      background: var(--sp-color-primary);
+      color: var(--sp-color-fg-inverse);
+    }
+    .btn--primary:hover {
+      background: var(--sp-color-primary-hover);
+      border-color: var(--sp-color-primary-hover);
+    }
+    .btn--sm {
+      height: 26px;
+      padding: 0 10px;
+      font-size: var(--sp-font-size-xs);
+    }
+    .btn--link {
+      height: auto;
+      padding: 0;
+      border: none;
+      background: none;
+      color: var(--sp-color-link);
+      font-size: var(--sp-font-size-xs);
+      font-weight: var(--sp-font-weight-medium);
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .btn--link:hover { color: var(--sp-color-link-hover); }
+
+    /* Table */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .data-table thead th {
+      position: sticky;
+      top: 0;
+      background: var(--sp-color-bg-inset);
+      color: var(--sp-color-fg-tertiary);
+      font-size: 11px;
+      font-weight: var(--sp-font-weight-semibold);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 8px 12px;
+      text-align: left;
+      white-space: nowrap;
+      border-bottom: 1px solid var(--sp-color-border);
+      user-select: none;
+    }
+    .data-table tbody tr {
+      transition: background 0.1s;
+    }
+    .data-table tbody tr:nth-child(even) {
+      background: var(--sp-color-primary-lighter);
+    }
+    .data-table tbody tr:hover {
+      background: var(--sp-color-primary-light);
+    }
+    .data-table tbody td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--sp-color-border-light);
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    /* Marketplace badge */
+    .badge-market {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 32px;
+      height: 22px;
+      padding: 0 8px;
+      border-radius: var(--sp-radius-full);
+      font-size: 11px;
+      font-weight: var(--sp-font-weight-semibold);
+      letter-spacing: 0.03em;
+    }
+    .badge-market--uk { background: #DBEAFE; color: #1E40AF; }
+    .badge-market--de { background: #FEE2E2; color: #991B1B; }
+    .badge-market--us { background: #D1FAE5; color: #065F46; }
+
+    /* Status dot + text */
+    .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--sp-font-size-sm);
+      font-weight: var(--sp-font-weight-medium);
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-dot--active { background: var(--sp-state-success); box-shadow: 0 0 0 2px var(--sp-state-success-bg); }
+    .status-dot--inactive { background: var(--sp-color-fg-quaternary); box-shadow: 0 0 0 2px var(--sp-color-bg-inset); }
+
+    /* Baseline type badge */
+    .badge-type {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: var(--sp-radius-full);
+      font-size: 11px;
+      font-weight: var(--sp-font-weight-semibold);
+      letter-spacing: 0.02em;
+    }
+    .badge-type--zheng { background: var(--sp-tier-a-bg); color: var(--sp-tier-a); }
+    .badge-type--custom { background: var(--sp-tier-abc-bg); color: var(--sp-tier-abc); }
+    .badge-type--legacy { background: var(--sp-color-bg-inset); color: var(--sp-color-fg-tertiary); }
+
+    /* Action buttons group */
+    .action-group {
+      display: flex;
+      gap: 6px;
+    }
+
+    /* Section divider */
+    .section-divider {
+      height: 1px;
+      background: linear-gradient(to right, transparent, var(--sp-color-border), transparent);
+      margin: 28px 0;
+    }
+
+    /* Positioning panel */
+    .positioning-panel {
+      background: var(--sp-color-bg-elevated);
+      border: 1px solid var(--sp-color-border);
+      border-radius: var(--sp-radius-md);
+      box-shadow: var(--sp-shadow-sm);
+      overflow: hidden;
+    }
+    .positioning-panel__header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--sp-color-border-light);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .positioning-panel__body {
+      padding: 0;
+    }
+
+    /* Similarity bar */
+    .sim-bar-track {
+      width: 80px;
+      height: 6px;
+      background: var(--sp-color-bg-inset);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .sim-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+    .sim-bar-fill--high { background: var(--sp-color-similarity-high); }
+    .sim-bar-fill--medium { background: var(--sp-color-similarity-medium); }
+    .sim-bar-fill--low { background: var(--sp-color-similarity-low); }
+
+    /* Similarity badge */
+    .badge-sim {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: var(--sp-radius-full);
+      font-size: 10px;
+      font-weight: var(--sp-font-weight-semibold);
+      white-space: nowrap;
+    }
+    .badge-sim--high { background: var(--sp-state-success-bg); color: var(--sp-color-similarity-high); }
+    .badge-sim--medium { background: var(--sp-state-warning-bg); color: var(--sp-color-similarity-medium); }
+    .badge-sim--low { background: var(--sp-state-error-bg); color: var(--sp-color-similarity-low); }
+
+    /* Positioning label badge */
+    .badge-label {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: var(--sp-radius-full);
+      font-size: 11px;
+      font-weight: var(--sp-font-weight-medium);
+      white-space: nowrap;
+    }
+    .badge-label--match { background: var(--sp-state-success-bg); color: var(--sp-state-success); }
+    .badge-label--similar { background: var(--sp-primary-light); color: var(--sp-color-primary); }
+    .badge-label--medium { background: var(--sp-state-warning-bg); color: var(--sp-state-warning); }
+    .badge-label--close { background: var(--sp-state-info-bg); color: var(--sp-state-info); }
+    .badge-label--diff { background: var(--sp-state-error-bg); color: var(--sp-state-error); }
+
+    /* Mini ratio bar */
+    .mini-bar-track {
+      width: 48px;
+      height: 4px;
+      background: var(--sp-color-bg-sunken);
+      border-radius: 2px;
+      overflow: hidden;
+      display: inline-block;
+      vertical-align: middle;
+      margin-left: 4px;
+    }
+    .mini-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+    }
+
+    /* Truncated text */
+    .text-truncate {
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--sp-color-fg-secondary);
+      font-size: 12px;
+    }
+
+    /* Shop name link */
+    .shop-name-link {
+      color: var(--sp-color-link);
+      text-decoration: none;
+      font-weight: var(--sp-font-weight-medium);
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .shop-name-link:hover {
+      color: var(--sp-color-link-hover);
+      text-decoration: underline;
+    }
+
+    /* Breadcrumb */
+    .breadcrumb {
+      font-size: var(--sp-font-size-sm);
+      color: var(--sp-color-fg-tertiary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .breadcrumb a {
+      color: var(--sp-color-fg-tertiary);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .breadcrumb a:hover { color: var(--sp-color-link); }
+    .breadcrumb .breadcrumb__current {
+      color: var(--sp-color-fg);
+      font-weight: var(--sp-font-weight-medium);
+    }
+    .breadcrumb .breadcrumb__sep {
+      color: var(--sp-color-fg-quaternary);
+    }
+  </style>
+</body>
+</html>

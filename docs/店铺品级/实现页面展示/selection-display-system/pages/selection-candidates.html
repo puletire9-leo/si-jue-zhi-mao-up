@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>选品候选池 - Selection Candidates Pool</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style id="theme-vars">
+:root {
+  --background: #faf9f5;
+  --foreground: #1b1b19;
+  --card: #ffffff;
+  --card-foreground: #1b1b19;
+  --popover: #ffffff;
+  --popover-foreground: #1b1b19;
+  --primary: #d97757;
+  --primary-foreground: #ffffff;
+  --secondary: #f0ece3;
+  --secondary-foreground: #46443b;
+  --muted: #e9e6dc;
+  --muted-foreground: #6e6d68;
+  --accent: #f5f4ee;
+  --accent-foreground: #d8d6cd;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #d8d6cd;
+  --input: #d8d6cd;
+  --ring: #d97757;
+  --chart-1: #b05730;
+  --chart-2: #9c87f5;
+  --chart-3: #f5f4ee;
+  --chart-4: #e9e6dc;
+  --chart-5: #b4552d;
+  --sidebar: #f5f4ee;
+  --sidebar-foreground: #3d3d3a;
+  --sidebar-primary: #c96442;
+  --sidebar-primary-foreground: #fbfbfb;
+  --sidebar-accent: #e9e6dc;
+  --sidebar-accent-foreground: #343434;
+  --brand-50: #f8e3d8;
+  --brand-100: #f0c6b3;
+  --brand-200: #e8a98f;
+  --brand-300: #e08d6f;
+  --brand-400: #b0683f;
+  --brand-500: #d97757;
+  --brand-600: #c96442;
+  --brand-700: #8a5740;
+  --brand-800: #6b4533;
+  --brand-900: #3a2a22;
+  --text-50: #faf9f5;
+  --text-100: #f1f1ef;
+  --text-200: #d8d6cd;
+  --text-300: #b7b5a9;
+  --text-400: #908e84;
+  --text-500: #6e6d68;
+  --text-600: #46443b;
+  --text-700: #30302e;
+  --text-800: #2c2c2b;
+  --text-900: #1b1b19;
+  --icon-50: #1b1b19;
+  --icon-100: #2c2c2b;
+  --icon-200: #46443b;
+  --icon-300: #6e6d68;
+  --icon-400: #908e84;
+  --icon-500: #b7b5a9;
+  --icon-600: #d8d6cd;
+  --icon-700: #f1f1ef;
+  --icon-800: #f8f8f6;
+  --icon-900: #ffffff;
+  --border-50: #f1f1ef;
+  --border-100: #e9e6dc;
+  --border-200: #d8d6cd;
+  --border-300: #b7b5a9;
+  --border-400: #908e84;
+  --border-500: #6e6d68;
+  --border-600: #46443b;
+  --border-700: #30302e;
+  --border-800: #2c2c2b;
+  --border-900: #1b1b19;
+  --success-50: #edf2e4;
+  --success-100: #d6dfc8;
+  --success-200: #bccaa8;
+  --success-300: #a3b58a;
+  --success-400: #8ca06f;
+  --success-500: #708353;
+  --success-600: #556640;
+  --success-700: #3f4d30;
+  --success-800: #2e3823;
+  --success-900: #232a1c;
+  --error-50: #fcdede;
+  --error-100: #f9b9b9;
+  --error-200: #f59292;
+  --error-300: #f26b6b;
+  --error-400: #ef4444;
+  --error-500: #c43a39;
+  --error-600: #93302f;
+  --error-700: #6e2c2c;
+  --error-800: #4d2424;
+  --error-900: #3a1f1f;
+  --bg-50: #faf9f5;
+  --bg-100: #f5f4ee;
+  --bg-200: #ffffff;
+  --bg-300: #f1f1ef;
+  --bg-400: #e9e6dc;
+  --bg-500: #d8d6cd;
+  --bg-600: #b7b5a9;
+  --bg-700: #908e84;
+  --bg-800: #6e6d68;
+  --bg-900: #46443b;
+  --font-display: Newsreader, Georgia, ui-serif, serif;
+  --font-sans: Poppins, ui-sans-serif, system-ui, sans-serif;
+  --font-serif: Lora, Georgia, ui-serif, serif;
+  --font-mono: Geist Mono, ui-monospace, monospace;
+}
+    </style>
+</head>
+<body>
+<style>
+/* === Global Reset & Base === */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  background: var(--bg-50);
+  color: var(--text-900);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* === Page Container === */
+.page-container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px 32px;
+}
+
+/* === Page Header === */
+.page-header { margin-bottom: 20px; }
+.page-title { font-size: 22px; font-weight: 600; color: var(--text-900); margin-bottom: 4px; }
+.page-subtitle { font-size: 13px; color: var(--text-400); }
+
+/* === Filter Bar === */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.mp-tab-group {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-100);
+  border-radius: 8px;
+  padding: 3px;
+}
+.mp-tab {
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-400);
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.mp-tab:hover { background: var(--bg-300); color: var(--text-600); }
+.mp-tab.active { background: var(--bg-200); border-color: var(--border-200); color: var(--text-800); }
+.filter-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--border-200);
+}
+.checkbox-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.checkbox-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+.checkbox-wrapper input[type="checkbox"] {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border-400);
+  border-radius: 4px;
+  background: var(--bg-200);
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+  flex-shrink: 0;
+}
+.checkbox-wrapper input[type="checkbox"]:checked {
+  background: var(--brand-500);
+  border-color: var(--brand-500);
+}
+.checkbox-wrapper input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid #141413;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.cb-label { font-size: 13px; color: var(--text-500); }
+.filter-select {
+  background: var(--bg-200);
+  border: 1px solid var(--border-200);
+  color: var(--text-700);
+  border-radius: 6px;
+  padding: 6px 28px 6px 10px;
+  font-size: 13px;
+  outline: none;
+  appearance: none;
+  font-family: inherit;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23908e84' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.filter-select:hover { border-color: var(--border-400); }
+.filter-select:focus { border-color: var(--brand-500); }
+.filter-input {
+  background: var(--bg-200);
+  border: 1px solid var(--border-200);
+  color: var(--text-700);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+  font-family: inherit;
+}
+.filter-input::placeholder { color: var(--text-400); }
+.filter-input:hover { border-color: var(--border-400); }
+.filter-input:focus { border-color: var(--brand-500); }
+.filter-bar-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border-200);
+  background: var(--bg-200);
+  color: var(--text-600);
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.action-btn:hover { border-color: var(--border-400); background: var(--bg-300); color: var(--text-800); }
+.action-btn.primary { background: var(--brand-500); border-color: var(--brand-500); color: #141413; }
+.action-btn.primary:hover { background: var(--brand-600); border-color: var(--brand-600); }
+.action-btn svg { flex-shrink: 0; }
+
+/* === Pipeline Status Bar === */
+.pipeline-bar {
+  background: var(--bg-100);
+  border: 1px solid var(--border-100);
+  border-radius: 8px;
+  padding: 14px 20px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+}
+.pipeline-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border-200);
+  background: var(--bg-200);
+  color: var(--text-500);
+  transition: all 0.15s;
+  white-space: nowrap;
+  user-select: none;
+}
+.pipeline-pill:hover { border-color: var(--border-400); background: var(--bg-300); }
+.pipeline-pill.active { border-color: var(--brand-500); background: var(--brand-50); color: var(--brand-500); }
+.pill-count { font-size: 12px; opacity: 0.8; }
+.pipeline-arrow { color: var(--text-300); font-size: 14px; flex-shrink: 0; }
+.pipeline-divider { color: var(--text-300); font-size: 16px; margin: 0 2px; opacity: 0.4; }
+
+/* === Table === */
+.table-container {
+  background: var(--bg-200);
+  border: 1px solid var(--border-200);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table thead th {
+  background: var(--bg-300);
+  color: var(--text-500);
+  font-weight: 500;
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-200);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.data-table tbody tr { border-bottom: 1px solid var(--border-100); transition: background 0.1s; }
+.data-table tbody tr:nth-child(even) { background: var(--bg-100); }
+.data-table tbody tr:hover { background: var(--bg-300); }
+.data-table tbody tr.row-overdue { background: rgba(239,68,68,0.06); }
+.data-table tbody tr.row-overdue:hover { background: rgba(239,68,68,0.1); }
+.data-table tbody td { padding: 10px 12px; color: var(--text-700); vertical-align: middle; }
+.row-checkbox {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border-400);
+  border-radius: 4px;
+  background: var(--bg-200);
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+  flex-shrink: 0;
+}
+.row-checkbox:checked { background: var(--brand-500); border-color: var(--brand-500); }
+.img-placeholder {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  background: var(--bg-400);
+  flex-shrink: 0;
+}
+.td-asin { font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--brand-500); }
+.td-title { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-mp { font-size: 12px; color: var(--text-500); }
+.td-source { font-size: 12px; color: var(--text-400); }
+
+/* === Status Badge === */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.status-badge.status-pending { background: rgba(144,142,132,0.12); color: var(--text-400); }
+.status-badge.status-watching { background: rgba(156,135,245,0.12); color: var(--chart-2); }
+.status-badge.status-preparing { background: rgba(224,141,111,0.12); color: var(--brand-600); }
+.status-badge.status-finalized { background: rgba(140,160,111,0.12); color: var(--success-500); }
+.status-badge.status-listed { background: rgba(163,181,138,0.12); color: var(--success-600); }
+.status-badge.status-abandoned { background: rgba(239,68,68,0.12); color: var(--error-500); }
+
+/* === Evidence Tags === */
+.evidence-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  margin: 1px 2px;
+}
+.evidence-tag.tag-m01 { background: rgba(176,104,63,0.15); color: var(--brand-400); }
+.evidence-tag.tag-shop { background: rgba(112,131,83,0.15); color: var(--success-400); }
+.evidence-tag.tag-category { background: rgba(156,135,245,0.15); color: var(--chart-2); }
+.evidence-tag.tag-family { background: rgba(232,169,143,0.15); color: var(--brand-700); }
+
+/* === Overdue === */
+.overdue-text { color: var(--error-500); }
+
+/* === Row Actions Dropdown === */
+.row-action-cell { position: relative; display: inline-block; }
+.row-action-btn {
+  background: none;
+  border: none;
+  color: var(--text-400);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.1s;
+  display: inline-flex;
+  align-items: center;
+}
+.row-action-btn:hover { background: var(--bg-400); color: var(--text-700); }
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background: var(--bg-200);
+  border: 1px solid var(--border-300);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 50;
+  min-width: 160px;
+  padding: 4px;
+  display: none;
+}
+.dropdown-menu.show { display: block; }
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-600);
+  cursor: pointer;
+  transition: background 0.1s;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+}
+.dropdown-item:hover { background: var(--bg-300); color: var(--text-800); }
+.dropdown-item.danger { color: var(--error-500); }
+.dropdown-item.danger:hover { background: rgba(239,68,68,0.1); }
+
+/* === Pagination === */
+.pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding: 0 4px;
+}
+.pagination-info { font-size: 13px; color: var(--text-400); }
+.pagination-btns { display: flex; align-items: center; gap: 6px; }
+.pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid var(--border-200);
+  background: var(--bg-200);
+  color: var(--text-500);
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.pagination-btn:hover { border-color: var(--border-400); color: var(--text-700); }
+.pagination-btn.active { background: var(--brand-500); border-color: var(--brand-500); color: #141413; }
+.pagination-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.pagination-ellipsis { color: var(--text-400); font-size: 13px; margin: 0 4px; }
+.pagination-right { display: flex; align-items: center; gap: 8px; }
+.pagination-right .page-size-select { width: 70px; }
+.pagination-right-label { font-size: 13px; color: var(--text-400); }
+</style>
+
+<main class="page-container">
+    <div class="page-header">
+        <h1 class="page-title">选品候选池</h1>
+        <p class="page-subtitle">管理所有候选产品，追踪选品流程从发现到上架的全过程</p>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+        <div class="mp-tab-group">
+            <button class="mp-tab active" onclick="switchMarketplace(this)">UK</button>
+            <button class="mp-tab" onclick="switchMarketplace(this)">DE</button>
+            <button class="mp-tab" onclick="switchMarketplace(this)">US</button>
+        </div>
+        <div class="filter-divider"></div>
+        <div class="checkbox-group">
+            <label class="checkbox-wrapper"><input type="checkbox" checked> <span class="cb-label">待看</span></label>
+            <label class="checkbox-wrapper"><input type="checkbox" checked> <span class="cb-label">观察中</span></label>
+            <label class="checkbox-wrapper"><input type="checkbox" checked> <span class="cb-label">准备开发</span></label>
+            <label class="checkbox-wrapper"><input type="checkbox" checked> <span class="cb-label">已定稿</span></label>
+            <label class="checkbox-wrapper"><input type="checkbox" checked> <span class="cb-label">已上架</span></label>
+            <label class="checkbox-wrapper"><input type="checkbox" checked> <span class="cb-label">已放弃</span></label>
+        </div>
+        <div class="filter-divider"></div>
+        <select class="filter-select">
+            <option>全部来源</option>
+            <option>新品雷达</option>
+            <option>方法卡</option>
+            <option>店铺画像</option>
+            <option>类目机会</option>
+        </select>
+        <select class="filter-select">
+            <option>全部负责人</option>
+            <option>张伟</option>
+            <option>李娜</option>
+            <option>王磊</option>
+            <option>刘芳</option>
+        </select>
+        <input class="filter-input" type="text" placeholder="搜索 ASIN / 标题..." style="width:200px;">
+        <div class="filter-bar-actions">
+            <button class="action-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                批量导出
+            </button>
+            <button class="action-btn primary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                批量状态变更
+            </button>
+        </div>
+    </div>
+
+    <!-- Pipeline Status Bar -->
+    <div class="pipeline-bar no-scrollbar">
+        <span class="pipeline-pill active" onclick="filterByStatus(this)">待看 <span class="pill-count">23</span></span>
+        <span class="pipeline-arrow">&#10140;</span>
+        <span class="pipeline-pill" onclick="filterByStatus(this)">观察中 <span class="pill-count">45</span></span>
+        <span class="pipeline-arrow">&#10140;</span>
+        <span class="pipeline-pill" onclick="filterByStatus(this)">准备开发 <span class="pill-count">12</span></span>
+        <span class="pipeline-arrow">&#10140;</span>
+        <span class="pipeline-pill" onclick="filterByStatus(this)">已定稿 <span class="pill-count">8</span></span>
+        <span class="pipeline-arrow">&#10140;</span>
+        <span class="pipeline-pill" onclick="filterByStatus(this)">已上架 <span class="pill-count">3</span></span>
+        <span class="pipeline-divider">|</span>
+        <span class="pipeline-pill" onclick="filterByStatus(this)" style="border-color:rgba(239,68,68,0.3);">已放弃 <span class="pill-count">7</span></span>
+    </div>
+
+    <!-- Products Table -->
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width:32px;"><input type="checkbox" class="row-checkbox" /></th>
+                    <th style="width:52px;">图片</th>
+                    <th style="width:110px;">ASIN</th>
+                    <th>标题</th>
+                    <th style="width:80px;">Marketplace</th>
+                    <th style="width:90px;">来源页面</th>
+                    <th style="width:140px;">证据标签</th>
+                    <th style="width:90px;">当前状态</th>
+                    <th style="width:70px;">负责人</th>
+                    <th style="width:100px;">下次复查</th>
+                    <th style="width:120px;">备注</th>
+                    <th style="width:60px;">操作</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination-row">
+        <span class="pagination-info">共 98 条</span>
+        <div class="pagination-btns">
+            <button class="pagination-btn" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <button class="pagination-btn active">1</button>
+            <button class="pagination-btn">2</button>
+            <button class="pagination-btn">3</button>
+            <button class="pagination-btn">4</button>
+            <button class="pagination-btn">5</button>
+            <span class="pagination-ellipsis">...</span>
+            <button class="pagination-btn">10</button>
+            <button class="pagination-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+        </div>
+        <div class="pagination-right">
+            <span class="pagination-right-label">每页</span>
+            <select class="filter-select page-size-select">
+                <option>10</option>
+                <option>20</option>
+                <option>50</option>
+            </select>
+            <span class="pagination-right-label">条</span>
+        </div>
+    </div>
+</main>
+
+<script>
+var rows = [
+    { asin:'B0CXYZ1234', title:'Portable LED Camping Lantern with USB Charging - 4 Pack', mp:'UK', src:'新品雷达', tags:['M01','店铺画像'], status:'watching', owner:'张伟', review:'2026-07-10', note:'价格竞争力较好' },
+    { asin:'B0DABC5678', title:'Silicone Kitchen Utensils Set - Heat Resistant Cooking Tools', mp:'DE', src:'类目机会', tags:['类目机会','商品族'], status:'preparing', owner:'李娜', review:'2026-07-08', note:'需确认供应商报价' },
+    { asin:'B0DEF90123', title:'Bamboo Drawer Organizer - Expandable Cutlery Tray for Kitchen', mp:'UK', src:'方法卡', tags:['M01'], status:'pending', owner:'王磊', review:'2026-07-01', note:'-', overdue:true },
+    { asin:'B0EFGH4567', title:'Electric Milk Frother - Handheld Battery Powered Coffee Mixer', mp:'US', src:'新品雷达', tags:['店铺画像','M01','类目机会'], status:'watching', owner:'刘芳', review:'2026-07-15', note:'竞品分析进行中' },
+    { asin:'B0HIJK8901', title:'Stainless Steel Water Bottle - 1L Insulated Flask with Loop Cap', mp:'UK', src:'店铺画像', tags:['店铺画像'], status:'finalized', owner:'张伟', review:'2026-06-28', note:'设计稿已确认', overdue:true },
+    { asin:'B0LMNO2345', title:'Microfiber Hair Towel Wrap - Quick Dry Hair Towel Band for Women', mp:'DE', src:'新品雷达', tags:['M01','商品族'], status:'listed', owner:'李娜', review:'2026-07-20', note:'上架后观察销量' },
+    { asin:'B0PQRS6789', title:'Car Phone Mount - Magnetic Dashboard Holder with 360 Rotation', mp:'US', src:'类目机会', tags:['类目机会'], status:'abandoned', owner:'王磊', review:'-', note:'利润率不足' },
+    { asin:'B0TUVW0123', title:'Yoga Mat - 6mm Non Slip Exercise Mat with Carrying Strap', mp:'UK', src:'方法卡', tags:['M01','店铺画像','商品族'], status:'watching', owner:'刘芳', review:'2026-06-25', note:'等待市场调研报告', overdue:true },
+    { asin:'B0XYZA4567', title:'LED Strip Lights - RGB 5050 Color Changing with Remote Control', mp:'DE', src:'新品雷达', tags:['M01','类目机会'], status:'pending', owner:'张伟', review:'2026-07-12', note:'-' },
+    { asin:'B0BCDE8901', title:'Wireless Charging Pad - 15W Fast Qi Charger for iPhone and Samsung', mp:'US', src:'店铺画像', tags:['店铺画像','M01'], status:'preparing', owner:'李娜', review:'2026-07-18', note:'样品已下单测试' }
+];
+
+var statusMap = {
+    pending:   { label:'待看',     cls:'status-pending' },
+    watching:  { label:'观察中',   cls:'status-watching' },
+    preparing: { label:'准备开发', cls:'status-preparing' },
+    finalized: { label:'已定稿',   cls:'status-finalized' },
+    listed:    { label:'已上架',   cls:'status-listed' },
+    abandoned: { label:'已放弃',   cls:'status-abandoned' }
+};
+
+var tagClsMap = {
+    'M01':    'tag-m01',
+    '店铺画像': 'tag-shop',
+    '类目机会': 'tag-category',
+    '商品族':  'tag-family'
+};
+
+var warnSvg = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--error-500)" stroke-width="2" style="vertical-align:middle;margin-left:2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+var moreSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>';
+
+var ddCounter = 0;
+var tbody = document.getElementById('tableBody');
+
+rows.forEach(function(r) {
+    ddCounter++;
+    var did = 'dd' + ddCounter;
+    var st = statusMap[r.status];
+    var tagsHtml = r.tags.map(function(t) {
+        return '<span class="evidence-tag ' + (tagClsMap[t] || '') + '">' + t + '</span>';
+    }).join('');
+    var reviewHtml = r.overdue
+        ? '<span class="overdue-text">' + r.review + '</span>' + warnSvg
+        : r.review;
+    var tr = document.createElement('tr');
+    if (r.overdue) tr.className = 'row-overdue';
+    tr.innerHTML =
+        '<td><input type="checkbox" class="row-checkbox" /></td>' +
+        '<td><div class="img-placeholder"></div></td>' +
+        '<td><span class="td-asin">' + r.asin + '</span></td>' +
+        '<td><div class="td-title">' + r.title + '</div></td>' +
+        '<td><span class="td-mp">' + r.mp + '</span></td>' +
+        '<td><span class="td-source">' + r.src + '</span></td>' +
+        '<td>' + tagsHtml + '</td>' +
+        '<td><span class="status-badge ' + st.cls + '">' + st.label + '</span></td>' +
+        '<td style="font-size:12px;">' + r.owner + '</td>' +
+        '<td style="font-size:12px;">' + reviewHtml + '</td>' +
+        '<td style="font-size:12px;color:var(--text-400);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + r.note + '</td>' +
+        '<td><div class="row-action-cell">' +
+            '<button class="row-action-btn" onclick="toggleDropdown(\'' + did + '\')">' + moreSvg + '</button>' +
+            '<div class="dropdown-menu" id="' + did + '">' +
+                '<button class="dropdown-item">推进状态</button>' +
+                '<button class="dropdown-item">添加备注</button>' +
+                '<button class="dropdown-item">查看详情</button>' +
+                '<div style="height:1px;background:var(--border-200);margin:4px 0;"></div>' +
+                '<button class="dropdown-item danger">删除</button>' +
+            '</div>' +
+        '</div></td>';
+    tbody.appendChild(tr);
+});
+
+function switchMarketplace(btn) {
+    document.querySelectorAll('.mp-tab').forEach(function(t) { t.classList.remove('active'); });
+    btn.classList.add('active');
+}
+function filterByStatus(pill) {
+    document.querySelectorAll('.pipeline-pill').forEach(function(p) { p.classList.remove('active'); });
+    pill.classList.add('active');
+}
+function toggleDropdown(id) {
+    document.querySelectorAll('.dropdown-menu.show').forEach(function(m) {
+        if (m.id !== id) m.classList.remove('show');
+    });
+    var menu = document.getElementById(id);
+    if (menu) menu.classList.toggle('show');
+}
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.row-action-btn') && !e.target.closest('.dropdown-menu')) {
+        document.querySelectorAll('.dropdown-menu.show').forEach(function(m) { m.classList.remove('show'); });
+    }
+});
+</script>
+</body>
+</html>
