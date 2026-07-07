@@ -117,15 +117,17 @@ public class ApiRateLimitService {
 
     public void checkRateLimit(int asinCount) {
         int maxAsins = getMaxAsinsPerRequest();
-        int maxPerMinute = getMaxPerMinute();
-        int maxPerMonth = getMaxPerMonth();
 
         if (asinCount > maxAsins) {
             throw new BusinessException(400,
                     String.format("单次请求最多 %d 个 ASIN，当前 %d 个", maxAsins, asinCount));
         }
-        checkMinuteLimit(maxPerMinute);
-        checkMonthLimit(maxPerMonth);
+        checkRequestQuota();
+    }
+
+    public void checkRequestQuota() {
+        checkMinuteLimit(getMaxPerMinute());
+        checkMonthLimit(getMaxPerMonth());
     }
 
     private void checkMinuteLimit(int maxPerMinute) {
@@ -162,7 +164,6 @@ public class ApiRateLimitService {
         String currentMonth = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
         Long monthCount = logMapper.selectCount(
                 new LambdaQueryWrapper<com.sjzm.product.entity.CompetitorLookupLog>()
-                        .eq(com.sjzm.product.entity.CompetitorLookupLog::getApiStatus, "OK")
                         .ge(com.sjzm.product.entity.CompetitorLookupLog::getCreatedAt,
                                 LocalDateTime.of(Integer.parseInt(currentMonth.substring(0, 4)),
                                         Integer.parseInt(currentMonth.substring(4, 6)), 1, 0, 0)));
@@ -183,7 +184,6 @@ public class ApiRateLimitService {
         String currentMonth = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
         return logMapper.selectCount(
                 new LambdaQueryWrapper<com.sjzm.product.entity.CompetitorLookupLog>()
-                        .eq(com.sjzm.product.entity.CompetitorLookupLog::getApiStatus, "OK")
                         .ge(com.sjzm.product.entity.CompetitorLookupLog::getCreatedAt,
                                 LocalDateTime.of(Integer.parseInt(currentMonth.substring(0, 4)),
                                         Integer.parseInt(currentMonth.substring(4, 6)), 1, 0, 0)));

@@ -42,6 +42,24 @@ public class ShopMethodRankService {
         return mapper.selectM01ShopRanking(mp, min, lim);
     }
 
+    /**
+     * 方法卡感知的店铺分级入口。当前仅实现 M01，后续方法卡必须显式接入自己的 hit source。
+     */
+    public List<ShopMethodRankItem> rankByMethod(String methodId, String marketplace, Integer minCount, Integer limit) {
+        String method = normalizeMethodId(methodId);
+        return switch (method) {
+            case "M01" -> rankByM01(marketplace, minCount, limit);
+            default -> throw new IllegalArgumentException("店铺方法卡排名暂不支持 methodId=" + method + "，当前仅支持 M01");
+        };
+    }
+
+    private String normalizeMethodId(String methodId) {
+        if (methodId == null || methodId.isBlank()) {
+            return "M01";
+        }
+        return methodId.trim().toUpperCase(Locale.ROOT);
+    }
+
     private String normalizeRankMarketplace(String marketplace) {
         if (marketplace == null || marketplace.isBlank()) {
             return null;

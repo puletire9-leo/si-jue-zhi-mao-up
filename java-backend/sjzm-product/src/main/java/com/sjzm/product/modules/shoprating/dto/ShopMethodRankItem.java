@@ -9,6 +9,8 @@ import java.math.BigDecimal;
  */
 @Data
 public class ShopMethodRankItem {
+    /** 方法卡 ID */
+    private String methodId;
     /** 店铺名 */
     private String sellerName;
     /** 站点 */
@@ -19,4 +21,18 @@ public class ShopMethodRankItem {
     private String topCategory;
     /** 命中品均价 */
     private BigDecimal avgPrice;
+    /** 命中品最低价 */
+    private BigDecimal minPrice;
+    /** 命中品最高价 */
+    private BigDecimal maxPrice;
+    /** 命中品销量 A 级数量 */
+    private Integer salesTierACount;
+    /** 命中品销量 B 级数量 */
+    private Integer salesTierBCount;
+    /** 命中品销量 C 级数量 */
+    private Integer salesTierCCount;
+    /** 命中品销量 D 级数量 */
+    private Integer salesTierDCount;
+    /** 命中品销量分级未知数量 */
+    private Integer salesTierUnknownCount;
 }
