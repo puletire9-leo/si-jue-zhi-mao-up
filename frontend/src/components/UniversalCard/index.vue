@@ -40,6 +40,15 @@
         <span>{{ formatSalesVolume(salesVolume) }}</span>
       </div>
 
+      <!-- 销量等级 A/B/C/D badge（选品场景常驻显示） -->
+      <div
+        v-if="props.mode === 'selection' && salesTier && salesTier !== 'UNKNOWN'"
+        class="card-tier-badge"
+        :style="{ background: salesTierColor }"
+      >
+        {{ salesTier }}
+      </div>
+
       <!-- 等级徽章 -->
       <div
         v-if="grade"
@@ -109,6 +118,9 @@
           <el-icon class="meta-icon"><Money /></el-icon>
           <span class="meta-value">¥{{ price }}</span>
         </div>
+        <div v-if="product.bsr != null" class="meta-item">
+          <span class="meta-value meta-bsr">#{{ product.bsr.toLocaleString() }}</span>
+        </div>
         <div v-if="storeName" class="meta-item">
           <el-icon class="meta-icon"><Shop /></el-icon>
           <span class="meta-value" :title="storeName">{{ storeName }}</span>
@@ -137,6 +149,18 @@
         >
           +{{ extraTagsCount }}
         </el-tag>
+      </div>
+
+      <!-- 方法卡命中原因（选品场景展示为什么这个商品值得看） -->
+      <div
+        v-if="props.mode === 'selection' && filterReasonsText"
+        class="card-filter-reasons"
+      >
+        <el-tooltip placement="top" :content="filterReasonsText">
+          <el-tag size="small" type="warning" effect="plain" class="reason-tag">
+            {{ filterReasonsLabel }}
+          </el-tag>
+        </el-tooltip>
       </div>
 
       <div v-if="showTypeTag && typeTagText" class="card-type-tag">
@@ -406,6 +430,41 @@ const gradeColor = computed(() => {
     D: "#F56C6C",
   };
   return colors[props.product.grade] || "#909399";
+});
+
+/**
+ * 销量等级 salesTier（A/B/C/D）：来自后端 competitor_products.sales_tier。
+ * 仅在 selection 模式且值非 UNKNOWN 时展示。
+ * 颜色与店铺画像的 salesTier 一致：A 蓝、B 黄、C 灰、D 红。
+ */
+const salesTier = computed(
+  () => props.product.salesTier || props.product.sales_tier || "",
+);
+const salesTierColor = computed(() => {
+  const colors: Record<string, string> = {
+    A: "#409EFF",
+    B: "#E6A23C",
+    C: "#909399",
+    D: "#F56C6C",
+    ABC: "#67C23A",
+  };
+  return colors[salesTier.value] || "#909399";
+});
+
+/**
+ * 方法卡命中原因 filterReasons：来自后端 filter_reasons 字段。
+ * 格式通常是逗号分隔的原因描述，截断展示，hover 查看完整内容。
+ */
+const filterReasonsText = computed(() => {
+  const raw =
+    props.product.filterReasons || props.product.filter_reasons || "";
+  return typeof raw === "string" ? raw.trim() : "";
+});
+const filterReasonsLabel = computed(() => {
+  const text = filterReasonsText.value;
+  if (!text) return "";
+  // 取前 20 字符 + 省略号
+  return text.length > 20 ? text.slice(0, 20) + "..." : text;
 });
 
 // 时效标签：根据 created_at/createdAt 判断
@@ -719,6 +778,20 @@ const handleImageSearch = (): void => {
     }
   }
 
+  // 销量等级 A/B/C/D badge — 紧贴销量 badge 右侧
+  .card-tier-badge {
+    position: absolute;
+    bottom: 10px;
+    left: 90px;
+    padding: 4px 10px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    z-index: 5;
+  }
+
   .card-grade-badge {
     position: absolute;
     top: 10px;
@@ -905,6 +978,12 @@ const handleImageSearch = (): void => {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+
+      &.meta-bsr {
+        font-weight: 600;
+        color: #409eff;
+        font-variant-numeric: tabular-nums;
+      }
     }
   }
 }
@@ -914,6 +993,18 @@ const handleImageSearch = (): void => {
   flex-wrap: wrap;
   gap: 4px;
   margin-bottom: 8px;
+}
+
+.card-filter-reasons {
+  margin-bottom: 8px;
+
+  .reason-tag {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: help;
+  }
 }
 
 .card-type-tag {

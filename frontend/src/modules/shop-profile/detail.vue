@@ -118,6 +118,20 @@
       </el-card>
     </div>
 
+    <!-- 店铺样貌商品图片墙：一屏回答"这家店卖什么、靠什么赚钱、在测什么" -->
+    <el-card v-if="summary" shadow="never" class="sp-detail__wall">
+      <template #header>
+        <span>店铺样貌 · 商品图片墙</span>
+      </template>
+      <ProductImageWall
+        :marketplace="marketplace"
+        :seller-name="decodedSeller"
+        :batch-date="batchDate"
+        :max-per-tier="8"
+        @open="handleWallProductClick"
+      />
+    </el-card>
+
     <!-- Tabs -->
     <el-card shadow="never" body-style="padding:0;">
       <el-tabs v-model="activeTab" class="sp-tabs" @tab-change="onTabChange">
@@ -163,6 +177,7 @@ import type {
 import { num, pct, marketColor, TIER_COLOR, MARKETPLACES, similarityColor } from './utils'
 import CategoryRankTable from './components/CategoryRankTable.vue'
 import ProductTierTable from './components/ProductTierTable.vue'
+import ProductImageWall from './components/ProductImageWall.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -312,6 +327,15 @@ function onTabChange() {
   if (activeTab.value === 'CATEGORY') {
     loadCategories()
   } else {
+    prodPage.value = 1
+    loadProducts()
+  }
+}
+
+function handleWallProductClick(product: any) {
+  // 图片墙点击商品 — 如果没有外部链接，切换到对应等级 Tab
+  if (product.salesTier && ['A', 'B', 'C', 'D'].includes(product.salesTier)) {
+    activeTab.value = product.salesTier
     prodPage.value = 1
     loadProducts()
   }

@@ -56,6 +56,7 @@ class BazhuayuControllerTest {
                 mock(com.sjzm.product.modules.bazhuayu.service.BazhuayuScheduledService.class),
                 mock(com.sjzm.product.modules.bazhuayu.service.BazhuayuConfigService.class),
                 runStateService,
+                mock(com.sjzm.product.modules.bazhuayu.service.BazhuayuCloudStatsService.class),
                 mock(com.sjzm.product.modules.bazhuayu.service.BazhuayuClient.class),
                 mock(com.sjzm.product.modules.bazhuayu.service.BazhuayuImageSearchService.class),
                 rawMapper,
