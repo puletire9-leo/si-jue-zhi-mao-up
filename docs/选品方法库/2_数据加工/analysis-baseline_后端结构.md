@@ -150,7 +150,7 @@ POST /api/v1/analysis-baseline/product-families/{familyCode}/members
 
 ## 四、开发模式验证清单
 
-需要你在开发模式实际验证：
+2026-07-07 已完成开发模式主流程验证。以下清单保留为复跑步骤。
 
 ### 1. 执行 SQL
 
@@ -279,11 +279,33 @@ GROUP BY baseline_code, marketplace, batch_date;
 
 ### 10. 最小验收口径
 
-- `UK / DE` summary 能和郑总 clean Excel 总量、A/B/C/D 分布接近。
-- `compute` 后快照表有对应 `marketplace + batch_date` 数据。
-- `positioning` 能返回 `similarityScore / positioningLabel / profileAdvice`。
-- `marketplace=ALL` 或其他非 `UK/DE/US` 值会报错。
-- SQL 执行和接口验证过程不修改 SellerSprite 抓取次数统计。
+- [x] SQL 建表和接口写入逻辑可运行。
+- [x] `compute` 后快照表有对应 `marketplace + batch_date` 数据。
+- [x] `positioning` 能返回 `similarityScore / positioningLabel / profileAdvice`。
+- [x] `marketplace=ALL` 或其他非 `UK/DE/US` 值会报错。
+- [x] SQL 执行和接口验证过程不修改 SellerSprite 抓取次数统计。
+- [ ] `UK / DE` summary 与郑总 clean Excel 总量、A/B/C/D 分布严格对照：dev 库样本量与 7.7 clean 数据不一致，等待完整 clean 数据环境复跑。
+
+### 11. 已修复问题
+
+开发模式验证时发现 MyBatis-Plus 对连续大写字段的默认驼峰映射会把 `ABC` 拆成 `a_b_c`，导致运行时找错列，例如 `top_a_b_c_category`。
+
+已在 `889b501` 修复：
+
+```text
+ShopProfileSnapshot
+ShopProfilePositioningResultEntity
+```
+
+显式映射字段：
+
+```text
+abcCount -> abc_count
+abcRatio -> abc_ratio
+topABCCategory -> top_abc_category
+dAbcOverlapRatio -> d_abc_overlap_ratio
+baselineAvgAbcRatio -> baseline_avg_abc_ratio
+```
 
 ## 五、当前不做但已预留
 
