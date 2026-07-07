@@ -94,7 +94,7 @@ public class DengZongShopService {
                     "marketplace", marketplace,
                     "sellerName", sellerName,
                     "asins", new String[]{},
-                    "variation", "N",
+                    "variation", "Y",
                     "page", page,
                     "size", size,
                     "orderDesc", true

@@ -48,6 +48,7 @@
 5. **API 路径约定** — Java 后端 `/api/{resource}/`，Python 后端 `/api/v1/{resource}/`
 6. **修改前先读** — 改任何模块前，先读对应 AGENTS.md 了解上下文
 7. **保持文档同步** — 代码变更后同步更新相关文档
+8. **PowerShell 编码禁令** — 禁止用 PowerShell here-string/管道传递含中文路径或中文内容的 Python/Node 源码；必须使用脚本文件、UTF-8 文件或 ASCII/Unicode escape 路径，并设置 UTF-8 输出环境
 
 ## 快速命令
 
