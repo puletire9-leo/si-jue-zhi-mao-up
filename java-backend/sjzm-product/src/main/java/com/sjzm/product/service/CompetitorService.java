@@ -574,7 +574,7 @@ public class CompetitorService {
                 .imageUrl(p.getImageUrl()).parentAsin(p.getParentAsin()).sku(p.getSku())
                 .nodeId(p.getNodeId()).nodeIdPath(p.getNodeIdPath()).nodeLabelPath(p.getNodeLabelPath())
                 .symbol(p.getSymbol())
-                .units(p.getUnits()).unitsGr(p.getUnitsGr()).amzUnit(p.getAmzUnit())
+                .units(p.getUnits()).salesTier(p.getSalesTier()).unitsGr(p.getUnitsGr()).amzUnit(p.getAmzUnit())
                 .amzSales(p.getAmzSales()).revenue(p.getRevenue())
                 .bsrId(p.getBsrId()).bsr(p.getBsr()).bsrCr(p.getBsrCr()).bsrCv(p.getBsrCv())
                 .ratings(p.getRatings()).rating(p.getRating()).ratingsRate(p.getRatingsRate())

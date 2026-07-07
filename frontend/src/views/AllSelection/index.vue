@@ -871,10 +871,17 @@
                   <span v-else>{{ row.sellerName }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="店铺链接" min-width="100">
+              <el-table-column label="店铺链接" min-width="220">
                 <template #default="{ row }">
+                  <el-input
+                    v-if="row._editing"
+                    v-model="row.storeUrl"
+                    size="small"
+                    placeholder="店铺链接"
+                    @keyup.enter="handleSaveSeller(row)"
+                  />
                   <el-link
-                    v-if="row.storeUrl"
+                    v-else-if="row.storeUrl"
                     :href="row.storeUrl"
                     target="_blank"
                     type="primary"
@@ -882,6 +889,18 @@
                     打开
                   </el-link>
                   <span v-else style="color: #909399">无</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="备注" min-width="180">
+                <template #default="{ row }">
+                  <el-input
+                    v-if="row._editing"
+                    v-model="row.notes"
+                    size="small"
+                    placeholder="备注"
+                    @keyup.enter="handleSaveSeller(row)"
+                  />
+                  <span v-else>{{ row.notes || "" }}</span>
                 </template>
               </el-table-column>
               <el-table-column label="操作" width="260" fixed="right">

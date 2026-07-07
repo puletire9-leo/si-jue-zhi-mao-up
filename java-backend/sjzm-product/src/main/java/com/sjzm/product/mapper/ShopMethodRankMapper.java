@@ -26,15 +26,24 @@ public interface ShopMethodRankMapper {
                                                   @Param("minCount") int minCount,
                                                   @Param("limit") int limit);
 
+    int normalizeM01UnknownListingDaysRaw(@Param("marketplace") String marketplace,
+                                          @Param("listingDaysMax") int listingDaysMax,
+                                          @Param("unknownListingDays") int unknownListingDays);
+
     int backfillM01Active(@Param("marketplace") String marketplace,
                           @Param("priceMin") BigDecimal priceMin,
                           @Param("priceMax") BigDecimal priceMax,
                           @Param("weightMax") BigDecimal weightMax,
                           @Param("listingDaysMax") int listingDaysMax,
+                          @Param("unknownListingDays") int unknownListingDays,
                           @Param("sales30") int sales30,
                           @Param("sales60") int sales60,
                           @Param("sales90") int sales90,
                           @Param("bsrMax") Integer bsrMax);
+
+    int normalizeM01UnknownListingDaysClean(@Param("marketplace") String marketplace,
+                                            @Param("listingDaysMax") int listingDaysMax,
+                                            @Param("unknownListingDays") int unknownListingDays);
 
     int syncCleanM01Active(@Param("marketplace") String marketplace);
 
