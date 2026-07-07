@@ -92,6 +92,10 @@ export interface CompetitorProductRaw {
 
   /** 该父群组下的变体行数（清洗表代表行场景下回填，原表场景为单行计数） */
   variantCount?: number;
+
+  /** 销量等级 A/B/C/D/UNKNOWN，来自 competitor_products.sales_tier */
+  salesTier?: string;
+  sales_tier?: string;
 }
 
 export interface CompetitorListParams {
