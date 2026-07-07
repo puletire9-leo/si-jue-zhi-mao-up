@@ -1,6 +1,7 @@
 package com.sjzm.product.modules.analysisbaseline.shopprofile.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -26,12 +27,15 @@ public class ShopProfileSnapshot {
     private Integer dCount;
     private Integer unknownCount;
     private Integer abCount;
+    @TableField("abc_count")
     private Integer abcCount;
     private BigDecimal aRatio;
     private BigDecimal abRatio;
+    @TableField("abc_ratio")
     private BigDecimal abcRatio;
     private BigDecimal dRatio;
     private String topACategory;
+    @TableField("top_abc_category")
     private String topABCCategory;
     private String topDCategory;
     private Integer newCount;
@@ -39,6 +43,7 @@ public class ShopProfileSnapshot {
     private Integer matureCount;
     private Integer dNewCount;
     private Integer dOldCount;
+    @TableField("d_abc_overlap_ratio")
     private BigDecimal dAbcOverlapRatio;
     private String methodHitSummaryJson;
     private String profileType;
