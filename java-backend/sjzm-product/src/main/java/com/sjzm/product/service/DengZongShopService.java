@@ -32,6 +32,8 @@ public class DengZongShopService {
 
     private final SellerspriteConfig config;
     private final SellerspriteConfigService sellerspriteConfigService;
+    private final SellerspriteApiService sellerspriteApiService;
+    private final ApiRateLimitService rateLimitService;
     private final DengZongShopMapper mapper;
     private final DengZongShopSellerMapper sellerMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -45,11 +47,13 @@ public class DengZongShopService {
     public Map<String, Object> syncBySellerName(String sellerName, String marketplace) {
         int total = 0;
         int inserted = 0;
+        int apiCalls = 0;
         int page = 1;
 
         while (true) {
             log.info("同步店铺数据: sellerName={}, marketplace={}, page={}", sellerName, marketplace, page);
             JsonNode data = callApi(sellerName, marketplace, page, 100);
+            apiCalls++;
             if (data == null) break;
 
             int apiTotal = data.path("total").asInt(0);
@@ -76,10 +80,15 @@ public class DengZongShopService {
         Map<String, Object> result = new HashMap<>();
         result.put("total", total);
         result.put("inserted", inserted);
+        result.put("apiCalls", apiCalls);
         return result;
     }
 
     private JsonNode callApi(String sellerName, String marketplace, int page, int size) {
+        rateLimitService.checkRequestQuota();
+        long startTime = System.currentTimeMillis();
+        String apiStatus = "OK";
+        String errorMsg = null;
         try {
             String body = objectMapper.writeValueAsString(Map.of(
                     "marketplace", marketplace,
@@ -103,14 +112,25 @@ public class DengZongShopService {
             JsonNode result = objectMapper.readTree(response.body());
 
             if (!"OK".equals(result.path("code").asText())) {
-                log.error("卖家精灵 API 错误: {}", result.path("message").asText());
+                apiStatus = "ERROR";
+                errorMsg = result.path("message").asText();
+                log.error("卖家精灵 API 错误: {}", errorMsg);
                 return null;
             }
             return result.path("data");
         } catch (Exception e) {
+            apiStatus = "ERROR";
+            errorMsg = e.getMessage();
             log.error("调用卖家精灵 API 失败: {}", e.getMessage(), e);
             return null;
+        } finally {
+            long took = System.currentTimeMillis() - startTime;
+            sellerspriteApiService.logApiCall(marketplace, currentMonth(), 0, took, apiStatus, errorMsg);
         }
+    }
+
+    private String currentMonth() {
+        return java.time.YearMonth.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
     }
 
     private DengZongShop mapToEntity(JsonNode item, String marketplace) {

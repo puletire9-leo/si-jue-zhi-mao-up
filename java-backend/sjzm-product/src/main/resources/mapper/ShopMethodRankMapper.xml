@@ -10,10 +10,22 @@
     <select id="selectM01ShopRanking"
             resultType="com.sjzm.product.modules.shoprating.dto.ShopMethodRankItem">
         SELECT
+            'M01'           AS methodId,
             c.seller_name   AS sellerName,
             c.marketplace   AS marketplace,
             COUNT(*)        AS hitCount,
             ROUND(AVG(c.price), 2) AS avgPrice,
+            MIN(c.price) AS minPrice,
+            MAX(c.price) AS maxPrice,
+            SUM(CASE WHEN UPPER(TRIM(COALESCE(c.sales_tier, 'UNKNOWN'))) = 'A' THEN 1 ELSE 0 END) AS salesTierACount,
+            SUM(CASE WHEN UPPER(TRIM(COALESCE(c.sales_tier, 'UNKNOWN'))) = 'B' THEN 1 ELSE 0 END) AS salesTierBCount,
+            SUM(CASE WHEN UPPER(TRIM(COALESCE(c.sales_tier, 'UNKNOWN'))) = 'C' THEN 1 ELSE 0 END) AS salesTierCCount,
+            SUM(CASE WHEN UPPER(TRIM(COALESCE(c.sales_tier, 'UNKNOWN'))) = 'D' THEN 1 ELSE 0 END) AS salesTierDCount,
+            SUM(CASE
+                WHEN c.sales_tier IS NULL OR TRIM(c.sales_tier) = ''
+                  OR UPPER(TRIM(c.sales_tier)) NOT IN ('A', 'B', 'C', 'D')
+                THEN 1 ELSE 0
+            END) AS salesTierUnknownCount,
             (
                 SELECT SUBSTRING_INDEX(c2.node_label_path, ':', -1)
                 FROM competitor_products_clean c2

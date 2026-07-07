@@ -18,7 +18,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/modules/shop-rating")
 @RequiredArgsConstructor
-@Tag(name = "店铺评级", description = "店铺与郑总模式匹配度评分")
+@Tag(name = "店铺评级", description = "方法卡店铺分级与旧相似度评分")
 public class ShopRatingController {
 
     private final ShopRatingService shopRatingService;
@@ -26,14 +26,13 @@ public class ShopRatingController {
     private final ShopMethodRankService shopMethodRankService;
 
     @GetMapping("/method-rank")
-    @Operation(summary = "按方法卡命中数给店铺排名（M01：产出合格新品越多越靠前）")
+    @Operation(summary = "方法卡店铺分级", description = "按所选方法卡命中商品聚合店铺画像；当前支持 M01")
     public Result<List<ShopMethodRankItem>> methodRank(
             @RequestParam(required = false) String marketplace,
             @RequestParam(defaultValue = "M01") String methodId,
             @RequestParam(defaultValue = "1") Integer minCount,
             @RequestParam(defaultValue = "100") Integer limit) {
-        // 目前仅 M01；未来加卡片时在此按 methodId 分派
-        return Result.success(shopMethodRankService.rankByM01(marketplace, minCount, limit));
+        return Result.success(shopMethodRankService.rankByMethod(methodId, marketplace, minCount, limit));
     }
 
     @PostMapping("/method-rank/backfill")

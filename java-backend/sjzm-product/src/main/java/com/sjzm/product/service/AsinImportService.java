@@ -65,6 +65,7 @@ public class AsinImportService {
     private final InitialFilterConfigService initialFilterConfig;
     private final SellerspriteConfig sellerspriteConfig;
     private final SellerspriteConfigService sellerspriteConfigService;
+    private final SellerspriteApiService sellerspriteApiService;
     private final ScoringService scoringService;
     private final CleanLayerService cleanLayerService;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -804,6 +805,7 @@ public class AsinImportService {
 
             int totalSellers = results.size();
             int totalProducts = 0;
+            int totalApiCalls = 0;
             StringBuilder logBuf = new StringBuilder();
 
             boolean isDengZong = "deng_zong_shop".equals(target);
@@ -827,13 +829,18 @@ public class AsinImportService {
 
                 try {
                     int count;
+                    int apiCalls;
                     if (isDengZong) {
                         Map<String, Object> syncResult = dengZongShopService.syncBySellerName(sellerName, task.getMarketplace());
                         count = ((Number) syncResult.getOrDefault("inserted", 0)).intValue();
+                        apiCalls = ((Number) syncResult.getOrDefault("apiCalls", 0)).intValue();
                     } else {
-                        count = syncProductsBySeller(sellerName, task.getMarketplace(), month);
+                        SellerSyncResult syncResult = syncProductsBySeller(sellerName, task.getMarketplace(), month);
+                        count = syncResult.products();
+                        apiCalls = syncResult.apiCalls();
                     }
                     totalProducts += count;
+                    totalApiCalls += apiCalls;
                     appendLog(logBuf, String.format("[%d/%d] %s: 获取 %d 个产品",
                             currentSeller, totalSellers, sellerName, count));
 
@@ -852,6 +859,7 @@ public class AsinImportService {
                 task.setProgressLog(logBuf.toString());
                 task.setBatchCurrent(currentSeller);
                 task.setApiSuccess(totalProducts);
+                task.setApiRequestsUsed(totalApiCalls);
                 taskMapper.updateById(task);
 
                 try { Thread.sleep(SELLER_API_DELAY_MS); } catch (InterruptedException ignored) {}
@@ -885,12 +893,14 @@ public class AsinImportService {
      * 注意：@Transactional 在 private 方法上不生效（Spring AOP 限制），
      * 事务由调用方 sellerExecute 中的 competitorService.upsertAndFilter 内部保证
      */
-    private int syncProductsBySeller(String sellerName, String marketplace, String month) {
+    private SellerSyncResult syncProductsBySeller(String sellerName, String marketplace, String month) {
         List<CompetitorProduct> batch = new ArrayList<>();
+        int apiCalls = 0;
         int page = 1;
 
         while (true) {
-            JsonNode data = callSellerspriteApi(sellerName, marketplace, page, 100);
+            JsonNode data = callSellerspriteApi(sellerName, marketplace, page, 100, month);
+            apiCalls++;
             if (data == null) break;
 
             int apiTotal = data.path("total").asInt(0);
@@ -928,10 +938,14 @@ public class AsinImportService {
             sellerMapper.updateById(seller);
         }
 
-        return batch.size();
+        return new SellerSyncResult(batch.size(), apiCalls);
     }
 
-    private JsonNode callSellerspriteApi(String sellerName, String marketplace, int page, int size) {
+    private JsonNode callSellerspriteApi(String sellerName, String marketplace, int page, int size, String month) {
+        rateLimitService.checkRequestQuota();
+        long startTime = System.currentTimeMillis();
+        String apiStatus = "OK";
+        String errorMsg = null;
         try {
             String body = objectMapper.writeValueAsString(Map.of(
                     "marketplace", marketplace,
@@ -955,15 +969,24 @@ public class AsinImportService {
             JsonNode result = objectMapper.readTree(response.body());
 
             if (!"OK".equals(result.path("code").asText())) {
-                log.error("卖家精灵API错误: {}", result.path("message").asText());
+                apiStatus = "ERROR";
+                errorMsg = result.path("message").asText();
+                log.error("卖家精灵API错误: {}", errorMsg);
                 return null;
             }
             return result.path("data");
         } catch (Exception e) {
+            apiStatus = "ERROR";
+            errorMsg = e.getMessage();
             log.error("调用卖家精灵API失败: {}", e.getMessage());
             throw new RuntimeException("API调用失败: " + e.getMessage(), e);
+        } finally {
+            long took = System.currentTimeMillis() - startTime;
+            sellerspriteApiService.logApiCall(marketplace, month, 0, took, apiStatus, errorMsg);
         }
     }
+
+    private record SellerSyncResult(int products, int apiCalls) {}
 
     private CompetitorProduct mapSellerItemToProduct(JsonNode item, String marketplace, String month) {
         CompetitorProduct cp = new CompetitorProduct();
