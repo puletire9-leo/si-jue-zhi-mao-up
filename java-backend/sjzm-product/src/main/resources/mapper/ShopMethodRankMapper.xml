@@ -37,25 +37,63 @@
         LIMIT #{limit}
     </select>
 
+    <update id="normalizeM01UnknownListingDaysRaw">
+        UPDATE competitor_products
+        SET listing_days = #{unknownListingDays}
+        WHERE marketplace = #{marketplace}
+          AND (
+              HEX(source) = 'E696B0E59381E6A69C'
+              OR LOWER(source) LIKE '%new%'
+          )
+          AND (available_date IS NULL OR available_date &lt;= 0)
+          AND (listing_days IS NULL OR listing_days &gt;= #{listingDaysMax})
+    </update>
+
     <update id="backfillM01Active">
         UPDATE competitor_products cp
         SET cp.m01_active =
             CASE
-                WHEN cp.available_date IS NOT NULL
-                 AND cp.available_date &gt; 0
+                WHEN (
+                     HEX(cp.source) = 'E696B0E59381E6A69C'
+                     OR LOWER(cp.source) LIKE '%new%'
+                 )
                  AND cp.price IS NOT NULL
                  AND cp.price &gt;= #{priceMin}
                  AND cp.price &lt;= #{priceMax}
                  AND cp.weight_g IS NOT NULL
                  AND cp.weight_g &lt; #{weightMax}
-                 AND DATEDIFF(NOW(), FROM_UNIXTIME(cp.available_date / 1000)) &lt; #{listingDaysMax}
+                 AND (
+                    CASE
+                        WHEN cp.available_date IS NOT NULL AND cp.available_date &gt; 0
+                        THEN DATEDIFF(NOW(), FROM_UNIXTIME(cp.available_date / 1000))
+                        ELSE COALESCE(cp.listing_days, #{unknownListingDays})
+                    END
+                 ) &lt; #{listingDaysMax}
                  AND (
                     (
                         cp.units IS NOT NULL
                         AND (
-                            (DATEDIFF(NOW(), FROM_UNIXTIME(cp.available_date / 1000)) &lt;= 30 AND cp.units &gt;= #{sales30})
-                            OR (DATEDIFF(NOW(), FROM_UNIXTIME(cp.available_date / 1000)) &lt;= 60 AND cp.units &gt;= #{sales60})
-                            OR (DATEDIFF(NOW(), FROM_UNIXTIME(cp.available_date / 1000)) &lt;= 90 AND cp.units &gt;= #{sales90})
+                            ((
+                                CASE
+                                    WHEN cp.available_date IS NOT NULL AND cp.available_date &gt; 0
+                                    THEN DATEDIFF(NOW(), FROM_UNIXTIME(cp.available_date / 1000))
+                                    ELSE COALESCE(cp.listing_days, #{unknownListingDays})
+                                END
+                             ) &lt;= 30 AND cp.units &gt;= #{sales30})
+                            OR ((
+                                CASE
+                                    WHEN cp.available_date IS NOT NULL AND cp.available_date &gt; 0
+                                    THEN DATEDIFF(NOW(), FROM_UNIXTIME(cp.available_date / 1000))
+                                    ELSE COALESCE(cp.listing_days, #{unknownListingDays})
+                                END
+                             ) &lt;= 60 AND cp.units &gt;= #{sales60})
+                            OR ((
+                                CASE
+                                    WHEN cp.available_date IS NOT NULL AND cp.available_date &gt; 0
+                                    THEN DATEDIFF(NOW(), FROM_UNIXTIME(cp.available_date / 1000))
+                                    ELSE COALESCE(cp.listing_days, #{unknownListingDays})
+                                END
+                             ) &lt;= 90 AND cp.units &gt;= #{sales90})
                         )
                     )
                     <if test="bsrMax != null">
@@ -66,6 +104,18 @@
                 ELSE 0
             END
         WHERE cp.marketplace = #{marketplace}
+    </update>
+
+    <update id="normalizeM01UnknownListingDaysClean">
+        UPDATE competitor_products_clean
+        SET listing_days = #{unknownListingDays}
+        WHERE marketplace = #{marketplace}
+          AND (
+              HEX(source) = 'E696B0E59381E6A69C'
+              OR LOWER(source) LIKE '%new%'
+          )
+          AND (available_date IS NULL OR available_date &lt;= 0)
+          AND (listing_days IS NULL OR listing_days &gt;= #{listingDaysMax})
     </update>
 
     <update id="syncCleanM01Active">
@@ -89,15 +139,17 @@
       每日摘标：把上架已满 listingDaysMax 天的过期品 m01_active 置 0。
       只动 m01_active=1 且已超期的行（增量小操作）。用真实上架日实时算天数。
     -->
+    <!--
+      只摘"有真实上架日且已超期"的品。available_date 缺失的品按新品假设（89天）恒合格，
+      不在此摘标（与 calcListingDays 的 89 兜底一致），等重新导入或拿到真实上架日再定。
+    -->
     <update id="expireM01Active">
         UPDATE competitor_products
         SET m01_active = 0
         WHERE marketplace = #{marketplace}
           AND m01_active = 1
-          AND (
-              available_date IS NULL OR available_date &lt;= 0
-              OR DATEDIFF(NOW(), FROM_UNIXTIME(available_date / 1000)) &gt;= #{listingDaysMax}
-          )
+          AND available_date &gt; 0
+          AND DATEDIFF(NOW(), FROM_UNIXTIME(available_date / 1000)) &gt;= #{listingDaysMax}
     </update>
 
     <update id="expireM01ActiveClean">
@@ -105,10 +157,8 @@
         SET m01_active = 0
         WHERE marketplace = #{marketplace}
           AND m01_active = 1
-          AND (
-              available_date IS NULL OR available_date &lt;= 0
-              OR DATEDIFF(NOW(), FROM_UNIXTIME(available_date / 1000)) &gt;= #{listingDaysMax}
-          )
+          AND available_date &gt; 0
+          AND DATEDIFF(NOW(), FROM_UNIXTIME(available_date / 1000)) &gt;= #{listingDaysMax}
     </update>
 
 </mapper>

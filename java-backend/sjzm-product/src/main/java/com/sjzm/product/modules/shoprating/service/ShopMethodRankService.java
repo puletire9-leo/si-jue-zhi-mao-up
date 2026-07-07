@@ -53,22 +53,35 @@ public class ShopMethodRankService {
     public Map<String, Object> backfillM01Active(String marketplace) {
         String mp = M01Rule.normalizeMarketplace(marketplace);
         M01Rule rule = M01Rule.forMarketplace(mp);
+        int rawListingDays = mapper.normalizeM01UnknownListingDaysRaw(
+                rule.marketplace(),
+                rule.listingDaysMax(),
+                M01Rule.UNKNOWN_LISTING_DAYS_DEFAULT
+        );
         int raw = mapper.backfillM01Active(
                 rule.marketplace(),
                 rule.priceMin(),
                 rule.priceMax(),
                 rule.weightMax(),
                 rule.listingDaysMax(),
+                M01Rule.UNKNOWN_LISTING_DAYS_DEFAULT,
                 rule.sales30(),
                 rule.sales60(),
                 rule.sales90(),
                 rule.bsrMax()
         );
+        int cleanListingDays = mapper.normalizeM01UnknownListingDaysClean(
+                rule.marketplace(),
+                rule.listingDaysMax(),
+                M01Rule.UNKNOWN_LISTING_DAYS_DEFAULT
+        );
         int clean = mapper.syncCleanM01Active(rule.marketplace());
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("marketplace", rule.marketplace());
         result.put("methodId", "M01");
+        result.put("rawListingDaysAffectedRows", rawListingDays);
         result.put("rawAffectedRows", raw);
+        result.put("cleanListingDaysAffectedRows", cleanListingDays);
         result.put("cleanAffectedRows", clean);
         return result;
     }

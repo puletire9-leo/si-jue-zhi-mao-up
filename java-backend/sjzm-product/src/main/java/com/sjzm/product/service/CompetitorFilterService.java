@@ -9,10 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Slf4j
@@ -25,6 +21,7 @@ public class CompetitorFilterService {
     private final ShopMapper shopMapper;
     private final Product30DayNewMapper product30DayNewMapper;
     private final FilterConfigService filterConfig;
+    private final ProductFeatureProcessor productFeatureProcessor;
 
     /**
      * 对一批竞品数据执行双层筛选（批量写入模式）
@@ -42,34 +39,26 @@ public class CompetitorFilterService {
         M01Rule m01Rule = m01RuleQuietly(marketplace);
 
         for (CompetitorProduct p : products) {
-            // 1. 计算上架天数
-            int listingDays = calcListingDays(p.getAvailableDate());
-            p.setListingDays(listingDays);
+            // 1. 基础特征处理层：只产出可复用事实，不判定方法卡命中。
+            productFeatureProcessor.applyBaseFeatures(p, marketplace, source);
+            int listingDays = p.getListingDays();
+            BigDecimal weightG = p.getWeightG();
 
-            // 2. 提取重量克数
-            BigDecimal weightG = extractWeightGrams(p.getWeight());
-            p.setWeightG(weightG);
-
-            // 2.5 M01 合格标记（方法卡分档口径；仅在真实上架日存在时才可能命中）
+            // 2. M01 合格标记（方法卡消费层口径）
+            // listingDays 已含 available_date 缺失的 89 兜底，matches 内部据此判定；
+            // 上架时效不再排斥无 available_date 的品（新品榜数据缺字段≠老品）。
             boolean m01Hit = m01Rule != null
-                    && p.getAvailableDate() != null && p.getAvailableDate() > 0
                     && m01Rule.matches(listingDays, p.getPrice(), weightG, p.getUnits(), p.getBsr());
             p.setM01Active(m01Hit ? 1 : 0);
 
-            // 3. 生成商品链接
-            String productUrl = buildProductUrl(p.getAsin(), marketplace);
-            p.setProductUrl(productUrl);
-            p.setSimilarUrl(buildSimilarUrl(p.getImageUrl(), marketplace));
-            p.setSource(source);
-
-            // 4. 执行模式一筛选
+            // 3. 执行模式一筛选
             List<String> mode1Reasons = checkMode1(p, listingDays, weightG, marketplace);
             boolean passedMode1 = mode1Reasons.isEmpty();
 
-            // 5. 执行模式二筛选
+            // 4. 执行模式二筛选
             boolean passedMode2 = checkMode2(p, marketplace);
 
-            // 6. 设置筛选结果
+            // 5. 设置筛选结果
             if (passedMode1) {
                 p.setFilterMode("MODE1");
                 result.mode1Count++;
@@ -82,7 +71,7 @@ public class CompetitorFilterService {
                 result.failCount++;
             }
 
-            // 7. 30天新品追踪（收集）
+            // 6. 30天新品追踪（收集）
             if (listingDays <= 30) {
                 collect30DayProduct(p, marketplace, month, newProducts);
                 if (passedMode1 || passedMode2) {
@@ -92,12 +81,12 @@ public class CompetitorFilterService {
                 }
             }
 
-            // 8. 收集失败到 skip_asins
+            // 7. 收集失败到 skip_asins
             if (!passedMode1 && !passedMode2) {
                 collectSkipAsin(p, marketplace, skipAsins);
             }
 
-            // 9. 收集店铺
+            // 8. 收集店铺
             if (p.getSellerId() != null && !p.getSellerId().isEmpty() && shopIdSet.add(p.getSellerId())) {
                 collectShop(p, marketplace, shops);
             }
@@ -137,31 +126,6 @@ public class CompetitorFilterService {
             log.warn("站点 {} 无 M01 规则，跳过 m01_active 打标", marketplace);
             return null;
         }
-    }
-
-    private int calcListingDays(Long availableDate) {
-        if (availableDate == null || availableDate == 0) return 999;
-        LocalDate listingDate = Instant.ofEpochMilli(availableDate)
-                .atZone(ZoneId.of("Asia/Shanghai")).toLocalDate();
-        return (int) ChronoUnit.DAYS.between(listingDate, LocalDate.now());
-    }
-
-    private BigDecimal extractWeightGrams(String weightStr) {
-        if (weightStr == null || weightStr.isEmpty()) return null;
-        try {
-            String lower = weightStr.toLowerCase();
-            java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d+\\.?\\d*)\\s*(g|kg|pounds|ounces)")
-                    .matcher(lower);
-            if (m.find()) {
-                double val = Double.parseDouble(m.group(1));
-                String unit = m.group(2);
-                if ("kg".equals(unit)) val *= 1000;
-                else if ("pounds".equals(unit)) val *= 453.592;
-                else if ("ounces".equals(unit)) val *= 28.3495;
-                return BigDecimal.valueOf(val);
-            }
-        } catch (Exception ignored) {}
-        return null;
     }
 
     private List<String> checkMode1(CompetitorProduct p, int listingDays, BigDecimal weightG, String marketplace) {
@@ -272,26 +236,6 @@ public class CompetitorFilterService {
         item.setMarketplace(marketplace);
         item.setDataMonth(month);
         collector.add(item);
-    }
-
-    private String buildProductUrl(String asin, String marketplace) {
-        if (asin == null) return null;
-        return switch (marketplace) {
-            case "UK" -> "https://www.amazon.co.uk/dp/" + asin;
-            case "DE" -> "https://www.amazon.de/dp/" + asin;
-            case "US" -> "https://www.amazon.com/dp/" + asin;
-            default -> "https://www.amazon.co.uk/dp/" + asin;
-        };
-    }
-
-    private String buildSimilarUrl(String imageUrl, String marketplace) {
-        if (imageUrl == null) return null;
-        String domain = switch (marketplace) {
-            case "DE" -> "https://www.amazon.de";
-            case "US" -> "https://www.amazon.com";
-            default -> "https://www.amazon.co.uk";
-        };
-        return domain + "/stylesnap?q=" + imageUrl;
     }
 
     private String buildShopLink(String sellerId, String marketplace) {

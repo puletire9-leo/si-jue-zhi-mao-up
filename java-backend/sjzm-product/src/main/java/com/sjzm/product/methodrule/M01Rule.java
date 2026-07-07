@@ -27,6 +27,14 @@ public record M01Rule(String marketplace,
                       Integer sales90,
                       Integer bsrMax) {
 
+    /**
+     * 新品榜数据缺 available_date 时的上架天数兜底。
+     *
+     * <p>缺日期不等于老品；按 89 天处理可进入 M01 的 90 天窗口，仍需通过价格、重量、
+     * 销量或 BSR 门槛。
+     */
+    public static final int UNKNOWN_LISTING_DAYS_DEFAULT = 89;
+
     public static String normalizeMarketplace(String marketplace) {
         return marketplace != null && !marketplace.isBlank()
                 ? marketplace.trim().toUpperCase(Locale.ROOT)

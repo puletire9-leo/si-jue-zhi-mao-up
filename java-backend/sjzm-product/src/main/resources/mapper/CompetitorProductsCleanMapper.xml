@@ -12,7 +12,7 @@
         INSERT INTO competitor_products_clean
             (id, marketplace, asin, month, title, brand, brand_url, image_url, parent_asin, sku,
              node_id, node_id_path, node_label_path, symbol,
-             units, units_gr, amz_unit, amz_sales, amz_unit_date, revenue,
+             units, sales_tier, units_gr, amz_unit, amz_sales, amz_unit_date, revenue,
              bsr_id, bsr, bsr_cr, bsr_cv,
              ratings, rating, ratings_rate, ratings_cv, rating_delta,
              price, prime_price, profit, fba, delivery_price,
@@ -30,7 +30,7 @@
             ranked.id, ranked.marketplace, ranked.asin, ranked.month, ranked.title, ranked.brand,
             ranked.brand_url, ranked.image_url, ranked.parent_asin, ranked.sku,
             ranked.node_id, ranked.node_id_path, ranked.node_label_path, ranked.symbol,
-            ranked.units, ranked.units_gr, ranked.amz_unit, ranked.amz_sales, ranked.amz_unit_date, ranked.revenue,
+            ranked.units, ranked.sales_tier, ranked.units_gr, ranked.amz_unit, ranked.amz_sales, ranked.amz_unit_date, ranked.revenue,
             ranked.bsr_id, ranked.bsr, ranked.bsr_cr, ranked.bsr_cv,
             ranked.ratings, ranked.rating, ranked.ratings_rate, ranked.ratings_cv, ranked.rating_delta,
             ranked.price, ranked.prime_price, ranked.profit, ranked.fba, ranked.delivery_price,
@@ -63,6 +63,7 @@
         WHERE ranked.variant_rank = 1
         ON DUPLICATE KEY UPDATE
             units = VALUES(units),
+            sales_tier = VALUES(sales_tier),
             bsr = VALUES(bsr),
             price = VALUES(price),
             listing_days = VALUES(listing_days),
@@ -83,7 +84,7 @@
         INSERT INTO competitor_products_clean
             (id, marketplace, asin, month, title, brand, brand_url, image_url, parent_asin, sku,
              node_id, node_id_path, node_label_path, symbol,
-             units, units_gr, amz_unit, amz_sales, amz_unit_date, revenue,
+             units, sales_tier, units_gr, amz_unit, amz_sales, amz_unit_date, revenue,
              bsr_id, bsr, bsr_cr, bsr_cv,
              ratings, rating, ratings_rate, ratings_cv, rating_delta,
              price, prime_price, profit, fba, delivery_price,
@@ -101,7 +102,7 @@
             ranked.id, ranked.marketplace, ranked.asin, ranked.month, ranked.title, ranked.brand,
             ranked.brand_url, ranked.image_url, ranked.parent_asin, ranked.sku,
             ranked.node_id, ranked.node_id_path, ranked.node_label_path, ranked.symbol,
-            ranked.units, ranked.units_gr, ranked.amz_unit, ranked.amz_sales, ranked.amz_unit_date, ranked.revenue,
+            ranked.units, ranked.sales_tier, ranked.units_gr, ranked.amz_unit, ranked.amz_sales, ranked.amz_unit_date, ranked.revenue,
             ranked.bsr_id, ranked.bsr, ranked.bsr_cr, ranked.bsr_cv,
             ranked.ratings, ranked.rating, ranked.ratings_rate, ranked.ratings_cv, ranked.rating_delta,
             ranked.price, ranked.prime_price, ranked.profit, ranked.fba, ranked.delivery_price,
@@ -135,6 +136,7 @@
         WHERE ranked.variant_rank = 1
         ON DUPLICATE KEY UPDATE
             units = VALUES(units),
+            sales_tier = VALUES(sales_tier),
             bsr = VALUES(bsr),
             price = VALUES(price),
             listing_days = VALUES(listing_days),

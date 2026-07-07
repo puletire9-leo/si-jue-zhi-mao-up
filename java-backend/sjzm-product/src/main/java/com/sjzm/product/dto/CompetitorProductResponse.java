@@ -27,6 +27,7 @@ public class CompetitorProductResponse {
     private String symbol;
 
     private Integer units;
+    private String salesTier;
     private BigDecimal unitsGr;
     private Integer amzUnit;
     private BigDecimal amzSales;
