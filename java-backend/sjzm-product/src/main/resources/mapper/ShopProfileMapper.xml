@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.modules.analysisbaseline.shopprofile.mapper.ShopProfileMapper">
+
+    <!--
+      rankedFromDengZong：父体去重 + sales_tier 现算 + 末级类目拆分 的唯一事实来源。
+      店铺画像 6 个查询共用此片段，sales_tier 阈值 (100/50/15) 与 ProductFeatureProcessor.classifySalesTier 对齐。
+      片段以 `FROM deng_zong_shop ds` 结尾，调用方各自拼接 WHERE 与后续 CTE。
+      店铺抓取数据保证干净无变体，PRODUCT_KEY = COALESCE(NULLIF(parent_asin,''), asin)。
+    -->
+    <sql id="rankedFromDengZong"><![CDATA[
+        WITH ranked AS (
+            SELECT ds.*,
+                COALESCE(NULLIF(ds.parent_asin, ''), ds.asin) AS product_key,
+                CASE
+                    WHEN ds.units IS NULL THEN 'UNKNOWN'
+                    WHEN ds.units >= 100 THEN 'A'
+                    WHEN ds.units >= 50  THEN 'B'
+                    WHEN ds.units >= 15  THEN 'C'
+                    ELSE 'D'
+                END AS sales_tier_calc,
+                COALESCE(NULLIF(TRIM(SUBSTRING_INDEX(ds.node_label_path, ':', -1)), ''), 'UNKNOWN') AS category_leaf,
+                ROW_NUMBER() OVER (
+                    PARTITION BY ds.marketplace, ds.seller_name, COALESCE(NULLIF(ds.parent_asin, ''), ds.asin)
+                    ORDER BY
+                        CASE WHEN ds.batch_date IS NULL OR ds.batch_date = '' THEN 1 ELSE 0 END ASC,
+                        ds.batch_date DESC,
+                        CASE WHEN ds.bsr IS NULL OR ds.bsr <= 0 THEN 999999999 ELSE ds.bsr END ASC,
+                        ds.created_at DESC, ds.id DESC
+                ) AS rn
+            FROM deng_zong_shop ds
+    ]]></sql>
+
+    <select id="selectSummary" resultType="com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileSummary">
+        <include refid="rankedFromDengZong"/>
+            WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL AND ds.seller_name IS NOT NULL
+            <if test="marketplace != null and marketplace != ''">AND ds.marketplace = #{marketplace}</if>
+            <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+            <if test="sellerNameKeyword != null and sellerNameKeyword != ''">AND ds.seller_name LIKE CONCAT('%', #{sellerNameKeyword}, '%')</if>
+        ), base AS (
+            SELECT * FROM ranked WHERE rn = 1
+        ), seller_agg AS (
+            SELECT marketplace, seller_name AS sellerName, MAX(seller_id) AS sellerId,
+                COUNT(*) AS productCount,
+                SUM(CASE WHEN sales_tier_calc = 'A' THEN 1 ELSE 0 END) AS aCount,
+                SUM(CASE WHEN sales_tier_calc = 'B' THEN 1 ELSE 0 END) AS bCount,
+                SUM(CASE WHEN sales_tier_calc = 'C' THEN 1 ELSE 0 END) AS cCount,
+                SUM(CASE WHEN sales_tier_calc = 'D' THEN 1 ELSE 0 END) AS dCount,
+                SUM(CASE WHEN sales_tier_calc = 'UNKNOWN' THEN 1 ELSE 0 END) AS unknownCount,
+                MAX(batch_date) AS latestBatchDate
+            FROM base GROUP BY marketplace, seller_name
+        ), category_source AS (
+            SELECT marketplace, seller_name AS sellerName, 'A' AS bucket, category_leaf FROM base WHERE sales_tier_calc = 'A'
+            UNION ALL SELECT marketplace, seller_name AS sellerName, 'ABC' AS bucket, category_leaf FROM base WHERE sales_tier_calc IN ('A','B','C')
+            UNION ALL SELECT marketplace, seller_name AS sellerName, 'D' AS bucket, category_leaf FROM base WHERE sales_tier_calc = 'D'
+        ), category_counts AS (
+            SELECT marketplace, sellerName, bucket, category_leaf, COUNT(*) AS cnt
+            FROM category_source GROUP BY marketplace, sellerName, bucket, category_leaf
+        ), category_ranked AS (
+            SELECT category_counts.*, ROW_NUMBER() OVER (
+                PARTITION BY marketplace, sellerName, bucket ORDER BY cnt DESC, category_leaf ASC
+            ) AS category_rank FROM category_counts
+        ), top_categories AS (
+            SELECT marketplace, sellerName,
+                MAX(CASE WHEN bucket = 'A'   AND category_rank = 1 THEN category_leaf END) AS topACategory,
+                MAX(CASE WHEN bucket = 'ABC' AND category_rank = 1 THEN category_leaf END) AS topABCCategory,
+                MAX(CASE WHEN bucket = 'D'   AND category_rank = 1 THEN category_leaf END) AS topDCategory
+            FROM category_ranked GROUP BY marketplace, sellerName
+        )
+        SELECT sa.marketplace, sa.sellerName, sa.sellerId, sa.productCount,
+            sa.aCount, sa.bCount, sa.cCount, sa.dCount, sa.unknownCount,
+            (sa.aCount + sa.bCount) AS abCount,
+            (sa.aCount + sa.bCount + sa.cCount) AS abcCount,
+            tc.topACategory, tc.topABCCategory, tc.topDCategory,
+            sa.latestBatchDate
+        FROM seller_agg sa
+        LEFT JOIN top_categories tc ON tc.marketplace = sa.marketplace AND tc.sellerName = sa.sellerName
+        <where>
+            <if test="minProductCount != null">sa.productCount &gt;= #{minProductCount}</if>
+        </where>
+        ORDER BY sa.productCount DESC, (sa.aCount + sa.bCount + sa.cCount) DESC, sa.sellerName ASC
+        LIMIT #{limit}
+    </select>
+
+    <select id="countProducts" resultType="long">
+        <include refid="rankedFromDengZong"/>
+            WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL
+              AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
+            <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+        ), base AS (SELECT * FROM ranked WHERE rn = 1)
+        SELECT COUNT(*) FROM base
+        <where>
+            <if test="salesTier != null and salesTier != ''">sales_tier_calc = #{salesTier}</if>
+            <if test="category != null and category != ''">AND category_leaf = #{category}</if>
+        </where>
+    </select>
+
+    <select id="selectProducts" resultType="com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileProduct">
+        <include refid="rankedFromDengZong"/>
+            WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL
+              AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
+            <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+        ), base AS (SELECT * FROM ranked WHERE rn = 1)
+        SELECT id, marketplace, seller_name AS sellerName, seller_id AS sellerId, asin, parent_asin AS parentAsin,
+            sales_tier_calc AS salesTier, title, brand, image_url AS imageUrl, product_url AS productUrl, similar_url AS similarUrl,
+            node_id AS nodeId, node_label_path AS nodeLabelPath, category_leaf AS categoryLeaf, bsr_id AS bsrId,
+            units, bsr, price, rating, ratings, fulfillment, available_date AS availableDate, batch_date AS batchDate, created_at AS createdAt
+        FROM base
+        <where>
+            <if test="salesTier != null and salesTier != ''">sales_tier_calc = #{salesTier}</if>
+            <if test="category != null and category != ''">AND category_leaf = #{category}</if>
+        </where>
+        ORDER BY
+            CASE sales_tier_calc WHEN 'A' THEN 1 WHEN 'B' THEN 2 WHEN 'C' THEN 3 WHEN 'D' THEN 4 ELSE 5 END ASC,
+            CASE WHEN units IS NULL THEN 1 ELSE 0 END ASC, units DESC,
+            CASE WHEN bsr IS NULL OR bsr &lt;= 0 THEN 1 ELSE 0 END ASC, bsr ASC, asin ASC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="selectCategories" resultType="com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileCategory">
+        <include refid="rankedFromDengZong"/>
+            WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL
+              AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
+            <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+        ), base AS (SELECT * FROM ranked WHERE rn = 1)
+        SELECT marketplace, seller_name AS sellerName, sales_tier_calc AS salesTier, category_leaf AS categoryKey,
+            COUNT(*) AS productCount, COALESCE(SUM(units), 0) AS unitsSum, ROUND(AVG(units), 2) AS unitsAvg
+        FROM base
+        <where>
+            <if test="salesTier != null and salesTier != ''">sales_tier_calc = #{salesTier}</if>
+        </where>
+        GROUP BY marketplace, seller_name, sales_tier_calc, category_leaf
+        ORDER BY
+            CASE sales_tier_calc WHEN 'A' THEN 1 WHEN 'B' THEN 2 WHEN 'C' THEN 3 WHEN 'D' THEN 4 ELSE 5 END ASC,
+            productCount DESC, category_leaf ASC
+    </select>
+
+    <delete id="deleteSnapshots">
+        DELETE FROM shop_profile_snapshot WHERE batch_date = #{batchDate} AND variation_mode = 'Y'
+        <if test="marketplace != null and marketplace != ''">AND marketplace = #{marketplace}</if>
+    </delete>
+
+    <delete id="deleteCategories">
+        DELETE FROM shop_profile_category WHERE batch_date = #{batchDate} AND variation_mode = 'Y'
+        <if test="marketplace != null and marketplace != ''">AND marketplace = #{marketplace}</if>
+    </delete>
+
+    <insert id="insertSnapshotsFromDengZong">
+        INSERT INTO shop_profile_snapshot (
+            marketplace, seller_name, seller_id, batch_date, variation_mode,
+            product_count, a_count, b_count, c_count, d_count, unknown_count, ab_count, abc_count,
+            a_ratio, ab_ratio, abc_ratio, d_ratio, top_a_category, top_abc_category, top_d_category,
+            profile_type, source_table, computed_at, created_at, updated_at
+        )
+        <include refid="rankedFromDengZong"/>
+            WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL AND ds.seller_name IS NOT NULL
+              AND ds.batch_date = #{batchDate}
+            <if test="marketplace != null and marketplace != ''">AND ds.marketplace = #{marketplace}</if>
+        ), base AS (SELECT * FROM ranked WHERE rn = 1),
+        seller_agg AS (
+            SELECT marketplace, seller_name, MAX(seller_id) AS seller_id, COUNT(*) AS product_count,
+                SUM(CASE WHEN sales_tier_calc = 'A' THEN 1 ELSE 0 END) AS a_count,
+                SUM(CASE WHEN sales_tier_calc = 'B' THEN 1 ELSE 0 END) AS b_count,
+                SUM(CASE WHEN sales_tier_calc = 'C' THEN 1 ELSE 0 END) AS c_count,
+                SUM(CASE WHEN sales_tier_calc = 'D' THEN 1 ELSE 0 END) AS d_count,
+                SUM(CASE WHEN sales_tier_calc = 'UNKNOWN' THEN 1 ELSE 0 END) AS unknown_count
+            FROM base GROUP BY marketplace, seller_name
+        ), category_source AS (
+            SELECT marketplace, seller_name, 'A' AS bucket, category_leaf FROM base WHERE sales_tier_calc = 'A'
+            UNION ALL SELECT marketplace, seller_name, 'ABC' AS bucket, category_leaf FROM base WHERE sales_tier_calc IN ('A','B','C')
+            UNION ALL SELECT marketplace, seller_name, 'D' AS bucket, category_leaf FROM base WHERE sales_tier_calc = 'D'
+        ), category_counts AS (
+            SELECT marketplace, seller_name, bucket, category_leaf, COUNT(*) AS cnt
+            FROM category_source GROUP BY marketplace, seller_name, bucket, category_leaf
+        ), category_ranked AS (
+            SELECT category_counts.*, ROW_NUMBER() OVER (
+                PARTITION BY marketplace, seller_name, bucket ORDER BY cnt DESC, category_leaf ASC
+            ) AS category_rank FROM category_counts
+        ), top_categories AS (
+            SELECT marketplace, seller_name,
+                MAX(CASE WHEN bucket = 'A'   AND category_rank = 1 THEN category_leaf END) AS top_a_category,
+                MAX(CASE WHEN bucket = 'ABC' AND category_rank = 1 THEN category_leaf END) AS top_abc_category,
+                MAX(CASE WHEN bucket = 'D'   AND category_rank = 1 THEN category_leaf END) AS top_d_category
+            FROM category_ranked GROUP BY marketplace, seller_name
+        )
+        SELECT sa.marketplace, sa.seller_name, sa.seller_id, #{batchDate} AS batch_date, 'Y' AS variation_mode,
+            sa.product_count, sa.a_count, sa.b_count, sa.c_count, sa.d_count, sa.unknown_count,
+            (sa.a_count + sa.b_count) AS ab_count,
+            (sa.a_count + sa.b_count + sa.c_count) AS abc_count,
+            ROUND(sa.a_count / NULLIF(sa.product_count, 0), 4) AS a_ratio,
+            ROUND((sa.a_count + sa.b_count) / NULLIF(sa.product_count, 0), 4) AS ab_ratio,
+            ROUND((sa.a_count + sa.b_count + sa.c_count) / NULLIF(sa.product_count, 0), 4) AS abc_ratio,
+            ROUND(sa.d_count / NULLIF(sa.product_count, 0), 4) AS d_ratio,
+            tc.top_a_category, tc.top_abc_category, tc.top_d_category,
+            CASE
+                WHEN sa.product_count &lt; 10 THEN '样本较小待观察型'
+                WHEN ROUND((sa.a_count + sa.b_count + sa.c_count) / NULLIF(sa.product_count, 0), 4) &gt;= 0.45
+                  AND ROUND((sa.a_count + sa.b_count) / NULLIF(sa.product_count, 0), 4) &gt;= 0.12
+                  AND ROUND(sa.d_count / NULLIF(sa.product_count, 0), 4) &gt;= 0.25 THEN '健康精铺飞轮型'
+                WHEN ROUND((sa.a_count + sa.b_count + sa.c_count) / NULLIF(sa.product_count, 0), 4) &gt;= 0.50
+                  AND ROUND((sa.a_count + sa.b_count) / NULLIF(sa.product_count, 0), 4) &gt;= 0.15 THEN '成熟精铺利润型'
+                WHEN ROUND((sa.a_count + sa.b_count + sa.c_count) / NULLIF(sa.product_count, 0), 4) &gt;= 0.35 THEN '稳定候选池型'
+                WHEN ROUND(sa.d_count / NULLIF(sa.product_count, 0), 4) &gt;= 0.50 THEN '成长测品型'
+                ELSE '待观察型' END AS profile_type,
+            'deng_zong_shop' AS source_table, NOW() AS computed_at, NOW() AS created_at, NOW() AS updated_at
+        FROM seller_agg sa
+        LEFT JOIN top_categories tc ON tc.marketplace = sa.marketplace AND tc.seller_name = sa.seller_name
+        ON DUPLICATE KEY UPDATE
+            seller_id = VALUES(seller_id), product_count = VALUES(product_count),
+            a_count = VALUES(a_count), b_count = VALUES(b_count), c_count = VALUES(c_count), d_count = VALUES(d_count), unknown_count = VALUES(unknown_count),
+            ab_count = VALUES(ab_count), abc_count = VALUES(abc_count),
+            a_ratio = VALUES(a_ratio), ab_ratio = VALUES(ab_ratio), abc_ratio = VALUES(abc_ratio), d_ratio = VALUES(d_ratio),
+            top_a_category = VALUES(top_a_category), top_abc_category = VALUES(top_abc_category), top_d_category = VALUES(top_d_category),
+            profile_type = VALUES(profile_type), computed_at = VALUES(computed_at), updated_at = NOW()
+    </insert>
+
+    <insert id="insertCategoriesFromDengZong">
+        INSERT INTO shop_profile_category (
+            marketplace, seller_name, batch_date, variation_mode, sales_tier, category_key,
+            product_count, units_sum, units_avg, source_table, computed_at, created_at, updated_at
+        )
+        <include refid="rankedFromDengZong"/>
+            WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL AND ds.seller_name IS NOT NULL
+              AND ds.batch_date = #{batchDate}
+            <if test="marketplace != null and marketplace != ''">AND ds.marketplace = #{marketplace}</if>
+        ), base AS (SELECT * FROM ranked WHERE rn = 1), tiered AS (
+            SELECT marketplace, seller_name, sales_tier_calc AS sales_tier, category_leaf, units FROM base
+            UNION ALL SELECT marketplace, seller_name, 'ABC' AS sales_tier, category_leaf, units FROM base WHERE sales_tier_calc IN ('A','B','C')
+        )
+        SELECT marketplace, seller_name, #{batchDate} AS batch_date, 'Y' AS variation_mode,
+            sales_tier, category_leaf AS category_key, COUNT(*) AS product_count, COALESCE(SUM(units), 0) AS units_sum,
+            ROUND(AVG(units), 2) AS units_avg, 'deng_zong_shop' AS source_table, NOW() AS computed_at, NOW() AS created_at, NOW() AS updated_at
+        FROM tiered GROUP BY marketplace, seller_name, sales_tier, category_leaf
+        ON DUPLICATE KEY UPDATE
+            product_count = VALUES(product_count), units_sum = VALUES(units_sum), units_avg = VALUES(units_avg),
+            computed_at = VALUES(computed_at), updated_at = NOW()
+    </insert>
+
+</mapper>

@@ -16,9 +16,12 @@
 | 职责 | 后端 | 状态 |
 |------|------|------|
 | 认证 + 用户管理 | Java（sjzm-user） | ✅ |
-| 竞品分析 + 评分 + ASIN 导入 + 领星数据对接 | Java（sjzm-product） | ✅ |
-| 产品/选品/定稿/素材/运营商 CRUD | Python | 待迁移 |
-| 图片管理/导入导出/报表/领星导入(Excel/COS) | Python | 保留 |
+| 竞品分析 + 评分引擎 + ASIN 导入 + 筛选预设 + 领星对接 | Java（sjzm-product） | ✅ |
+| 店铺画像 / 店铺基线 / 商品族证据 / 方法卡命中缓存（analysis-baseline 层） | Java（sjzm-product） | ✅ 骨架已落，自动聚类/M06 待补 |
+| 产品 / 选品 / 定稿 / 素材库 / 运营商库 / 文件链接 / 标签 / 回收站 / 报告 / 统计 / 公告 | Python | 保留 |
+| 图片管理 / 导入导出 / 领星 Excel/COS 导入 | Python | 保留 |
+
+> 已核实（2026-07）：Python 后端 23 个路由文件仍在跑上述 CRUD，Java 后端无任何 carrier/material/selection/final-draft/recycle/file-links/tags/report Controller。两条线不重复。
 
 ## 铁律
 
@@ -45,4 +48,4 @@ docker compose ps               # Docker 服务状态
 |------|-----------|------|
 | Java 后端 | [java-backend/CLAUDE.md](java-backend/CLAUDE.md) | 微服务（gateway/user/product） |
 | Python 后端 | [backend/CLAUDE.md](backend/CLAUDE.md) | AI 功能（向量/图像识别/评分） |
-| 前端 | [frontend/CLAUDE.md](frontend/CLAUDE.md) | Vue 3 管理后台（27 页面） |
+| 前端 | [frontend/CLAUDE.md](frontend/CLAUDE.md) | Vue 3 管理后台（35 个功能模块 / 25 个 view 目录） |

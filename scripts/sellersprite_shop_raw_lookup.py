@@ -64,6 +64,29 @@ def read_seller_rows() -> list[dict[str, str]]:
     return rows
 
 
+def determined_market_tasks(rows: list[dict[str, str]]) -> list[tuple[dict[str, Any], str]]:
+    tasks: list[tuple[dict[str, Any], str]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in rows:
+        marketplace = row["source"]
+        seller_name = row["sellerName"]
+        key = (marketplace, seller_name.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        tasks.append(
+            (
+                {
+                    "sellerName": seller_name,
+                    "sources": [marketplace],
+                    "storeUrls": {marketplace: row["storeUrl"]} if row.get("storeUrl") else {},
+                },
+                marketplace,
+            )
+        )
+    return tasks
+
+
 def unique_sellers(rows: list[dict[str, str]]) -> list[dict[str, Any]]:
     by_name: dict[str, dict[str, Any]] = {}
     for row in rows:
@@ -87,7 +110,7 @@ def build_request_body(seller_name: str, marketplace: str, page: int, size: int)
         "marketplace": marketplace,
         "sellerName": seller_name,
         "asins": [],
-        "variation": "N",
+        "variation": "Y",
         "page": page,
         "size": size,
         "orderDesc": True,
@@ -244,21 +267,34 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--run-id", default=datetime.now().strftime("%Y%m%d_%H%M%S"))
     parser.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR))
+    parser.add_argument(
+        "--list-scope",
+        choices=["determined", "cross"],
+        default="determined",
+        help="determined: UK list -> UK and DE list -> DE. cross: every unique seller -> selected marketplaces.",
+    )
     args = parser.parse_args()
 
     secret_key = load_secret_key()
-    sellers = unique_sellers(read_seller_rows())
+    rows = read_seller_rows()
+    sellers = unique_sellers(rows)
     if args.sellers:
         requested = {s.lower() for s in args.sellers}
+        rows = [row for row in rows if row["sellerName"].lower() in requested]
         sellers = [s for s in sellers if s["sellerName"].lower() in requested]
         missing = requested - {s["sellerName"].lower() for s in sellers}
         if missing:
             raise SystemExit(f"seller(s) not found in list files: {', '.join(sorted(missing))}")
     if args.limit_sellers is not None:
+        rows = rows[: args.limit_sellers]
         sellers = sellers[: args.limit_sellers]
 
     marketplaces = args.marketplaces or ["UK", "DE"]
-    tasks = [(seller, marketplace) for seller in sellers for marketplace in marketplaces]
+    if args.list_scope == "determined":
+        selected_marketplaces = set(marketplaces)
+        tasks = [(seller, marketplace) for seller, marketplace in determined_market_tasks(rows) if marketplace in selected_marketplaces]
+    else:
+        tasks = [(seller, marketplace) for seller in sellers for marketplace in marketplaces]
     out_root = Path(args.out_dir)
     summaries = []
 

@@ -18,7 +18,12 @@ import java.util.concurrent.ThreadPoolExecutor;
 @EnableFeignClients
 @EnableAsync
 @EnableScheduling
-@MapperScan("com.sjzm.product.mapper")
+@MapperScan({
+        "com.sjzm.product.mapper",
+        "com.sjzm.product.modules.analysisbaseline.shopprofile.mapper",
+        "com.sjzm.product.modules.analysisbaseline.productfamily.mapper",
+        "com.sjzm.product.modules.analysisbaseline.methodevidence.mapper"
+})
 public class ProductApplication {
 
     @Value("${BAZHUAYU_EXECUTOR_CORE:3}")

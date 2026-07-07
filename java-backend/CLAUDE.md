@@ -22,15 +22,21 @@
 - ✅ 筛选预设（用户 5 槽位 CRUD）
 - ✅ 网关（JWT + RBAC + 公开路径白名单）
 - ✅ 领星对接（店铺/本地产品/产品表现/利润 4 数据域落库 + 本地产品写回）
+- ✅ analysis-baseline 层骨架（店铺画像实时聚合 + 物化快照、店铺基线 CRUD + 定位、商品族证据 CRUD、method_product_hit 命中缓存表预留）；自动聚类 / M06 消费待补
 
-**仍在 Python 后端：** 产品/选品/定稿/素材/运营商的 CRUD。
+**仍在 Python 后端：** 产品/选品/定稿/素材/运营商的 CRUD（已核实 Java 端无对应 Controller）。
 
 ## 功能模块（modules/）
 
+路径：`java-backend/sjzm-product/src/main/java/com/sjzm/product/modules/`，当前 6 个：
+
 | 模块 | 说明 | 详情 |
 |------|------|------|
+| analysisbaseline | analysis-baseline 数据加工层：店铺画像 / 店铺基线 / 商品族证据 / 方法卡命中缓存 | `modules/analysisbaseline/` |
+| shoprating | 店铺品级 + 店铺方法卡排名（消费 m01_active 命中标） | `modules/shoprating/` |
 | bazhuayu | 八爪鱼云采集 + 以图识图 | `modules/bazhuayu/` |
 | lingxing | 领星开放平台对接（token/签名 + 4 数据域 + 写回） | [README](sjzm-product/src/main/java/com/sjzm/product/modules/lingxing/README.md) |
+| categorytree | 类目树 | `modules/categorytree/` |
 | roster | 人员花名册 | `modules/roster/` |
 
 ## 包结构约定
@@ -40,7 +46,7 @@ com.sjzm.product/
 ├── controller/   # @RestController，只做参数校验和路由
 ├── service/      # 接口 + impl/，业务逻辑全部在此
 ├── mapper/       # 继承 BaseMapper<T>（含模块的 Mapper）
-├── entity/       # @TableName + @TableId(ASSIGN_ID) + @TableLogic
+├── entity/       # @TableName + @TableId + 视情况 @TableLogic
 ├── config/       # 配置类
 ├── security/     # JWT 认证
 ├── annotation/   # 自定义注解（限流/缓存/追踪）
@@ -51,29 +57,33 @@ com.sjzm.product/
         ├── controller/   # 模块 Controller
         ├── service/      # 模块 Service
         │   └── impl/
-        └── entity/       # 模块 Entity
+        ├── entity/       # 模块 Entity
+        └── mapper/       # 由 @MapperScan 显式加入 mapper 包（见 ProductApplication）
 ```
+
+> 注：`@MapperScan` 现已显式列出 `modules.analysisbaseline.{shopprofile,productfamily,methodevidence}.mapper`。新增模块若把 Mapper 放在 `modules/xxx/mapper` 下，**必须在 `ProductApplication.@MapperScan` 注册**——否则编译过但运行时注入失败。
 
 ## 模块化规则（新功能必须遵守）
 
 新功能**必须**放 `com.sjzm.product.modules.xxx` 包下，自动被 `scanBasePackages` 扫描。
 
 **关键约束：**
-- 模块 Mapper 放 `com.sjzm.product.mapper` 包下（`@MapperScan` 只扫这个包）
+- 模块 Mapper 默认放 `com.sjzm.product.mapper`（老约定）；若放在 `modules/xxx/mapper/`，必须在 `ProductApplication.@MapperScan` 显式注册
 - 模块 Controller/Service/Entity 放 `modules/xxx/` 下
-- 模块 API 前缀：`/api/v1/modules/{module-id}/`
+- 模块 API 前缀：老模块用 `/api/v1/modules/{module-id}/`；analysisbaseline 因面向前端消费，用领域路径 `/api/v1/shop-profile`、`/api/v1/analysis-baseline/product-families`。新模块两种均可，但同模块内保持一致
 - 分层单向：模块 Controller → 模块 Service → 公共/模块 Mapper
 
 ## 铁律
 
-1. **新增 Entity**: 必须 `@TableName` + `@TableId(type=IdType.ASSIGN_ID)` + `@TableLogic`
+1. **新增 Entity**: 必须 `@TableName` + `@TableId`（类型与 DDL 主键一致）。`@TableLogic` 仅当表有 `deleted` 字段时才加——仓库现状多数表用 `status='ACTIVE/INACTIVE'` 软删而非 `@TableLogic`，属正常，不强求。主键类型选择：业务实体（用户/竞品/导入任务等）用 `IdType.ASSIGN_ID`；batch 物化表（`AUTO_INCREMENT` + `ON DUPLICATE KEY UPDATE`）用 `IdType.AUTO`，由 DDL 决定，不要硬套 ASSIGN_ID
 2. **新增 Controller**: `@RestController` + `@RequestMapping` + `@Tag`（Swagger）
 3. **新增 Service**: 先写接口再写 Impl，Impl 加 `@Service`
-4. **新增 Mapper**: 继承 `BaseMapper<T>`
+4. **新增 Mapper**: 继承 `BaseMapper<T>`；若放在 `modules/xxx/mapper/` 必须在 `ProductApplication.@MapperScan` 注册
 5. **响应统一**: `Result.success(data)` / `Result.error(message)`
 6. **配置**: `${ENV_VAR:default}` 占位，禁止硬编码
 7. **禁止**: Controller 写业务 / Mapper 写判断 / Controller 直接注入 Mapper / 反向调用
-8. **郑总批次唯一真相源**: 郑总盘子(`deng_zong_shop`)的批次解析全系统只走 `DengZongShopService.getMaxBatchDate(marketplace)` 一个口子，未传批次时用 `resolveBatchDate` 回退到最新批次。郑总相关聚合只按 `marketplace + batch_date` 过滤，**禁止再 AND `month`**（`batch_date` 已唯一标识数据快照，叠加独立的 `MAX(month)` 会误杀跨月行）。竞品表 `competitor_products` 才按业务选定的 `month` 过滤——两条线各自单一真相源，互不污染。
+8. **郑总批次唯一真相源**: 郑总盘子(`deng_zong_shop`)的批次解析全系统只走 `DengZongShopService.getMaxBatchDate(marketplace)` 一个口子，未传批次时用 `resolveBatchDate` 回退到最新批次。**禁止在郑总相关聚合里另写 `SELECT MAX(batch_date) FROM deng_zong_shop` 兄弟方法**——两套口径一旦分叉，店铺画像/方法卡/列表会算到不同批次。郑总相关聚合只按 `marketplace + batch_date` 过滤，**禁止再 AND `month`**（`batch_date` 已唯一标识数据快照，叠加独立的 `MAX(month)` 会误杀跨月行）。竞品表 `competitor_products` 才按业务选定的 `month` 过滤——两条线各自单一真相源，互不污染。
+9. **市场编码**: `marketplace` 对齐卖家精灵市场编码，当前只支持 `UK / DE / US`。它必须是具体国家站点，禁止把 `ALL` 当 marketplace；需要跨市场汇总时另做显式汇总接口或前端组合。
 
 ## 版本兼容
 
