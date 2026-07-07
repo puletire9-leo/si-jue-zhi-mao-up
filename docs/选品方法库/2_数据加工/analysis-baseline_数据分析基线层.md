@@ -165,18 +165,19 @@ com.sjzm.product.modules.analysisbaseline
 | M04 新品账龄分级 | `CategoryAgeTierBaselineService` | `analysisbaseline.marketbaseline` |
 | 店铺方法卡排名 | `ShopMethodRankService` | L3 店铺消费层，消费 method evidence |
 | 旧郑总相似度评级 | `ShopRatingServiceImpl` | L3 可选视图，后续被 shop-baseline 对标替代 |
-| 店铺画像证据 | 未实现 | `analysisbaseline.shopprofile` |
-| 商品族证据 / M06 支撑 | 未实现 | `analysisbaseline.productfamily` |
+| 店铺画像证据 | `analysisbaseline.shopprofile` | 已实现实时聚合、快照物化、快照读取、基线定位 |
+| 商品族证据 / M06 支撑 | `analysisbaseline.productfamily` | 表结构和 CRUD 骨架已实现，自动聚类待后续 |
 
 ## 六、落地顺序
 
 ```text
 1. 文档上固定 analysis-baseline 分层边界
-2. 新增 shopprofile 画像聚合，只读输出 A/B/C/D、ABC、D、类目结构
-3. 新增 shopbaseline 基线库，先沉淀郑总 UK/DE 和自有优质店
-4. 新增 productfamily 证据雏形，支持同 ASIN / 同父体 / 标题相似 / 多店出现
+2. 新增 shopprofile 画像聚合，只读输出 A/B/C/D、ABC、D、类目结构（已完成）
+3. 新增 shopbaseline 基线库，先沉淀郑总 UK/DE 和自有优质店（后端骨架和定位计算已完成）
+4. 新增 productfamily 证据雏形，支持同 ASIN / 同父体 / 标题相似 / 多店出现（表结构和 CRUD 骨架已完成）
 5. M06 消费 productfamily + shopprofile + shopbaseline，输出爆款多店验证候选
-6. 视情况把旧 ProductFeatureProcessor / SalesBaselineService 迁入 analysisbaseline 包
+6. 前端实现店铺画像列表、单店详情、基线定位页
+7. 视情况把旧 ProductFeatureProcessor / SalesBaselineService 迁入 analysisbaseline 包
 ```
 
 ## 七、不要做什么
