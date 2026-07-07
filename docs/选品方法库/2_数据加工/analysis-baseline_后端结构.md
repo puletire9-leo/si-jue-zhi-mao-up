@@ -77,6 +77,14 @@ java-backend/sql/create_analysis_baseline_tables.sql
 | `product_family_member` | 商品族证据成员 | CRUD 骨架已准备 |
 | `method_product_hit` | 方法卡商品命中缓存 | 表和实体已准备，暂不接入写入 |
 
+补充 SQL：
+
+```text
+java-backend/sql/add_marketplace_to_deng_zong_shop_unique_key.sql
+```
+
+用途：把 `deng_zong_shop` 唯一索引从 `(asin, month, batch_date)` 调整为 `(marketplace, asin, month, batch_date)`。店铺画像和郑总 UK/DE clean 数据导入必须允许同一 ASIN 同时存在于不同市场。
+
 ## 三、已实现接口
 
 ### 市场编码约束
@@ -284,7 +292,24 @@ GROUP BY baseline_code, marketplace, batch_date;
 - [x] `positioning` 能返回 `similarityScore / positioningLabel / profileAdvice`。
 - [x] `marketplace=ALL` 或其他非 `UK/DE/US` 值会报错。
 - [x] SQL 执行和接口验证过程不修改 SellerSprite 抓取次数统计。
-- [ ] `UK / DE` summary 与郑总 clean Excel 总量、A/B/C/D 分布严格对照：dev 库样本量与 7.7 clean 数据不一致，等待完整 clean 数据环境复跑。
+- [x] `UK / DE` summary 与郑总 clean Excel 总量、A/B/C/D 分布严格对照：完整 clean 数据环境已复跑，导入结果与 7.7 clean 抓取数据完全一致。
+
+严格对照结果：
+
+| 市场 | 店铺数 | 商品行数 | A | B | C | D | UNKNOWN |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| UK | 45 | 5559 | 263 | 580 | 2448 | 2233 | 35 |
+| DE | 20 | 1254 | 36 | 128 | 531 | 555 | 4 |
+| 合计 | 65 | 6813 | 299 | 708 | 2979 | 2788 | 39 |
+
+验证接口：
+
+```text
+POST /api/v1/shop-profile/compute?marketplace=UK
+POST /api/v1/shop-profile/compute?marketplace=DE
+POST /api/v1/shop-profile/positioning/compute?baselineCode=ZHENG_UK_DE&marketplace=UK
+POST /api/v1/shop-profile/positioning/compute?baselineCode=ZHENG_UK_DE&marketplace=DE
+```
 
 ### 11. 已修复问题
 
