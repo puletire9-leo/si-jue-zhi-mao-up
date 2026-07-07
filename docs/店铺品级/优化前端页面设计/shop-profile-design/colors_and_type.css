@@ -1,0 +1,205 @@
+/* =============================================
+   Shop Profile Design System
+   Orange Warm Tone - Operations Console Style
+   ============================================= */
+
+/* --- Brand Prefix: sp --- */
+
+/* --- Color System (Orange Warm Tone) --- */
+:root {
+  /* Primary Orange */
+  --sp-color-primary: #E8621C;
+  --sp-color-primary-hover: #D4570F;
+  --sp-color-primary-light: #FFF4EE;
+  --sp-color-primary-lighter: #FFF9F5;
+  --sp-color-primary-subtle: rgba(232, 98, 28, 0.08);
+
+  /* Neutral Palette */
+  --sp-color-bg: #F7F5F3;
+  --sp-color-bg-elevated: #FFFFFF;
+  --sp-color-bg-inset: #F0EDEA;
+  --sp-color-bg-sunken: #EBE8E4;
+
+  --sp-color-fg: #1A1612;
+  --sp-color-fg-secondary: #5C554D;
+  --sp-color-fg-tertiary: #8A837A;
+  --sp-color-fg-quaternary: #B0A99F;
+  --sp-color-fg-inverse: #FFFFFF;
+
+  /* Border */
+  --sp-color-border: #E2DDD8;
+  --sp-color-border-light: #EDEAE7;
+  --sp-color-border-focus: #E8621C;
+
+  /* Status Colors */
+  --sp-state-success: #2E8B57;
+  --sp-state-success-bg: #ECFDF5;
+  --sp-state-warning: #D97706;
+  --sp-state-warning-bg: #FFFBEB;
+  --sp-state-error: #DC2626;
+  --sp-state-error-bg: #FEF2F2;
+  --sp-state-info: #2563EB;
+  --sp-state-info-bg: #EFF6FF;
+
+  /* Sales Tier Colors */
+  --sp-tier-a: #E8621C;
+  --sp-tier-a-bg: #FFF4EE;
+  --sp-tier-b: #D97706;
+  --sp-tier-b-bg: #FFFBEB;
+  --sp-tier-c: #2563EB;
+  --sp-tier-c-bg: #EFF6FF;
+  --sp-tier-d: #8A837A;
+  --sp-tier-d-bg: #F5F3F1;
+  --sp-tier-unknown: #B0A99F;
+  --sp-tier-unknown-bg: #F9F7F5;
+  --sp-tier-abc: #7C3AED;
+  --sp-tier-abc-bg: #F5F3FF;
+
+  /* Semantic Colors */
+  --sp-color-link: #E8621C;
+  --sp-color-link-hover: #D4570F;
+  --sp-color-similarity-high: #2E8B57;
+  --sp-color-similarity-medium: #D97706;
+  --sp-color-similarity-low: #DC2626;
+
+  /* Radius */
+  --sp-radius-sm: 4px;
+  --sp-radius-md: 8px;
+  --sp-radius-lg: 12px;
+  --sp-radius-full: 9999px;
+
+  /* Shadow */
+  --sp-shadow-sm: 0 1px 2px rgba(26, 22, 18, 0.03);
+  --sp-shadow-md: 0 2px 8px rgba(26, 22, 18, 0.05);
+  --sp-shadow-lg: 0 8px 24px rgba(26, 22, 18, 0.05);
+
+  /* Typography */
+  --sp-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+  --sp-font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+
+  --sp-font-size-xs: 12px;
+  --sp-font-size-sm: 13px;
+  --sp-font-size-base: 14px;
+  --sp-font-size-md: 15px;
+  --sp-font-size-lg: 16px;
+  --sp-font-size-xl: 18px;
+  --sp-font-size-2xl: 20px;
+  --sp-font-size-3xl: 24px;
+
+  --sp-line-height-tight: 1.25;
+  --sp-line-height-normal: 1.5;
+  --sp-line-height-relaxed: 1.625;
+
+  --sp-letter-spacing-tight: -0.025em;
+  --sp-letter-spacing-normal: 0;
+  --sp-letter-spacing-wide: 0.025em;
+
+  --sp-font-weight-normal: 400;
+  --sp-font-weight-medium: 500;
+  --sp-font-weight-semibold: 600;
+  --sp-font-weight-bold: 700;
+
+  /* Spacing */
+  --sp-space-1: 4px;
+  --sp-space-2: 8px;
+  --sp-space-3: 12px;
+  --sp-space-4: 16px;
+  --sp-space-5: 20px;
+  --sp-space-6: 24px;
+  --sp-space-8: 32px;
+
+  /* Layout */
+  --sp-sidebar-width: 220px;
+  --sp-header-height: 56px;
+  --sp-content-max-width: 1440px;
+}
+
+/* --- Dark Mode --- */
+html.dark {
+  --sp-color-primary: #F08A4B;
+  --sp-color-primary-hover: #E97D3A;
+  --sp-color-primary-light: rgba(240, 138, 75, 0.12);
+  --sp-color-primary-lighter: rgba(240, 138, 75, 0.06);
+  --sp-color-primary-subtle: rgba(240, 138, 75, 0.06);
+
+  --sp-color-bg: #121010;
+  --sp-color-bg-elevated: #1C1917;
+  --sp-color-bg-inset: #242120;
+  --sp-color-bg-sunken: #1C1917;
+
+  --sp-color-fg: #F5F3F0;
+  --sp-color-fg-secondary: #A8A19A;
+  --sp-color-fg-tertiary: #78716C;
+  --sp-color-fg-quaternary: #57534E;
+  --sp-color-fg-inverse: #1A1612;
+
+  --sp-color-border: #2C2825;
+  --sp-color-border-light: #1F1C1A;
+  --sp-color-border-focus: #F08A4B;
+
+  --sp-state-success-bg: rgba(46, 139, 87, 0.12);
+  --sp-state-warning-bg: rgba(217, 119, 6, 0.12);
+  --sp-state-error-bg: rgba(220, 38, 38, 0.12);
+  --sp-state-info-bg: rgba(37, 99, 235, 0.12);
+
+  --sp-tier-a-bg: rgba(240, 138, 75, 0.12);
+  --sp-tier-b-bg: rgba(217, 119, 6, 0.12);
+  --sp-tier-c-bg: rgba(37, 99, 235, 0.12);
+  --sp-tier-d-bg: rgba(138, 131, 122, 0.12);
+  --sp-tier-unknown-bg: rgba(176, 169, 159, 0.08);
+  --sp-tier-abc-bg: rgba(124, 58, 237, 0.12);
+
+  --sp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.15);
+  --sp-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --sp-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+/* --- Typography Classes --- */
+.sp-text-heading-1 {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-3xl);
+  font-weight: var(--sp-font-weight-bold);
+  line-height: var(--sp-line-height-tight);
+  letter-spacing: var(--sp-letter-spacing-tight);
+  color: var(--sp-color-fg);
+}
+
+.sp-text-heading-2 {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-2xl);
+  font-weight: var(--sp-font-weight-semibold);
+  line-height: var(--sp-line-height-tight);
+  letter-spacing: var(--sp-letter-spacing-tight);
+  color: var(--sp-color-fg);
+}
+
+.sp-text-heading-3 {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-xl);
+  font-weight: var(--sp-font-weight-semibold);
+  line-height: var(--sp-line-height-tight);
+  color: var(--sp-color-fg);
+}
+
+.sp-text-body {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-base);
+  font-weight: var(--sp-font-weight-normal);
+  line-height: var(--sp-line-height-normal);
+  color: var(--sp-color-fg-secondary);
+}
+
+.sp-text-caption {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-sm);
+  font-weight: var(--sp-font-weight-normal);
+  line-height: var(--sp-line-height-normal);
+  color: var(--sp-color-fg-tertiary);
+}
+
+.sp-text-mono {
+  font-family: var(--sp-font-mono);
+  font-size: var(--sp-font-size-sm);
+  line-height: var(--sp-line-height-normal);
+  color: var(--sp-color-fg);
+}

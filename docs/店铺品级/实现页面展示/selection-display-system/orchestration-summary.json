@@ -1,0 +1,88 @@
+{
+  "project": {
+    "name": "选品展示系统",
+    "path": "/workspace/selection-display-system",
+    "operation": "create",
+    "deviceType": "desktop",
+    "language": "zh-CN",
+    "dashboardMode": false,
+    "designRead": "电商选品运营后台 / 内部运营团队 / 安静密集可扫描 / information-dense / 避免营销风格",
+    "designDials": {
+      "layoutVariance": 2,
+      "motionIntensity": 1,
+      "visualDensity": 5
+    },
+    "styleContinuityAnchors": {
+      "colorSystem": {
+        "primaryColorRole": "品牌色 #d97757 用于主操作按钮、选中态、关键指标高亮",
+        "stateColors": "success=#8ca06f, error=#ef4444, warning=#e8a98f, info=#9c87f5"
+      },
+      "shapeSystem": "radius-sm=8px, radius-md=12px, 边框分隔为主",
+      "typographySystem": "Poppins sans-serif, 信息密集型紧凑排版",
+      "spacingSystem": "紧凑间距，表格/列表优先",
+      "componentLanguage": "表格、筛选条、分页器、弹窗，Element Plus 风格",
+      "surfaceAndDepth": "暗色背景 #1b1b19, 卡片 #2c2c2b, 微弱阴影"
+    }
+  },
+  "designSource": {
+    "operatingMode": "library-bound",
+    "libraryIdentity": {
+      "name": "Claude",
+      "id": "dl_builtin_claude",
+      "version": 0,
+      "scope": "built-in-global",
+      "path": "/data/user/design_libraries/Claude",
+      "versionSource": "metadata.json"
+    }
+  },
+  "pages": [
+    {
+      "nodeId": "page-workbench",
+      "title": "今日选品工作台",
+      "pageType": "information-dense",
+      "visualNorthStar": "仪表板式总控页，模块化卡片展示今日关键指标和待办事项"
+    },
+    {
+      "nodeId": "page-new-product-radar",
+      "title": "新品雷达",
+      "pageType": "information-dense",
+      "visualNorthStar": "时间轴+商品表格，右侧摘要面板"
+    },
+    {
+      "nodeId": "page-new-product-breakout",
+      "title": "新品起量榜",
+      "pageType": "information-dense",
+      "visualNorthStar": "筛选条件+密集数据表格，核心是短账龄起量商品"
+    },
+    {
+      "nodeId": "page-method-card-results",
+      "title": "方法卡结果中心",
+      "pageType": "information-dense",
+      "visualNorthStar": "Tab切换方法卡 + 命中商品表格 + 侧栏规则说明"
+    },
+    {
+      "nodeId": "page-shop-profile",
+      "title": "店铺画像",
+      "pageType": "information-dense",
+      "visualNorthStar": "店铺概览卡片 + ABC/D分布图 + 商品列表 + 类目分布"
+    },
+    {
+      "nodeId": "page-shop-new-products",
+      "title": "店铺上新流",
+      "pageType": "information-dense",
+      "visualNorthStar": "左侧店铺列表 + 右侧上新商品流，双栏布局"
+    },
+    {
+      "nodeId": "page-category-opportunities",
+      "title": "类目机会榜",
+      "pageType": "information-dense",
+      "visualNorthStar": "类目排行榜表格 + ABC/D堆叠条 + 机会标签"
+    },
+    {
+      "nodeId": "page-selection-candidates",
+      "title": "选品候选池",
+      "pageType": "information-dense",
+      "visualNorthStar": "状态流看板+候选商品表格，支持状态推进"
+    }
+  ]
+}

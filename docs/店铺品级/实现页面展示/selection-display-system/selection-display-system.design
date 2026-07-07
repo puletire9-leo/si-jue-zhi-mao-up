@@ -1,0 +1,145 @@
+{
+  "data": [
+    {
+      "id": "page-workbench",
+      "title": "今日选品工作台",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1751894400000,
+      "canvasData": {
+        "x": 0,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/workbench.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-new-product-radar",
+      "title": "新品雷达",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1751894400000,
+      "canvasData": {
+        "x": 620,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/new-product-radar.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-new-product-breakout",
+      "title": "新品起量榜",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1751894400000,
+      "canvasData": {
+        "x": 1240,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/new-product-breakout.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-method-card-results",
+      "title": "方法卡结果中心",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1751894400000,
+      "canvasData": {
+        "x": 1860,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/method-card-results.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-shop-profile",
+      "title": "店铺画像",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1751894400000,
+      "canvasData": {
+        "x": 2480,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/shop-profile.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-shop-new-products",
+      "title": "店铺上新流",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1751894400000,
+      "canvasData": {
+        "x": 3100,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/shop-new-products.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-category-opportunities",
+      "title": "类目机会榜",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1751894400000,
+      "canvasData": {
+        "x": 3720,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/category-opportunities.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-selection-candidates",
+      "title": "选品候选池",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1751894400000,
+      "canvasData": {
+        "x": 4340,
+        "y": 0,
+        "group": 0
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/selection-candidates.html",
+        "interactions": []
+      }
+    }
+  ],
+  "config": {
+    "autoLayout": true,
+    "deviceType": "desktop",
+    "projectName": "选品展示系统",
+    "designLibrary": {
+      "name": "Claude",
+      "id": "dl_builtin_claude",
+      "version": 0,
+      "scope": "built-in-global",
+      "path": "/data/user/design_libraries/Claude",
+      "versionSource": "metadata.json"
+    }
+  }
+}

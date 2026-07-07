@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>店铺画像列表 - 运营控制台</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style id="theme-vars">
+/* =============================================
+   Shop Profile Design System
+   Orange Warm Tone - Operations Console Style
+   ============================================= */
+
+/* --- Brand Prefix: sp --- */
+
+/* --- Color System (Orange Warm Tone) --- */
+:root {
+  /* Primary Orange */
+  --sp-color-primary: #E8621C;
+  --sp-color-primary-hover: #D4570F;
+  --sp-color-primary-light: #FFF4EE;
+  --sp-color-primary-lighter: #FFF9F5;
+  --sp-color-primary-subtle: rgba(232, 98, 28, 0.08);
+
+  /* Neutral Palette */
+  --sp-color-bg: #F7F5F3;
+  --sp-color-bg-elevated: #FFFFFF;
+  --sp-color-bg-inset: #F0EDEA;
+  --sp-color-bg-sunken: #EBE8E4;
+
+  --sp-color-fg: #1A1612;
+  --sp-color-fg-secondary: #5C554D;
+  --sp-color-fg-tertiary: #8A837A;
+  --sp-color-fg-quaternary: #B0A99F;
+  --sp-color-fg-inverse: #FFFFFF;
+
+  /* Border */
+  --sp-color-border: #E2DDD8;
+  --sp-color-border-light: #EDEAE7;
+  --sp-color-border-focus: #E8621C;
+
+  /* Status Colors */
+  --sp-state-success: #2E8B57;
+  --sp-state-success-bg: #ECFDF5;
+  --sp-state-warning: #D97706;
+  --sp-state-warning-bg: #FFFBEB;
+  --sp-state-error: #DC2626;
+  --sp-state-error-bg: #FEF2F2;
+  --sp-state-info: #2563EB;
+  --sp-state-info-bg: #EFF6FF;
+
+  /* Sales Tier Colors */
+  --sp-tier-a: #E8621C;
+  --sp-tier-a-bg: #FFF4EE;
+  --sp-tier-b: #D97706;
+  --sp-tier-b-bg: #FFFBEB;
+  --sp-tier-c: #2563EB;
+  --sp-tier-c-bg: #EFF6FF;
+  --sp-tier-d: #8A837A;
+  --sp-tier-d-bg: #F5F3F1;
+  --sp-tier-unknown: #B0A99F;
+  --sp-tier-unknown-bg: #F9F7F5;
+  --sp-tier-abc: #7C3AED;
+  --sp-tier-abc-bg: #F5F3FF;
+
+  /* Semantic Colors */
+  --sp-color-link: #E8621C;
+  --sp-color-link-hover: #D4570F;
+  --sp-color-similarity-high: #2E8B57;
+  --sp-color-similarity-medium: #D97706;
+  --sp-color-similarity-low: #DC2626;
+
+  /* Radius */
+  --sp-radius-sm: 4px;
+  --sp-radius-md: 8px;
+  --sp-radius-lg: 12px;
+  --sp-radius-full: 9999px;
+
+  /* Shadow */
+  --sp-shadow-sm: 0 1px 2px rgba(26, 22, 18, 0.04);
+  --sp-shadow-md: 0 2px 8px rgba(26, 22, 18, 0.06);
+  --sp-shadow-lg: 0 8px 24px rgba(26, 22, 18, 0.08);
+
+  /* Typography */
+  --sp-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+  --sp-font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+
+  --sp-font-size-xs: 12px;
+  --sp-font-size-sm: 13px;
+  --sp-font-size-base: 14px;
+  --sp-font-size-md: 15px;
+  --sp-font-size-lg: 16px;
+  --sp-font-size-xl: 18px;
+  --sp-font-size-2xl: 20px;
+  --sp-font-size-3xl: 24px;
+
+  --sp-line-height-tight: 1.25;
+  --sp-line-height-normal: 1.5;
+  --sp-line-height-relaxed: 1.625;
+
+  --sp-letter-spacing-tight: -0.025em;
+  --sp-letter-spacing-normal: 0;
+  --sp-letter-spacing-wide: 0.025em;
+
+  --sp-font-weight-normal: 400;
+  --sp-font-weight-medium: 500;
+  --sp-font-weight-semibold: 600;
+  --sp-font-weight-bold: 700;
+
+  /* Spacing */
+  --sp-space-1: 4px;
+  --sp-space-2: 8px;
+  --sp-space-3: 12px;
+  --sp-space-4: 16px;
+  --sp-space-5: 20px;
+  --sp-space-6: 24px;
+  --sp-space-8: 32px;
+
+  /* Layout */
+  --sp-sidebar-width: 220px;
+  --sp-header-height: 56px;
+  --sp-content-max-width: 1440px;
+}
+
+/* --- Dark Mode --- */
+html.dark {
+  --sp-color-primary: #F08A4B;
+  --sp-color-primary-hover: #E97D3A;
+  --sp-color-primary-light: rgba(240, 138, 75, 0.12);
+  --sp-color-primary-lighter: rgba(240, 138, 75, 0.06);
+  --sp-color-primary-subtle: rgba(240, 138, 75, 0.06);
+
+  --sp-color-bg: #121010;
+  --sp-color-bg-elevated: #1C1917;
+  --sp-color-bg-inset: #242120;
+  --sp-color-bg-sunken: #1C1917;
+
+  --sp-color-fg: #F5F3F0;
+  --sp-color-fg-secondary: #A8A19A;
+  --sp-color-fg-tertiary: #78716C;
+  --sp-color-fg-quaternary: #57534E;
+  --sp-color-fg-inverse: #1A1612;
+
+  --sp-color-border: #2C2825;
+  --sp-color-border-light: #1F1C1A;
+  --sp-color-border-focus: #F08A4B;
+
+  --sp-state-success-bg: rgba(46, 139, 87, 0.12);
+  --sp-state-warning-bg: rgba(217, 119, 6, 0.12);
+  --sp-state-error-bg: rgba(220, 38, 38, 0.12);
+  --sp-state-info-bg: rgba(37, 99, 235, 0.12);
+
+  --sp-tier-a-bg: rgba(240, 138, 75, 0.12);
+  --sp-tier-b-bg: rgba(217, 119, 6, 0.12);
+  --sp-tier-c-bg: rgba(37, 99, 235, 0.12);
+  --sp-tier-d-bg: rgba(138, 131, 122, 0.12);
+  --sp-tier-unknown-bg: rgba(176, 169, 159, 0.08);
+  --sp-tier-abc-bg: rgba(124, 58, 237, 0.12);
+
+  --sp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --sp-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --sp-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* --- Typography Classes --- */
+.sp-text-heading-1 {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-3xl);
+  font-weight: var(--sp-font-weight-bold);
+  line-height: var(--sp-line-height-tight);
+  letter-spacing: var(--sp-letter-spacing-tight);
+  color: var(--sp-color-fg);
+}
+
+.sp-text-heading-2 {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-2xl);
+  font-weight: var(--sp-font-weight-semibold);
+  line-height: var(--sp-line-height-tight);
+  letter-spacing: var(--sp-letter-spacing-tight);
+  color: var(--sp-color-fg);
+}
+
+.sp-text-heading-3 {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-xl);
+  font-weight: var(--sp-font-weight-semibold);
+  line-height: var(--sp-line-height-tight);
+  color: var(--sp-color-fg);
+}
+
+.sp-text-body {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-base);
+  font-weight: var(--sp-font-weight-normal);
+  line-height: var(--sp-line-height-normal);
+  color: var(--sp-color-fg-secondary);
+}
+
+.sp-text-caption {
+  font-family: var(--sp-font-family);
+  font-size: var(--sp-font-size-sm);
+  font-weight: var(--sp-font-weight-normal);
+  line-height: var(--sp-line-height-normal);
+  color: var(--sp-color-fg-tertiary);
+}
+
+.sp-text-mono {
+  font-family: var(--sp-font-mono);
+  font-size: var(--sp-font-size-sm);
+  line-height: var(--sp-line-height-normal);
+  color: var(--sp-color-fg);
+}
+
+    </style>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-primary: var(--sp-color-primary);
+    --color-primary-hover: var(--sp-color-primary-hover);
+    --color-primary-light: var(--sp-color-primary-light);
+    --color-foreground: var(--sp-color-fg);
+    --color-background: var(--sp-color-bg);
+    --color-surface: var(--sp-color-bg-elevated);
+    --color-border: var(--sp-color-border);
+    --color-muted: var(--sp-color-fg-tertiary);
+  }
+  @layer base {
+    body { background: var(--sp-color-bg); color: var(--sp-color-fg); font-family: var(--sp-font-family); }
+    td, th { word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body>
+  <div style="max-width: var(--sp-content-max-width); margin: 0 auto; padding: 20px 24px;">
+
+    <!-- Page Header -->
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+      <h1 style="font-size: var(--sp-font-size-xl); font-weight: var(--sp-font-weight-bold); color: var(--sp-color-fg); margin: 0; display: flex; align-items: center; gap: 10px;">
+        <span style="color: var(--sp-color-fg-quaternary); font-size: 13px; font-weight: var(--sp-font-weight-normal);">店铺画像</span>
+        <span style="color: var(--sp-color-fg-quaternary);">/</span>
+        <span>列表</span>
+      </h1>
+      <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--sp-color-fg-tertiary);">
+        <span>最后更新: 2025-06-15 14:32:08</span>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div style="background: var(--sp-color-bg-elevated); border: 1px solid var(--sp-color-border); border-radius: var(--sp-radius-md); padding: 12px 16px; margin-bottom: 12px; box-shadow: var(--sp-shadow-sm);">
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: nowrap;">
+
+        <!-- Marketplace Segmented Control -->
+        <div class="seg-group">
+          <button class="seg-btn seg-btn--active" data-market="uk">UK</button>
+          <button class="seg-btn" data-market="de">DE</button>
+          <button class="seg-btn" data-market="us">US</button>
+        </div>
+
+        <!-- Data Source Toggle -->
+        <div class="toggle-group">
+          <button class="toggle-btn toggle-btn--active">实时聚合</button>
+          <button class="toggle-btn">物化快照</button>
+        </div>
+
+        <!-- Batch Date -->
+        <input type="date" class="ctrl-input" style="width: 150px;" value="2025-06-15" title="批次日期">
+
+        <!-- Divider -->
+        <div style="width: 1px; height: 24px; background: var(--sp-color-border);"></div>
+
+        <!-- Shop Name Search -->
+        <input type="text" class="ctrl-input" style="width: 180px;" placeholder="搜索店铺名称..." title="店铺名称">
+
+        <!-- Min Product Count -->
+        <input type="number" class="ctrl-input mono" style="width: 100px;" placeholder="最低商品数" title="最低商品数">
+
+        <!-- Sort Dropdown -->
+        <select class="ctrl-select" style="width: 130px;" title="排序方式">
+          <option value="productCount">商品数</option>
+          <option value="aCount">A数</option>
+          <option value="abcCount">AB数</option>
+          <option value="abcTotal">ABC数</option>
+          <option value="dRatio">D占比</option>
+          <option value="similarity">相似度</option>
+        </select>
+
+        <!-- Spacer -->
+        <div style="flex: 1;"></div>
+
+        <!-- Refresh Button -->
+        <button class="btn btn--outline" title="刷新数据">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+          刷新
+        </button>
+
+        <!-- Materialize Button -->
+        <button class="btn btn--primary" title="物化当前视图数据">
+          <svg class="icon-warning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          物化
+        </button>
+      </div>
+    </div>
+
+    <!-- Summary KPI Strip -->
+    <div class="kpi-strip" style="margin-bottom: 12px;">
+      <div class="kpi-block">
+        <span class="kpi-label">店铺数</span>
+        <span class="kpi-value">1,286</span>
+      </div>
+      <div class="kpi-block">
+        <span class="kpi-label">商品数</span>
+        <span class="kpi-value">45,320</span>
+      </div>
+      <div class="kpi-block kpi-block--highlight">
+        <span class="kpi-label">A 商品数</span>
+        <span class="kpi-value">3,847</span>
+      </div>
+      <div class="kpi-block">
+        <span class="kpi-label">ABC 商品数</span>
+        <span class="kpi-value">18,562</span>
+      </div>
+      <div class="kpi-block">
+        <span class="kpi-label">D 商品数</span>
+        <span class="kpi-value">12,980</span>
+      </div>
+      <div class="kpi-block">
+        <span class="kpi-label">当前批次</span>
+        <span class="kpi-value" style="font-size: 15px; font-family: var(--sp-font-mono);">2025-06-15</span>
+      </div>
+    </div>
+
+    <!-- Data Table Container -->
+    <div style="background: var(--sp-color-bg-elevated); border: 1px solid var(--sp-color-border); border-radius: var(--sp-radius-md); overflow: auto; box-shadow: var(--sp-shadow-sm);">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 50px;">市场</th>
+            <th style="min-width: 180px;">店铺名称</th>
+            <th style="width: 80px; text-align: right;">商品数</th>
+            <th style="min-width: 160px;">A/B/C/D 分布</th>
+            <th style="width: 65px; text-align: right;">A占比</th>
+            <th style="width: 70px; text-align: right;">ABC占比</th>
+            <th style="width: 65px; text-align: right;">D占比</th>
+            <th style="min-width: 130px;">A类目</th>
+            <th style="min-width: 130px;">ABC类目</th>
+            <th style="min-width: 130px;">D类目</th>
+            <th style="width: 90px;">结构标签</th>
+            <th style="width: 100px;">批次日期</th>
+            <th style="width: 140px;">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Row 1 -->
+          <tr>
+            <td><span class="badge-market badge-market--uk">UK</span></td>
+            <td><a class="shop-name-link" href="#">TechGear Direct UK</a></td>
+            <td class="mono" style="text-align: right;">1,247</td>
+            <td>
+              <div class="tier-bar">
+                <div class="tier-bar__seg tier-bar__seg--a" style="width: 12%;"></div>
+                <div class="tier-bar__seg tier-bar__seg--b" style="width: 18%;"></div>
+                <div class="tier-bar__seg tier-bar__seg--c" style="width: 25%;"></div>
+                <div class="tier-bar__seg tier-bar__seg--d" style="width: 45%;"></div>
+              </div>
+              <div class="tier-labels">
+                <span><span class="tier-dot" style="background: var(--sp-tier-a);"></span>12%</span>
+                <span><span class="tier-dot" style="background: var(--sp-tier-b);"></span>18%</span>
+                <span><span class="tier-dot" style="background: var(--sp-tier-c);"></span>25%</span>
+                <span><span class="tier-dot" style="background: var(--sp-tier-d);"></span>45%</span>
+              </div>
+            </td>
+            <td class="mono" style="text-align: right;">12.1%</td>
+            <td class="mono" style="text-align: right;">54.8%</td>
+            <td class="mono" style="text-align: right;">45.2%</td>
+            <td><span class="cat-truncate" title="Electronics > Consumer Electronics">Electronics > Consumer Electronics</span></td>
+            <td><span class="cat-truncate" title="Electronics > Accessories & Supplies">Electronics > Accessories & Supplies</span></td>
+            <td><span class="cat-truncate" title="Home & Kitchen > Dining">Home & Kitchen > Dining</span></td>
+            <td><span class="badge-profile badge-profile--d">D 偏重型</span></td>
+            <td class="mono" style="font-size: 12px; color: var(--sp-color-fg-tertiary);">2025-06-15</td>
+            <td>
+              <div class="action-group">
+                <button class="btn btn--link">查看详情</button>
+                <button class="btn btn--link">查看定位</button>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Row 2 -->
+          <tr>
+            <td><span class="badge-market badge-market--uk">UK</span></td>
+            <td><a class="shop-name-link" href="#">HomeStyle Collections</a></td>
+            <td class="mono" style="text-align: right;">862</td>
+            <td>
+              <div class="tier-bar">
+                <div class="tier-bar__seg tier-bar__seg--a" style="width: 28%;"></div>
+                <div class="tier-bar__seg tier-bar__seg--b" style="width: 22%;"></div>
+                <div class="tier-bar__seg tier-bar__seg--c" style="width: 20%;"></div>
+                <div class="tier-bar__seg tier-bar__seg--d" style="width: 30%;"></div>
+              </div>
+              <div class="tier-labels">
+                <span><span class="tier-dot" style="background: var(--sp-tier-a);"></span>28%</span>
+                <span><span class="tier-dot" style="background: var(--sp-tier-b);"></span>22%</span>
+                <span><span class="tier-dot" style="background: var(--sp-tier-c);"></span>20%</span>
+                <span><span class="tier-dot" style="background: var(--sp-tier-d);"></span>30%</span>
+              </div>
+            </td>
+            <td class="mono" style="text-align: right;">27.8%</td>
+            <td class="mono" style="text-align: right;">70.2%</td>
+            <td class="mono" style="text-align: right;">29.8%</td>
+            <td><span class="cat-truncate" title="Home & Garden > Decor">Home & Garden > Decor</span></td>
+            <td><span class="cat-truncate" title="Home & Garden > Furniture">Home & Garden > Furniture</span></td>
+            <td><span class="cat-truncate" title="Sports & Outdoors">Sports & Outdoors</span></td>
+            <td><span class="badge-profile badge-profile--a">A 均衡型</span></td>
+            <td class="mono" style="font-size: 12px; color: var(--sp-color-fg-tertiary);">2025-06-15</td>
+            <td>
+              <div class="action-group">
+                <button class="btn btn--link">查看详情</button>
+                <button class="btn btn--link">查看定位</button>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Row 3 -->
+          <tr>
+            <td><span class="badge-market badge-market--de">DE</span></td>
+            <td><a class="shop-name-link" href="#">NaturKraft GmbH</a></td>
+            <td class="mono" style="text-align: right;">2,103</td>
+            <td>
+              <div class="tier-bar">
+                <div class="tier-bar__seg tier-bar__seg--a" style="width: 8%;"></div>
+                <div class="tier-bar__seg tier-bar__seg--b" style="width: 14%;"></div>
+                <div class="tier-bar__seg tier-bar__seg--c" style="width: 28%;"></div>
+                <div class="tier-bar__seg tier-bar__seg--d" style="width: 50%;"></div>
+              </div>
+              <div class="tier-labels">
+                <span><span class="tier-dot" style="background: var(--sp-tier-a);"></span>8%</span>
+                <span><span class="tier-dot" style="background: var(--sp-tier-b);"></span>14%</span>
+                <span><span class="tier-dot" style="background: var(--sp-tier-c);"></span>28%</span>
+                <span><span class="tier-dot" style="background: var(--sp-tier-d);"></span>50%</span>
+              </div>
+            </td>
+            <td class="mono" style="text-align: right;">7.9%</td>
+            <td class="mono" style="text-align: right;">49.6%</td>
+            <td class="mono" style="text-align: right;">50.4%</td>
+            <td><span class="cat-truncate" title="Health & Personal Care">Health & Personal Care</span></td>
+            <td><span class="cat-truncate" title="Grocery > Organic Foods">Grocery > Organic Foods</span></td>
+            <td><span class="cat-truncate" title="Beauty > Skin Care">Beauty > Skin Care</span></td>
+            <td><span class="badge-profile badge-profile--d">D 偏重型</span></td>
+            <td class="mono" style="font-size: 12px; color: var(--sp-color-fg-tertiary);">2025-06-15</td>
+            <td>
+              <div class="action-group">
+                <button class="btn btn--link">查看详情</button>
+                <button class="btn btn--link">查看定位</button>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Row 4 -->
+          <tr>
+            <td><span class="badge-market badge-market--uk">UK</span></td>
+            <td><a class="shop-name-link" href="#">AutoParts Express</a></td>
+            <td class="mono" style="text-align: right;">534</td>
+            <td>
+              <div class="tier-bar">
+                <div class="tier-bar__seg tier-bar__seg--a" style="width: 35%;"></div>
+                <div class="tier-bar__seg tier-bar__seg--b" style="width: 25%;"></div>
+                <div class="tier-bar__seg tier-bar__seg--c" style="width: 22%;"></div>
+                <div class="tier-bar__seg tier-bar__seg--d" style="width: 18%;"></div>
+              </div>
+              <div class="tier-labels">
+                <span><span class="tier-dot" style="background: var(--sp-tier-a);"></span>35%</span>
+                <span><span class="tier-dot" style="background: var(--sp-tier-b);"></span>25%</span>
+                <span><span class="tier-dot" style="background: var(--sp-tier-c);"></span>22%</span>
+                <span><span class="tier-dot" style="background: var(--sp-tier-d);"></span>18%</span>
+              </div>
+            </td>
+            <td class="mono" style="text-align: right;">34.6%</td>
+            <td class="mono" style="text-align: right;">82.0%</td>
+            <td class="mono" style="text-align: right;">18.0%</td>
+            <td><span class="cat-truncate" title="Automotive > Replacement Parts">Automotive > Replacement Parts</span></td>
+            <td><span class="cat-truncate" title="Automotive > Tools & Equipment">Automotive > Tools & Equipment</span></td>
+            <td><span class="cat-truncate" title="Home Improvement > Hardware">Home Improvement > Hardware</span></td>
+            <td><span class="badge-profile badge-profile--a">A 集中型</span></td>
+            <td class="mono" style="font-size: 12px; color: var(--sp-color-fg-tertiary);">2025-06-15</td>
+            <td>
+              <div class="action-group">
+                <button class="btn btn--link">查看详情</button>
+                <button class="btn btn--link">查看定位</button>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Row 5 -->
+          <tr>
+            <td><span class="badge-market badge-market--de">DE</span></td>
+            <td><a class="shop-name-link" href="#">BüroBestellungen.de</a></td>
+            <td class="mono" style="text-align: right;">1,891</td>
+            <td>
+              <div class="tier-bar">
+                <div class="tier-bar__seg tier-bar__seg--a" style="width: 18%;"></div>
+                <div class="tier-bar__seg tier-bar__seg--b" style="width: 20%;"></div>
+                <div class="tier-bar__seg tier-bar__seg--c" style="width: 22%;"></div>
+                <div class="tier-bar__seg tier-bar__seg--d" style="width: 40%;"></div>
+              </div>
+              <div class="tier-labels">
+                <span><span class="tier-dot" style="background: var(--sp-tier-a);"></span>18%</span>
+                <span><span class="tier-dot" style="background: var(--sp-tier-b);"></span>20%</span>
+                <span><span class="tier-dot" style="background: var(--sp-tier-c);"></span>22%</span>
+                <span><span class="tier-dot" style="background: var(--sp-tier-d);"></span>40%</span>
+              </div>
+            </td>
+            <td class="mono" style="text-align: right;">17.5%</td>
+            <td class="mono" style="text-align: right;">60.3%</td>
+            <td class="mono" style="text-align: right;">39.7%</td>
+            <td><span class="cat-truncate" title="Office Products > Supplies">Office Products > Supplies</span></td>
+            <td><span class="cat-truncate" title="Office Products > Electronics">Office Products > Electronics</span></td>
+            <td><span class="cat-truncate" title="Stationery & Craft Supplies">Stationery & Craft Supplies</span></td>
+            <td><span class="badge-profile badge-profile--b">B 偏重型</span></td>
+            <td class="mono" style="font-size: 12px; color: var(--sp-color-fg-tertiary);">2025-06-15</td>
+            <td>
+              <div class="action-group">
+                <button class="btn btn--link">查看详情</button>
+                <button class="btn btn--link">查看定位</button>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Row 6 -->
+          <tr>
+            <td><span class="badge-market badge-market--uk">UK</span></td>
+            <td><a class="shop-name-link" href="#">PetPal Supplies Ltd</a></td>
+            <td class="mono" style="text-align: right;">675</td>
+            <td>
+              <div class="tier-bar">
+                <div class="tier-bar__seg tier-bar__seg--a" style="width: 22%;"></div>
+                <div class="tier-bar__seg tier-bar__seg--b" style="width: 24%;"></div>
+                <div class="tier-bar__seg tier-bar__seg--c" style="width: 19%;"></div>
+                <div class="tier-bar__seg tier-bar__seg--d" style="width: 35%;"></div>
+              </div>
+              <div class="tier-labels">
+                <span><span class="tier-dot" style="background: var(--sp-tier-a);"></span>22%</span>
+                <span><span class="tier-dot" style="background: var(--sp-tier-b);"></span>24%</span>
+                <span><span class="tier-dot" style="background: var(--sp-tier-c);"></span>19%</span>
+                <span><span class="tier-dot" style="background: var(--sp-tier-d);"></span>35%</span>
+              </div>
+            </td>
+            <td class="mono" style="text-align: right;">21.8%</td>
+            <td class="mono" style="text-align: right;">65.0%</td>
+            <td class="mono" style="text-align: right;">35.0%</td>
+            <td><span class="cat-truncate" title="Pet Supplies > Dogs">Pet Supplies > Dogs</span></td>
+            <td><span class="cat-truncate" title="Pet Supplies > Cats">Pet Supplies > Cats</span></td>
+            <td><span class="cat-truncate" title="Pet Supplies > Health & Wellness">Pet Supplies > Health & Wellness</span></td>
+            <td><span class="badge-profile badge-profile--mixed">均衡混合型</span></td>
+            <td class="mono" style="font-size: 12px; color: var(--sp-color-fg-tertiary);">2025-06-15</td>
+            <td>
+              <div class="action-group">
+                <button class="btn btn--link">查看详情</button>
+                <button class="btn btn--link">查看定位</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Table Footer / Pagination -->
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-top: 1px solid var(--sp-color-border-light); font-size: 12px; color: var(--sp-color-fg-tertiary);">
+        <span>共 <span class="mono" style="color: var(--sp-color-fg);">1,286</span> 条记录，当前显示 <span class="mono" style="color: var(--sp-color-fg);">1-6</span></span>
+        <div style="display: flex; align-items: center; gap: 4px;">
+          <button class="btn btn--outline btn--sm" disabled style="opacity: 0.4; cursor: not-allowed;">上一页</button>
+          <button class="btn btn--outline btn--sm" style="background: var(--sp-color-primary-light); color: var(--sp-color-primary); border-color: var(--sp-color-primary); font-weight: 600;">1</button>
+          <button class="btn btn--outline btn--sm">2</button>
+          <button class="btn btn--outline btn--sm">3</button>
+          <span style="color: var(--sp-color-fg-quaternary);">...</span>
+          <button class="btn btn--outline btn--sm">215</button>
+          <button class="btn btn--outline btn--sm">下一页</button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span>每页</span>
+          <select class="ctrl-select" style="width: 65px; height: 26px; font-size: 12px;">
+            <option>20</option>
+            <option>50</option>
+            <option>100</option>
+          </select>
+          <span>条</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Segmented Control Interactivity -->
+  <script>
+    document.querySelectorAll('.seg-group').forEach(group => {
+      group.querySelectorAll('.seg-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          group.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('seg-btn--active'));
+          btn.classList.add('seg-btn--active');
+        });
+      });
+    });
+
+    document.querySelectorAll('.toggle-group').forEach(group => {
+      group.querySelectorAll('.toggle-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          group.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('toggle-btn--active'));
+          btn.classList.add('toggle-btn--active');
+        });
+      });
+    });
+  </script>
+
+    <style>
+    body {
+      font-family: var(--sp-font-family);
+      font-size: var(--sp-font-size-sm);
+      background: var(--sp-color-bg);
+      color: var(--sp-color-fg);
+      line-height: var(--sp-line-height-normal);
+      margin: 0;
+      padding: 0;
+      min-width: 1366px;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--sp-color-bg-inset); }
+    ::-webkit-scrollbar-thumb { background: var(--sp-color-fg-quaternary); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--sp-color-fg-tertiary); }
+
+    /* Mono for numbers */
+    .mono { font-family: var(--sp-font-mono); font-size: var(--sp-font-size-sm); }
+
+    /* Compact inputs */
+    .ctrl-input,
+    .ctrl-select {
+      height: 32px;
+      padding: 0 10px;
+      border: 1px solid var(--sp-color-border);
+      border-radius: var(--sp-radius-sm);
+      background: var(--sp-color-bg-elevated);
+      color: var(--sp-color-fg);
+      font-size: var(--sp-font-size-sm);
+      font-family: var(--sp-font-family);
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      line-height: 30px;
+    }
+    .ctrl-input:focus,
+    .ctrl-select:focus {
+      border-color: var(--sp-color-border-focus);
+      box-shadow: 0 0 0 2px var(--sp-color-primary-subtle);
+    }
+    .ctrl-input::placeholder { color: var(--sp-color-fg-quaternary); }
+
+    /* Segmented control */
+    .seg-group {
+      display: inline-flex;
+      border: 1px solid var(--sp-color-border);
+      border-radius: var(--sp-radius-sm);
+      overflow: hidden;
+    }
+    .seg-btn {
+      height: 32px;
+      padding: 0 16px;
+      border: none;
+      background: var(--sp-color-bg-elevated);
+      color: var(--sp-color-fg-secondary);
+      font-size: var(--sp-font-size-sm);
+      font-family: var(--sp-font-family);
+      font-weight: var(--sp-font-weight-medium);
+      cursor: pointer;
+      transition: all 0.15s;
+      border-right: 1px solid var(--sp-color-border);
+      line-height: 32px;
+    }
+    .seg-btn:last-child { border-right: none; }
+    .seg-btn:hover:not(.seg-btn--active) {
+      background: var(--sp-color-bg-inset);
+      color: var(--sp-color-fg);
+    }
+    .seg-btn--active {
+      background: var(--sp-color-primary);
+      color: var(--sp-color-fg-inverse);
+    }
+
+    /* Toggle */
+    .toggle-group {
+      display: inline-flex;
+      border: 1px solid var(--sp-color-border);
+      border-radius: var(--sp-radius-sm);
+      overflow: hidden;
+    }
+    .toggle-btn {
+      height: 32px;
+      padding: 0 14px;
+      border: none;
+      background: var(--sp-color-bg-elevated);
+      color: var(--sp-color-fg-secondary);
+      font-size: var(--sp-font-size-xs);
+      font-family: var(--sp-font-family);
+      font-weight: var(--sp-font-weight-medium);
+      cursor: pointer;
+      transition: all 0.15s;
+      border-right: 1px solid var(--sp-color-border);
+      line-height: 32px;
+    }
+    .toggle-btn:last-child { border-right: none; }
+    .toggle-btn:hover:not(.toggle-btn--active) {
+      background: var(--sp-color-bg-inset);
+    }
+    .toggle-btn--active {
+      background: var(--sp-color-primary-light);
+      color: var(--sp-color-primary);
+      font-weight: var(--sp-font-weight-semibold);
+    }
+
+    /* Buttons */
+    .btn {
+      height: 32px;
+      padding: 0 14px;
+      border-radius: var(--sp-radius-sm);
+      font-size: var(--sp-font-size-sm);
+      font-family: var(--sp-font-family);
+      font-weight: var(--sp-font-weight-medium);
+      cursor: pointer;
+      transition: all 0.15s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .btn--outline {
+      border: 1px solid var(--sp-color-border);
+      background: var(--sp-color-bg-elevated);
+      color: var(--sp-color-fg-secondary);
+    }
+    .btn--outline:hover {
+      border-color: var(--sp-color-fg-tertiary);
+      color: var(--sp-color-fg);
+      background: var(--sp-color-bg-inset);
+    }
+    .btn--primary {
+      border: 1px solid var(--sp-color-primary);
+      background: var(--sp-color-primary);
+      color: var(--sp-color-fg-inverse);
+    }
+    .btn--primary:hover {
+      background: var(--sp-color-primary-hover);
+      border-color: var(--sp-color-primary-hover);
+    }
+    .btn--sm {
+      height: 26px;
+      padding: 0 10px;
+      font-size: var(--sp-font-size-xs);
+    }
+    .btn--link {
+      height: auto;
+      padding: 0;
+      border: none;
+      background: none;
+      color: var(--sp-color-link);
+      font-size: var(--sp-font-size-xs);
+      font-weight: var(--sp-font-weight-medium);
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .btn--link:hover { color: var(--sp-color-link-hover); }
+
+    /* KPI strip */
+    .kpi-strip {
+      display: flex;
+      gap: 1px;
+      background: var(--sp-color-border);
+      border: 1px solid var(--sp-color-border);
+      border-radius: var(--sp-radius-sm);
+      overflow: hidden;
+    }
+    .kpi-block {
+      flex: 1;
+      background: var(--sp-color-bg-elevated);
+      padding: 10px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .kpi-label {
+      font-size: 11px;
+      color: var(--sp-color-fg-tertiary);
+      font-weight: var(--sp-font-weight-medium);
+      letter-spacing: 0.02em;
+    }
+    .kpi-value {
+      font-family: var(--sp-font-mono);
+      font-size: 18px;
+      font-weight: var(--sp-font-weight-semibold);
+      color: var(--sp-color-fg);
+      line-height: 1.25;
+    }
+    .kpi-block--highlight .kpi-value {
+      color: var(--sp-color-primary);
+    }
+
+    /* Table */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .data-table thead th {
+      position: sticky;
+      top: 0;
+      background: var(--sp-color-bg-inset);
+      color: var(--sp-color-fg-tertiary);
+      font-size: 11px;
+      font-weight: var(--sp-font-weight-semibold);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 8px 12px;
+      text-align: left;
+      white-space: nowrap;
+      border-bottom: 1px solid var(--sp-color-border);
+      user-select: none;
+    }
+    .data-table tbody tr {
+      transition: background 0.1s;
+    }
+    .data-table tbody tr:nth-child(even) {
+      background: var(--sp-color-primary-lighter);
+    }
+    .data-table tbody tr:hover {
+      background: var(--sp-color-primary-light);
+    }
+    .data-table tbody td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--sp-color-border-light);
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    /* Marketplace badge */
+    .badge-market {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 22px;
+      border-radius: var(--sp-radius-sm);
+      font-size: 11px;
+      font-weight: var(--sp-font-weight-semibold);
+      letter-spacing: 0.03em;
+    }
+    .badge-market--uk { background: #DBEAFE; color: #1E40AF; }
+    .badge-market--de { background: #FEE2E2; color: #991B1B; }
+    .badge-market--us { background: #D1FAE5; color: #065F46; }
+
+    /* Profile type badge */
+    .badge-profile {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: var(--sp-radius-full);
+      font-size: 11px;
+      font-weight: var(--sp-font-weight-medium);
+      white-space: nowrap;
+    }
+    .badge-profile--a { background: var(--sp-tier-a-bg); color: var(--sp-tier-a); }
+    .badge-profile--b { background: var(--sp-tier-b-bg); color: var(--sp-tier-b); }
+    .badge-profile--c { background: var(--sp-tier-c-bg); color: var(--sp-tier-c); }
+    .badge-profile--d { background: var(--sp-tier-d-bg); color: var(--sp-tier-d); }
+    .badge-profile--mixed { background: var(--sp-tier-abc-bg); color: var(--sp-tier-abc); }
+
+    /* Tier distribution bar */
+    .tier-bar {
+      display: flex;
+      height: 6px;
+      border-radius: 3px;
+      overflow: hidden;
+      background: var(--sp-color-bg-inset);
+      width: 100%;
+      min-width: 80px;
+    }
+    .tier-bar__seg {
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+    .tier-bar__seg--a { background: var(--sp-tier-a); }
+    .tier-bar__seg--b { background: var(--sp-tier-b); }
+    .tier-bar__seg--c { background: var(--sp-tier-c); }
+    .tier-bar__seg--d { background: var(--sp-tier-d); }
+
+    .tier-labels {
+      display: flex;
+      gap: 8px;
+      margin-top: 3px;
+      font-family: var(--sp-font-mono);
+      font-size: 11px;
+      color: var(--sp-color-fg-tertiary);
+    }
+    .tier-labels span { display: inline-flex; align-items: center; gap: 3px; }
+    .tier-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    /* Shop name link */
+    .shop-name-link {
+      color: var(--sp-color-link);
+      text-decoration: none;
+      font-weight: var(--sp-font-weight-medium);
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .shop-name-link:hover {
+      color: var(--sp-color-link-hover);
+      text-decoration: underline;
+    }
+
+    /* Category truncated */
+    .cat-truncate {
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--sp-color-fg-secondary);
+    }
+
+    /* Action buttons group */
+    .action-group {
+      display: flex;
+      gap: 6px;
+    }
+
+    /* Warning icon in button */
+    .icon-warning {
+      display: inline-flex;
+      width: 14px;
+      height: 14px;
+    }
+  </style>
+</body>
+</html>

@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新品雷达 - 选品展示系统</title>
+    <style id="theme-vars">
+/* Source: structured-spec */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,18..72,300;0,18..72,400;0,18..72,500;1,18..72,400&family=Geist+Mono:wght@400;500&display=swap');
+:root {
+  --background: #faf9f5;
+  --foreground: #1b1b19;
+  --card: #ffffff;
+  --card-foreground: #1b1b19;
+  --popover: #ffffff;
+  --popover-foreground: #1b1b19;
+  --primary: #d97757;
+  --primary-foreground: #ffffff;
+  --secondary: #f0ece3;
+  --secondary-foreground: #46443b;
+  --muted: #e9e6dc;
+  --muted-foreground: #6e6d68;
+  --accent: #f5f4ee;
+  --accent-foreground: #d8d6cd;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #d8d6cd;
+  --input: #d8d6cd;
+  --ring: #d97757;
+  --chart-1: #b05730;
+  --chart-2: #9c87f5;
+  --chart-3: #f5f4ee;
+  --chart-4: #e9e6dc;
+  --chart-5: #b4552d;
+  --sidebar: #f5f4ee;
+  --sidebar-foreground: #3d3d3a;
+  --sidebar-primary: #c96442;
+  --sidebar-primary-foreground: #fbfbfb;
+  --sidebar-accent: #e9e6dc;
+  --sidebar-accent-foreground: #343434;
+  --brand-50: #f8e3d8;
+  --brand-100: #f0c6b3;
+  --brand-200: #e8a98f;
+  --brand-300: #e08d6f;
+  --brand-400: #b0683f;
+  --brand-500: #d97757;
+  --brand-600: #c96442;
+  --brand-700: #8a5740;
+  --brand-800: #6b4533;
+  --brand-900: #3a2a22;
+  --text-50: #faf9f5;
+  --text-100: #f1f1ef;
+  --text-200: #d8d6cd;
+  --text-300: #b7b5a9;
+  --text-400: #908e84;
+  --text-500: #6e6d68;
+  --text-600: #46443b;
+  --text-700: #30302e;
+  --text-800: #2c2c2b;
+  --text-900: #1b1b19;
+  --icon-50: #1b1b19;
+  --icon-100: #2c2c2b;
+  --icon-200: #46443b;
+  --icon-300: #6e6d68;
+  --icon-400: #908e84;
+  --icon-500: #b7b5a9;
+  --icon-600: #d8d6cd;
+  --icon-700: #f1f1ef;
+  --icon-800: #f8f8f6;
+  --icon-900: #ffffff;
+  --border-50: #f1f1ef;
+  --border-100: #e9e6dc;
+  --border-200: #d8d6cd;
+  --border-300: #b7b5a9;
+  --border-400: #908e84;
+  --border-500: #6e6d68;
+  --border-600: #46443b;
+  --border-700: #30302e;
+  --border-800: #2c2c2b;
+  --border-900: #1b1b19;
+  --success-50: #edf2e4;
+  --success-100: #d6dfc8;
+  --success-200: #bccaa8;
+  --success-300: #a3b58a;
+  --success-400: #8ca06f;
+  --success-500: #708353;
+  --success-600: #556640;
+  --success-700: #3f4d30;
+  --success-800: #2e3823;
+  --success-900: #232a1c;
+  --error-50: #fcdede;
+  --error-100: #f9b9b9;
+  --error-200: #f59292;
+  --error-300: #f26b6b;
+  --error-400: #ef4444;
+  --error-500: #c43a39;
+  --error-600: #93302f;
+  --error-700: #6e2c2c;
+  --error-800: #4d2424;
+  --error-900: #3a1f1f;
+  --bg-50: #faf9f5;
+  --bg-100: #f5f4ee;
+  --bg-200: #ffffff;
+  --bg-300: #f1f1ef;
+  --bg-400: #e9e6dc;
+  --bg-500: #d8d6cd;
+  --bg-600: #b7b5a9;
+  --bg-700: #908e84;
+  --bg-800: #6e6d68;
+  --bg-900: #46443b;
+  --font-display: Newsreader, Georgia, ui-serif, serif;
+  --font-sans: Poppins, ui-sans-serif, system-ui, sans-serif;
+  --font-serif: Lora, Georgia, ui-serif, serif;
+  --font-mono: Geist Mono, ui-monospace, monospace;
+}
+    </style>
+</head>
+<body>
+<style>
+/* ===== PAGE-LEVEL STYLES ===== */
+* { box-sizing: border-box; }
+body {
+  margin: 0; min-height: 100vh;
+  background: var(--bg-50); color: var(--text-900);
+  font-family: var(--font-sans); font-size: 14px; line-height: 1.5;
+}
+
+/* Page container */
+.page-container {
+  max-width: 1440px; margin: 0 auto; padding: 20px 24px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+/* Page header */
+.page-header { display: flex; align-items: center; justify-content: space-between; }
+.page-title {
+  font-size: 20px; font-weight: 700; color: var(--text-900);
+  display: flex; align-items: center; gap: 8px;
+}
+.page-title .dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--brand-500);
+}
+.page-subtitle { font-size: 13px; color: var(--text-500); margin-top: 4px; }
+
+/* Filter bar */
+.filter-bar {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  background: var(--bg-200); border: 1px solid var(--border-200);
+  border-radius: var(--radius-sm); padding: 14px 20px;
+}
+.filter-group { display: flex; align-items: center; gap: 8px; }
+.filter-label { font-size: 13px; color: var(--text-500); white-space: nowrap; }
+.filter-tabs { display: flex; gap: 4px; }
+.filter-tab {
+  padding: 5px 14px; border-radius: 6px; font-size: 13px; font-weight: 500;
+  cursor: pointer; border: none; transition: all 0.15s;
+  background: transparent; color: var(--text-400);
+  font-family: var(--font-sans);
+}
+.filter-tab:hover { color: var(--text-700); background: var(--bg-400); }
+.filter-tab.active {
+  color: var(--brand-500); font-weight: 600;
+  border-bottom: 2px solid var(--brand-500);
+  padding-bottom: 3px;
+}
+.filter-spacer { flex: 1; }
+
+.filter-input {
+  background: var(--bg-100); border: 1px solid var(--border-200);
+  color: var(--text-900); border-radius: 6px; padding: 6px 10px;
+  font-size: 13px; font-family: var(--font-sans); outline: none;
+  transition: border-color 0.15s; width: 160px;
+}
+.filter-input:focus { border-color: var(--brand-500); }
+.filter-input::placeholder { color: var(--text-300); }
+
+.filter-select {
+  background: var(--bg-100); border: 1px solid var(--border-200);
+  color: var(--text-700); border-radius: 6px; padding: 6px 10px;
+  font-size: 13px; font-family: var(--font-sans); outline: none;
+  cursor: pointer; transition: border-color 0.15s;
+}
+.filter-select:focus { border-color: var(--brand-500); }
+
+.filter-btn {
+  padding: 6px 16px; border-radius: 6px; font-size: 13px;
+  font-weight: 600; cursor: pointer; transition: all 0.15s;
+  font-family: var(--font-sans);
+}
+.filter-btn-primary {
+  background: var(--brand-500); color: var(--text-900);
+  border: none;
+}
+.filter-btn-primary:hover { background: var(--brand-600); }
+.filter-btn-ghost {
+  background: transparent; color: var(--text-500);
+  border: 1px solid var(--border-300);
+}
+.filter-btn-ghost:hover { border-color: var(--text-400); color: var(--text-700); }
+
+/* Metric row */
+.metric-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.metric-card {
+  background: var(--bg-200); border: 1px solid var(--border-200);
+  border-radius: var(--radius-sm); padding: 16px 18px;
+}
+.metric-label { font-size: 12px; color: var(--text-500); margin-bottom: 6px; }
+.metric-value {
+  font-size: 26px; font-weight: 700; color: var(--text-900);
+  font-family: var(--font-mono); line-height: 1.2;
+}
+.metric-value.accent { color: var(--brand-500); }
+.metric-value.success { color: var(--success-500); }
+.metric-change { font-size: 12px; color: var(--text-400); margin-top: 6px; }
+.metric-change .up { color: var(--success-500); }
+
+/* Main layout: 70/30 */
+.main-layout { display: flex; gap: 16px; }
+.left-panel { flex: 7; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.right-panel { flex: 3; min-width: 260px; display: flex; flex-direction: column; gap: 14px; }
+
+/* Table */
+.table-container {
+  background: var(--bg-200); border: 1px solid var(--border-200);
+  border-radius: var(--radius-sm); overflow: hidden;
+}
+.table-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px; border-bottom: 1px solid var(--border-200);
+}
+.table-header-title { font-size: 14px; font-weight: 600; color: var(--text-900); }
+.table-header-count { font-size: 12px; color: var(--text-400); }
+
+.data-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.data-table thead th {
+  padding: 8px 12px; text-align: left; font-size: 12px; font-weight: 600;
+  color: var(--text-500); background: var(--bg-100);
+  border-bottom: 1px solid var(--border-200); white-space: nowrap;
+}
+.data-table tbody tr { transition: background 0.1s; }
+.data-table tbody tr:nth-child(even) { background: var(--bg-100); }
+.data-table tbody tr:hover { background: var(--bg-400); }
+.data-table tbody td {
+  padding: 7px 12px; border-bottom: 1px solid var(--border-100);
+  color: var(--text-700);
+}
+
+/* Image placeholder */
+.thumb-placeholder {
+  width: 40px; height: 40px; background: var(--bg-400);
+  border-radius: 4px; flex-shrink: 0;
+}
+
+/* ASIN link */
+.asin-link {
+  color: var(--brand-400); font-family: var(--font-mono);
+  font-size: 12px; cursor: pointer;
+}
+.asin-link:hover { color: var(--brand-600); text-decoration: underline; }
+
+/* Title cell */
+.title-cell {
+  max-width: 260px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; color: var(--text-700);
+}
+
+/* Badges: A=#success-500, B=#brand-500, C=#brand-700, D=#icon-400 */
+.badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 2px 10px; border-radius: 4px; font-size: 12px;
+  font-weight: 600; line-height: 1.4;
+}
+.badge-a { background: rgba(140,160,111,0.18); color: var(--success-500); }
+.badge-b { background: rgba(217,119,87,0.18); color: var(--brand-500); }
+.badge-c { background: rgba(232,169,143,0.18); color: var(--brand-700); }
+.badge-d { background: rgba(144,142,132,0.15); color: var(--icon-400); }
+
+/* Method tags */
+.method-tag {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  font-size: 11px; font-weight: 500; margin-right: 4px;
+  border: 1px solid transparent;
+}
+.method-tag.m01 { background: rgba(176,87,48,0.2); color: var(--brand-500); border-color: rgba(176,87,48,0.3); }
+.method-tag.m02 { background: rgba(156,135,245,0.15); color: var(--chart-2); border-color: rgba(156,135,245,0.25); }
+.method-tag.m03 { background: rgba(140,160,111,0.15); color: var(--success-400); border-color: rgba(140,160,111,0.25); }
+
+/* Action button */
+.action-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border-200);
+  background: transparent; color: var(--text-500); cursor: pointer;
+  font-size: 12px; font-family: var(--font-sans); transition: all 0.15s;
+}
+.action-btn:hover { border-color: var(--brand-500); color: var(--brand-500); background: var(--bg-300); }
+.action-btn .arrow { font-size: 10px; opacity: 0.6; }
+
+/* Pagination */
+.pagination-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px;
+  background: var(--bg-200); border: 1px solid var(--border-200);
+  border-radius: var(--radius-sm);
+}
+.pagination-info { font-size: 13px; color: var(--text-400); }
+.pagination-controls { display: flex; gap: 4px; }
+.page-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 32px; height: 32px; border-radius: 6px;
+  border: 1px solid var(--border-200); background: var(--bg-200);
+  color: var(--text-500); cursor: pointer; font-size: 13px;
+  padding: 0 8px; transition: all 0.15s; font-family: var(--font-sans);
+}
+.page-btn:hover { border-color: var(--brand-500); color: var(--brand-500); }
+.page-btn.active {
+  background: var(--brand-500); border-color: var(--brand-500);
+  color: var(--text-900); font-weight: 600;
+}
+.page-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.page-size-select {
+  background: var(--bg-100); border: 1px solid var(--border-200);
+  color: var(--text-700); border-radius: 6px; padding: 4px 8px;
+  font-size: 12px; font-family: var(--font-sans); outline: none;
+  margin-left: 8px; cursor: pointer;
+}
+
+/* ===== RIGHT SIDEBAR ===== */
+.sidebar-card {
+  background: var(--bg-200); border: 1px solid var(--border-200);
+  border-radius: var(--radius-sm); padding: 16px;
+}
+.sidebar-title {
+  font-size: 13px; font-weight: 600; color: var(--text-900);
+  margin-bottom: 14px;
+}
+
+/* Bar chart */
+.bar-chart { display: flex; align-items: flex-end; gap: 8px; height: 120px; padding-top: 10px; }
+.bar-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  gap: 6px; height: 100%; position: relative;
+}
+.bar-value {
+  font-size: 11px; font-weight: 600; color: var(--text-700);
+  font-family: var(--font-mono); order: -1;
+}
+.bar-fill {
+  width: 100%; background: var(--brand-500); border-radius: 4px 4px 0 0;
+  min-height: 4px; transition: height 0.3s;
+}
+.bar-label {
+  font-size: 10px; color: var(--text-400); white-space: nowrap;
+  margin-top: 4px;
+}
+
+/* Shop list */
+.shop-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.shop-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0; border-bottom: 1px solid var(--border-100);
+}
+.shop-item:last-child { border-bottom: none; }
+.shop-rank {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--bg-400); color: var(--text-600);
+  font-size: 11px; font-weight: 600; display: flex;
+  align-items: center; justify-content: center;
+  font-family: var(--font-mono); flex-shrink: 0;
+}
+.shop-rank:first-child { background: var(--brand-500); color: var(--text-900); }
+.shop-name { flex: 1; font-size: 13px; color: var(--text-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shop-count {
+  font-size: 12px; font-weight: 600; color: var(--text-500);
+  font-family: var(--font-mono);
+}
+
+/* Pie / distribution */
+.pie-row { display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+.pie-segment { display: flex; align-items: center; gap: 6px; }
+.pie-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+.pie-dot.a { background: var(--success-500); }
+.pie-dot.b { background: var(--brand-500); }
+.pie-dot.c { background: var(--brand-700); }
+.pie-dot.d { background: var(--icon-400); }
+.pie-label { font-size: 12px; color: var(--text-700); font-weight: 500; }
+.pie-count { font-size: 12px; color: var(--text-400); font-family: var(--font-mono); }
+
+.pie-bar {
+  display: flex; height: 8px; border-radius: 4px; overflow: hidden;
+  background: var(--bg-400);
+}
+.pie-bar-seg { height: 100%; }
+.pie-bar-seg.a { background: var(--success-500); }
+.pie-bar-seg.b { background: var(--brand-500); }
+.pie-bar-seg.c { background: var(--brand-700); }
+.pie-bar-seg.d { background: var(--icon-400); }
+
+/* Scrollbar */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+</style>
+
+<div class="page-container">
+
+  <!-- Page Header -->
+  <div class="page-header">
+    <div>
+      <div class="page-title"><span class="dot"></span> 新品雷达</div>
+      <div class="page-subtitle">监控各站点最新上架产品，第一时间发现潜力新品</div>
+    </div>
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="filter-bar">
+    <div class="filter-group">
+      <span class="filter-label">站点</span>
+      <div class="filter-tabs">
+        <button class="filter-tab active">UK</button>
+        <button class="filter-tab">DE</button>
+        <button class="filter-tab">US</button>
+      </div>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">监控周</span>
+      <select class="filter-select">
+        <option>2026-W28</option>
+        <option>2026-W27</option>
+        <option>2026-W26</option>
+        <option>2026-W25</option>
+        <option>2026-W24</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">店铺</span>
+      <input class="filter-input" type="text" placeholder="输入 sellerName..." style="width:160px">
+    </div>
+    <div class="filter-group">
+      <span class="filter-label">类目</span>
+      <select class="filter-select">
+        <option>全部类目</option>
+        <option>Home &amp; Garden</option>
+        <option>Sports &amp; Outdoors</option>
+        <option>Beauty &amp; Personal Care</option>
+        <option>Kitchen &amp; Dining</option>
+        <option>Toys &amp; Games</option>
+      </select>
+    </div>
+    <div class="filter-spacer"></div>
+    <button class="filter-btn filter-btn-primary">&#9906; 搜索</button>
+    <button class="filter-btn filter-btn-ghost">重置</button>
+  </div>
+
+  <!-- Metric Summary Row -->
+  <div class="metric-row">
+    <div class="metric-card">
+      <div class="metric-label">今日新增</div>
+      <div class="metric-value accent">128</div>
+      <div class="metric-change"><span class="up">&#9650; 12%</span> 较昨日</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">本周新增</div>
+      <div class="metric-value">1,024</div>
+      <div class="metric-change"><span class="up">&#9650; 8%</span> 较上周</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">M01 命中</div>
+      <div class="metric-value success">56</div>
+      <div class="metric-change">命中率 5.5%</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">已收藏</div>
+      <div class="metric-value">23</div>
+      <div class="metric-change">待处理 5 个</div>
+    </div>
+  </div>
+
+  <!-- Main Two-Panel Layout -->
+  <div class="main-layout">
+
+    <!-- Left Panel: Product Table -->
+    <div class="left-panel">
+      <div class="table-container">
+        <div class="table-header">
+          <span class="table-header-title">产品列表</span>
+          <span class="table-header-count">共 1,024 条 · 当前显示 1-10</span>
+        </div>
+        <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:50px">图片</th>
+              <th>ASIN</th>
+              <th>标题</th>
+              <th>店铺</th>
+              <th style="text-align:right">月销量</th>
+              <th style="text-align:center">销量等级</th>
+              <th style="text-align:right">BSR</th>
+              <th style="text-align:right">价格</th>
+              <th style="text-align:right">上架天数</th>
+              <th>方法卡</th>
+              <th style="width:70px">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><div class="thumb-placeholder"></div></td>
+              <td><span class="asin-link">B0D7K9M2X1</span></td>
+              <td class="title-cell">Portable LED Camping Lantern with USB Rechargeable Battery Pack</td>
+              <td style="color:var(--text-500)">TechBright UK</td>
+              <td style="text-align:right;font-family:var(--font-mono)">2,340</td>
+              <td style="text-align:center"><span class="badge badge-a">A</span></td>
+              <td style="text-align:right;font-family:var(--font-mono)">#3,412</td>
+              <td style="text-align:right;font-family:var(--font-mono)">&#163;18.99</td>
+              <td style="text-align:right;font-family:var(--font-mono);color:var(--success-500)">5</td>
+              <td><span class="method-tag m01">M01</span></td>
+              <td><button class="action-btn">操作 <span class="arrow">&#9662;</span></button></td>
+            </tr>
+            <tr>
+              <td><div class="thumb-placeholder"></div></td>
+              <td><span class="asin-link">B0E2R8N5P3</span></td>
+              <td class="title-cell">Stainless Steel Insulated Water Bottle 750ml - Leak Proof Sport Flask</td>
+              <td style="color:var(--text-500)">HydroElite</td>
+              <td style="text-align:right;font-family:var(--font-mono)">1,856</td>
+              <td style="text-align:center"><span class="badge badge-a">A</span></td>
+              <td style="text-align:right;font-family:var(--font-mono)">#5,621</td>
+              <td style="text-align:right;font-family:var(--font-mono)">&#163;14.99</td>
+              <td style="text-align:right;font-family:var(--font-mono);color:var(--success-500)">3</td>
+              <td><span class="method-tag m01">M01</span> <span class="method-tag m02">M02</span></td>
+              <td><button class="action-btn">操作 <span class="arrow">&#9662;</span></button></td>
+            </tr>
+            <tr>
+              <td><div class="thumb-placeholder"></div></td>
+              <td><span class="asin-link">B0F1J6L4Q7</span></td>
+              <td class="title-cell">Bamboo Desktop Organizer with 5 Compartments and Drawer for Office Supplies</td>
+              <td style="color:var(--text-500)">NatureHome Ltd</td>
+              <td style="text-align:right;font-family:var(--font-mono)">987</td>
+              <td style="text-align:center"><span class="badge badge-b">B</span></td>
+              <td style="text-align:right;font-family:var(--font-mono)">#12,458</td>
+              <td style="text-align:right;font-family:var(--font-mono)">&#163;22.50</td>
+              <td style="text-align:right;font-family:var(--font-mono)">7</td>
+              <td><span class="method-tag m02">M02</span></td>
+              <td><button class="action-btn">操作 <span class="arrow">&#9662;</span></button></td>
+            </tr>
+            <tr>
+              <td><div class="thumb-placeholder"></div></td>
+              <td><span class="asin-link">B0C3T8V2W9</span></td>
+              <td class="title-cell">Wireless Bluetooth Earbuds with Noise Cancelling - IPX5 Waterproof Earphones</td>
+              <td style="color:var(--text-500)">SoundWave Audio</td>
+              <td style="text-align:right;font-family:var(--font-mono)">3,102</td>
+              <td style="text-align:center"><span class="badge badge-a">A</span></td>
+              <td style="text-align:right;font-family:var(--font-mono)">#2,187</td>
+              <td style="text-align:right;font-family:var(--font-mono)">&#163;29.99</td>
+              <td style="text-align:right;font-family:var(--font-mono);color:var(--success-500)">2</td>
+              <td><span class="method-tag m01">M01</span> <span class="method-tag m03">M03</span></td>
+              <td><button class="action-btn">操作 <span class="arrow">&#9662;</span></button></td>
+            </tr>
+            <tr>
+              <td><div class="thumb-placeholder"></div></td>
+              <td><span class="asin-link">B0A5M3N8R1</span></td>
+              <td class="title-cell">Yoga Mat Non-Slip 6mm Extra Thick - Eco Friendly TPE Exercise Fitness Mat</td>
+              <td style="color:var(--text-500)">FitPro Direct</td>
+              <td style="text-align:right;font-family:var(--font-mono)">654</td>
+              <td style="text-align:center"><span class="badge badge-b">B</span></td>
+              <td style="text-align:right;font-family:var(--font-mono)">#18,903</td>
+              <td style="text-align:right;font-family:var(--font-mono)">&#163;19.99</td>
+              <td style="text-align:right;font-family:var(--font-mono)">10</td>
+              <td><span class="method-tag m02">M02</span> <span class="method-tag m03">M03</span></td>
+              <td><button class="action-btn">操作 <span class="arrow">&#9662;</span></button></td>
+            </tr>
+            <tr>
+              <td><div class="thumb-placeholder"></div></td>
+              <td><span class="asin-link">B0H7P2K6S4</span></td>
+              <td class="title-cell">Silicone Kitchen Utensil Set 12 Pieces - Heat Resistant Cooking Tools with Holder</td>
+              <td style="color:var(--text-500)">ChefCraft Home</td>
+              <td style="text-align:right;font-family:var(--font-mono)">423</td>
+              <td style="text-align:center"><span class="badge badge-c">C</span></td>
+              <td style="text-align:right;font-family:var(--font-mono)">#34,210</td>
+              <td style="text-align:right;font-family:var(--font-mono)">&#163;16.99</td>
+              <td style="text-align:right;font-family:var(--font-mono)">14</td>
+              <td><span class="method-tag m03">M03</span></td>
+              <td><button class="action-btn">操作 <span class="arrow">&#9662;</span></button></td>
+            </tr>
+            <tr>
+              <td><div class="thumb-placeholder"></div></td>
+              <td><span class="asin-link">B0G9Q4W1Z6</span></td>
+              <td class="title-cell">Car Phone Holder Dashboard Windshield Mount - 360 Degree Rotation Universal</td>
+              <td style="color:var(--text-500)">DriveSafe Co</td>
+              <td style="text-align:right;font-family:var(--font-mono)">1,567</td>
+              <td style="text-align:center"><span class="badge badge-a">A</span></td>
+              <td style="text-align:right;font-family:var(--font-mono)">#7,890</td>
+              <td style="text-align:right;font-family:var(--font-mono)">&#163;12.99</td>
+              <td style="text-align:right;font-family:var(--font-mono);color:var(--success-500)">1</td>
+              <td><span class="method-tag m01">M01</span> <span class="method-tag m02">M02</span> <span class="method-tag m03">M03</span></td>
+              <td><button class="action-btn">操作 <span class="arrow">&#9662;</span></button></td>
+            </tr>
+            <tr>
+              <td><div class="thumb-placeholder"></div></td>
+              <td><span class="asin-link">B0J1X5B8T2</span></td>
+              <td class="title-cell">Electric Milk Frother Handheld - Stainless Steel Wand for Coffee Latte Cappuccino</td>
+              <td style="color:var(--text-500)">BreWise</td>
+              <td style="text-align:right;font-family:var(--font-mono)">289</td>
+              <td style="text-align:center"><span class="badge badge-c">C</span></td>
+              <td style="text-align:right;font-family:var(--font-mono)">#45,678</td>
+              <td style="text-align:right;font-family:var(--font-mono)">&#163;9.99</td>
+              <td style="text-align:right;font-family:var(--font-mono)">21</td>
+              <td></td>
+              <td><button class="action-btn">操作 <span class="arrow">&#9662;</span></button></td>
+            </tr>
+            <tr>
+              <td><div class="thumb-placeholder"></div></td>
+              <td><span class="asin-link">B0K3Y7C9V5</span></td>
+              <td class="title-cell">LED Strip Lights 10m RGB Colour Changing with Remote Control and App</td>
+              <td style="color:var(--text-500)">LumiDecor UK</td>
+              <td style="text-align:right;font-family:var(--font-mono)">156</td>
+              <td style="text-align:center"><span class="badge badge-d">D</span></td>
+              <td style="text-align:right;font-family:var(--font-mono)">#67,890</td>
+              <td style="text-align:right;font-family:var(--font-mono)">&#163;11.49</td>
+              <td style="text-align:right;font-family:var(--font-mono)">28</td>
+              <td></td>
+              <td><button class="action-btn">操作 <span class="arrow">&#9662;</span></button></td>
+            </tr>
+            <tr>
+              <td><div class="thumb-placeholder"></div></td>
+              <td><span class="asin-link">B0L5N9D2F8</span></td>
+              <td class="title-cell">Resistance Bands Set Exercise Bands with Door Anchor Handles for Home Workout</td>
+              <td style="color:var(--text-500)">PowerFit Gear</td>
+              <td style="text-align:right;font-family:var(--font-mono)">732</td>
+              <td style="text-align:center"><span class="badge badge-b">B</span></td>
+              <td style="text-align:right;font-family:var(--font-mono)">#15,432</td>
+              <td style="text-align:right;font-family:var(--font-mono)">&#163;15.99</td>
+              <td style="text-align:right;font-family:var(--font-mono)">12</td>
+              <td><span class="method-tag m02">M02</span></td>
+              <td><button class="action-btn">操作 <span class="arrow">&#9662;</span></button></td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+
+      <!-- Pagination -->
+      <div class="pagination-bar">
+        <div class="pagination-info">显示 1-10 / 共 1,024 条</div>
+        <div style="display:flex;align-items:center;">
+          <div class="pagination-controls">
+            <button class="page-btn" disabled>&#9664;</button>
+            <button class="page-btn active">1</button>
+            <button class="page-btn">2</button>
+            <button class="page-btn">3</button>
+            <button class="page-btn">4</button>
+            <button class="page-btn">5</button>
+            <button class="page-btn" style="pointer-events:none;opacity:0.4;">...</button>
+            <button class="page-btn">103</button>
+            <button class="page-btn">&#9654;</button>
+          </div>
+          <select class="page-size-select">
+            <option>10 条/页</option>
+            <option>20 条/页</option>
+            <option>50 条/页</option>
+            <option>100 条/页</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Panel: Summary Sidebar -->
+    <div class="right-panel">
+      <!-- Top Categories -->
+      <div class="sidebar-card">
+        <div class="sidebar-title">Top 类目</div>
+        <div class="bar-chart">
+          <div class="bar-item">
+            <span class="bar-value">312</span>
+            <div class="bar-fill" style="height:100%"></div>
+            <span class="bar-label">Home</span>
+          </div>
+          <div class="bar-item">
+            <span class="bar-value">245</span>
+            <div class="bar-fill" style="height:78%;opacity:0.85"></div>
+            <span class="bar-label">Sports</span>
+          </div>
+          <div class="bar-item">
+            <span class="bar-value">198</span>
+            <div class="bar-fill" style="height:63%;opacity:0.75"></div>
+            <span class="bar-label">Beauty</span>
+          </div>
+          <div class="bar-item">
+            <span class="bar-value">134</span>
+            <div class="bar-fill" style="height:43%;opacity:0.65"></div>
+            <span class="bar-label">Kitchen</span>
+          </div>
+          <div class="bar-item">
+            <span class="bar-value">89</span>
+            <div class="bar-fill" style="height:29%;opacity:0.55"></div>
+            <span class="bar-label">Toys</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Shops -->
+      <div class="sidebar-card">
+        <div class="sidebar-title">Top 店铺</div>
+        <ul class="shop-list">
+          <li class="shop-item">
+            <span class="shop-rank">1</span>
+            <span class="shop-name">TechBright UK</span>
+            <span class="shop-count">42</span>
+          </li>
+          <li class="shop-item">
+            <span class="shop-rank">2</span>
+            <span class="shop-name">SoundWave Audio</span>
+            <span class="shop-count">38</span>
+          </li>
+          <li class="shop-item">
+            <span class="shop-rank">3</span>
+            <span class="shop-name">NatureHome Ltd</span>
+            <span class="shop-count">31</span>
+          </li>
+          <li class="shop-item">
+            <span class="shop-rank">4</span>
+            <span class="shop-name">FitPro Direct</span>
+            <span class="shop-count">27</span>
+          </li>
+          <li class="shop-item">
+            <span class="shop-rank">5</span>
+            <span class="shop-name">DriveSafe Co</span>
+            <span class="shop-count">22</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Sales Grade Distribution -->
+      <div class="sidebar-card">
+        <div class="sidebar-title">销量等级分布</div>
+        <div class="pie-row">
+          <div class="pie-segment">
+            <span class="pie-dot a"></span>
+            <span class="pie-label">A</span>
+            <span class="pie-count">456</span>
+          </div>
+          <div class="pie-segment">
+            <span class="pie-dot b"></span>
+            <span class="pie-label">B</span>
+            <span class="pie-count">312</span>
+          </div>
+          <div class="pie-segment">
+            <span class="pie-dot c"></span>
+            <span class="pie-label">C</span>
+            <span class="pie-count">189</span>
+          </div>
+          <div class="pie-segment">
+            <span class="pie-dot d"></span>
+            <span class="pie-label">D</span>
+            <span class="pie-count">67</span>
+          </div>
+        </div>
+        <div class="pie-bar">
+          <div class="pie-bar-seg a" style="width:44.5%"></div>
+          <div class="pie-bar-seg b" style="width:30.5%"></div>
+          <div class="pie-bar-seg c" style="width:18.5%"></div>
+          <div class="pie-bar-seg d" style="width:6.5%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

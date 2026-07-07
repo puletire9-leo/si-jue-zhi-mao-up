@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>今日选品工作台 - 选品展示系统</title>
+    <style id="theme-vars">
+:root {
+  --background: #faf9f5;
+  --foreground: #1b1b19;
+  --card: #ffffff;
+  --card-foreground: #1b1b19;
+  --popover: #ffffff;
+  --popover-foreground: #1b1b19;
+  --primary: #d97757;
+  --primary-foreground: #ffffff;
+  --secondary: #f0ece3;
+  --secondary-foreground: #46443b;
+  --muted: #e9e6dc;
+  --muted-foreground: #6e6d68;
+  --accent: #f5f4ee;
+  --accent-foreground: #d8d6cd;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #d8d6cd;
+  --input: #d8d6cd;
+  --ring: #d97757;
+  --chart-1: #b05730;
+  --chart-2: #9c87f5;
+  --chart-3: #f5f4ee;
+  --chart-4: #e9e6dc;
+  --chart-5: #b4552d;
+  --sidebar: #f5f4ee;
+  --sidebar-foreground: #3d3d3a;
+  --sidebar-primary: #c96442;
+  --sidebar-primary-foreground: #fbfbfb;
+  --sidebar-accent: #e9e6dc;
+  --sidebar-accent-foreground: #343434;
+  --brand-50: #f8e3d8;
+  --brand-100: #f0c6b3;
+  --brand-200: #e8a98f;
+  --brand-300: #e08d6f;
+  --brand-400: #b0683f;
+  --brand-500: #d97757;
+  --brand-600: #c96442;
+  --brand-700: #8a5740;
+  --brand-800: #6b4533;
+  --brand-900: #3a2a22;
+  --text-50: #faf9f5;
+  --text-100: #f1f1ef;
+  --text-200: #d8d6cd;
+  --text-300: #b7b5a9;
+  --text-400: #908e84;
+  --text-500: #6e6d68;
+  --text-600: #46443b;
+  --text-700: #30302e;
+  --text-800: #2c2c2b;
+  --text-900: #1b1b19;
+  --icon-50: #1b1b19;
+  --icon-100: #2c2c2b;
+  --icon-200: #46443b;
+  --icon-300: #6e6d68;
+  --icon-400: #908e84;
+  --icon-500: #b7b5a9;
+  --icon-600: #d8d6cd;
+  --icon-700: #f1f1ef;
+  --icon-800: #f8f8f6;
+  --icon-900: #ffffff;
+  --border-50: #f1f1ef;
+  --border-100: #e9e6dc;
+  --border-200: #d8d6cd;
+  --border-300: #b7b5a9;
+  --border-400: #908e84;
+  --border-500: #6e6d68;
+  --border-600: #46443b;
+  --border-700: #30302e;
+  --border-800: #2c2c2b;
+  --border-900: #1b1b19;
+  --success-50: #edf2e4;
+  --success-100: #d6dfc8;
+  --success-200: #bccaa8;
+  --success-300: #a3b58a;
+  --success-400: #8ca06f;
+  --success-500: #708353;
+  --success-600: #556640;
+  --success-700: #3f4d30;
+  --success-800: #2e3823;
+  --success-900: #232a1c;
+  --error-50: #fcdede;
+  --error-100: #f9b9b9;
+  --error-200: #f59292;
+  --error-300: #f26b6b;
+  --error-400: #ef4444;
+  --error-500: #c43a39;
+  --error-600: #93302f;
+  --error-700: #6e2c2c;
+  --error-800: #4d2424;
+  --error-900: #3a1f1f;
+  --bg-50: #faf9f5;
+  --bg-100: #f5f4ee;
+  --bg-200: #ffffff;
+  --bg-300: #f1f1ef;
+  --bg-400: #e9e6dc;
+  --bg-500: #d8d6cd;
+  --bg-600: #b7b5a9;
+  --bg-700: #908e84;
+  --bg-800: #6e6d68;
+  --bg-900: #46443b;
+  --font-display: Newsreader, Georgia, ui-serif, serif;
+  --font-sans: Poppins, ui-sans-serif, system-ui, sans-serif;
+  --font-serif: Lora, Georgia, ui-serif, serif;
+  --font-mono: Geist Mono, ui-monospace, monospace;
+}
+
+.font-display { font-family: var(--font-display); }
+.font-sans { font-family: var(--font-sans); }
+.font-serif { font-family: var(--font-serif); }
+.font-mono { font-family: var(--font-mono); }
+
+    </style>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-foreground: var(--card-foreground);
+  }
+  @layer base {
+    body { background: var(--bg-50); color: var(--text-900); }
+    td, th { word-break: break-all; word-break: auto-phrase; }
+    th { white-space: nowrap; }
+  }
+    </style>
+</head>
+<body class="min-h-screen antialiased">
+
+<style>
+/* ============================================================
+   Workbench Page Styles - Complete CSS Definitions
+   All classes referenced in the page body are defined here.
+   Uses CSS variables from the theme-vars block exclusively.
+   ============================================================ */
+
+/* --- Base Reset & Typography --- */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  background-color: var(--bg-50);
+  color: var(--text-900);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+/* --- Page Container --- */
+.page-container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 16px 24px 32px;
+}
+
+/* --- Top Bar --- */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-200);
+}
+
+.top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.market-selector {
+  display: flex;
+  gap: 4px;
+  background-color: var(--bg-300);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.market-btn {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 14px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-400);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: 0.02em;
+}
+
+.market-btn:hover {
+  color: var(--text-700);
+  background-color: var(--bg-400);
+}
+
+.market-btn.active {
+  color: var(--text-900);
+  background-color: var(--brand-500);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.page-title {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-900);
+  letter-spacing: -0.01em;
+}
+
+.date-display {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--text-400);
+  font-weight: 500;
+}
+
+.refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border: 1px solid var(--border-300);
+  border-radius: 8px;
+  background-color: var(--bg-300);
+  color: var(--text-600);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.refresh-btn:hover {
+  background-color: var(--bg-400);
+  color: var(--text-800);
+  border-color: var(--border-400);
+}
+
+.refresh-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+/* --- Metric Summary Row --- */
+.metric-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.metric-card {
+  background-color: var(--bg-200);
+  border: 1px solid var(--border-200);
+  border-radius: 8px;
+  padding: 14px 16px;
+  transition: border-color 0.15s ease;
+}
+
+.metric-card:hover {
+  border-color: var(--border-400);
+}
+
+.metric-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-400);
+  margin-bottom: 6px;
+  letter-spacing: 0.01em;
+}
+
+.metric-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-900);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.metric-value.accent {
+  color: var(--brand-500);
+}
+
+.metric-value.success {
+  color: var(--success-500);
+}
+
+.metric-value.brand-700 {
+  color: var(--brand-700);
+}
+
+.metric-change {
+  font-size: 12px;
+  color: var(--text-400);
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.metric-change .up {
+  color: var(--success-500);
+  font-weight: 600;
+}
+
+/* --- Main Content Grid --- */
+.main-grid {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 16px;
+}
+
+.left-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* --- Module Card --- */
+.module-card {
+  background-color: var(--bg-200);
+  border: 1px solid var(--border-200);
+  border-radius: 8px;
+  padding: 16px;
+  transition: border-color 0.15s ease;
+}
+
+.module-card:hover {
+  border-color: var(--border-400);
+}
+
+.module-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-200);
+}
+
+.module-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-900);
+  letter-spacing: -0.01em;
+}
+
+.module-link {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--brand-500);
+  transition: color 0.15s ease;
+}
+
+.module-link:hover {
+  color: var(--brand-400);
+}
+
+/* --- Compact Table --- */
+.compact-table {
+  width: 100%;
+  font-size: 13px;
+}
+
+.compact-table thead th {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-400);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-300);
+  background: transparent;
+}
+
+.compact-table tbody td {
+  padding: 7px 8px;
+  color: var(--text-700);
+  border-bottom: 1px solid var(--border-200);
+  font-weight: 400;
+  vertical-align: middle;
+}
+
+.compact-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.compact-table tbody tr:hover {
+  background-color: var(--bg-300);
+}
+
+.cell-primary {
+  color: var(--text-900);
+  font-weight: 600;
+}
+
+.cell-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.cell-accent {
+  color: var(--brand-500);
+  font-weight: 700;
+}
+
+.text-truncate {
+  display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+  max-width: 220px;
+}
+
+/* --- Badges (Tier) --- */
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.03em;
+  line-height: 1.5;
+}
+
+.badge-A {
+  background-color: var(--success-500);
+  color: var(--bg-50);
+}
+
+.badge-B {
+  background-color: var(--brand-500);
+  color: var(--bg-50);
+}
+
+.badge-C {
+  background-color: var(--brand-700);
+  color: var(--bg-50);
+}
+
+.badge-D {
+  background-color: var(--icon-400);
+  color: var(--bg-50);
+}
+
+/* --- Hit Summary (Method Cards) --- */
+.hit-summary {
+  padding: 4px 0;
+}
+
+.hit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.hit-item {
+  background-color: var(--bg-300);
+  border: 1px solid var(--border-200);
+  border-radius: 8px;
+  padding: 12px 14px;
+  text-align: center;
+  transition: border-color 0.15s ease;
+}
+
+.hit-item:hover {
+  border-color: var(--border-400);
+}
+
+.hit-item-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-400);
+  margin-bottom: 6px;
+}
+
+.hit-item-value {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--brand-500);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.hit-item-trend {
+  font-size: 11px;
+  color: var(--text-400);
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* --- Shop New List (优质店铺上新) --- */
+.shop-new-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.shop-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border-200);
+  transition: background-color 0.1s ease;
+}
+
+.shop-item:last-child {
+  border-bottom: none;
+}
+
+.shop-item:hover {
+  background-color: var(--bg-300);
+  border-radius: 4px;
+}
+
+.shop-item-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shop-item-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.shop-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-800);
+}
+
+.shop-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+
+.shop-badge.A {
+  background-color: var(--success-500);
+  color: var(--bg-50);
+}
+
+.shop-badge.B {
+  background-color: var(--brand-500);
+  color: var(--bg-50);
+}
+
+.shop-badge.C {
+  background-color: var(--brand-700);
+  color: var(--bg-50);
+}
+
+.shop-badge.D {
+  background-color: var(--icon-400);
+  color: var(--bg-50);
+}
+
+.shop-item-count {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--brand-500);
+}
+
+.shop-item-label {
+  font-size: 12px;
+  color: var(--text-400);
+  font-weight: 400;
+}
+
+/* --- Review List (待复查列表) --- */
+.review-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.review-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 4px;
+  border-bottom: 1px solid var(--border-200);
+  gap: 8px;
+  transition: background-color 0.1s ease;
+}
+
+.review-item:last-child {
+  border-bottom: none;
+}
+
+.review-item:hover {
+  background-color: var(--bg-300);
+  border-radius: 4px;
+}
+
+.review-item-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.review-item-asin {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand-500);
+}
+
+.review-item-title {
+  font-size: 12px;
+  color: var(--text-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-item-countdown {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-400);
+  padding: 3px 10px;
+  border-radius: 6px;
+  background-color: var(--bg-400);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.review-item-countdown.urgent {
+  color: var(--error-500);
+  background-color: var(--error-50);
+}
+
+.review-item-countdown.soon {
+  color: var(--brand-700);
+  background-color: var(--brand-50);
+}
+
+/* --- Pool List (候选池动态) --- */
+.pool-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.pool-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border-200);
+  transition: background-color 0.1s ease;
+}
+
+.pool-item:last-child {
+  border-bottom: none;
+}
+
+.pool-item:hover {
+  background-color: var(--bg-300);
+  border-radius: 4px;
+}
+
+.pool-item-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.pool-item-asin {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand-500);
+}
+
+.pool-item-title {
+  font-size: 12px;
+  color: var(--text-400);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pool-item-right {
+  flex-shrink: 0;
+}
+
+.pool-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background-color: var(--bg-400);
+  color: var(--text-600);
+}
+
+.pool-status .arrow-up {
+  color: var(--success-500);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.pool-status .arrow-down {
+  color: var(--error-500);
+  font-size: 10px;
+  line-height: 1;
+}
+
+/* --- Responsive --- */
+@media (max-width: 1200px) {
+  .main-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .metric-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .page-container {
+    padding: 12px 16px 24px;
+  }
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+  .metric-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .top-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .top-bar-right {
+    align-self: flex-end;
+  }
+  .hit-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+
+    <main class="page-container">
+
+      <!-- ===== Top Bar ===== -->
+      <div class="top-bar">
+        <div class="top-bar-left">
+          <div class="market-selector">
+            <button class="market-btn active">UK</button>
+            <button class="market-btn">DE</button>
+            <button class="market-btn">US</button>
+          </div>
+          <span class="page-title">今日选品工作台</span>
+        </div>
+        <div class="top-bar-right">
+          <span class="date-display">2026-07-07 Monday</span>
+          <button class="refresh-btn">
+            <svg class="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+            刷新数据
+          </button>
+        </div>
+      </div>
+
+      <!-- ===== Summary Metric Cards ===== -->
+      <div class="metric-row">
+        <div class="metric-card">
+          <div class="metric-label">今日新增</div>
+          <div class="metric-value">128</div>
+          <div class="metric-change"><span class="up">+12%</span> vs 昨日</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">本周新增</div>
+          <div class="metric-value">1,024</div>
+          <div class="metric-change"><span class="up">+8%</span> vs 上周</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">M01 命中</div>
+          <div class="metric-value accent">56</div>
+          <div class="metric-change"><span class="up">+5</span> vs 昨日</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">优质店铺上新</div>
+          <div class="metric-value success">34</div>
+          <div class="metric-change"><span class="up">+3</span> vs 昨日</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">待复查</div>
+          <div class="metric-value brand-700">12</div>
+          <div class="metric-change">3件即将超时</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">候选池变化</div>
+          <div class="metric-value" style="color: var(--success-500);">+8</div>
+          <div class="metric-change">净增 8 件候选</div>
+        </div>
+      </div>
+
+      <!-- ===== Main Content Grid ===== -->
+      <div class="main-grid">
+        <!-- Left Column (~60%) -->
+        <div class="left-col">
+
+          <!-- 新品起量 -->
+          <div class="module-card">
+            <div class="module-header">
+              <span class="module-title">新品起量 Top 5</span>
+              <a href="#" class="module-link">查看全部 ></a>
+            </div>
+            <table class="compact-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>ASIN</th>
+                  <th>商品标题</th>
+                  <th>近7日销量</th>
+                  <th>上架天数</th>
+                  <th>Sales Tier</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="cell-primary">1</td>
+                  <td class="cell-mono cell-primary">B0DFX7K9RT</td>
+                  <td class="text-truncate" style="max-width: 220px;">Portable LED Work Light Rechargeable 3000LM</td>
+                  <td class="cell-accent">342</td>
+                  <td>18</td>
+                  <td><span class="badge badge-A">A</span></td>
+                </tr>
+                <tr>
+                  <td class="cell-primary">2</td>
+                  <td class="cell-mono cell-primary">B0EFG2M4PX</td>
+                  <td class="text-truncate" style="max-width: 220px;">Wireless Bluetooth Earbuds Noise Cancelling</td>
+                  <td class="cell-accent">287</td>
+                  <td>24</td>
+                  <td><span class="badge badge-A">A</span></td>
+                </tr>
+                <tr>
+                  <td class="cell-primary">3</td>
+                  <td class="cell-mono cell-primary">B0CHJ5N8QS</td>
+                  <td class="text-truncate" style="max-width: 220px;">Kitchen Silicone Utensil Set 12-Piece Heat Resistant</td>
+                  <td class="cell-accent">215</td>
+                  <td>31</td>
+                  <td><span class="badge badge-B">B</span></td>
+                </tr>
+                <tr>
+                  <td class="cell-primary">4</td>
+                  <td class="cell-mono cell-primary">B0DKL3P7WV</td>
+                  <td class="text-truncate" style="max-width: 220px;">Car Phone Mount Magnetic Dashboard Holder 2026</td>
+                  <td class="cell-accent">198</td>
+                  <td>15</td>
+                  <td><span class="badge badge-A">A</span></td>
+                </tr>
+                <tr>
+                  <td class="cell-primary">5</td>
+                  <td class="cell-mono cell-primary">B0AMN6R2TY</td>
+                  <td class="text-truncate" style="max-width: 220px;">Yoga Mat Non Slip Extra Thick 6mm Premium TPE</td>
+                  <td class="cell-accent">176</td>
+                  <td>42</td>
+                  <td><span class="badge badge-B">B</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 方法卡新增命中 -->
+          <div class="module-card">
+            <div class="module-header">
+              <span class="module-title">方法卡新增命中</span>
+              <a href="#" class="module-link">查看全部 ></a>
+            </div>
+            <div class="hit-summary">
+              <div class="hit-grid">
+                <div class="hit-item">
+                  <div class="hit-item-label">M01 - 新品起量</div>
+                  <div class="hit-item-value">56</div>
+                  <div class="hit-item-trend">+5 vs 昨日</div>
+                </div>
+                <div class="hit-item">
+                  <div class="hit-item-label">M02 - 价格优势</div>
+                  <div class="hit-item-value">38</div>
+                  <div class="hit-item-trend">+2 vs 昨日</div>
+                </div>
+                <div class="hit-item">
+                  <div class="hit-item-label">M03 - 评分洼地</div>
+                  <div class="hit-item-value">21</div>
+                  <div class="hit-item-trend">+1 vs 昨日</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 优质店铺上新 -->
+          <div class="module-card">
+            <div class="module-header">
+              <span class="module-title">优质店铺上新</span>
+              <a href="#" class="module-link">查看全部 ></a>
+            </div>
+            <div class="shop-new-list">
+              <div class="shop-item">
+                <div class="shop-item-left">
+                  <span class="shop-name">TechGear Direct</span>
+                  <span class="shop-badge A">A</span>
+                </div>
+                <div class="shop-item-right">
+                  <span class="shop-item-count">+6</span>
+                  <span class="shop-item-label">件新品</span>
+                </div>
+              </div>
+              <div class="shop-item">
+                <div class="shop-item-left">
+                  <span class="shop-name">HomeLife Essentials</span>
+                  <span class="shop-badge A">A</span>
+                </div>
+                <div class="shop-item-right">
+                  <span class="shop-item-count">+5</span>
+                  <span class="shop-item-label">件新品</span>
+                </div>
+              </div>
+              <div class="shop-item">
+                <div class="shop-item-left">
+                  <span class="shop-name">OutdoorPro Supply</span>
+                  <span class="shop-badge B">B</span>
+                </div>
+                <div class="shop-item-right">
+                  <span class="shop-item-count">+4</span>
+                  <span class="shop-item-label">件新品</span>
+                </div>
+              </div>
+              <div class="shop-item">
+                <div class="shop-item-left">
+                  <span class="shop-name">WellnessHub UK</span>
+                  <span class="shop-badge A">A</span>
+                </div>
+                <div class="shop-item-right">
+                  <span class="shop-item-count">+4</span>
+                  <span class="shop-item-label">件新品</span>
+                </div>
+              </div>
+              <div class="shop-item">
+                <div class="shop-item-left">
+                  <span class="shop-name">GreenKitchen Co</span>
+                  <span class="shop-badge B">B</span>
+                </div>
+                <div class="shop-item-right">
+                  <span class="shop-item-count">+3</span>
+                  <span class="shop-item-label">件新品</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Right Column (~40%) -->
+        <div class="right-col">
+
+          <!-- 待复查列表 -->
+          <div class="module-card">
+            <div class="module-header">
+              <span class="module-title">待复查列表</span>
+              <a href="#" class="module-link">查看全部 ></a>
+            </div>
+            <div class="review-list">
+              <div class="review-item">
+                <div class="review-item-left">
+                  <span class="review-item-asin">B0XYZ1ABC2</span>
+                  <span class="review-item-title">Adjustable Dumbbell Set 5-52.5 lbs</span>
+                </div>
+                <span class="review-item-countdown urgent">剩余 1h</span>
+              </div>
+              <div class="review-item">
+                <div class="review-item-left">
+                  <span class="review-item-asin">B0LMN3DEF4</span>
+                  <span class="review-item-title">Stainless Steel French Press 1L</span>
+                </div>
+                <span class="review-item-countdown urgent">剩余 2h</span>
+              </div>
+              <div class="review-item">
+                <div class="review-item-left">
+                  <span class="review-item-asin">B0PQR5GHI6</span>
+                  <span class="review-item-title">USB-C Hub Multiport Adapter 7-in-1</span>
+                </div>
+                <span class="review-item-countdown soon">剩余 5h</span>
+              </div>
+              <div class="review-item">
+                <div class="review-item-left">
+                  <span class="review-item-asin">B0STU7JKL8</span>
+                  <span class="review-item-title">Bamboo Cutting Board Set 3-Piece</span>
+                </div>
+                <span class="review-item-countdown">剩余 8h</span>
+              </div>
+              <div class="review-item">
+                <div class="review-item-left">
+                  <span class="review-item-asin">B0VWX9MNO0</span>
+                  <span class="review-item-title">Electric Milk Frother Handheld</span>
+                </div>
+                <span class="review-item-countdown">剩余 12h</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 候选池动态 -->
+          <div class="module-card">
+            <div class="module-header">
+              <span class="module-title">候选池动态</span>
+              <a href="#" class="module-link">查看全部 ></a>
+            </div>
+            <div class="pool-list">
+              <div class="pool-item">
+                <div class="pool-item-left">
+                  <span class="pool-item-asin">B0DFX7K9RT</span>
+                  <span class="pool-item-title text-truncate">Portable LED Work Light Rechargeable</span>
+                </div>
+                <div class="pool-item-right">
+                  <span class="pool-status"><span class="arrow-up">&#9650;</span> A</span>
+                </div>
+              </div>
+              <div class="pool-item">
+                <div class="pool-item-left">
+                  <span class="pool-item-asin">B0EFG2M4PX</span>
+                  <span class="pool-item-title text-truncate">Wireless Bluetooth Earbuds NC</span>
+                </div>
+                <div class="pool-item-right">
+                  <span class="pool-status"><span class="arrow-up">&#9650;</span> A</span>
+                </div>
+              </div>
+              <div class="pool-item">
+                <div class="pool-item-left">
+                  <span class="pool-item-asin">B0CHJ5N8QS</span>
+                  <span class="pool-item-title text-truncate">Silicone Utensil Set 12-Piece</span>
+                </div>
+                <div class="pool-item-right">
+                  <span class="pool-status"><span class="arrow-up">&#9650;</span> B</span>
+                </div>
+              </div>
+              <div class="pool-item">
+                <div class="pool-item-left">
+                  <span class="pool-item-asin">B0DKL3P7WV</span>
+                  <span class="pool-item-title text-truncate">Car Phone Mount Magnetic</span>
+                </div>
+                <div class="pool-item-right">
+                  <span class="pool-status"><span class="arrow-up">&#9650;</span> New</span>
+                </div>
+              </div>
+              <div class="pool-item">
+                <div class="pool-item-left">
+                  <span class="pool-item-asin">B0WZA4R6CT</span>
+                  <span class="pool-item-title text-truncate">Pet Grooming Brush Self Cleaning</span>
+                </div>
+                <div class="pool-item-right">
+                  <span class="pool-status"><span class="arrow-down">&#9660;</span> C</span>
+                </div>
+              </div>
+              <div class="pool-item">
+                <div class="pool-item-left">
+                  <span class="pool-item-asin">B0HGB8Q2DY</span>
+                  <span class="pool-item-title text-truncate">Desk Organizer Mesh Metal</span>
+                </div>
+                <div class="pool-item-right">
+                  <span class="pool-status"><span class="arrow-down">&#9660;</span> D</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+</body>
+</html>
