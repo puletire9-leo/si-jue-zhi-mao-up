@@ -2,14 +2,14 @@ import type { ModuleManifest } from '../types'
 
 export default {
   id: 'shop-candidate-pool',
-  name: '店铺候选池',
+  name: '店铺选品',
   icon: 'CollectionTag',
-  menuGroup: '店铺分析',
-  menuOrder: 39,
+  menuGroup: '店铺总览',
+  menuOrder: 16,
   route: {
     path: 'shop-candidates/pool',
     name: 'ShopCandidatePool',
     component: () => import('./index.vue'),
-    meta: { title: '店铺候选池' }
+    meta: { title: '店铺选品' }
   }
 } satisfies ModuleManifest

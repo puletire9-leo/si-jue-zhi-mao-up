@@ -20,12 +20,12 @@ class ShopMethodRankServiceTest {
         ShopMethodRankService service = new ShopMethodRankService(mapper);
         List<ShopMethodRankItem> expected = List.of(new ShopMethodRankItem());
 
-        when(mapper.selectM01ShopRanking("UK", 2, 50)).thenReturn(expected);
+        when(mapper.selectM01ShopRanking("UK", "2026-W28", 2, 50)).thenReturn(expected);
 
-        List<ShopMethodRankItem> actual = service.rankByMethod("m01", "UK", 2, 50);
+        List<ShopMethodRankItem> actual = service.rankByMethod("M01", "UK", "2026-W28", 2, 50);
 
         assertEquals(expected, actual);
-        verify(mapper).selectM01ShopRanking("UK", 2, 50);
+        verify(mapper).selectM01ShopRanking("UK", "2026-W28", 2, 50);
     }
 
     @Test

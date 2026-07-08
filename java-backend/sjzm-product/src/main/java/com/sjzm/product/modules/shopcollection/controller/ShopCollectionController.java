@@ -2,12 +2,12 @@ package com.sjzm.product.modules.shopcollection.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.sjzm.common.PageResult;
 import com.sjzm.common.Result;
 import com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileProduct;
 import com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileSummary;
 import com.sjzm.product.modules.shopcollection.dto.ShopCollectionDetail;
+import com.sjzm.product.modules.shopcollection.dto.ShopSnapshot;
 import com.sjzm.product.modules.shopcollection.entity.ShopProduct;
 import com.sjzm.product.modules.shopcollection.entity.ShopWatchlist;
 import com.sjzm.product.modules.shopcollection.mapper.ShopProductMapper;
@@ -24,14 +24,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 店铺分析第二/三条数据线统一入口：店铺观察池 + 店铺商品全集。
+ * 店铺分析第二/三条数据线统一入口：店铺观察池 + 店铺商品全集 + 快照 + 商品墙 + 历史对比。
  * 主线：方法卡命中 → 观察池（记录为什么盯）→ 抓店铺全集 → 画像解释。
  * 前缀 /api/v1/modules/shop-collection（网关 + nginx 已覆盖 /modules/**）。
  */
 @RestController
 @RequestMapping("/api/v1/modules/shop-collection")
 @RequiredArgsConstructor
-@Tag(name = "店铺全集与观察池", description = "方法卡命中→观察池→店铺全集抓取→画像解释")
+@Tag(name = "店铺全集与观察池", description = "方法卡命中→观察池→店铺全集抓取→画像解释→快照选择→商品墙→历史对比")
 public class ShopCollectionController {
 
     private final ShopWatchlistService watchlistService;
@@ -63,10 +63,10 @@ public class ShopCollectionController {
 
     @PostMapping("/watchlist/manual")
     @Operation(summary = "人工加入观察池")
-    public Result<ShopWatchlist> addManualWatchlist(@RequestBody JsonNode body) {
-        String marketplace = body.path("marketplace").asText(null);
-        String sellerName = body.path("sellerName").asText(null);
-        String reason = body.path("reason").asText(null);
+    public Result<ShopWatchlist> addManualWatchlist(@RequestBody Map<String, Object> body) {
+        String marketplace = (String) body.get("marketplace");
+        String sellerName = (String) body.get("sellerName");
+        String reason = (String) body.get("reason");
         return Result.success(watchlistService.addManual(marketplace, sellerName, reason));
     }
 
@@ -89,12 +89,13 @@ public class ShopCollectionController {
     // ============================================================
 
     @PostMapping("/products/sync")
-    @Operation(summary = "抓取店铺全集", description = "卖家精灵店铺名查询（variation=Y），写 shop_products；消耗卖家精灵使用次数，勿反复触发")
-    public Result<Map<String, Object>> syncShopProducts(@RequestBody JsonNode body) {
-        String sellerName = body.path("sellerName").asText(null);
-        String marketplace = body.path("marketplace").asText(null);
-        String fetchReason = body.path("fetchReason").asText(null);
-        Long watchlistId = body.path("watchlistId").isNumber() ? body.path("watchlistId").asLong() : null;
+    @Operation(summary = "抓取店铺全集", description = "卖家精灵店铺名查询（variation=Y），写 shop_products；消耗请求次数（每月限 2 万次），勿反复触发")
+    public Result<Map<String, Object>> syncShopProducts(@RequestBody Map<String, Object> body) {
+        String sellerName = (String) body.get("sellerName");
+        String marketplace = (String) body.get("marketplace");
+        String fetchReason = (String) body.get("fetchReason");
+        Object watchlistObj = body.get("watchlistId");
+        Long watchlistId = watchlistObj instanceof Number ? ((Number) watchlistObj).longValue() : null;
         if (!StringUtils.hasText(sellerName) || !StringUtils.hasText(marketplace)) {
             return Result.error("sellerName 和 marketplace 不能为空");
         }
@@ -132,8 +133,9 @@ public class ShopCollectionController {
             @RequestParam(required = false) String batchDate,
             @RequestParam(required = false) String sellerName,
             @RequestParam(required = false) Integer minProductCount,
-            @RequestParam(defaultValue = "100") Integer limit) {
-        return Result.success(collectionService.summary(marketplace, batchDate, sellerName, minProductCount, limit));
+            @RequestParam(defaultValue = "100") Integer limit,
+            @RequestParam(required = false) String sourceRunId) {
+        return Result.success(collectionService.summary(marketplace, batchDate, sellerName, minProductCount, limit, sourceRunId));
     }
 
     @GetMapping("/{marketplace}/{sellerName}")
@@ -141,8 +143,9 @@ public class ShopCollectionController {
     public Result<ShopCollectionDetail> detail(
             @PathVariable String marketplace,
             @PathVariable String sellerName,
-            @RequestParam(required = false) String batchDate) {
-        return Result.success(collectionService.detail(marketplace, sellerName, batchDate));
+            @RequestParam(required = false) String batchDate,
+            @RequestParam(required = false) String sourceRunId) {
+        return Result.success(collectionService.detail(marketplace, sellerName, batchDate, sourceRunId));
     }
 
     @GetMapping("/{marketplace}/{sellerName}/products")
@@ -151,10 +154,52 @@ public class ShopCollectionController {
             @PathVariable String marketplace,
             @PathVariable String sellerName,
             @RequestParam(required = false) String batchDate,
+            @RequestParam(required = false) String sourceRunId,
             @RequestParam(required = false) String salesTier,
             @RequestParam(required = false) String category,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "60") Integer size) {
-        return Result.success(collectionService.products(marketplace, sellerName, batchDate, salesTier, category, page, size));
+        return Result.success(collectionService.products(marketplace, sellerName, batchDate, sourceRunId, salesTier, category, page, size));
+    }
+
+    // ============================================================
+    // 快照选择器 + 商品墙
+    // ============================================================
+
+    @GetMapping("/{marketplace}/{sellerName}/snapshots")
+    @Operation(summary = "店铺快照历史列表", description = "该店铺所有成功抓取快照，按 batchCode 降序")
+    public Result<List<ShopSnapshot>> snapshots(
+            @PathVariable String marketplace,
+            @PathVariable String sellerName) {
+        return Result.success(collectionService.snapshots(marketplace, sellerName));
+    }
+
+    @GetMapping("/{marketplace}/{sellerName}/product-wall")
+    @Operation(summary = "商品墙（图片主导，按销量等级分区）", description = "解析快照后按 A/B/C/D/UNKNOWN 分区返回商品；可选 salesTier 只查指定等级")
+    public Result<Map<String, Object>> productWall(
+            @PathVariable String marketplace,
+            @PathVariable String sellerName,
+            @RequestParam(required = false) String sourceRunId,
+            @RequestParam(required = false) String batchCode,
+            @RequestParam(required = false) String salesTier,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "24") Integer size) {
+        return Result.success(collectionService.productWall(marketplace, sellerName, sourceRunId, batchCode, salesTier, page, size));
+    }
+
+    // ============================================================
+    // 历史对比
+    // ============================================================
+
+    @GetMapping("/{marketplace}/{sellerName}/compare")
+    @Operation(summary = "单店历史对比", description = "两个快照的新增/消失/保留/等级变化")
+    public Result<Map<String, Object>> compare(
+            @PathVariable String marketplace,
+            @PathVariable String sellerName,
+            @RequestParam String baselineRunId,
+            @RequestParam String compareRunId,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "60") Integer size) {
+        return Result.success(collectionService.compare(marketplace, sellerName, baselineRunId, compareRunId, page, size));
     }
 }

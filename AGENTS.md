@@ -56,11 +56,7 @@
 # 开发环境启动（默认最小集，更快）
 docker compose -f docker-compose.dev.yml up -d
 
-# 联调网关（可选）
-docker compose -f docker-compose.dev.yml --profile gateway up -d gateway
-
-# 验证注册中心（可选）
-docker compose -f docker-compose.dev.yml --profile nacos up -d nacos
+# 当前 dev compose 不包含 gateway / nacos profile；需要联调时先补 compose 服务定义
 
 # 生产环境启动
 docker compose -f docker-compose.prod.yml -p sijuelishi-prod up -d

@@ -60,6 +60,7 @@ public interface ShopProfileMapper {
     List<ShopProfileSummary> selectSummaryFromShopProducts(
             @Param("marketplace") String marketplace,
             @Param("batchDate") String batchDate,
+            @Param("sourceRunId") String sourceRunId,
             @Param("sellerNameKeyword") String sellerNameKeyword,
             @Param("minProductCount") Integer minProductCount,
             @Param("limit") Integer limit);
@@ -68,6 +69,7 @@ public interface ShopProfileMapper {
             @Param("marketplace") String marketplace,
             @Param("sellerName") String sellerName,
             @Param("batchDate") String batchDate,
+            @Param("sourceRunId") String sourceRunId,
             @Param("salesTier") String salesTier,
             @Param("category") String category);
 
@@ -75,6 +77,7 @@ public interface ShopProfileMapper {
             @Param("marketplace") String marketplace,
             @Param("sellerName") String sellerName,
             @Param("batchDate") String batchDate,
+            @Param("sourceRunId") String sourceRunId,
             @Param("salesTier") String salesTier,
             @Param("category") String category,
             @Param("offset") int offset,
@@ -84,5 +87,22 @@ public interface ShopProfileMapper {
             @Param("marketplace") String marketplace,
             @Param("sellerName") String sellerName,
             @Param("batchDate") String batchDate,
+            @Param("sourceRunId") String sourceRunId,
             @Param("salesTier") String salesTier);
+
+    long countCompareProducts(
+            @Param("marketplace") String marketplace,
+            @Param("sellerName") String sellerName,
+            @Param("baselineRunId") String baselineRunId,
+            @Param("compareRunId") String compareRunId,
+            @Param("changeType") String changeType);
+
+    List<ShopProfileProduct> selectCompareProducts(
+            @Param("marketplace") String marketplace,
+            @Param("sellerName") String sellerName,
+            @Param("baselineRunId") String baselineRunId,
+            @Param("compareRunId") String compareRunId,
+            @Param("changeType") String changeType,
+            @Param("offset") int offset,
+            @Param("size") int size);
 }

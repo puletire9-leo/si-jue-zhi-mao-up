@@ -90,8 +90,8 @@
       <div class="footer-bar" v-if="selectedRows.length > 0">
         <span>已选 {{ selectedRows.length }} 家（仅 ACTIVE 可复抓）</span>
         <el-button size="small" @click="handleDryRun" :loading="dryRunLoading">dry-run 复抓预览</el-button>
-        <el-button type="primary" size="small" @click="handleCreateRefreshTask" :loading="creatingTask">创建复抓任务</el-button>
-        <el-button size="small" @click="goToRequestCenter">看请求中心</el-button>
+        <el-button type="primary" size="small" @click="handleDryRun" :loading="creatingTask">创建复抓任务</el-button>
+        <el-button size="small" @click="() => goToRequestCenter()">看请求中心</el-button>
       </div>
 
       <el-pagination
