@@ -66,6 +66,11 @@
           </el-descriptions>
           <el-empty v-else description="该店尚无全集数据，请先在观察池抓取" />
 
+          <div class="promote-bar" v-if="detail.profile">
+            <el-button type="success" size="small" @click="handlePromoteToPremium">加入精品店铺池</el-button>
+            <span class="hint">已抓全集的店可直接入精品池（人工加入，前置快照校验）</span>
+          </div>
+
           <div class="section-title" v-if="detail.watchlistEntries?.length">为什么进观察池</div>
           <el-table v-if="detail.watchlistEntries?.length" :data="detail.watchlistEntries" size="small" border>
             <el-table-column label="来源" width="110">
@@ -121,13 +126,14 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute } from 'vue-router'
 import shopCollectionApi, {
   type ShopProfileSummary,
   type ShopCollectionDetail,
   type ShopProfileProduct
 } from '@/api/shopCollection'
+import { shopPremiumApi } from '@/api/shopPremium'
 
 const route = useRoute()
 const marketplace = ref('UK')
@@ -213,6 +219,29 @@ function sourceLabel(t: string) {
   }
   return map[t] || t
 }
+async function handlePromoteToPremium() {
+  if (!currentSeller.value || !marketplace.value) return
+  try {
+    await ElMessageBox.confirm(
+      `将「${currentSeller.value}」(${marketplace.value}) 加入精品店铺池？该店已有全集快照，将作为人工加入。`,
+      '加入精品池',
+      { type: 'warning', confirmButtonText: '入池', cancelButtonText: '取消' }
+    )
+  } catch { return }
+  try {
+    await shopPremiumApi.addManual({
+      marketplace: marketplace.value,
+      sellerName: currentSeller.value,
+      reason: '从店铺全集画像页人工加入',
+      qualityLevel: 'MID',
+      refreshFrequency: 'MONTHLY'
+    })
+    ElMessage.success('已加入精品池')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '入池失败')
+  }
+}
+
 function profileTagType(t: string | null): 'success' | 'primary' | 'warning' | 'info' {
   if (!t) return 'info'
   if (t.includes('利润')) return 'success'
@@ -268,6 +297,16 @@ onMounted(async () => {
   margin: 18px 0 10px;
   padding-left: 8px;
   border-left: 3px solid var(--el-color-primary);
+}
+.promote-bar {
+  margin: 14px 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.promote-bar .hint {
+  color: #909399;
+  font-size: 12px;
 }
 .tier {
   font-weight: 600;

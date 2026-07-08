@@ -12,6 +12,11 @@ public interface ShopProductMapper extends BaseMapper<ShopProduct> {
     @Select("SELECT MAX(batch_date) FROM shop_products WHERE marketplace = #{marketplace}")
     String selectMaxBatchDate(String marketplace);
 
+    /** 该店铺是否有成功快照（任意 batch_date 有商品入库）。精品池入池前置校验用。 */
+    @Select("SELECT COUNT(1) FROM shop_products WHERE marketplace = #{marketplace} AND seller_name = #{sellerName} LIMIT 1")
+    int countByMarketplaceAndSeller(@org.apache.ibatis.annotations.Param("marketplace") String marketplace,
+                                    @org.apache.ibatis.annotations.Param("sellerName") String sellerName);
+
     /**
      * 插入或更新（唯一键 marketplace + seller_name + asin + batch_date）。
      * first_seen_at 仅首次插入写入并保留（VALUES 不覆盖），last_seen_at 每次刷新。
@@ -24,7 +29,7 @@ public interface ShopProductMapper extends BaseMapper<ShopProduct> {
         "fulfillment, variations, weight, dimension, dimensions_type, pkg_dimensions, pkg_dimension_type, ",
         "pkg_weight, lqs, available_date, best_seller, amazon_choice, new_release, ebc, video, ",
         "filter_mode, filter_reasons, listing_days, weight_g, product_url, similar_url, source, ",
-        "batch_date, source_run_id, fetch_source, fetch_reason, watchlist_id, variation_mode, raw_json, ",
+        "batch_date, batch_code, source_run_id, fetch_source, fetch_reason, watchlist_id, variation_mode, raw_json, ",
         "first_seen_at, last_seen_at, created_at, updated_at) VALUES (",
         "#{marketplace}, #{asin}, #{month}, #{title}, #{brand}, #{brandUrl}, #{imageUrl}, #{parentAsin}, #{sku}, ",
         "#{nodeId}, #{nodeIdPath}, #{nodeLabelPath}, #{symbol}, #{units}, #{salesTier}, #{unitsGr}, #{amzUnit}, #{amzSales}, #{amzUnitDate}, ",
@@ -33,7 +38,7 @@ public interface ShopProductMapper extends BaseMapper<ShopProduct> {
         "#{fulfillment}, #{variations}, #{weight}, #{dimension}, #{dimensionsType}, #{pkgDimensions}, #{pkgDimensionType}, ",
         "#{pkgWeight}, #{lqs}, #{availableDate}, #{bestSeller}, #{amazonChoice}, #{newRelease}, #{ebc}, #{video}, ",
         "#{filterMode}, #{filterReasons}, #{listingDays}, #{weightG}, #{productUrl}, #{similarUrl}, #{source}, ",
-        "#{batchDate}, #{sourceRunId}, #{fetchSource}, #{fetchReason}, #{watchlistId}, #{variationMode}, #{rawJson}, ",
+        "#{batchDate}, #{batchCode}, #{sourceRunId}, #{fetchSource}, #{fetchReason}, #{watchlistId}, #{variationMode}, #{rawJson}, ",
         "NOW(), NOW(), NOW(), NOW())",
         "ON DUPLICATE KEY UPDATE",
         "title=VALUES(title), brand=VALUES(brand), brand_url=VALUES(brand_url), image_url=VALUES(image_url),",
@@ -50,7 +55,7 @@ public interface ShopProductMapper extends BaseMapper<ShopProduct> {
         "best_seller=VALUES(best_seller), amazon_choice=VALUES(amazon_choice), new_release=VALUES(new_release),",
         "ebc=VALUES(ebc), video=VALUES(video), listing_days=VALUES(listing_days), weight_g=VALUES(weight_g),",
         "product_url=VALUES(product_url), similar_url=VALUES(similar_url), source=VALUES(source),",
-        "source_run_id=VALUES(source_run_id), fetch_source=VALUES(fetch_source), fetch_reason=VALUES(fetch_reason),",
+        "batch_code=VALUES(batch_code), source_run_id=VALUES(source_run_id), fetch_source=VALUES(fetch_source), fetch_reason=VALUES(fetch_reason),",
         "watchlist_id=VALUES(watchlist_id), variation_mode=VALUES(variation_mode), raw_json=VALUES(raw_json),",
         "last_seen_at=NOW(), updated_at=NOW()",
         "</script>"})

@@ -267,7 +267,7 @@ export const systemConfigApi = {
   },
 
   /**
-   * 更新卖家精灵 API 密钥及配额
+   * 更新卖家精灵 API 密钥及使用次数上限
    */
   async updateSellerspriteConfig(data: {
     secretKey?: string;

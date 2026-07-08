@@ -31,13 +31,14 @@ public class ShopWatchlistService {
     private final ShopMethodRankService methodRankService;
 
     /**
-     * 从方法卡店铺排名同步观察池。
-     *
-     * @param methodId    方法卡（当前支持 M01）
-     * @param marketplace 站点，null 表示全站点
-     * @param minCount    命中数下限（低于此不进池）
-     * @return 同步结果统计
+     * @deprecated 已被 {@link com.sjzm.product.modules.shopcandidate.service.ShopCandidateService#syncFromMethodRank}
+     * 取代。新链路：方法卡命中只落 {@code shop_candidate_pool}（候选池），人工确认后才进观察池。
+     * <p>本方法仍保留向后兼容，但新链路前端应调用 {@code /api/v1/modules/shop-candidates/sync-from-method-rank}
+     * 而非 {@code /api/v1/modules/shop-collection/watchlist/sync-from-method-rank}。
+     * <p>历史 {@code shop_watchlist.source_type=METHOD_CARD} 数据视为过渡态，改造后由候选池回填，
+     * 或保留只读、新链路不再写入。</p>
      */
+    @Deprecated(since = "店铺候选池链路落地", forRemoval = true)
     public Map<String, Object> syncFromMethodRank(String methodId, String marketplace, Integer minCount) {
         String method = normalizeMethodId(methodId);
         int min = minCount == null || minCount < 1 ? 1 : minCount;

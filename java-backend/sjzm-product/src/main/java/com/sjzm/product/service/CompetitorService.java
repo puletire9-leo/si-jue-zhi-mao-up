@@ -129,7 +129,7 @@ public class CompetitorService {
                 }
             }
 
-            // 每批最多2页（200条），避免超级变体父ASIN吃光配额
+            // 每批最多2页（200条），避免超级变体父ASIN吃光卖家精灵使用次数
             int fetched = results.size();
             if (fetched >= total || itemCount < request.getSize()) break;
             if (page >= 2) {

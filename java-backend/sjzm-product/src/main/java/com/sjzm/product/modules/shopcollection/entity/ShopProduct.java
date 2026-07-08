@@ -99,6 +99,7 @@ public class ShopProduct {
 
     // 店铺抓取专用元信息
     private String batchDate;
+    private String batchCode;
     private String sourceRunId;
     private String fetchSource;
     private String fetchReason;

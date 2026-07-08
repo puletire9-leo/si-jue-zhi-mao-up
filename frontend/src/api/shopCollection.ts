@@ -185,7 +185,7 @@ export const shopCollectionApi = {
     return unwrap<void>(request({ url: `${BASE}/watchlist/${id}`, method: 'delete' }))
   },
 
-  /** 抓取店铺全集（消耗卖家精灵付费配额，放大超时到 10 分钟） */
+  /** 抓取店铺全集（消耗卖家精灵使用次数，放大超时到 10 分钟） */
   syncShopProducts(marketplace: string, sellerName: string, fetchReason?: string, watchlistId?: number): Promise<ShopSyncResult> {
     return unwrap<ShopSyncResult>(
       request({

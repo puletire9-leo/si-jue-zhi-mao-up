@@ -8,9 +8,11 @@ import com.sjzm.product.modules.shopcollection.mapper.ShopProductMapper;
 import com.sjzm.product.service.ApiRateLimitService;
 import com.sjzm.product.service.SellerspriteApiService;
 import com.sjzm.product.service.SellerspriteConfigService;
+import com.sjzm.product.util.WeekTagUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.net.URI;
@@ -42,10 +44,19 @@ public class ShopProductSyncService {
     private final SellerspriteApiService sellerspriteApiService;
     private final ApiRateLimitService rateLimitService;
     private final ShopProductMapper mapper;
+    private final WeekTagUtil weekTagUtil;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
+    private final Object shopLookupThrottleLock = new Object();
+    private long lastShopLookupAtMillis = 0L;
+
+    /** 向后兼容重载——不传 runId/batchCode，内部自动生成。保留给旧调用方（观察池直抓等）。 */
+    public Map<String, Object> syncBySellerName(String sellerName, String marketplace,
+                                                String fetchReason, Long watchlistId) {
+        return syncBySellerName(sellerName, marketplace, fetchReason, watchlistId, null, null);
+    }
 
     /**
      * 按店铺名抓取店铺商品全集并写入 shop_products。
@@ -54,14 +65,20 @@ public class ShopProductSyncService {
      * @param marketplace 站点（UK/DE/US）
      * @param fetchReason 抓取原因（M01高命中/人工加入/郑总相似），可空
      * @param watchlistId 来源观察池记录 id，可空
+     * @param runId       抓取 run id，可空（null 时内部生成）
+     * @param batchCode   ISO 周批次，可空（null 时内部生成当前周）
      */
     public Map<String, Object> syncBySellerName(String sellerName, String marketplace,
-                                                String fetchReason, Long watchlistId) {
-        String runId = "SHOP_" + marketplace + "_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+                                                String fetchReason, Long watchlistId,
+                                                String runId, String batchCode) {
+        String effectiveRunId = StringUtils.hasText(runId)
+                ? runId : "SHOP_" + marketplace + "_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
                 + "_" + Integer.toHexString((sellerName + System.identityHashCode(this)).hashCode());
+        String effectiveBatchCode = StringUtils.hasText(batchCode)
+                ? batchCode : weekTagUtil.currentWeekTag();
         String batchDate = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         int total = 0;
-        int inserted = 0;
+        int written = 0;
         int fetched = 0;
         int apiCalls = 0;
         int page = 1;
@@ -69,8 +86,15 @@ public class ShopProductSyncService {
 
         while (true) {
             log.info("抓取店铺全集: sellerName={}, marketplace={}, page={}", sellerName, marketplace, page);
-            JsonNode data = callApi(sellerName, marketplace, page, pageSize);
-            apiCalls++;
+            JsonNode data;
+            try {
+                data = callApi(sellerName, marketplace, page, pageSize);
+                apiCalls++;
+            } catch (ShopLookupException e) {
+                apiCalls += e.getApiCalls();
+                throw new ShopProductSyncException(e.getMessage(), e, total, fetched, written,
+                        Math.max(0, fetched - written), apiCalls);
+            }
             if (data == null) break;
 
             int apiTotal = data.path("total").asInt(0);
@@ -82,9 +106,10 @@ public class ShopProductSyncService {
             fetched += pageItems;
             for (JsonNode item : items) {
                 try {
-                    ShopProduct entity = mapToEntity(item, sellerName, marketplace, batchDate, runId, fetchReason, watchlistId);
-                    int affected = mapper.upsert(entity);
-                    if (affected > 0) inserted++;
+                    ShopProduct entity = mapToEntity(item, sellerName, marketplace, batchDate,
+                            effectiveRunId, effectiveBatchCode, fetchReason, watchlistId);
+                    mapper.upsert(entity);
+                    written++;
                 } catch (Exception e) {
                     log.warn("店铺商品写入失败: asin={}, error={}", item.path("asin").asText(), e.getMessage());
                 }
@@ -92,29 +117,34 @@ public class ShopProductSyncService {
 
             if ((total > 0 && fetched >= total) || pageItems < pageSize) break;
             page++;
-            try { Thread.sleep(300); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         }
 
-        log.info("店铺全集抓取完成: sellerName={}, total={}, fetched={}, inserted={}, runId={}",
-                sellerName, total, fetched, inserted, runId);
+        log.info("店铺全集抓取完成: sellerName={}, total={}, fetched={}, written={}, runId={}, batchCode={}",
+                sellerName, total, fetched, written, effectiveRunId, effectiveBatchCode);
         Map<String, Object> result = new HashMap<>();
         result.put("sellerName", sellerName);
         result.put("marketplace", marketplace);
         result.put("total", total);
         result.put("fetched", fetched);
-        result.put("inserted", inserted);
+        result.put("fetchedCount", fetched);
+        result.put("inserted", written);
+        result.put("writtenCount", written);
+        result.put("failedCount", Math.max(0, fetched - written));
         result.put("apiCalls", apiCalls);
-        result.put("runId", runId);
+        result.put("runId", effectiveRunId);
+        result.put("batchCode", effectiveBatchCode);
         result.put("batchDate", batchDate);
         return result;
     }
 
     private JsonNode callApi(String sellerName, String marketplace, int page, int size) {
-        rateLimitService.checkRequestQuota();
         long startTime = System.currentTimeMillis();
         String apiStatus = "OK";
         String errorMsg = null;
+        boolean requestSent = false;
         try {
+            rateLimitService.checkRequestQuota();
+            throttleShopLookup();
             String body = objectMapper.writeValueAsString(Map.of(
                     "marketplace", marketplace,
                     "sellerName", sellerName,
@@ -133,6 +163,7 @@ public class ShopProductSyncService {
                     .POST(HttpRequest.BodyPublishers.ofString(body))
                     .build();
 
+            requestSent = true;
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             JsonNode result = objectMapper.readTree(response.body());
 
@@ -140,22 +171,45 @@ public class ShopProductSyncService {
                 apiStatus = "ERROR";
                 errorMsg = result.path("message").asText();
                 log.error("卖家精灵店铺查询错误: {}", errorMsg);
-                return null;
+                throw new ShopLookupException("卖家精灵店铺查询错误: " + errorMsg, null, 1);
             }
             return result.path("data");
+        } catch (ShopLookupException e) {
+            apiStatus = "ERROR";
+            errorMsg = e.getMessage();
+            throw e;
         } catch (Exception e) {
             apiStatus = "ERROR";
             errorMsg = e.getMessage();
             log.error("调用卖家精灵店铺查询失败: {}", e.getMessage(), e);
-            return null;
+            throw new ShopLookupException(errorMsg, e, requestSent ? 1 : 0);
         } finally {
-            long took = System.currentTimeMillis() - startTime;
-            sellerspriteApiService.logApiCall(marketplace, currentMonth(), 0, took, apiStatus, errorMsg);
+            if (requestSent) {
+                long took = System.currentTimeMillis() - startTime;
+                sellerspriteApiService.logApiCall(marketplace, currentMonth(), 0, took, apiStatus, errorMsg);
+            }
+        }
+    }
+
+    /** 店铺名查询按卖家精灵使用次数口径限速：一页一次请求，至少间隔 2 秒。 */
+    private void throttleShopLookup() {
+        synchronized (shopLookupThrottleLock) {
+            long now = System.currentTimeMillis();
+            long waitMs = 2000L - (now - lastShopLookupAtMillis);
+            if (waitMs > 0) {
+                try {
+                    Thread.sleep(waitMs);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("店铺名查询限速等待被中断", e);
+                }
+            }
+            lastShopLookupAtMillis = System.currentTimeMillis();
         }
     }
 
     private ShopProduct mapToEntity(JsonNode item, String requestSellerName, String marketplace, String batchDate,
-                                    String runId, String fetchReason, Long watchlistId) {
+                                    String runId, String batchCode, String fetchReason, Long watchlistId) {
         ShopProduct e = new ShopProduct();
         e.setMarketplace(marketplace);
         e.setAsin(item.path("asin").asText(null));
@@ -213,6 +267,7 @@ public class ShopProductSyncService {
         e.setListingDays(calcListingDays(availableDate));
 
         e.setBatchDate(batchDate);
+        e.setBatchCode(batchCode);
         e.setSourceRunId(runId);
         e.setFetchSource("SELLERSPRITE_SHOP");
         e.setFetchReason(fetchReason);
@@ -256,5 +311,42 @@ public class ShopProductSyncService {
 
     private String currentMonth() {
         return YearMonth.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
+    }
+
+    private static class ShopLookupException extends IllegalStateException {
+        private final int apiCalls;
+
+        ShopLookupException(String message, Throwable cause, int apiCalls) {
+            super(message, cause);
+            this.apiCalls = apiCalls;
+        }
+
+        int getApiCalls() {
+            return apiCalls;
+        }
+    }
+
+    public static class ShopProductSyncException extends IllegalStateException {
+        private final int total;
+        private final int fetchedCount;
+        private final int writtenCount;
+        private final int failedCount;
+        private final int apiCalls;
+
+        ShopProductSyncException(String message, Throwable cause, int total, int fetchedCount,
+                                 int writtenCount, int failedCount, int apiCalls) {
+            super(message, cause);
+            this.total = total;
+            this.fetchedCount = fetchedCount;
+            this.writtenCount = writtenCount;
+            this.failedCount = failedCount;
+            this.apiCalls = apiCalls;
+        }
+
+        public int getTotal() { return total; }
+        public int getFetchedCount() { return fetchedCount; }
+        public int getWrittenCount() { return writtenCount; }
+        public int getFailedCount() { return failedCount; }
+        public int getApiCalls() { return apiCalls; }
     }
 }

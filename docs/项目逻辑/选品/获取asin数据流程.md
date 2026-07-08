@@ -10,13 +10,13 @@
   ├─ ③ GET  /api/v1/asin-import/progress   → 轮询进度（每 3s）
   ├─ ④ POST /api/v1/asin-import/cancel     → 暂停/停止
   ├─ ⑤ GET  /api/v1/asin-import/history    → 导入历史（按月分组）
-  └─ ⑥ GET  /api/v1/competitor/quota       → API 配额查询
+  └─ ⑥ GET  /api/v1/competitor/quota       → 卖家精灵使用次数查询
           │
           ▼
 Java sjzm-product (端口 8002)
   │
   ├─ AsinImportController       → 上传/执行/进度/取消/历史 5 端点
-  ├─ CompetitorController       → 竞品查询/配额/筛选配置 4 端点
+  ├─ CompetitorController       → 竞品查询/使用次数/筛选配置 4 端点
   ├─ FilterConfigController     → 精筛配置读写
   ├─ ScoringController          → 评分管理
   ├─ AsinImportService          → 解析文件 / 初筛 / 分块编排 / 去重
@@ -35,7 +35,7 @@ Java sjzm-product (端口 8002)
        ├─ skip_asins                 → 硬性淘汰黑名单
        ├─ shops                      → 店铺信息（shop_id 去重）
        ├─ product_30day_new          → 30 天新品追踪
-       ├─ api_config                 → 动态配置（API 配额 + 精筛阈值）
+       ├─ api_config                 → 动态配置（卖家精灵使用次数 + 精筛阈值）
        ├─ scoring_config             → 评分维度配置
        └─ grade_thresholds           → 评分等级阈值
 ```
@@ -250,7 +250,7 @@ API 数据入库后自动触发。
 
 前端 ASIN 导入页面右上角「导入历史」→ 打开侧边栏（Drawer）：
 
-- **配额条**：本月已用 X / 上限 Y
+- **使用次数条**：本月已用 X / 上限 Y
 - **按月分组**：最新月份在前
 - **卡片摘要**：状态标签 + 市场 + 时间 + 上传/通过/入库数
 - **点击展开**：价格淘汰、评论淘汰、跳过数、批次数、API 请求次数、父 ASIN 数、变体 ASIN 数、完成时间
@@ -284,12 +284,12 @@ API 调用（40个/批，N含变体，size=100，智能翻页）
 
 ---
 
-## API 配额
+## 卖家精灵使用次数
 
 | 限制 | 默认值 | 可修改 |
 |------|--------|--------|
 | 每分钟 | 10 次 | `PUT /api/v1/competitor/quota` |
-| 每月 | 200 次 | `PUT /api/v1/competitor/quota` |
+| 每月 | 20000 次 | `PUT /api/v1/competitor/quota` |
 | 单次 ASIN | 40 个 | `PUT /api/v1/competitor/quota` |
 
-配额存储在 `api_config` 表，修改即时生效。每次 `competitorLookup` 调用记录到 `competitor_lookup_log`。
+使用次数上限存储在 `api_config` 表，修改即时生效。每次 `competitorLookup` 调用记录到 `competitor_lookup_log`。

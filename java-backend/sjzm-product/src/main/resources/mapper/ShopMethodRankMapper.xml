@@ -28,6 +28,9 @@
                   <if test="marketplace != null and marketplace != ''">
                   AND c.marketplace = #{marketplace}
                   </if>
+                  <if test="effectiveWeekTag != null and effectiveWeekTag != ''">
+                  AND c.effective_week_tag = #{effectiveWeekTag}
+                  </if>
                   AND c.seller_name IS NOT NULL AND c.seller_name != ''
                   AND c.asin IS NOT NULL AND c.asin != ''
             ) ranked

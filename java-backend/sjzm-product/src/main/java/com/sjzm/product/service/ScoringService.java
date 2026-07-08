@@ -9,6 +9,7 @@ import com.sjzm.product.entity.ScoringConfig;
 import com.sjzm.product.mapper.CompetitorProductMapper;
 import com.sjzm.product.mapper.GradeThresholdMapper;
 import com.sjzm.product.mapper.ScoringConfigMapper;
+import com.sjzm.product.util.WeekTagUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ public class ScoringService {
     private final GradeThresholdMapper gradeMapper;
     private final CompetitorProductMapper productMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final WeekTagUtil weekTagUtil;
 
     /**
      * 获取评分配置
@@ -329,10 +331,7 @@ public class ScoringService {
     }
 
     public String getCurrentWeekTag() {
-        java.time.LocalDate now = java.time.LocalDate.now();
-        int year = now.get(java.time.temporal.IsoFields.WEEK_BASED_YEAR);
-        int week = now.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR);
-        return String.format("%d-W%02d", year, week);
+        return weekTagUtil.currentWeekTag();
     }
 
     // ---- 内部类 ----

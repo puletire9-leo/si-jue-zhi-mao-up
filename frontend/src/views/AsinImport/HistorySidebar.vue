@@ -7,9 +7,9 @@
     :close-on-click-modal="true"
   >
     <div class="history-sidebar">
-      <!-- 剩余配额 -->
+      <!-- 剩余使用次数 -->
       <div class="quota-bar">
-        <span class="quota-label">本月 API 配额</span>
+        <span class="quota-label">本月卖家精灵使用次数</span>
         <el-progress
           :percentage="quotaPercent"
           :color="quotaColor"
@@ -149,7 +149,7 @@ const loading = ref(false)
 const items = ref<HistoryItem[]>([])
 const expandedId = ref<number | null>(null)
 const quotaUsed = ref(0)
-const quotaMax = ref(200)
+const quotaMax = ref(20000)
 
 function statusTag(s: string) { return s === 'DONE' ? 'success' : s === 'ERROR' ? 'danger' : s === 'RUNNING' ? 'warning' : 'info' }
 function statusText(s: string) { return ({ DONE: '完成', ERROR: '失败', RUNNING: '进行中', READY: '就绪', REJECTED: '已拒绝', PAUSED: '暂停', CANCELLED: '取消' } as any)[s] || s }
@@ -210,7 +210,7 @@ async function loadData() {
     if (histRes?.data) items.value = histRes.data
     if (quotaRes?.data) {
       quotaUsed.value = quotaRes.data.monthUsed || 0
-      quotaMax.value = quotaRes.data.maxPerMonth || 200
+      quotaMax.value = quotaRes.data.maxPerMonth || 20000
     }
   } catch (e) { /* ignore */ }
   loading.value = false
