@@ -21,7 +21,7 @@ import java.util.List;
  * 流程（英国单条）：取 ASIN 图 → 生成 stylesnap URL → updateLoopItems 写进英国任务 →
  *   startExtraction → 轮询等完成 → fetchAllData → 提取命中相似品 → 入库 → 返回。
  *
- * 缓存：按 source_asin。库里已有结果且非强刷则直接返回，不再跑八爪鱼（省时间+省配额）。
+ * 缓存：按 source_asin。库里已有结果且非强刷则直接返回，不再跑八爪鱼（省时间+省调用次数）。
  *
  * 仅英国（marketplace=UK，stylesnap）。US/DE + 批量留后续。
  */

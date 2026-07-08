@@ -53,7 +53,7 @@ API 封装 `frontend/src/api/lingxingProduct.ts`。
 
 - **sid 依赖**：产品表现/利润按店铺维度取数，必须先同步店铺拿 sid。
 - **写回慎用空值**：`productSet` 对 `supplier_quote` 等传空会**清空**原数据；前端表单只提交非空字段规避，透传复杂 body 要严格按文档语义。
-- **配额消耗**：4 个 sync 接口都消耗领星付费 API 配额，勿反复触发；产品表现多店铺同步受 10s/页限流较慢（前端超时放到 10 分钟）。
+- **调用次数与限流**：领星官方文档口径是接口调用 + 令牌桶限流。4 个 sync 接口都会真实调用领星，勿反复触发；产品表现多店铺同步受 10s/页限流较慢（前端超时放到 10 分钟）。
 - **鉴权**：所有接口走网关鉴权，未加额外权限校验（与模块内其它接口一致）。
 - **部署**：`mvn install`（勿 clean）→ 重启 product 容器；前端宿主机 `npm run build`（OOM 加 `--minify false`）；新库需先执行 4 个建表 SQL。
-- 未做：张总蓝本的 API 调用日志/配额监控（credit_count 求和 + caller/call_location 归因）。
+- 未做：张总蓝本的 API 调用日志/调用次数监控（credit_count 求和 + caller/call_location 归因）。
