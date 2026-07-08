@@ -9,41 +9,59 @@
     -->
     <select id="selectM01ShopRanking"
             resultType="com.sjzm.product.modules.shoprating.dto.ShopMethodRankItem">
+        WITH base AS (
+            SELECT *
+            FROM (
+                SELECT c.*,
+                    COALESCE(NULLIF(c.parent_asin, ''), c.asin) AS product_key,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY c.marketplace, c.seller_name, COALESCE(NULLIF(c.parent_asin, ''), c.asin)
+                        ORDER BY
+                            CASE WHEN c.week_tag IS NULL OR c.week_tag = '' THEN 1 ELSE 0 END ASC,
+                            c.week_tag DESC,
+                            CASE WHEN c.updated_at IS NULL THEN 1 ELSE 0 END ASC,
+                            c.updated_at DESC,
+                            c.id DESC
+                    ) AS rn
+                FROM competitor_products_clean c
+                WHERE c.m01_active = 1
+                  <if test="marketplace != null and marketplace != ''">
+                  AND c.marketplace = #{marketplace}
+                  </if>
+                  AND c.seller_name IS NOT NULL AND c.seller_name != ''
+                  AND c.asin IS NOT NULL AND c.asin != ''
+            ) ranked
+            WHERE rn = 1
+        )
         SELECT
             'M01'           AS methodId,
-            c.seller_name   AS sellerName,
-            c.marketplace   AS marketplace,
+            b.seller_name   AS sellerName,
+            b.marketplace   AS marketplace,
             COUNT(*)        AS hitCount,
-            ROUND(AVG(c.price), 2) AS avgPrice,
-            MIN(c.price) AS minPrice,
-            MAX(c.price) AS maxPrice,
-            SUM(CASE WHEN UPPER(TRIM(COALESCE(c.sales_tier, 'UNKNOWN'))) = 'A' THEN 1 ELSE 0 END) AS salesTierACount,
-            SUM(CASE WHEN UPPER(TRIM(COALESCE(c.sales_tier, 'UNKNOWN'))) = 'B' THEN 1 ELSE 0 END) AS salesTierBCount,
-            SUM(CASE WHEN UPPER(TRIM(COALESCE(c.sales_tier, 'UNKNOWN'))) = 'C' THEN 1 ELSE 0 END) AS salesTierCCount,
-            SUM(CASE WHEN UPPER(TRIM(COALESCE(c.sales_tier, 'UNKNOWN'))) = 'D' THEN 1 ELSE 0 END) AS salesTierDCount,
+            ROUND(AVG(b.price), 2) AS avgPrice,
+            MIN(b.price) AS minPrice,
+            MAX(b.price) AS maxPrice,
+            SUM(CASE WHEN UPPER(TRIM(COALESCE(b.sales_tier, 'UNKNOWN'))) = 'A' THEN 1 ELSE 0 END) AS salesTierACount,
+            SUM(CASE WHEN UPPER(TRIM(COALESCE(b.sales_tier, 'UNKNOWN'))) = 'B' THEN 1 ELSE 0 END) AS salesTierBCount,
+            SUM(CASE WHEN UPPER(TRIM(COALESCE(b.sales_tier, 'UNKNOWN'))) = 'C' THEN 1 ELSE 0 END) AS salesTierCCount,
+            SUM(CASE WHEN UPPER(TRIM(COALESCE(b.sales_tier, 'UNKNOWN'))) = 'D' THEN 1 ELSE 0 END) AS salesTierDCount,
             SUM(CASE
-                WHEN c.sales_tier IS NULL OR TRIM(c.sales_tier) = ''
-                  OR UPPER(TRIM(c.sales_tier)) NOT IN ('A', 'B', 'C', 'D')
+                WHEN b.sales_tier IS NULL OR TRIM(b.sales_tier) = ''
+                  OR UPPER(TRIM(b.sales_tier)) NOT IN ('A', 'B', 'C', 'D')
                 THEN 1 ELSE 0
             END) AS salesTierUnknownCount,
             (
-                SELECT SUBSTRING_INDEX(c2.node_label_path, ':', -1)
-                FROM competitor_products_clean c2
-                WHERE c2.marketplace = c.marketplace
-                  AND c2.seller_name = c.seller_name
-                  AND c2.m01_active = 1
-                  AND c2.node_label_path IS NOT NULL AND c2.node_label_path != ''
-                GROUP BY SUBSTRING_INDEX(c2.node_label_path, ':', -1)
+                SELECT SUBSTRING_INDEX(b2.node_label_path, ':', -1)
+                FROM base b2
+                WHERE b2.marketplace = b.marketplace
+                  AND b2.seller_name = b.seller_name
+                  AND b2.node_label_path IS NOT NULL AND b2.node_label_path != ''
+                GROUP BY SUBSTRING_INDEX(b2.node_label_path, ':', -1)
                 ORDER BY COUNT(*) DESC
                 LIMIT 1
             ) AS topCategory
-        FROM competitor_products_clean c
-        WHERE c.m01_active = 1
-          <if test="marketplace != null and marketplace != ''">
-          AND c.marketplace = #{marketplace}
-          </if>
-          AND c.seller_name IS NOT NULL AND c.seller_name != ''
-        GROUP BY c.seller_name, c.marketplace
+        FROM base b
+        GROUP BY b.seller_name, b.marketplace
         HAVING COUNT(*) &gt;= #{minCount}
         ORDER BY hitCount DESC, avgPrice ASC
         LIMIT #{limit}
