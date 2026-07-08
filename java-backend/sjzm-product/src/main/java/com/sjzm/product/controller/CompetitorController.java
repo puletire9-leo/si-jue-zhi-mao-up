@@ -55,7 +55,7 @@ public class CompetitorController {
     }
 
     @GetMapping("/quota")
-    @Operation(summary = "查询 API 用量配额")
+    @Operation(summary = "查询卖家精灵使用次数")
     public Result<Map<String, Object>> quota() {
         return Result.success(rateLimitService.getQuotaInfo());
     }
@@ -88,7 +88,7 @@ public class CompetitorController {
     }
 
     @PutMapping("/quota")
-    @Operation(summary = "修改 API 配额上限")
+    @Operation(summary = "修改卖家精灵使用次数上限")
     public Result<Map<String, Object>> updateQuota(@RequestBody Map<String, Object> body) {
         if (body.containsKey("maxPerMinute")) {
             rateLimitService.updateMaxPerMinute(((Number) body.get("maxPerMinute")).intValue());

@@ -41,11 +41,11 @@
           <el-tag type="success" size="small">可用</el-tag>
         </div>
       </div>
-      <!-- API 配额设置 -->
+      <!-- 卖家精灵使用次数设置 -->
       <el-divider />
       <div class="quota-settings">
         <div class="quota-header">
-          <span class="quota-title">卖家精灵 API 配额</span>
+          <span class="quota-title">卖家精灵使用次数上限</span>
           <el-button size="small" text @click="loadQuota">刷新</el-button>
         </div>
         <el-row :gutter="12" style="margin-top: 12px;">
@@ -73,7 +73,7 @@
           <el-progress :percentage="quotaPercent" :color="quotaColor" :stroke-width="10" style="width: 200px; margin-left: 12px;" />
         </div>
         <div style="margin-top: 12px;">
-          <el-button type="primary" size="small" @click="saveQuota" :loading="savingQuota">保存配额设置</el-button>
+          <el-button type="primary" size="small" @click="saveQuota" :loading="savingQuota">保存使用次数设置</el-button>
         </div>
       </div>
 
@@ -363,11 +363,11 @@ const hasLoaded = ref(false)
 const refreshing = computed(() => loading.value && hasLoaded.value)
 const historyVisible = ref(false)
 
-// API 配额
+// 卖家精灵使用次数
 const quotaUsed = ref(0)
-const quotaMax = ref(200)
+const quotaMax = ref(20000)
 const savingQuota = ref(false)
-const quotaForm = reactive({ maxPerMinute: 10, maxPerMonth: 200, maxAsinsPerRequest: 40 })
+const quotaForm = reactive({ maxPerMinute: 10, maxPerMonth: 20000, maxAsinsPerRequest: 40 })
 const quotaPercent = computed(() => quotaMax.value > 0 ? Math.round(quotaUsed.value / quotaMax.value * 100) : 0)
 const quotaColor = computed(() => quotaPercent.value > 80 ? '#F56C6C' : quotaPercent.value > 50 ? '#E6A23C' : '#67C23A')
 
@@ -376,9 +376,9 @@ async function loadQuota() {
     const res = await competitorApi.getQuota()
     if (res?.data) {
       quotaUsed.value = res.data.monthUsed || 0
-      quotaMax.value = res.data.maxPerMonth || 200
+      quotaMax.value = res.data.maxPerMonth || 20000
       quotaForm.maxPerMinute = res.data.maxPerMinute || 10
-      quotaForm.maxPerMonth = res.data.maxPerMonth || 200
+      quotaForm.maxPerMonth = res.data.maxPerMonth || 20000
       quotaForm.maxAsinsPerRequest = res.data.maxAsinsPerRequest || 40
     }
   } catch (e) { /* */ }
@@ -393,7 +393,7 @@ async function saveQuota() {
       maxAsinsPerRequest: quotaForm.maxAsinsPerRequest
     })
     quotaMax.value = quotaForm.maxPerMonth
-    ElMessage.success('配额设置已保存')
+    ElMessage.success('使用次数设置已保存')
   } catch (e) {
     ElMessage.error('保存失败')
   } finally { savingQuota.value = false }
@@ -549,7 +549,7 @@ async function handleSellerPreview() {
 async function handleSellerExecute() {
   if (!sellerPreviewData.value) return
 
-  // 配额预检
+  // 使用次数预检
   let remainingQuota = 999
   try {
     const qRes = await competitorApi.getQuota()
@@ -558,7 +558,7 @@ async function handleSellerExecute() {
 
   const estCalls = sellerPreviewData.value.estimatedApiCalls
   if (remainingQuota < estCalls) {
-    ElMessage.warning(`本月剩余 ${remainingQuota} 次配额，不足预估 ${estCalls} 次`)
+    ElMessage.warning(`本月剩余 ${remainingQuota} 次使用次数，不足预估 ${estCalls} 次`)
     return
   }
 
@@ -637,21 +637,21 @@ async function handleConfirmAndExecute() {
   if (!previewData.value) return
   const p = previewData.value
 
-  // 配额预检
+  // 使用次数预检
   let remainingQuota = 999
   try {
     const qRes = await competitorApi.getQuota()
     if (qRes?.data) {
       remainingQuota = qRes.data.monthRemaining ?? 999
       quotaUsed.value = qRes.data.monthUsed || 0
-      quotaMax.value = qRes.data.maxPerMonth || 200
+      quotaMax.value = qRes.data.maxPerMonth || 20000
     }
   } catch (e) { /* ignore */ }
 
   const estMin = p.batchTotal  // 最少 batchTotal 次
   const estMax = p.batchTotal * 2  // 含变体可能翻倍
   const quotaWarning = remainingQuota < estMin
-    ? `<p style='color:#F56C6C;font-weight:bold'>本月剩余仅 ${remainingQuota} 次，不足最低 ${estMin} 次！建议增加配额或下月再试</p>`
+    ? `<p style='color:#F56C6C;font-weight:bold'>本月剩余仅 ${remainingQuota} 次，不足最低 ${estMin} 次！建议增加使用次数上限或下月再试</p>`
     : remainingQuota < estMax
       ? `<p style='color:#E6A23C'>本月剩余 ${remainingQuota} 次，预计需要 ${estMin}~${estMax} 次（含翻页），可能不够</p>`
       : `<p style='color:#67C23A'>本月剩余 ${remainingQuota} 次，预计需要 ${estMin}~${estMax} 次</p>`
@@ -781,7 +781,7 @@ function handleDone() {
     .catch(() => {})
 }
 
-// ---- 配额轮询（步骤3进度页用） ----
+// ---- 使用次数轮询（步骤3进度页用） ----
 let quotaTimer: any = null
 
 function startQuotaPolling() {
@@ -805,7 +805,7 @@ async function fetchDbStats() {
   } catch {}
 }
 
-// 进入步骤 2/3 时加载配额
+// 进入步骤 2/3 时加载使用次数
 watch(marketplace, () => { loadInitialFilterConfig() })
 
 watch(currentStep, (step) => {
@@ -848,7 +848,7 @@ watch(currentStep, (step) => {
 .mode-card h3 { margin: 0; font-size: 16px; color: #303133; }
 .mode-card p { margin: 0; font-size: 13px; color: #909399; line-height: 1.5; }
 
-/* 配额设置 */
+/* 使用次数设置 */
 .quota-settings { padding: 0 4px; }
 .quota-header { display: flex; align-items: center; justify-content: space-between; }
 .quota-title { font-weight: 600; font-size: 14px; }

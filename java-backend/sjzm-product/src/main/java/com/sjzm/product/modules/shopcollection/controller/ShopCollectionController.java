@@ -89,7 +89,7 @@ public class ShopCollectionController {
     // ============================================================
 
     @PostMapping("/products/sync")
-    @Operation(summary = "抓取店铺全集", description = "卖家精灵店铺名查询（variation=Y），写 shop_products；消耗付费配额，勿反复触发")
+    @Operation(summary = "抓取店铺全集", description = "卖家精灵店铺名查询（variation=Y），写 shop_products；消耗卖家精灵使用次数，勿反复触发")
     public Result<Map<String, Object>> syncShopProducts(@RequestBody JsonNode body) {
         String sellerName = body.path("sellerName").asText(null);
         String marketplace = body.path("marketplace").asText(null);

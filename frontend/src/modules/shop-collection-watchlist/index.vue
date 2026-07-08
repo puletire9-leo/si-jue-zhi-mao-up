@@ -121,7 +121,7 @@ async function handleSyncFromRank() {
 async function handleFetch(row: ShopWatchlist) {
   try {
     await ElMessageBox.confirm(
-      `将调用卖家精灵抓取「${row.sellerName}」(${row.marketplace}) 的店铺全集，消耗付费 API 配额。确认继续？`,
+      `将调用卖家精灵抓取「${row.sellerName}」(${row.marketplace}) 的店铺全集，消耗卖家精灵使用次数。确认继续？`,
       '抓取店铺全集',
       { type: 'warning', confirmButtonText: '抓取', cancelButtonText: '取消' }
     )

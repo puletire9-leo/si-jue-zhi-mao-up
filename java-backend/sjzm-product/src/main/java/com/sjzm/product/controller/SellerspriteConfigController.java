@@ -13,7 +13,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/sellersprite-config")
 @RequiredArgsConstructor
-@Tag(name = "卖家精灵配置", description = "查询和更新卖家精灵 API 密钥与配额")
+@Tag(name = "卖家精灵配置", description = "查询和更新卖家精灵 API 密钥与使用次数上限")
 public class SellerspriteConfigController {
 
     private final SellerspriteConfigService service;
@@ -26,7 +26,7 @@ public class SellerspriteConfigController {
     }
 
     @PutMapping
-    @Operation(summary = "更新卖家精灵 API 密钥及配额")
+    @Operation(summary = "更新卖家精灵 API 密钥及使用次数上限")
     public Result<Map<String, Object>> updateConfig(@RequestBody Map<String, Object> body) {
         // 更新密钥（可选）
         if (body.containsKey("secretKey")) {
@@ -35,7 +35,7 @@ public class SellerspriteConfigController {
                 service.updateSecretKey(newKey);
             }
         }
-        // 更新配额（可选整数）
+        // 更新卖家精灵使用次数上限（可选整数）
         Object maxPerMinObj = body.get("maxPerMinute");
         if (maxPerMinObj != null) {
             apiRateLimitService.updateMaxPerMinute(toInt(maxPerMinObj));

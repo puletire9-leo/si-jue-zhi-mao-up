@@ -23,6 +23,7 @@ public interface ShopMethodRankMapper {
      * @param limit       返回条数上限
      */
     List<ShopMethodRankItem> selectM01ShopRanking(@Param("marketplace") String marketplace,
+                                                  @Param("effectiveWeekTag") String effectiveWeekTag,
                                                   @Param("minCount") int minCount,
                                                   @Param("limit") int limit);
 

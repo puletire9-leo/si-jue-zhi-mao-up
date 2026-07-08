@@ -36,19 +36,35 @@ public class ShopMethodRankService {
      * @param limit       返回条数上限（默认 100）
      */
     public List<ShopMethodRankItem> rankByM01(String marketplace, Integer minCount, Integer limit) {
+        return rankByM01(marketplace, null, minCount, limit);
+    }
+
+    /**
+     * 按 M01 命中数给店铺排名，可限定 clean 表批次 effectiveWeekTag。
+     */
+    public List<ShopMethodRankItem> rankByM01(String marketplace, String effectiveWeekTag, Integer minCount, Integer limit) {
         String mp = normalizeRankMarketplace(marketplace);
         int min = minCount == null || minCount < 1 ? 1 : minCount;
-        int lim = limit == null || limit < 1 ? 100 : Math.min(limit, 500);
-        return mapper.selectM01ShopRanking(mp, min, lim);
+        int lim = limit == null || limit < 1 ? 100 : Math.min(limit, 5000);
+        String batch = effectiveWeekTag == null || effectiveWeekTag.isBlank() ? null : effectiveWeekTag.trim();
+        return mapper.selectM01ShopRanking(mp, batch, min, lim);
     }
 
     /**
      * 方法卡感知的店铺分级入口。当前仅实现 M01，后续方法卡必须显式接入自己的 hit source。
      */
     public List<ShopMethodRankItem> rankByMethod(String methodId, String marketplace, Integer minCount, Integer limit) {
+        return rankByMethod(methodId, marketplace, null, minCount, limit);
+    }
+
+    /**
+     * 方法卡感知的店铺分级入口，可限定批次。
+     */
+    public List<ShopMethodRankItem> rankByMethod(String methodId, String marketplace, String effectiveWeekTag,
+                                                 Integer minCount, Integer limit) {
         String method = normalizeMethodId(methodId);
         return switch (method) {
-            case "M01" -> rankByM01(marketplace, minCount, limit);
+            case "M01" -> rankByM01(marketplace, effectiveWeekTag, minCount, limit);
             default -> throw new IllegalArgumentException("店铺方法卡排名暂不支持 methodId=" + method + "，当前仅支持 M01");
         };
     }

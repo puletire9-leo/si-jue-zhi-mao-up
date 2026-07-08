@@ -68,7 +68,7 @@ public class ApiRateLimitService {
     }
 
     public void updateMaxPerMonth(int value) {
-        saveConfig("max_per_month", String.valueOf(value), "每月最大请求次数");
+        saveConfig("max_per_month", String.valueOf(value), "每月最大卖家精灵使用次数");
         dynamicMaxPerMonth.set(value);
     }
 
@@ -173,7 +173,7 @@ public class ApiRateLimitService {
         }
     }
 
-    // ---- 配额查询 ----
+    // ---- 卖家精灵使用次数查询 ----
 
     public int getMinuteUsed() { return minuteCounter.get(); }
     public int getMinuteRemaining() { return Math.max(0, getMaxPerMinute() - minuteCounter.get()); }
