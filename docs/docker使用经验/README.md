@@ -15,7 +15,7 @@ docker-compose.dev.yml / docker-compose.prod.yml
     └── (dev-gateway)              (暂时停用，见 Gateway 章节)
 ```
 
-前端（Vite）不在 Docker 里，直接跑在宿主机，通过 Vite proxy 连 Java 容器。
+开发环境前端（Vite）也在 Docker 里，源码通过 volume 挂载。浏览器访问 Vite，再由 Vite proxy 转发到 Java / Python 容器。
 
 ---
 
@@ -25,7 +25,7 @@ docker-compose.dev.yml / docker-compose.prod.yml
 
 | 文件 | 用途 | 端口 |
 |------|------|------|
-| `docker-compose.dev.yml` | 本地开发 | MySQL:3307, Redis:6380, Java:8002 |
+| `docker-compose.dev.yml` | 本地开发 | Frontend:5175, Python:18090→8090, MySQL:3410→3306, Redis:6379, Java:18001/18002→8001/8002 |
 | `docker-compose.prod.yml` | 生产部署 | MySQL:3306, Redis:6379, Java:8000 |
 
 关键规则：
@@ -137,7 +137,7 @@ environment:
   DB_PORT: 3306         # 容器内部端口，不是映射端口
 ```
 
-**踩坑**：在 Java 代码里写 `localhost:3307` 连不上——容器内的 localhost 是容器自己，不是宿主机。容器间通信必须用容器名 + 内部端口。
+**踩坑**：在 Java 代码里写 `localhost:3410` 连不上——容器内的 localhost 是容器自己，不是宿主机。容器间通信必须用容器名 + 内部端口。
 
 ### Vite 代理到容器
 
@@ -145,7 +145,7 @@ environment:
 // vite.config.js
 proxy: {
   '/api/v1/competitor': {
-    target: 'http://localhost:8002',  // 宿主机端口
+    target: `http://${env.VITE_JAVA_HOST || 'localhost'}:${env.VITE_JAVA_PORT || '8002'}`,
     changeOrigin: true
   }
 }
@@ -280,7 +280,7 @@ docker stats --no-stream
 
 | 环境 | 镜像 | 端口 | 说明 |
 |------|------|------|------|
-| dev | `node:20-alpine` | 8179 | Vite dev server，源码 volume 挂载 |
+| dev | `node:20-alpine` | 5175 | Vite dev server，源码 volume 挂载 |
 | prod | `nginx:alpine` | 5173→80 | Nginx 服务静态文件 + API 代理 |
 
 ### 生产构建禁止在 Docker 内执行
@@ -302,6 +302,8 @@ volumes:
 ```
 
 docker-compose.dev.yml 已添加 `NODE_OPTIONS: --max-old-space-size=2048` 防止 dev server 也 OOM。
+
+Windows 上不要把开发服务映射到 8001/8002/8090/8179/8180 这类宿主端口。它们可能落入系统 excluded port range，Docker 会报 `ports are not available`。
 
 ---
 
@@ -361,10 +363,10 @@ nacos:
 
 | 服务 | 技术 | 端口 |
 |------|------|------|
-| backend | Python FastAPI | 8090(dev) / 7093(prod) |
+| backend | Python FastAPI | 18090→8090(dev) / 7093→8090(prod) |
 | celery-download | Python Celery | 仅 prod，独立队列 |
-| java-user | Spring Boot | 8001(dev) / 8014(prod) |
-| java-product | Spring Boot | 8002(dev) / 8025(prod) |
+| java-user | Spring Boot | 18001→8001(dev) / 8014→8001(prod) |
+| java-product | Spring Boot | 18002→8002(dev) / 8025→8002(prod) |
 | gateway | Spring Cloud Gateway | 9000(dev) / 9003(prod) |
 
 ### Celery worker 独立部署

@@ -4,8 +4,8 @@ export default {
   id: 'sellersprite-request-center',
   name: '卖家精灵请求中心',
   icon: 'Operation',
-  menuGroup: '店铺分析',
-  menuOrder: 43,
+  menuGroup: '店铺总览',
+  menuOrder: 21,
   route: {
     path: 'request-center/tasks',
     name: 'SellerspriteRequestCenter',

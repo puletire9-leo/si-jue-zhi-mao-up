@@ -36,6 +36,10 @@
             WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL AND ds.seller_name IS NOT NULL
             <if test="marketplace != null and marketplace != ''">AND ds.marketplace = #{marketplace}</if>
             <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+            <choose>
+                <when test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</when>
+                <when test="param3 != null and param3 != ''">AND ds.source_run_id = #{param3}</when>
+            </choose>
             <if test="sellerNameKeyword != null and sellerNameKeyword != ''">AND ds.seller_name LIKE CONCAT('%', #{sellerNameKeyword}, '%')</if>
         ), base AS (
             SELECT * FROM ranked WHERE rn = 1
@@ -87,6 +91,10 @@
             WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL
               AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
             <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+            <choose>
+                <when test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</when>
+                <when test="param4 != null and param4 != ''">AND ds.source_run_id = #{param4}</when>
+            </choose>
         ), base AS (SELECT * FROM ranked WHERE rn = 1)
         SELECT COUNT(*) FROM base
         <where>
@@ -100,6 +108,10 @@
             WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL
               AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
             <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+            <choose>
+                <when test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</when>
+                <when test="param4 != null and param4 != ''">AND ds.source_run_id = #{param4}</when>
+            </choose>
         ), base AS (SELECT * FROM ranked WHERE rn = 1)
         SELECT id, marketplace, seller_name AS sellerName, seller_id AS sellerId, asin, parent_asin AS parentAsin,
             sales_tier_calc AS salesTier, title, brand, image_url AS imageUrl, product_url AS productUrl, similar_url AS similarUrl,
@@ -122,6 +134,10 @@
             WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL
               AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
             <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+            <choose>
+                <when test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</when>
+                <when test="param4 != null and param4 != ''">AND ds.source_run_id = #{param4}</when>
+            </choose>
         ), base AS (SELECT * FROM ranked WHERE rn = 1)
         SELECT marketplace, seller_name AS sellerName, sales_tier_calc AS salesTier, category_leaf AS categoryKey,
             COUNT(*) AS productCount, COALESCE(SUM(units), 0) AS unitsSum, ROUND(AVG(units), 2) AS unitsAvg
@@ -271,6 +287,7 @@
             WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL AND ds.seller_name IS NOT NULL
             <if test="marketplace != null and marketplace != ''">AND ds.marketplace = #{marketplace}</if>
             <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+            <if test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</if>
             <if test="sellerNameKeyword != null and sellerNameKeyword != ''">AND ds.seller_name LIKE CONCAT('%', #{sellerNameKeyword}, '%')</if>
         ), base AS (
             SELECT * FROM ranked WHERE rn = 1
@@ -322,6 +339,7 @@
             WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL
               AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
             <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+            <if test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</if>
         ), base AS (SELECT * FROM ranked WHERE rn = 1)
         SELECT COUNT(*) FROM base
         <where>
@@ -335,6 +353,7 @@
             WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL
               AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
             <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+            <if test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</if>
         ), base AS (SELECT * FROM ranked WHERE rn = 1)
         SELECT id, marketplace, seller_name AS sellerName, seller_id AS sellerId, asin, parent_asin AS parentAsin,
             sales_tier_calc AS salesTier, title, brand, image_url AS imageUrl, product_url AS productUrl, similar_url AS similarUrl,
@@ -357,6 +376,7 @@
             WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL
               AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
             <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+            <if test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</if>
         ), base AS (SELECT * FROM ranked WHERE rn = 1)
         SELECT marketplace, seller_name AS sellerName, sales_tier_calc AS salesTier, category_leaf AS categoryKey,
             COUNT(*) AS productCount, COALESCE(SUM(units), 0) AS unitsSum, ROUND(AVG(units), 2) AS unitsAvg
@@ -368,6 +388,166 @@
         ORDER BY
             CASE sales_tier_calc WHEN 'A' THEN 1 WHEN 'B' THEN 2 WHEN 'C' THEN 3 WHEN 'D' THEN 4 ELSE 5 END ASC,
             productCount DESC, category_leaf ASC
+    </select>
+
+    <sql id="shopCompareCte"><![CDATA[
+        WITH baseline_ranked AS (
+            SELECT ds.*,
+                COALESCE(NULLIF(ds.parent_asin, ''), ds.asin) AS product_key,
+                ROW_NUMBER() OVER (
+                    PARTITION BY ds.marketplace, ds.seller_name, COALESCE(NULLIF(ds.parent_asin, ''), ds.asin)
+                    ORDER BY
+                        CASE WHEN ds.bsr IS NULL OR ds.bsr <= 0 THEN 999999999 ELSE ds.bsr END ASC,
+                        ds.created_at DESC, ds.id DESC
+                ) AS rn
+            FROM shop_products ds
+            WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL
+              AND ds.marketplace = #{marketplace}
+              AND ds.seller_name = #{sellerName}
+              AND ds.source_run_id = #{baselineRunId}
+        ), compare_ranked AS (
+            SELECT ds.*,
+                COALESCE(NULLIF(ds.parent_asin, ''), ds.asin) AS product_key,
+                ROW_NUMBER() OVER (
+                    PARTITION BY ds.marketplace, ds.seller_name, COALESCE(NULLIF(ds.parent_asin, ''), ds.asin)
+                    ORDER BY
+                        CASE WHEN ds.bsr IS NULL OR ds.bsr <= 0 THEN 999999999 ELSE ds.bsr END ASC,
+                        ds.created_at DESC, ds.id DESC
+                ) AS rn
+            FROM shop_products ds
+            WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL
+              AND ds.marketplace = #{marketplace}
+              AND ds.seller_name = #{sellerName}
+              AND ds.source_run_id = #{compareRunId}
+        ), b AS (
+            SELECT * FROM baseline_ranked WHERE rn = 1
+        ), c AS (
+            SELECT * FROM compare_ranked WHERE rn = 1
+        )
+    ]]></sql>
+
+    <sql id="compareTierRank"><![CDATA[
+        CASE COALESCE(NULLIF(${alias}.sales_tier, ''), 'UNKNOWN')
+            WHEN 'A' THEN 5
+            WHEN 'B' THEN 4
+            WHEN 'C' THEN 3
+            WHEN 'D' THEN 2
+            ELSE 1
+        END
+    ]]></sql>
+
+    <sql id="compareProductColumns"><![CDATA[
+        ${alias}.id,
+        ${alias}.marketplace,
+        ${alias}.seller_name AS sellerName,
+        ${alias}.seller_id AS sellerId,
+        ${alias}.asin,
+        ${alias}.parent_asin AS parentAsin,
+        ${alias}.sales_tier AS salesTier,
+        ${alias}.title,
+        ${alias}.brand,
+        ${alias}.image_url AS imageUrl,
+        ${alias}.product_url AS productUrl,
+        ${alias}.similar_url AS similarUrl,
+        ${alias}.node_id AS nodeId,
+        ${alias}.node_label_path AS nodeLabelPath,
+        COALESCE(NULLIF(TRIM(SUBSTRING_INDEX(${alias}.node_label_path, ':', -1)), ''), 'UNKNOWN') AS categoryLeaf,
+        ${alias}.bsr_id AS bsrId,
+        ${alias}.units,
+        ${alias}.bsr,
+        ${alias}.price,
+        ${alias}.rating,
+        ${alias}.ratings,
+        ${alias}.fulfillment,
+        ${alias}.available_date AS availableDate,
+        ${alias}.batch_date AS batchDate,
+        ${alias}.created_at AS createdAt
+    ]]></sql>
+
+    <select id="countCompareProducts" resultType="long">
+        <include refid="shopCompareCte"/>
+        <choose>
+            <when test="changeType == 'NEW'">
+                SELECT COUNT(*) FROM c LEFT JOIN b ON b.product_key = c.product_key WHERE b.product_key IS NULL
+            </when>
+            <when test="changeType == 'GONE'">
+                SELECT COUNT(*) FROM b LEFT JOIN c ON c.product_key = b.product_key WHERE c.product_key IS NULL
+            </when>
+            <when test="changeType == 'KEPT'">
+                SELECT COUNT(*) FROM c INNER JOIN b ON b.product_key = c.product_key
+            </when>
+            <when test="changeType == 'UPGRADED'">
+                SELECT COUNT(*) FROM c INNER JOIN b ON b.product_key = c.product_key
+                WHERE
+                    <include refid="compareTierRank"><property name="alias" value="c"/></include>
+                    &gt;
+                    <include refid="compareTierRank"><property name="alias" value="b"/></include>
+            </when>
+            <when test="changeType == 'DOWNGRADED'">
+                SELECT COUNT(*) FROM c INNER JOIN b ON b.product_key = c.product_key
+                WHERE
+                    <include refid="compareTierRank"><property name="alias" value="c"/></include>
+                    &lt;
+                    <include refid="compareTierRank"><property name="alias" value="b"/></include>
+            </when>
+            <otherwise>
+                SELECT 0
+            </otherwise>
+        </choose>
+    </select>
+
+    <select id="selectCompareProducts" resultType="com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileProduct">
+        <include refid="shopCompareCte"/>
+        <choose>
+            <when test="changeType == 'NEW'">
+                SELECT <include refid="compareProductColumns"><property name="alias" value="c"/></include>
+                FROM c LEFT JOIN b ON b.product_key = c.product_key
+                WHERE b.product_key IS NULL
+                ORDER BY c.product_key ASC
+                LIMIT #{offset}, #{size}
+            </when>
+            <when test="changeType == 'GONE'">
+                SELECT <include refid="compareProductColumns"><property name="alias" value="b"/></include>
+                FROM b LEFT JOIN c ON c.product_key = b.product_key
+                WHERE c.product_key IS NULL
+                ORDER BY b.product_key ASC
+                LIMIT #{offset}, #{size}
+            </when>
+            <when test="changeType == 'KEPT'">
+                SELECT <include refid="compareProductColumns"><property name="alias" value="c"/></include>
+                FROM c INNER JOIN b ON b.product_key = c.product_key
+                ORDER BY c.product_key ASC
+                LIMIT #{offset}, #{size}
+            </when>
+            <when test="changeType == 'UPGRADED'">
+                SELECT <include refid="compareProductColumns"><property name="alias" value="c"/></include>
+                FROM c INNER JOIN b ON b.product_key = c.product_key
+                WHERE
+                    <include refid="compareTierRank"><property name="alias" value="c"/></include>
+                    &gt;
+                    <include refid="compareTierRank"><property name="alias" value="b"/></include>
+                ORDER BY c.product_key ASC
+                LIMIT #{offset}, #{size}
+            </when>
+            <when test="changeType == 'DOWNGRADED'">
+                SELECT <include refid="compareProductColumns"><property name="alias" value="c"/></include>
+                FROM c INNER JOIN b ON b.product_key = c.product_key
+                WHERE
+                    <include refid="compareTierRank"><property name="alias" value="c"/></include>
+                    &lt;
+                    <include refid="compareTierRank"><property name="alias" value="b"/></include>
+                ORDER BY c.product_key ASC
+                LIMIT #{offset}, #{size}
+            </when>
+            <otherwise>
+                SELECT NULL AS id, NULL AS marketplace, NULL AS sellerName, NULL AS sellerId, NULL AS asin,
+                    NULL AS parentAsin, NULL AS salesTier, NULL AS title, NULL AS brand, NULL AS imageUrl,
+                    NULL AS productUrl, NULL AS similarUrl, NULL AS nodeId, NULL AS nodeLabelPath, NULL AS categoryLeaf,
+                    NULL AS bsrId, NULL AS units, NULL AS bsr, NULL AS price, NULL AS rating, NULL AS ratings,
+                    NULL AS fulfillment, NULL AS availableDate, NULL AS batchDate, NULL AS createdAt
+                WHERE 1 = 0
+            </otherwise>
+        </choose>
     </select>
 
 </mapper>

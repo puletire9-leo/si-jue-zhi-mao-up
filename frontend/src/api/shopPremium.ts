@@ -116,7 +116,6 @@ export interface ConsumeNextResult {
     skipped: number
     apiCalls: number
   }
-  skipped?: boolean
   finished?: boolean
   message?: string
 }

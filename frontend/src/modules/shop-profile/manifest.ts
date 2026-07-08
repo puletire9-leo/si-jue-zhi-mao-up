@@ -4,8 +4,8 @@ export default {
   id: 'shop-profile',
   name: '店铺画像',
   icon: 'Shop',
-  menuGroup: '品线分析',
-  menuOrder: 16,
+  menuGroup: '店铺总览',
+  menuOrder: 19,
   route: {
     path: 'shop-profile',
     name: 'ShopProfile',

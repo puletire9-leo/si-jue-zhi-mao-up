@@ -62,7 +62,8 @@ services:
       - JWT_SECRET=${JWT_SECRET:-sjzm-dev-jwt-secret-change-in-production}
       - SECRET_KEY=${SECRET_KEY:-sjzm-dev-secret-key-change-in-production}
     ports:
-      - "8090:8090"
+      # host 18090 → container 8090; 8090 can fall inside Windows excluded port ranges.
+      - "18090:8090"
     volumes:
       - ./backend/app:/app/app
       - ./backend/uploads:/app/uploads
@@ -115,7 +116,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "celery -A app.tasks.celery_app inspect ping -d celery@$$HOSTNAME"]
+      test: ["CMD-SHELL", "celery -A app.tasks.celery_app inspect ping -d worker@$$HOSTNAME"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -134,13 +135,13 @@ services:
       VITE_JAVA_USER_HOST: java-user
       VITE_JAVA_USER_PORT: "8001"
     ports:
-      # host 8180 → container 8179（Windows 动态端口保留段 8330-8929 内,避开 8740 用 8180）
-      - "8180:8179"
+      # host 5175 → container 5175; 8179/8180 can fall inside Windows excluded port ranges.
+      - "5175:5175"
     volumes:
       - ./frontend:/app
       - dev-node-modules:/app/node_modules
     command: >
-      sh -c "npm install && npx vite --host 0.0.0.0 --port 8179 --strictPort"
+      sh -c "npm install && npx vite --host 0.0.0.0 --port 5175 --strictPort"
     depends_on:
       - backend
 
@@ -151,7 +152,8 @@ services:
     container_name: java-product
     working_dir: /app
     ports:
-      - "8002:8002"
+      # host 18002 → container 8002; 8002 can fall inside Windows excluded port ranges.
+      - "18002:8002"
     volumes:
       - ./java-backend:/app
       - ./docs:/docs:ro
@@ -189,7 +191,8 @@ services:
     container_name: java-user
     working_dir: /app
     ports:
-      - "8001:8001"
+      # host 18001 → container 8001; 8001 can fall inside Windows excluded port ranges.
+      - "18001:8001"
     volumes:
       - ./java-backend:/app
       - java-m2:/root/.m2

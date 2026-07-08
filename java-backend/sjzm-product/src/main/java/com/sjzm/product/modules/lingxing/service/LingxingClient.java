@@ -258,16 +258,33 @@ public class LingxingClient {
         return hex.toString();
     }
 
+    private static final int RATE_LIMIT_RETRIES = 5;
+    private static final long RATE_LIMIT_BACKOFF_MS = 15_000L;
+
     // ============================================================
     // HTTP 底层
     // ============================================================
 
     private JsonNode send(HttpRequest req) {
+        return sendWithRetry(req, 0);
+    }
+
+    private JsonNode sendWithRetry(HttpRequest req, int attempt) {
         try {
             HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
             JsonNode body = objectMapper.readTree(resp.body());
             // 领星错误：code 非 0/200 视为失败（业务接口 code=0，token 接口 code="200"）
             String code = body.path("code").asText("");
+            if ("3001008".equals(code)) {
+                // 令牌桶限流：等待后重试
+                if (attempt < RATE_LIMIT_RETRIES) {
+                    long wait = RATE_LIMIT_BACKOFF_MS * (attempt + 1);
+                    log.warn("领星限流(3001008)，第{}次重试，等待{}ms", attempt + 1, wait);
+                    try { Thread.sleep(wait); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                    return sendWithRetry(req, attempt + 1);
+                }
+                throw new RuntimeException("领星 API 限流，重试" + RATE_LIMIT_RETRIES + "次后仍失败");
+            }
             if (!"0".equals(code) && !"200".equals(code)) {
                 String msg = body.has("msg") ? body.path("msg").asText("")
                         : body.path("message").asText("");

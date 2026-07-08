@@ -48,6 +48,29 @@
     <el-drawer v-model="drawerVisible" :title="detailTitle" size="70%" destroy-on-close>
       <div v-loading="detailLoading" class="detail-body">
         <template v-if="detail">
+          <div class="snapshot-bar">
+            <el-select
+              v-model="selectedSourceRunId"
+              placeholder="选择快照"
+              style="width: 320px"
+              :disabled="snapshots.length === 0"
+              @change="handleSnapshotChange"
+            >
+              <el-option
+                v-for="item in snapshots"
+                :key="item.sourceRunId"
+                :label="snapshotLabel(item)"
+                :value="item.sourceRunId"
+              />
+            </el-select>
+            <div v-if="currentSnapshot" class="snapshot-meta">
+              <span>{{ currentSnapshot.batchCode || '-' }}</span>
+              <span>{{ currentSnapshot.batchDate || '-' }}</span>
+              <span>{{ currentSnapshot.sourceRunId }}</span>
+              <span>{{ currentSnapshot.fetchedCount || 0 }}/{{ currentSnapshot.total || 0 }}</span>
+            </div>
+          </div>
+
           <el-descriptions v-if="detail.profile" :column="4" border size="small" title="全集画像">
             <el-descriptions-item label="商品数">{{ detail.profile.productCount }}</el-descriptions-item>
             <el-descriptions-item label="结构标签">
@@ -80,6 +103,48 @@
             <el-table-column prop="reason" label="原因" min-width="220" show-overflow-tooltip />
             <el-table-column prop="status" label="状态" width="100" />
           </el-table>
+
+          <div class="section-title" v-if="productWall">商品图片墙</div>
+          <div v-if="productWall" v-loading="productWallLoading" class="wall-grid">
+            <div v-for="tier in wallTiers" :key="tier" class="wall-section">
+              <div class="wall-section-head">
+                <span class="wall-tier">{{ tier }}</span>
+                <span>{{ productWall.sections[tier]?.count || 0 }}</span>
+              </div>
+              <div class="wall-products">
+                <div v-for="item in productWall.sections[tier]?.products || []" :key="item.asin" class="product-card">
+                  <img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.asin" />
+                  <div v-else class="image-empty">{{ item.salesTier || '-' }}</div>
+                  <div class="product-info">
+                    <el-link v-if="item.productUrl" :href="item.productUrl" target="_blank" type="primary">{{ item.asin }}</el-link>
+                    <span v-else class="asin">{{ item.asin }}</span>
+                    <div class="title" :title="item.title || ''">{{ item.title || '-' }}</div>
+                    <div class="metrics">
+                      <span>{{ item.units ?? '-' }}</span>
+                      <span>{{ item.price ?? '-' }}</span>
+                      <span>{{ item.rating ?? '-' }}/{{ item.ratings ?? '-' }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-title" v-if="snapshots.length > 1">历史对比</div>
+          <div v-if="snapshots.length > 1" class="compare-bar">
+            <el-select v-model="baselineRunId" placeholder="基准快照" style="width: 260px">
+              <el-option v-for="item in snapshots" :key="`b-${item.sourceRunId}`" :label="snapshotLabel(item)" :value="item.sourceRunId" />
+            </el-select>
+            <el-select v-model="compareRunId" placeholder="对比快照" style="width: 260px">
+              <el-option v-for="item in snapshots" :key="`c-${item.sourceRunId}`" :label="snapshotLabel(item)" :value="item.sourceRunId" />
+            </el-select>
+            <el-button :loading="compareLoading" @click="loadCompare">对比</el-button>
+            <div v-if="compareResult" class="compare-summary">
+              新增 {{ compareResult.summary.newCount }} / 消失 {{ compareResult.summary.goneCount }} /
+              保留 {{ compareResult.summary.keptCount }} / 升级 {{ compareResult.summary.upgradedCount }} /
+              降级 {{ compareResult.summary.downgradedCount }}
+            </div>
+          </div>
 
           <div class="section-title">商品明细</div>
           <el-radio-group v-model="tierFilter" size="small" @change="loadProducts" style="margin-bottom: 10px">
@@ -129,10 +194,13 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute } from 'vue-router'
 import shopCollectionApi, {
-  type ShopProfileSummary,
-  type ShopCollectionDetail,
-  type ShopProfileProduct
-} from '@/api/shopCollection'
+    type ShopProfileSummary,
+    type ShopCollectionDetail,
+    type ShopProfileProduct,
+    type ShopSnapshot,
+    type ShopProductWallResult,
+    type ShopCompareResult
+  } from '@/api/shopCollection'
 import { shopPremiumApi } from '@/api/shopPremium'
 
 const route = useRoute()
@@ -145,6 +213,8 @@ const drawerVisible = ref(false)
 const detail = ref<ShopCollectionDetail | null>(null)
 const detailLoading = ref(false)
 const currentSeller = ref('')
+const snapshots = ref<ShopSnapshot[]>([])
+const selectedSourceRunId = ref('')
 
 const products = ref<ShopProfileProduct[]>([])
 const productsLoading = ref(false)
@@ -152,8 +222,16 @@ const tierFilter = ref('')
 const prodPage = ref(1)
 const prodSize = ref(60)
 const prodTotal = ref(0)
+const productWall = ref<ShopProductWallResult | null>(null)
+const productWallLoading = ref(false)
+const wallTiers = ['A', 'B', 'C', 'D', 'UNKNOWN']
+const baselineRunId = ref('')
+const compareRunId = ref('')
+const compareResult = ref<ShopCompareResult | null>(null)
+const compareLoading = ref(false)
 
 const detailTitle = computed(() => (currentSeller.value ? `${marketplace.value} · ${currentSeller.value}` : '单店全景'))
+const currentSnapshot = computed(() => snapshots.value.find((item) => item.sourceRunId === selectedSourceRunId.value) || null)
 
 async function loadList() {
   loading.value = true
@@ -167,18 +245,72 @@ async function loadList() {
 }
 
 async function openDetail(row: ShopProfileSummary) {
-  currentSeller.value = row.sellerName
+  await openSeller(row.sellerName)
+}
+
+async function openSeller(seller: string) {
+  currentSeller.value = seller
   drawerVisible.value = true
   detailLoading.value = true
   tierFilter.value = ''
   prodPage.value = 1
+  snapshots.value = []
+  selectedSourceRunId.value = ''
+  productWall.value = null
+  compareResult.value = null
   try {
-    detail.value = await shopCollectionApi.detail(marketplace.value, row.sellerName)
-    await loadProducts()
+    snapshots.value = await shopCollectionApi.snapshots(marketplace.value, seller)
+    selectedSourceRunId.value = snapshots.value[0]?.sourceRunId || ''
+    baselineRunId.value = snapshots.value[1]?.sourceRunId || snapshots.value[0]?.sourceRunId || ''
+    compareRunId.value = snapshots.value[0]?.sourceRunId || ''
+    await loadCurrentSnapshotData()
   } catch (e: any) {
     ElMessage.error(e?.message || '加载详情失败')
   } finally {
     detailLoading.value = false
+  }
+}
+
+async function loadCurrentSnapshotData() {
+  detail.value = await shopCollectionApi.detail(
+    marketplace.value,
+    currentSeller.value,
+    undefined,
+    selectedSourceRunId.value || undefined
+  )
+  await Promise.all([loadProductWall(), loadProducts()])
+}
+
+async function handleSnapshotChange() {
+  detailLoading.value = true
+  prodPage.value = 1
+  compareResult.value = null
+  try {
+    await loadCurrentSnapshotData()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '切换快照失败')
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+async function loadProductWall() {
+  if (!currentSeller.value || !selectedSourceRunId.value) {
+    productWall.value = null
+    return
+  }
+  productWallLoading.value = true
+  try {
+    productWall.value = await shopCollectionApi.productWall(
+      marketplace.value,
+      currentSeller.value,
+      selectedSourceRunId.value,
+      undefined,
+      1,
+      12
+    )
+  } finally {
+    productWallLoading.value = false
   }
 }
 
@@ -192,7 +324,8 @@ async function loadProducts() {
       tierFilter.value || undefined,
       undefined,
       prodPage.value,
-      prodSize.value
+      prodSize.value,
+      selectedSourceRunId.value || undefined
     )
     products.value = r.list || []
     prodTotal.value = r.total || 0
@@ -201,6 +334,27 @@ async function loadProducts() {
   } finally {
     productsLoading.value = false
   }
+}
+
+async function loadCompare() {
+  if (!currentSeller.value || !baselineRunId.value || !compareRunId.value) return
+  compareLoading.value = true
+  try {
+    compareResult.value = await shopCollectionApi.compare(
+      marketplace.value,
+      currentSeller.value,
+      baselineRunId.value,
+      compareRunId.value
+    )
+  } catch (e: any) {
+    ElMessage.error(e?.message || '历史对比失败')
+  } finally {
+    compareLoading.value = false
+  }
+}
+
+function snapshotLabel(item: ShopSnapshot) {
+  return `${item.batchCode || item.batchDate || '-'} · ${item.sourceRunId} · ${item.fetchedCount || 0}/${item.total || 0}`
 }
 
 function pct(v: number | null) {
@@ -259,17 +413,7 @@ onMounted(async () => {
     if (hit) {
       await openDetail(hit)
     } else {
-      currentSeller.value = seller
-      drawerVisible.value = true
-      detailLoading.value = true
-      try {
-        detail.value = await shopCollectionApi.detail(marketplace.value, seller)
-        await loadProducts()
-      } catch {
-        // 该店可能还没抓全集，抽屉里显示空态
-      } finally {
-        detailLoading.value = false
-      }
+      await openSeller(seller)
     }
   }
 })
@@ -297,6 +441,95 @@ onMounted(async () => {
   margin: 18px 0 10px;
   padding-left: 8px;
   border-left: 3px solid var(--el-color-primary);
+}
+.snapshot-bar,
+.compare-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.snapshot-meta,
+.compare-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #606266;
+  font-size: 12px;
+}
+.wall-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+.wall-section {
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  padding: 10px;
+  min-width: 0;
+}
+.wall-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #606266;
+}
+.wall-tier {
+  font-weight: 700;
+  color: #303133;
+}
+.wall-products {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 8px;
+}
+.product-card {
+  min-width: 0;
+  border: 1px solid #f0f2f5;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+}
+.product-card img,
+.image-empty {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  background: #f5f7fa;
+}
+.image-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #909399;
+  font-weight: 600;
+}
+.product-info {
+  padding: 6px;
+  min-width: 0;
+}
+.asin {
+  color: #409eff;
+  font-size: 12px;
+}
+.title {
+  height: 34px;
+  line-height: 17px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #303133;
+  overflow: hidden;
+}
+.metrics {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  color: #909399;
+  font-size: 11px;
 }
 .promote-bar {
   margin: 14px 0 6px;

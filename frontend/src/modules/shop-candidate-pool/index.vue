@@ -2,18 +2,24 @@
   <div class="shop-candidate-pool">
     <el-card shadow="never" class="header-card">
       <div class="toolbar">
+        <el-select v-model="sourceTypeFilter" placeholder="来源" style="width: 130px" @change="handleSourceTypeChange">
+          <el-option label="M1 方法卡" value="METHOD_CARD" />
+          <el-option label="全部来源" value="" />
+          <el-option label="人工加入" value="MANUAL" />
+          <el-option label="基线" value="BASELINE" />
+        </el-select>
         <el-select v-model="marketplace" placeholder="站点" style="width: 120px" @change="loadList">
           <el-option label="全部站点" value="" />
           <el-option label="UK" value="UK" />
           <el-option label="DE" value="DE" />
           <el-option label="US" value="US" />
         </el-select>
-        <el-input v-model="batchCode" placeholder="周批次 如 2026-W28" clearable style="width: 160px" />
-        <el-select v-model="methodId" placeholder="方法卡" style="width: 140px">
-          <el-option label="M01 新品加速法" value="M01" />
+        <el-input v-model="batchCode" placeholder="周批次" clearable style="width: 145px" @keyup.enter="loadList" />
+        <el-select v-model="methodId" placeholder="方法卡" style="width: 170px" @change="loadList">
+          <el-option label="M1 / M01 新品加速法" value="M01" />
         </el-select>
         <el-input-number v-model="minCount" :min="1" :max="100" controls-position="right" style="width: 130px" />
-        <el-button type="primary" :loading="syncing" @click="handleSyncFromRank">按方法卡刷新候选池</el-button>
+        <el-button type="primary" :loading="syncing" @click="handleSyncFromRank">刷新 M1 通过店铺</el-button>
         <div class="spacer" />
         <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 140px" @change="loadList">
           <el-option label="待处理 PENDING" value="PENDING" />
@@ -26,13 +32,24 @@
         </el-select>
         <el-button @click="loadList">刷新</el-button>
       </div>
-      <div class="tip">
-        主线：方法卡命中 → 候选池（PENDING）→ 人工确认 → 抓店铺全集 → 观察池/精品池。
-        「按方法卡刷新候选池」会跑一遍 M01 店铺排名，把命中达标的店写入候选池；只有确认抓取才消耗卖家精灵使用次数。
+      <div class="flow-strip">
+        <span :class="['flow-step', 'active']">M1 通过店铺</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">单个/批量抓全集</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">看画像</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-step">入精品池</span>
+        <span class="flow-note">当前表格默认只看 {{ methodId }} 方法卡命中的店铺；抓全集才会消耗卖家精灵次数。</span>
       </div>
     </el-card>
 
     <el-card shadow="never">
+      <div class="result-bar">
+        <span>当前列表：{{ resultScopeLabel }}</span>
+        <span>共 {{ total }} 家</span>
+        <span>已选 {{ selectedRows.length }} 家，可抓 {{ fetchableSelectedCount }} 家</span>
+      </div>
       <el-table :data="rows" v-loading="loading" stripe height="calc(100vh - 300px)" @selection-change="onSelectionChange">
         <el-table-column type="selection" width="45" />
         <el-table-column prop="marketplace" label="站点" width="70" />
@@ -45,7 +62,7 @@
         </el-table-column>
         <el-table-column prop="topCategory" label="主打类目" min-width="140" show-overflow-tooltip />
         <el-table-column prop="batchCode" label="周批次" width="110" />
-        <el-table-column label="来源" width="150">
+        <el-table-column label="通过方法" width="150">
           <template #default="{ row }">
             <el-tag size="small" :type="row.sourceType === 'METHOD_CARD' ? 'primary' : 'info'">
               {{ sourceLabel(row.sourceType) }}
@@ -53,7 +70,17 @@
             <span v-if="row.sourceCode" class="src-code">{{ row.sourceCode }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="reason" label="入池原因" min-width="200" show-overflow-tooltip />
+        <el-table-column label="通过原因" min-width="240" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ reasonText(row) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="上次错误" min-width="180" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span class="error-text" v-if="row.lastErrorMessage">{{ row.lastErrorMessage }}</span>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="120">
           <template #default="{ row }">
             <el-tag :type="statusType(row.status)">{{ statusLabel(row.status) }}</el-tag>
@@ -92,9 +119,9 @@
       </el-table>
 
       <div class="footer-bar" v-if="selectedRows.length > 0">
-        <span>已选 {{ selectedRows.length }} 家</span>
+        <span>已选 {{ selectedRows.length }} 家，可抓 {{ fetchableSelectedCount }} 家</span>
         <el-button type="primary" size="small" :loading="batchFetching" @click="handleBatchFetch">
-          创建请求中心任务
+          批量抓全集
         </el-button>
       </div>
 
@@ -114,7 +141,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
@@ -124,6 +151,7 @@ import { requestCenterApi, shopPremiumApi } from '@/api/shopPremium'
 const router = useRouter()
 const marketplace = ref('')
 const batchCode = ref('')
+const sourceTypeFilter = ref('METHOD_CARD')
 const methodId = ref('M01')
 const minCount = ref(1)
 const statusFilter = ref('')
@@ -136,6 +164,13 @@ const selectedRows = ref<ShopCandidatePool[]>([])
 const page = ref(1)
 const size = ref(50)
 const total = ref(0)
+const fetchableSelectedCount = computed(() => selectedRows.value.filter((row) => canFetch(row.status)).length)
+const resultScopeLabel = computed(() => {
+  if (sourceTypeFilter.value === 'METHOD_CARD') return `${methodId.value} 方法卡通过店铺`
+  if (sourceTypeFilter.value === 'MANUAL') return '人工加入店铺'
+  if (sourceTypeFilter.value === 'BASELINE') return '基线来源店铺'
+  return '全部店铺候选'
+})
 
 async function loadList() {
   loading.value = true
@@ -143,7 +178,10 @@ async function loadList() {
     const r = await shopCandidateApi.list({
       marketplace: marketplace.value || undefined,
       batchCode: batchCode.value || undefined,
+      sourceType: sourceTypeFilter.value || undefined,
+      sourceCode: sourceTypeFilter.value === 'METHOD_CARD' ? methodId.value : undefined,
       status: statusFilter.value || undefined,
+      minHitCount: sourceTypeFilter.value === 'METHOD_CARD' ? minCount.value : undefined,
       page: page.value,
       size: size.value
     })
@@ -157,6 +195,7 @@ async function loadList() {
 }
 
 async function handleSyncFromRank() {
+  sourceTypeFilter.value = 'METHOD_CARD'
   syncing.value = true
   try {
     const r = await shopCandidateApi.syncFromMethodRank(
@@ -165,13 +204,18 @@ async function handleSyncFromRank() {
       minCount.value,
       batchCode.value || undefined
     )
-    ElMessage.success(`${r.methodId} 排名 ${r.rankedShops} 家，写入候选池 ${r.upserted} 家（${r.batchCode}）`)
+    ElMessage.success(`${r.methodId} 通过店铺 ${r.rankedShops} 家，写入候选池 ${r.upserted} 家（${r.batchCode}）`)
     await loadList()
   } catch (e: any) {
     ElMessage.error(e?.message || '同步失败')
   } finally {
     syncing.value = false
   }
+}
+
+function handleSourceTypeChange() {
+  page.value = 1
+  loadList()
 }
 
 function canFetch(status: string): boolean {
@@ -315,6 +359,13 @@ function sourceLabel(t: string) {
   }
   return map[t] || t
 }
+function reasonText(row: ShopCandidatePool) {
+  if (row.reason) return row.reason
+  if (row.sourceType === 'METHOD_CARD') {
+    return `${row.sourceCode || '方法卡'} 命中 ${row.hitCount ?? '-'} 个合格新品${row.topCategory ? `，主打 ${row.topCategory}` : ''}`
+  }
+  return '-'
+}
 function statusLabel(s: string) {
   const map: Record<string, string> = {
     PENDING: '待处理', SELECTED: '已选中', FETCHING: '抓取中', FETCHED: '已抓取',
@@ -355,10 +406,45 @@ onMounted(loadList)
   font-size: 12px;
   line-height: 1.6;
 }
+.flow-strip,
+.result-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  color: #606266;
+  font-size: 12px;
+}
+.flow-step {
+  padding: 4px 8px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  background: #fff;
+}
+.flow-step.active {
+  color: #b45309;
+  border-color: #f3d19e;
+  background: #fdf6ec;
+}
+.flow-arrow {
+  color: #c0c4cc;
+}
+.flow-note {
+  margin-left: 6px;
+  color: #909399;
+}
+.result-bar {
+  margin: 0 0 10px;
+  justify-content: flex-start;
+}
 .src-code {
   margin-left: 6px;
   color: #909399;
   font-size: 12px;
+}
+.error-text {
+  color: #f56c6c;
 }
 .footer-bar {
   margin-top: 10px;

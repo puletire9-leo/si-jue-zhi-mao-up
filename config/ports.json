@@ -1,12 +1,14 @@
 {
   "base": {
-    "mysql": 3307,
-    "redis": 6380
+    "mysql": 3410,
+    "redis": 6379
   },
   "dev": {
-    "python_backend": 8090,
-    "frontend": 8179,
-    "selection_agent": 8011
+    "python_backend": 18090,
+    "frontend": 5175,
+    "java_user": 18001,
+    "java_product": 18002,
+    "selection_agent": 18011
   },
   "prod": {
     "python_backend": 7090,

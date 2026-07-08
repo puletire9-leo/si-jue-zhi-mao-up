@@ -1,7 +1,5 @@
 package com.sjzm.product.modules.lingxing.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.toolkit.Db;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -93,19 +91,11 @@ public class LingxingProductPerformanceSyncService {
             if (!list.isArray() || list.isEmpty()) break;
 
             pages++;
-            List<LingxingProductPerformance> entities = new ArrayList<>(list.size());
             for (JsonNode row : list) {
                 LingxingProductPerformance e = mapRow(row, summary, sidScope, startDate, endDate, currencyCode);
-                LingxingProductPerformance existing = mapper.selectOne(
-                        new LambdaQueryWrapper<LingxingProductPerformance>()
-                                .eq(LingxingProductPerformance::getBizKey, e.getBizKey())
-                                .last("LIMIT 1"));
-                if (existing != null) e.setId(existing.getId());
-                entities.add(e);
-            }
-            if (!entities.isEmpty()) {
-                Db.saveOrUpdateBatch(entities, DB_BATCH_SIZE);
-                upserted += entities.size();
+                if (e.getId() == null) e.setId(com.baomidou.mybatisplus.core.toolkit.IdWorker.getId());
+                mapper.upsert(e);
+                upserted++;
             }
             fetched += list.size();
 
@@ -128,7 +118,11 @@ public class LingxingProductPerformanceSyncService {
                                               String startDate, String endDate, String currencyCode) {
         LingxingProductPerformance e = new LingxingProductPerformance();
         e.setSummaryField(summary);
-        e.setSidScope(sidScope);
+        // 治本：sid_scope 用行内实际 sid，不用请求参数 —— 领星按 asin 汇总时每行只归属单店铺（raw_json.sids）；
+        // 用请求参数会导致同一店铺的同一 ASIN 在不同查询批次下产生不同 biz_key、重复入库。
+        String rowSids = extractRowSids(row);
+        String effectiveSidScope = rowSids == null || rowSids.isEmpty() ? sidScope : rowSids;
+        e.setSidScope(effectiveSidScope);
         e.setStartDate(LocalDate.parse(startDate));
         e.setEndDate(LocalDate.parse(endDate));
 
@@ -167,13 +161,45 @@ public class LingxingProductPerformanceSyncService {
         e.setRawJson(row.toString());
         e.setSyncedAt(LocalDateTime.now());
 
-        // 业务幂等键：维度值 + 店铺集合 + 时间窗 + 币种
-        e.setBizKey(summary + ":" + safe(summaryValue) + "|" + sidScope + "|"
-                + startDate + "|" + endDate + "|" + safe(currency));
+        // 业务幂等键：维度值 + 店铺集合 + 时间窗 + 币种；用 SHA-256 避免多店铺 sid 拼接超过唯一键前缀长度
+        String rawKey = summary + ":" + safe(summaryValue) + "|" + effectiveSidScope + "|"
+                + startDate + "|" + endDate + "|" + safe(currency);
+        e.setBizKey(sha256(rawKey));
         return e;
     }
 
+    private String sha256(String s) {
+        try {
+            java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(s.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte b : digest) {
+                String h = Integer.toHexString(0xff & b);
+                if (h.length() == 1) hex.append('0');
+                hex.append(h);
+            }
+            return hex.toString();
+        } catch (Exception ex) {
+            throw new RuntimeException("SHA-256 计算失败", ex);
+        }
+    }
+
     // ---------- 工具 ----------
+
+    /** 取行内实际 sid 集合（raw_json.sids 是每行归属店铺），排序后逗号拼接。 */
+    private String extractRowSids(JsonNode row) {
+        JsonNode arr = row.path("sids");
+        if (arr == null || !arr.isArray() || arr.isEmpty()) return null;
+        List<Long> sids = new ArrayList<>(arr.size());
+        arr.forEach(n -> {
+            if (n.isNumber()) sids.add(n.asLong());
+            else {
+                try { sids.add(Long.parseLong(n.asText())); } catch (NumberFormatException ignored) {}
+            }
+        });
+        java.util.Collections.sort(sids);
+        return sids.stream().map(String::valueOf).collect(Collectors.joining(","));
+    }
 
     /** 取数组首元素的某字段（如 asins[0].asin） */
     private String firstNested(JsonNode row, String arrKey, String field) {

@@ -137,14 +137,14 @@ docker compose -f docker-compose.dev.yml down
 
 | 服务 | 端口 |
 |------|------|
-| 前端 | 8179 |
-| Python | 8090 |
-| Java Product | 8002 |
-| Java User | 8001 |
-| Gateway | 9000 |
-| MySQL | 3307 |
+| 前端 | 5175 |
+| Python | 18090 |
+| Java Product | 18002 |
+| Java User | 18001 |
+| MySQL | 3410 |
 | Redis | 6379 |
-| Nacos | 8848 |
+
+当前 `docker-compose.dev.yml` 没有 `gateway` / `nacos` 服务或 profile；需要联调时先补 compose 服务定义。
 
 ### 重启单个服务
 
@@ -171,35 +171,18 @@ docker compose -f docker-compose.dev.yml restart backend
 
 ### 更新 Java 代码（开发环境）
 
-开发环境的 Java 容器用 `maven:3.9-eclipse-temurin-21` 镜像，代码通过 volume 挂载。
-**改了 Java 代码后，光 `restart` 不够**（restart 只是重启进程，不会重新编译）。
-
-有两种方式：
-
-**方式一：容器内编译 + 重启（推荐，快）**
+开发环境的 Java 容器用 `maven:3.9-eclipse-temurin-21` 镜像和 `mvn spring-boot:run` 启动，代码通过 volume 挂载。改 Java 代码后优先在宿主机编译：
 
 ```powershell
-# 容器内 mvn install（跳过测试）
-docker exec java-product mvn install -pl sjzm-product -am -DskipTests -q
-
-# ⚠️ mvn install 只更新 SNAPSHOT.jar，不会更新 app.jar！需要手动复制：
-docker exec java-product cp /app/sjzm-product/target/sjzm-product-1.0.0-SNAPSHOT.jar /app/sjzm-product/target/app.jar
-
-# 重启生效
-docker restart java-product
+cd java-backend
+mvn compile -DskipTests
 ```
 
-> `java-product` 是开发环境的容器名。`-pl sjzm-product -am` 只编译 product 模块及其依赖。
-
-> **⚠️ 禁止使用 `mvn clean`！** `clean` 会删除 `target/` 目录，导致 `app.jar` 丢失。Maven 只生成 `sjzm-product-1.0.0-SNAPSHOT.jar`，不会自动创建 `app.jar`。如果误执行了 `mvn clean`，需要手动恢复：`Copy-Item target/sjzm-product-1.0.0-SNAPSHOT.jar target/app.jar`
-
-**方式二：强制重建容器**
+DevTools 会监听 class 变化并自动重启服务。只有改了环境变量、端口映射、启动命令等 compose 配置时，才重建容器：
 
 ```powershell
 docker compose -f docker-compose.dev.yml up -d --force-recreate java-product
 ```
-
-> `--force-recreate` 会销毁旧容器重新创建，自动执行 `mvn install`。比方式一慢，但更彻底。
 
 ### 容器名 vs 服务名
 
@@ -208,11 +191,9 @@ docker compose -f docker-compose.dev.yml up -d --force-recreate java-product
 | `java-product` | `java-product` |
 | `java-user` | `java-user` |
 | `frontend` | `dev-frontend` |
-| `gateway` | `dev-gateway` |
 | `backend` | `dev-backend` |
 | `mysql` | `dev-mysql` |
 | `redis` | `dev-redis` |
-| `nacos` | `dev-nacos` |
 
 > Java 服务的容器名没有 `dev-` 前缀，其他服务有。`docker restart java-product` 可以直接用。
 
@@ -261,19 +242,19 @@ docker exec -it java-product bash
 绕过前端和 Gateway，直接验证 Java 后端是否正常：
 
 ```powershell
-# 测试 java-product 接口（开发环境 8002，生产环境 8025）
-Invoke-RestMethod -Uri "http://localhost:8002/api/v1/competitor/products?page=1&size=1" -Method Get | ConvertTo-Json -Depth 3
+# 测试 java-product 接口（开发环境 18002，生产环境 8025）
+Invoke-RestMethod -Uri "http://localhost:18002/api/v1/competitor/products?page=1&size=1" -Method Get | ConvertTo-Json -Depth 3
 
 # 测试 gateway 路由（开发 9000，生产 9003）
 Invoke-RestMethod -Uri "http://localhost:9000/api/v1/competitor/products?page=1&size=1" -Method Get | ConvertTo-Json -Depth 3
 
 # 带筛选参数测试
-Invoke-RestMethod -Uri "http://localhost:8002/api/v1/competitor/products?page=1&size=5&marketplace=UK&grade=S" -Method Get | ConvertTo-Json -Depth 3
+Invoke-RestMethod -Uri "http://localhost:18002/api/v1/competitor/products?page=1&size=5&marketplace=UK&grade=S" -Method Get | ConvertTo-Json -Depth 3
 ```
 
 ### 排查 404 的思路
 
-1. **先直接测 Java 后端**（`localhost:8002`）→ 确认接口存在
+1. **先直接测 Java 后端**（`localhost:18002`）→ 确认接口存在
 2. **再测 Gateway**（`localhost:9000`）→ 确认路由正确
 3. **最后看前端请求** → 检查 Vite 代理是否把请求打到了正确的后端
 

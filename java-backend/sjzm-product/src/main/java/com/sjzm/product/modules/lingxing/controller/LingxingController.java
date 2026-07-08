@@ -86,8 +86,9 @@ public class LingxingController {
      */
     @PostMapping("/call")
     @Operation(summary = "通用业务接口透传（调试用：传 path + body）")
-    public Result<JsonNode> call(@RequestParam String path, @RequestBody(required = false) JsonNode body) {
-        return Result.success(client.post(path, body));
+    public Result<JsonNode> call(@RequestParam String path, @RequestBody(required = false) Map<String, Object> body) {
+        JsonNode node = body == null ? objectMapper.createObjectNode() : objectMapper.valueToTree(body);
+        return Result.success(client.post(path, node));
     }
 
     @PostMapping("/local-products/sync")
@@ -110,15 +111,17 @@ public class LingxingController {
 
     @PostMapping("/local-products/set")
     @Operation(summary = "添加/编辑本地产品（写回领星，忠实透传领星 body；成功后回拉刷新本地）")
-    public Result<Map<String, Object>> setLocalProduct(@RequestBody JsonNode body) {
-        return Result.success(localProductSyncService.setProduct(body));
+    public Result<Map<String, Object>> setLocalProduct(@RequestBody Map<String, Object> body) {
+        JsonNode node = objectMapper.valueToTree(body);
+        return Result.success(localProductSyncService.setProduct(node));
     }
 
     @PostMapping("/local-products/upload-pictures")
     @Operation(summary = "上传本地产品图片（写回领星；body: {sku, picture_list:[{pic_url,is_primary}]}）")
-    public Result<JsonNode> uploadLocalProductPictures(@RequestBody JsonNode body) {
-        String sku = body.path("sku").asText("");
-        return Result.success(localProductSyncService.uploadPictures(sku, body.path("picture_list")));
+    public Result<JsonNode> uploadLocalProductPictures(@RequestBody Map<String, Object> body) {
+        String sku = body.get("sku") == null ? "" : String.valueOf(body.get("sku"));
+        JsonNode pictureList = objectMapper.valueToTree(body.getOrDefault("picture_list", new ArrayList<>()));
+        return Result.success(localProductSyncService.uploadPictures(sku, pictureList));
     }
 
     @PostMapping("/sellers/sync")
@@ -143,12 +146,12 @@ public class LingxingController {
 
     @PostMapping("/product-performance/sync")
     @Operation(summary = "手动触发：按店铺+时间窗(≤92天)同步产品表现（双写 + 维度组合键幂等）")
-    public Result<Map<String, Object>> syncProductPerformance(@RequestBody JsonNode req) {
+    public Result<Map<String, Object>> syncProductPerformance(@RequestBody Map<String, Object> req) {
         List<Long> sids = readLongList(req, "sids");
-        String startDate = req.path("startDate").asText(null);
-        String endDate = req.path("endDate").asText(null);
-        String summaryField = req.path("summaryField").asText(null);
-        String currencyCode = req.path("currencyCode").asText(null);
+        String startDate = readStr(req, "startDate");
+        String endDate = readStr(req, "endDate");
+        String summaryField = readStr(req, "summaryField");
+        String currencyCode = readStr(req, "currencyCode");
         return Result.success(performanceSyncService.sync(sids, startDate, endDate, summaryField, currencyCode));
     }
 
@@ -170,11 +173,11 @@ public class LingxingController {
 
     @PostMapping("/profit-asin/sync")
     @Operation(summary = "手动触发：按店铺+时间窗(≤7天)同步利润统计-ASIN（逐日双写 + 幂等）")
-    public Result<Map<String, Object>> syncProfitAsin(@RequestBody JsonNode req) {
+    public Result<Map<String, Object>> syncProfitAsin(@RequestBody Map<String, Object> req) {
         List<Long> sids = readLongList(req, "sids");
-        String startDate = req.path("startDate").asText(null);
-        String endDate = req.path("endDate").asText(null);
-        String currencyCode = req.path("currencyCode").asText(null);
+        String startDate = readStr(req, "startDate");
+        String endDate = readStr(req, "endDate");
+        String currencyCode = readStr(req, "currencyCode");
         return Result.success(profitSyncService.sync(sids, startDate, endDate, currencyCode));
     }
 
@@ -191,25 +194,30 @@ public class LingxingController {
     }
 
     /** 从请求体解析 Long 数组（如 sids）。缺失/非数组返回空列表。 */
-    private List<Long> readLongList(JsonNode req, String field) {
+    private List<Long> readLongList(Map<String, Object> req, String field) {
         List<Long> out = new ArrayList<>();
-        JsonNode arr = req.path(field);
-        if (arr.isArray()) {
-            arr.forEach(n -> {
-                if (n.isNumber()) {
-                    out.add(n.asLong());
-                } else {
-                    String v = n.asText("").trim();
-                    if (!v.isEmpty()) {
+        Object v = req.get(field);
+        if (v instanceof List<?> list) {
+            for (Object item : list) {
+                if (item instanceof Number n) {
+                    out.add(n.longValue());
+                } else if (item != null) {
+                    String s = String.valueOf(item).trim();
+                    if (!s.isEmpty()) {
                         try {
-                            out.add(Long.parseLong(v));
+                            out.add(Long.parseLong(s));
                         } catch (NumberFormatException ignored) {
                             // 跳过非法值
                         }
                     }
                 }
-            });
+            }
         }
         return out;
+    }
+
+    private String readStr(Map<String, Object> req, String field) {
+        Object v = req.get(field);
+        return v == null ? null : String.valueOf(v);
     }
 }

@@ -234,11 +234,26 @@ public class SellerspriteRequestCenterService {
                         markItemSuccess(item.getId(), runId, syncResult, total, fetched, written, itemFailed, apiCalls, itemStatus));
                 success++;
                 apiCallsTotal += apiCalls;
+            } catch (RequestItemFailedException e) {
+                Map<String, Object> failedResult = e.getResult();
+                int apiCalls = getInt(failedResult, "apiCalls", 0);
+                int total = getInt(failedResult, "total", 0);
+                int fetched = getInt(failedResult, "fetchedCount", getInt(failedResult, "fetched", 0));
+                int written = getInt(failedResult, "writtenCount", getInt(failedResult, "inserted", 0));
+                int failedCount = getInt(failedResult, "failedCount", Math.max(0, fetched - written));
+                String errMsg = truncate(String.valueOf(failedResult.getOrDefault("error", e.getMessage())), 512);
+                String shopFetchRunId = failedResult.get("runId") == null ? null : String.valueOf(failedResult.get("runId"));
+                transactionTemplate.executeWithoutResult(s ->
+                        markItemFailed(item.getId(), runId, shopFetchRunId, errMsg, total, fetched, written, failedCount, apiCalls));
+                failed++;
+                apiCallsTotal += apiCalls;
+                log.warn("请求中心子项失败: runId={}, sellerName={}, error={}, apiCalls={}",
+                        runId, item.getSellerName(), errMsg, apiCalls);
             } catch (ShopProductSyncService.ShopProductSyncException e) {
                 int apiCalls = e.getApiCalls();
                 String errMsg = truncate(e.getMessage(), 512);
                 transactionTemplate.executeWithoutResult(s ->
-                        markItemFailed(item.getId(), runId, errMsg, e.getTotal(), e.getFetchedCount(),
+                        markItemFailed(item.getId(), runId, null, errMsg, e.getTotal(), e.getFetchedCount(),
                                 e.getWrittenCount(), e.getFailedCount(), apiCalls));
                 failed++;
                 apiCallsTotal += apiCalls;
@@ -247,7 +262,7 @@ public class SellerspriteRequestCenterService {
             } catch (Exception e) {
                 String errMsg = truncate(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName(), 512);
                 transactionTemplate.executeWithoutResult(s ->
-                        markItemFailed(item.getId(), runId, errMsg, 0, 0, 0, 0, 0));
+                        markItemFailed(item.getId(), runId, null, errMsg, 0, 0, 0, 0, 0));
                 failed++;
                 log.warn("请求中心子项异常: runId={}, sellerName={}, error={}",
                         runId, item.getSellerName(), errMsg);
@@ -298,7 +313,13 @@ public class SellerspriteRequestCenterService {
             if (item.getTriggerId() == null) {
                 throw new IllegalStateException("候选批量抓取 item 缺少 triggerId(candidateId)");
             }
-            return candidateService.fetchFromRequestCenter(item.getTriggerId(), "CANDIDATE_BATCH", run.getBatchCode());
+            Map<String, Object> result = candidateService.fetchFromRequestCenter(
+                    item.getTriggerId(), "CANDIDATE_BATCH", run.getBatchCode());
+            String status = String.valueOf(result.getOrDefault("status", ""));
+            if ("FAILED".equals(status) || "ERROR".equals(status)) {
+                throw new RequestItemFailedException(result);
+            }
+            return result;
         }
         return productSyncService.syncBySellerName(
                 item.getSellerName(), item.getMarketplace(), run.getFetchReason(),
@@ -367,10 +388,13 @@ public class SellerspriteRequestCenterService {
         applyPremiumRefreshResult(runId, item.getTriggerId(), true, (String) syncResult.get("runId"), null);
     }
 
-    private void markItemFailed(Long itemId, String runId, String errMsg, int total, int fetched,
+    private void markItemFailed(Long itemId, String runId, String shopFetchRunId, String errMsg, int total, int fetched,
                                 int written, int failed, int apiCalls) {
         SellerspriteRequestItem item = itemMapper.selectById(itemId);
         item.setStatus("FAILED");
+        if (StringUtils.hasText(shopFetchRunId)) {
+            item.setShopFetchRunId(shopFetchRunId);
+        }
         item.setTotal(total);
         item.setFetchedCount(fetched);
         item.setWrittenCount(written);
@@ -490,6 +514,19 @@ public class SellerspriteRequestCenterService {
     private String truncate(String s, int max) {
         if (s == null) return null;
         return s.length() > max ? s.substring(0, max) : s;
+    }
+
+    private static class RequestItemFailedException extends RuntimeException {
+        private final Map<String, Object> result;
+
+        RequestItemFailedException(Map<String, Object> result) {
+            super(String.valueOf(result.getOrDefault("error", "请求中心子项失败")));
+            this.result = result;
+        }
+
+        Map<String, Object> getResult() {
+            return result;
+        }
     }
 
     /**
