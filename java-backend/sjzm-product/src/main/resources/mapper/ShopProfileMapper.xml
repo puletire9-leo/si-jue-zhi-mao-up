@@ -236,4 +236,138 @@
             computed_at = VALUES(computed_at), updated_at = NOW()
     </insert>
 
+    <!--
+      ═══════════════════════════════════════════════════════════════════
+      店铺全集数据源（shop_products）。片段与 rankedFromDengZong 逻辑完全一致，
+      仅数据表换成 shop_products——店铺全集固定 variation=Y，同样父体去重、units 现算 tier。
+      与 deng_zong 路径并行，互不影响；郑总盘子仍走 deng_zong_shop。
+      ═══════════════════════════════════════════════════════════════════
+    -->
+    <sql id="rankedFromShopProducts"><![CDATA[
+        WITH ranked AS (
+            SELECT ds.*,
+                COALESCE(NULLIF(ds.parent_asin, ''), ds.asin) AS product_key,
+                CASE
+                    WHEN ds.units IS NULL THEN 'UNKNOWN'
+                    WHEN ds.units >= 100 THEN 'A'
+                    WHEN ds.units >= 50  THEN 'B'
+                    WHEN ds.units >= 15  THEN 'C'
+                    ELSE 'D'
+                END AS sales_tier_calc,
+                COALESCE(NULLIF(TRIM(SUBSTRING_INDEX(ds.node_label_path, ':', -1)), ''), 'UNKNOWN') AS category_leaf,
+                ROW_NUMBER() OVER (
+                    PARTITION BY ds.marketplace, ds.seller_name, COALESCE(NULLIF(ds.parent_asin, ''), ds.asin)
+                    ORDER BY
+                        CASE WHEN ds.batch_date IS NULL OR ds.batch_date = '' THEN 1 ELSE 0 END ASC,
+                        ds.batch_date DESC,
+                        CASE WHEN ds.bsr IS NULL OR ds.bsr <= 0 THEN 999999999 ELSE ds.bsr END ASC,
+                        ds.created_at DESC, ds.id DESC
+                ) AS rn
+            FROM shop_products ds
+    ]]></sql>
+
+    <select id="selectSummaryFromShopProducts" resultType="com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileSummary">
+        <include refid="rankedFromShopProducts"/>
+            WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL AND ds.seller_name IS NOT NULL
+            <if test="marketplace != null and marketplace != ''">AND ds.marketplace = #{marketplace}</if>
+            <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+            <if test="sellerNameKeyword != null and sellerNameKeyword != ''">AND ds.seller_name LIKE CONCAT('%', #{sellerNameKeyword}, '%')</if>
+        ), base AS (
+            SELECT * FROM ranked WHERE rn = 1
+        ), seller_agg AS (
+            SELECT marketplace, seller_name AS sellerName, MAX(seller_id) AS sellerId,
+                COUNT(*) AS productCount,
+                SUM(CASE WHEN sales_tier_calc = 'A' THEN 1 ELSE 0 END) AS aCount,
+                SUM(CASE WHEN sales_tier_calc = 'B' THEN 1 ELSE 0 END) AS bCount,
+                SUM(CASE WHEN sales_tier_calc = 'C' THEN 1 ELSE 0 END) AS cCount,
+                SUM(CASE WHEN sales_tier_calc = 'D' THEN 1 ELSE 0 END) AS dCount,
+                SUM(CASE WHEN sales_tier_calc = 'UNKNOWN' THEN 1 ELSE 0 END) AS unknownCount,
+                MAX(batch_date) AS latestBatchDate
+            FROM base GROUP BY marketplace, seller_name
+        ), category_source AS (
+            SELECT marketplace, seller_name AS sellerName, 'A' AS bucket, category_leaf FROM base WHERE sales_tier_calc = 'A'
+            UNION ALL SELECT marketplace, seller_name AS sellerName, 'ABC' AS bucket, category_leaf FROM base WHERE sales_tier_calc IN ('A','B','C')
+            UNION ALL SELECT marketplace, seller_name AS sellerName, 'D' AS bucket, category_leaf FROM base WHERE sales_tier_calc = 'D'
+        ), category_counts AS (
+            SELECT marketplace, sellerName, bucket, category_leaf, COUNT(*) AS cnt
+            FROM category_source GROUP BY marketplace, sellerName, bucket, category_leaf
+        ), category_ranked AS (
+            SELECT category_counts.*, ROW_NUMBER() OVER (
+                PARTITION BY marketplace, sellerName, bucket ORDER BY cnt DESC, category_leaf ASC
+            ) AS category_rank FROM category_counts
+        ), top_categories AS (
+            SELECT marketplace, sellerName,
+                MAX(CASE WHEN bucket = 'A'   AND category_rank = 1 THEN category_leaf END) AS topACategory,
+                MAX(CASE WHEN bucket = 'ABC' AND category_rank = 1 THEN category_leaf END) AS topABCCategory,
+                MAX(CASE WHEN bucket = 'D'   AND category_rank = 1 THEN category_leaf END) AS topDCategory
+            FROM category_ranked GROUP BY marketplace, sellerName
+        )
+        SELECT sa.marketplace, sa.sellerName, sa.sellerId, sa.productCount,
+            sa.aCount, sa.bCount, sa.cCount, sa.dCount, sa.unknownCount,
+            (sa.aCount + sa.bCount) AS abCount,
+            (sa.aCount + sa.bCount + sa.cCount) AS abcCount,
+            tc.topACategory, tc.topABCCategory, tc.topDCategory,
+            sa.latestBatchDate
+        FROM seller_agg sa
+        LEFT JOIN top_categories tc ON tc.marketplace = sa.marketplace AND tc.sellerName = sa.sellerName
+        <where>
+            <if test="minProductCount != null">sa.productCount &gt;= #{minProductCount}</if>
+        </where>
+        ORDER BY sa.productCount DESC, (sa.aCount + sa.bCount + sa.cCount) DESC, sa.sellerName ASC
+        LIMIT #{limit}
+    </select>
+
+    <select id="countProductsFromShopProducts" resultType="long">
+        <include refid="rankedFromShopProducts"/>
+            WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL
+              AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
+            <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+        ), base AS (SELECT * FROM ranked WHERE rn = 1)
+        SELECT COUNT(*) FROM base
+        <where>
+            <if test="salesTier != null and salesTier != ''">sales_tier_calc = #{salesTier}</if>
+            <if test="category != null and category != ''">AND category_leaf = #{category}</if>
+        </where>
+    </select>
+
+    <select id="selectProductsFromShopProducts" resultType="com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileProduct">
+        <include refid="rankedFromShopProducts"/>
+            WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL
+              AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
+            <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+        ), base AS (SELECT * FROM ranked WHERE rn = 1)
+        SELECT id, marketplace, seller_name AS sellerName, seller_id AS sellerId, asin, parent_asin AS parentAsin,
+            sales_tier_calc AS salesTier, title, brand, image_url AS imageUrl, product_url AS productUrl, similar_url AS similarUrl,
+            node_id AS nodeId, node_label_path AS nodeLabelPath, category_leaf AS categoryLeaf, bsr_id AS bsrId,
+            units, bsr, price, rating, ratings, fulfillment, available_date AS availableDate, batch_date AS batchDate, created_at AS createdAt
+        FROM base
+        <where>
+            <if test="salesTier != null and salesTier != ''">sales_tier_calc = #{salesTier}</if>
+            <if test="category != null and category != ''">AND category_leaf = #{category}</if>
+        </where>
+        ORDER BY
+            CASE sales_tier_calc WHEN 'A' THEN 1 WHEN 'B' THEN 2 WHEN 'C' THEN 3 WHEN 'D' THEN 4 ELSE 5 END ASC,
+            CASE WHEN units IS NULL THEN 1 ELSE 0 END ASC, units DESC,
+            CASE WHEN bsr IS NULL OR bsr &lt;= 0 THEN 1 ELSE 0 END ASC, bsr ASC, asin ASC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="selectCategoriesFromShopProducts" resultType="com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileCategory">
+        <include refid="rankedFromShopProducts"/>
+            WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL
+              AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
+            <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+        ), base AS (SELECT * FROM ranked WHERE rn = 1)
+        SELECT marketplace, seller_name AS sellerName, sales_tier_calc AS salesTier, category_leaf AS categoryKey,
+            COUNT(*) AS productCount, COALESCE(SUM(units), 0) AS unitsSum, ROUND(AVG(units), 2) AS unitsAvg
+        FROM base
+        <where>
+            <if test="salesTier != null and salesTier != ''">sales_tier_calc = #{salesTier}</if>
+        </where>
+        GROUP BY marketplace, seller_name, sales_tier_calc, category_leaf
+        ORDER BY
+            CASE sales_tier_calc WHEN 'A' THEN 1 WHEN 'B' THEN 2 WHEN 'C' THEN 3 WHEN 'D' THEN 4 ELSE 5 END ASC,
+            productCount DESC, category_leaf ASC
+    </select>
+
 </mapper>

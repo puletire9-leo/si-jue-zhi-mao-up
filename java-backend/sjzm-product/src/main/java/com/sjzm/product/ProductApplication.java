@@ -22,7 +22,8 @@ import java.util.concurrent.ThreadPoolExecutor;
         "com.sjzm.product.mapper",
         "com.sjzm.product.modules.analysisbaseline.shopprofile.mapper",
         "com.sjzm.product.modules.analysisbaseline.productfamily.mapper",
-        "com.sjzm.product.modules.analysisbaseline.methodevidence.mapper"
+        "com.sjzm.product.modules.analysisbaseline.methodevidence.mapper",
+        "com.sjzm.product.modules.shopcollection.mapper"
 })
 public class ProductApplication {
 

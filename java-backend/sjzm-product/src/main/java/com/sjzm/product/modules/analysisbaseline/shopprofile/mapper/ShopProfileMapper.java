@@ -51,4 +51,38 @@ public interface ShopProfileMapper {
     int insertSnapshotsFromDengZong(@Param("marketplace") String marketplace, @Param("batchDate") String batchDate);
 
     int insertCategoriesFromDengZong(@Param("marketplace") String marketplace, @Param("batchDate") String batchDate);
+
+    // ========================================================================
+    // 店铺全集数据源（shop_products，固定 variation=Y）。逻辑同 deng_zong 路径，
+    // 独立片段 rankedFromShopProducts，服务观察池抓来的店铺画像/单店详情。
+    // ========================================================================
+
+    List<ShopProfileSummary> selectSummaryFromShopProducts(
+            @Param("marketplace") String marketplace,
+            @Param("batchDate") String batchDate,
+            @Param("sellerNameKeyword") String sellerNameKeyword,
+            @Param("minProductCount") Integer minProductCount,
+            @Param("limit") Integer limit);
+
+    long countProductsFromShopProducts(
+            @Param("marketplace") String marketplace,
+            @Param("sellerName") String sellerName,
+            @Param("batchDate") String batchDate,
+            @Param("salesTier") String salesTier,
+            @Param("category") String category);
+
+    List<ShopProfileProduct> selectProductsFromShopProducts(
+            @Param("marketplace") String marketplace,
+            @Param("sellerName") String sellerName,
+            @Param("batchDate") String batchDate,
+            @Param("salesTier") String salesTier,
+            @Param("category") String category,
+            @Param("offset") int offset,
+            @Param("size") int size);
+
+    List<ShopProfileCategory> selectCategoriesFromShopProducts(
+            @Param("marketplace") String marketplace,
+            @Param("sellerName") String sellerName,
+            @Param("batchDate") String batchDate,
+            @Param("salesTier") String salesTier);
 }
