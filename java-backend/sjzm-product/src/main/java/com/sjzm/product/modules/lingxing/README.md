@@ -40,8 +40,47 @@ Java sjzm-product 内的领星 ERP 开放平台对接模块。参照 `产品数�
 | POST `/local-products/upload-pictures` | 上传产品图片（写回领星） |
 | POST `/product-performance/sync`、GET `/product-performance` | 产品表现同步 / 分页 |
 | POST `/profit-asin/sync`、GET `/profit-asin` | 利润统计同步 / 分页 |
+| POST `/sampling-model/analyze` | 精铺测品模型分析：基于已落库数据计算 cohort R1/R2 和盈亏平衡试算 |
 
 同步入参（sync）走 JSON body：`{sids:[..], startDate, endDate, summaryField?, currencyCode?}`。
+
+## 精铺测品模型分析
+
+`/sampling-model/analyze` 不调用领星外部接口，只读取 `lingxing_local_product`、`lingxing_product_performance`、`lingxing_profit_asin` 已落库数据，适合反复调整模型参数。
+
+示例：
+
+```json
+{
+  "source": "performance",
+  "startDate": "2026-07-01",
+  "endDate": "2026-07-07",
+  "cohortMonth": "2026-07",
+  "targetTag": "欧洲精铺2025",
+  "hitUnitsThreshold": 1,
+  "turnoverUnitsThreshold": 30,
+  "q1": 15,
+  "q2": 45,
+  "unitMargin": 3.5,
+  "firstBatchLoss": 2.2,
+  "secondBatchLoss": 2.8,
+  "fixedCost": 12000
+}
+```
+
+返回重点：
+
+- `cohort.r1`：达到首批出单阈值的 SKU 占比。
+- `cohort.r2`：达到转正销量阈值且未标记淘汰的 SKU / 已出单 SKU。
+- `actuals.avgContributionProfit`：未传 `unitMargin` 时用于临时代替 M 的报表平均毛利/件。
+- `model.netProfit`、`requiredR1AtCurrentR2`、`requiredR2AtCurrentR1`：二阶段盈亏平衡试算。
+- `dataGaps`：当前数据对模型仍不足的部分，尤其是补货流水、到货日期、每日库存。
+
+口径说明：
+
+- `source=performance` 使用产品表现时间窗报表，数据量更全；如果同步窗口重叠，可能重复计入。
+- `source=profit` 使用利润统计逐日数据，更适合严肃财务复盘，但目前需要先补齐 UK/DE 全量利润同步。
+- `cohortMonth` 当前使用 `lingxing_local_product.lx_create_time` 近似 SKU cohort；真正上架日期还未结构化。
 
 ## 前端
 

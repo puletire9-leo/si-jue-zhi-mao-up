@@ -9,12 +9,15 @@
         </el-select>
         <el-input v-model="keyword" placeholder="店铺名筛选" clearable style="width: 200px" @keyup.enter="loadList" />
         <el-button type="primary" @click="loadList">查询</el-button>
-        <div class="tip">店铺全集数据源 shop_products（variation=Y，不含变体父体口径）。点击行看单店全景。</div>
+        <div class="tip">只展示已通过请求中心抓取成功的店铺全集，数据源 shop_products（variation=Y，不含变体父体口径）。点击行看单店全景。</div>
       </div>
     </el-card>
 
     <el-card shadow="never">
       <el-table :data="rows" v-loading="loading" stripe height="calc(100vh - 260px)" @row-click="openDetail">
+        <template #empty>
+          <el-empty description="暂无店铺全集数据。先在「方法卡找店」选择候选并创建请求中心抓取任务。" />
+        </template>
         <el-table-column prop="sellerName" label="店铺名" min-width="170" show-overflow-tooltip />
         <el-table-column prop="productCount" label="商品数" width="90" sortable />
         <el-table-column label="结构标签" width="140">

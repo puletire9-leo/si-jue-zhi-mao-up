@@ -2,7 +2,7 @@ import type { ModuleManifest } from '../types'
 
 export default {
   id: 'shop-candidate-pool',
-  name: '店铺选品',
+  name: '方法卡找店',
   icon: 'CollectionTag',
   menuGroup: '店铺总览',
   menuOrder: 16,
@@ -10,6 +10,6 @@ export default {
     path: 'shop-candidates/pool',
     name: 'ShopCandidatePool',
     component: () => import('./index.vue'),
-    meta: { title: '店铺选品' }
+    meta: { title: '方法卡找店' }
   }
 } satisfies ModuleManifest

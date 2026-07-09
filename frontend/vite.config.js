@@ -148,6 +148,14 @@ export default defineConfig(({ mode }) => {
           timeout: 300000,
           logLevel: 'warn'
         },
+        // Java product 路由组：新增 Controller 后需同步 nginx，并通过 preflight 检查。
+        '^/api/v1/(analysis-baseline|blue-ocean|clean-layer|element-discovery|subcategory-alias)': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 300000,
+          logLevel: 'warn'
+        },
         '/api/v1/product-line/aggregated-data': {
           target: javaTarget,
           changeOrigin: true,

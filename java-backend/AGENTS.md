@@ -178,3 +178,5 @@ com.sjzm.gateway/
 5. 响应统一用 `Result.success(data)` / `Result.error(message)`
 6. 禁止在 Controller 写业务逻辑，禁止在 Mapper 写业务判断，禁止 Controller 直接注入 Mapper
 7. 配置文件在 `src/main/resources/`，环境变量占位 `${ENV_VAR:default}`
+8. 新增/修改 `@TableName` Entity 必须同步 `java-backend/sql/*.sql` 迁移；`prod-java-product` 启动时 `SchemaGuard` 会校验表/列，缺失会启动失败
+9. 新增 Java `/api/v1/{resource}` Controller 必须同步 `frontend/nginx.conf` Java 路由，并在部署前运行 `scripts/deploy/prod_preflight_check.ps1`

@@ -84,6 +84,14 @@ lingxing:
   connect-timeout: 10s
   read-timeout: 30s
 
+schema-guard:
+  # 启动期扫描 @TableName 实体并核对 information_schema。
+  # 新增 Entity/字段时必须同步提交 java-backend/sql/*.sql 迁移，否则生产启动会失败。
+  enabled: ${SCHEMA_GUARD_ENABLED:true}
+  fail-fast: ${SCHEMA_GUARD_FAIL_FAST:true}
+  check-columns: ${SCHEMA_GUARD_CHECK_COLUMNS:true}
+  scan-packages: ${SCHEMA_GUARD_SCAN_PACKAGES:com.sjzm.product}
+
 management:
   endpoints:
     web:

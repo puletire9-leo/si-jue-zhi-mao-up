@@ -27,6 +27,19 @@
 | 配置 | 所有外部值走 `${ENV_VAR:defaultValue}` |
 | 分层依赖 | 只能 `Controller -> Service -> Mapper`，禁止 Controller 直接注入 Mapper |
 
+### Java 数据库结构对接
+
+1. 新增 `@TableName` Entity 必须同步新增 `java-backend/sql/*.sql` 迁移文件。
+2. Entity 新增字段必须同步补 `ALTER TABLE` 迁移；优先使用 `information_schema` 守卫，保证可重跑。
+3. Java product 启动会运行 `SchemaGuard`，扫描实体并核对表/列。缺表/缺列时生产启动失败，这是设计约束，不要通过关闭检查绕过。
+4. 生产部署前必须运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/deploy/prod_preflight_check.ps1
+```
+
+5. 新增 Java `/api/v1/{resource}` Controller 必须同步检查 `frontend/nginx.conf`，确保生产前端会转发到 Gateway，而不是落到 Python 兜底。
+
 ### Python 后端
 
 | 规则 | 说明 |

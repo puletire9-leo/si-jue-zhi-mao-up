@@ -36,10 +36,6 @@
             WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL AND ds.seller_name IS NOT NULL
             <if test="marketplace != null and marketplace != ''">AND ds.marketplace = #{marketplace}</if>
             <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
-            <choose>
-                <when test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</when>
-                <when test="param3 != null and param3 != ''">AND ds.source_run_id = #{param3}</when>
-            </choose>
             <if test="sellerNameKeyword != null and sellerNameKeyword != ''">AND ds.seller_name LIKE CONCAT('%', #{sellerNameKeyword}, '%')</if>
         ), base AS (
             SELECT * FROM ranked WHERE rn = 1
@@ -91,10 +87,6 @@
             WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL
               AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
             <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
-            <choose>
-                <when test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</when>
-                <when test="param4 != null and param4 != ''">AND ds.source_run_id = #{param4}</when>
-            </choose>
         ), base AS (SELECT * FROM ranked WHERE rn = 1)
         SELECT COUNT(*) FROM base
         <where>
@@ -108,10 +100,6 @@
             WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL
               AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
             <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
-            <choose>
-                <when test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</when>
-                <when test="param4 != null and param4 != ''">AND ds.source_run_id = #{param4}</when>
-            </choose>
         ), base AS (SELECT * FROM ranked WHERE rn = 1)
         SELECT id, marketplace, seller_name AS sellerName, seller_id AS sellerId, asin, parent_asin AS parentAsin,
             sales_tier_calc AS salesTier, title, brand, image_url AS imageUrl, product_url AS productUrl, similar_url AS similarUrl,
@@ -134,10 +122,6 @@
             WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL
               AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
             <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
-            <choose>
-                <when test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</when>
-                <when test="param4 != null and param4 != ''">AND ds.source_run_id = #{param4}</when>
-            </choose>
         ), base AS (SELECT * FROM ranked WHERE rn = 1)
         SELECT marketplace, seller_name AS sellerName, sales_tier_calc AS salesTier, category_leaf AS categoryKey,
             COUNT(*) AS productCount, COALESCE(SUM(units), 0) AS unitsSum, ROUND(AVG(units), 2) AS unitsAvg

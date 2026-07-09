@@ -1,0 +1,182 @@
+param(
+    [ValidateSet("prod", "dev")]
+    [string]$Env = "prod",
+    [string]$MysqlContainer = "",
+    [string]$Database = "",
+    [string]$User = "",
+    [string]$Password = "",
+    [switch]$SkipDatabase,
+    [switch]$SkipRoutes
+)
+
+$ErrorActionPreference = "Stop"
+
+# 同一套门禁用于 dev/prod：数据库查当前环境容器，路由同时核对 Vite(dev) 与 nginx(prod)。
+# 新增 @TableName 实体或 /api/v1 Java Controller 后，先跑本脚本再部署。
+
+function Read-EnvFileValue {
+    param(
+        [string]$Path,
+        [string]$Key
+    )
+    if (-not (Test-Path $Path)) {
+        return ""
+    }
+    foreach ($line in Get-Content -Encoding UTF8 $Path) {
+        $trimmed = $line.Trim()
+        if ($trimmed.Length -eq 0 -or $trimmed.StartsWith("#")) {
+            continue
+        }
+        $parts = $trimmed.Split("=", 2)
+        if ($parts.Length -eq 2 -and $parts[0].Trim() -eq $Key) {
+            return $parts[1].Trim().Trim('"').Trim("'")
+        }
+    }
+    return ""
+}
+
+function Get-EntityTables {
+    $roots = @(
+        "java-backend/sjzm-product/src/main/java",
+        "java-backend/sjzm-user/src/main/java"
+    )
+    Get-ChildItem -Path $roots -Recurse -Filter "*.java" |
+        Select-String -Pattern '@TableName\("([^"]+)"\)' |
+        ForEach-Object { $_.Matches.Groups[1].Value } |
+        Sort-Object -Unique
+}
+
+function Get-ProductControllerRoots {
+    Get-ChildItem -Path "java-backend/sjzm-product/src/main/java" -Recurse -Filter "*Controller.java" |
+        Select-String -Pattern '@RequestMapping\("/api/v1/([^"/]+)' |
+        ForEach-Object { $_.Matches.Groups[1].Value } |
+        Sort-Object -Unique
+}
+
+function Get-NginxJavaRoots {
+    $nginx = Get-Content -Encoding UTF8 "frontend/nginx.conf" -Raw
+    $roots = New-Object System.Collections.Generic.HashSet[string]
+    foreach ($match in [regex]::Matches($nginx, '\^/api/v1/\(([^)]+)\)')) {
+        foreach ($part in $match.Groups[1].Value.Split("|")) {
+            [void]$roots.Add($part.Trim())
+        }
+    }
+    if ($nginx -match '\^/api/v1/product-line/') {
+        [void]$roots.Add("product-line")
+    }
+    $roots | Sort-Object
+}
+
+function Get-ViteJavaRoots {
+    $vite = Get-Content -Encoding UTF8 "frontend/vite.config.js" -Raw
+    $roots = New-Object System.Collections.Generic.HashSet[string]
+    $pattern = "['""]([^'""]*\/api\/v1\/[^'""]+)['""]\s*:\s*\{.*?target:\s*(javaTarget|javaUserTarget)"
+    foreach ($match in [regex]::Matches($vite, $pattern, [System.Text.RegularExpressions.RegexOptions]::Singleline)) {
+        $key = $match.Groups[1].Value.Trim()
+        if ($key -match '\/api\/v1\/\(([^)]+)\)') {
+            foreach ($part in $Matches[1].Split("|")) {
+                $root = $part.Trim()
+                if ($root) {
+                    [void]$roots.Add($root)
+                }
+            }
+            continue
+        }
+        if ($key -match '\/api\/v1\/([^\/\(\|\^]+)') {
+            $root = $Matches[1].Trim()
+            if ($root) {
+                [void]$roots.Add($root)
+            }
+        }
+    }
+    $roots | Sort-Object
+}
+
+function Invoke-MysqlScalarList {
+    param([string]$Sql)
+    docker exec -e MYSQL_PWD="$Password" $MysqlContainer mysql "-u$User" -N -e $Sql 2>$null
+}
+
+if (-not $MysqlContainer) {
+    if ($Env -eq "dev") {
+        $MysqlContainer = "dev-mysql"
+    } else {
+        $MysqlContainer = "prod-mysql"
+    }
+}
+if (-not $Database) {
+    $Database = Read-EnvFileValue "config/public/$Env.env" "MYSQL_DATABASE"
+}
+if (-not $User) {
+    $User = Read-EnvFileValue "config/public/$Env.env" "MYSQL_USERNAME"
+    if (-not $User) {
+        $User = Read-EnvFileValue "config/public/$Env.env" "MYSQL_USER"
+    }
+}
+if (-not $Password) {
+    $Password = $env:MYSQL_PASSWORD
+    if (-not $Password) {
+        $Password = Read-EnvFileValue "config/secrets/$Env.env" "MYSQL_PASSWORD"
+    }
+}
+
+$failures = New-Object System.Collections.Generic.List[string]
+
+Write-Host "[preflight] repository: $(Get-Location)"
+Write-Host "[preflight] env: $Env"
+
+if (-not $SkipDatabase) {
+    if (-not $Database -or -not $User -or -not $Password) {
+        $failures.Add("Database credentials incomplete. Provide -Database/-User/-Password or config/public+secrets $Env env files.")
+    } else {
+        Write-Host "[preflight] checking entity tables in $MysqlContainer/$Database ..."
+        $entityTables = @(Get-EntityTables)
+        $sql = "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = '$Database' ORDER BY TABLE_NAME"
+        $dbTables = @(Invoke-MysqlScalarList $sql)
+        $dbSet = New-Object System.Collections.Generic.HashSet[string] ([StringComparer]::OrdinalIgnoreCase)
+        foreach ($table in $dbTables) {
+            [void]$dbSet.Add($table)
+        }
+        foreach ($table in $entityTables) {
+            if (-not $dbSet.Contains($table)) {
+                $failures.Add("Missing table for @TableName: $table")
+            }
+        }
+        Write-Host "[preflight] entity tables required=$($entityTables.Count), existing=$($dbTables.Count)"
+    }
+}
+
+if (-not $SkipRoutes) {
+    Write-Host "[preflight] checking Java controller roots against frontend/nginx.conf and frontend/vite.config.js ..."
+    $controllerRoots = @(Get-ProductControllerRoots)
+    $nginxRoots = @(Get-NginxJavaRoots)
+    $viteRoots = @(Get-ViteJavaRoots)
+    $nginxSet = New-Object System.Collections.Generic.HashSet[string] ([StringComparer]::OrdinalIgnoreCase)
+    $viteSet = New-Object System.Collections.Generic.HashSet[string] ([StringComparer]::OrdinalIgnoreCase)
+    foreach ($root in $nginxRoots) {
+        [void]$nginxSet.Add($root)
+    }
+    foreach ($root in $viteRoots) {
+        [void]$viteSet.Add($root)
+    }
+    foreach ($root in $controllerRoots) {
+        if (-not $nginxSet.Contains($root)) {
+            $failures.Add("Java route not proxied by nginx: /api/v1/$root")
+        }
+        if (-not $viteSet.Contains($root)) {
+            $failures.Add("Java route not proxied by Vite dev server: /api/v1/$root")
+        }
+    }
+    Write-Host "[preflight] Java routes required=$($controllerRoots.Count), nginx roots=$($nginxRoots.Count), vite roots=$($viteRoots.Count)"
+}
+
+if ($failures.Count -gt 0) {
+    Write-Host ""
+    Write-Host "[preflight] FAILED" -ForegroundColor Red
+    foreach ($failure in $failures) {
+        Write-Host " - $failure" -ForegroundColor Red
+    }
+    exit 1
+}
+
+Write-Host "[preflight] OK" -ForegroundColor Green
