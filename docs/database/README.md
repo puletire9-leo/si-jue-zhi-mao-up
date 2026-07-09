@@ -45,6 +45,23 @@
 
 当前项目的数据库 DDL 以 `java-backend/sql/` 为准，按功能拆分维护。
 
+### 迁移门禁
+
+Java product 已启用启动期 `SchemaGuard`：
+
+- 扫描 `com.sjzm.product` 下所有 `@TableName` 实体。
+- 到当前数据库 `information_schema` 核对表和实体字段对应列。
+- 生产默认 `fail-fast=true`，缺表/缺列会让 `prod-java-product` 启动失败。
+
+因此新增或修改 Entity 时必须同步完成：
+
+1. 新增/更新 `java-backend/sql/*.sql` 迁移文件。
+2. SQL 尽量使用 `CREATE TABLE IF NOT EXISTS` 或 `information_schema` 守卫，保证可重跑。
+3. 生产部署前执行 `scripts/deploy/prod_preflight_check.ps1`。
+4. 生产库执行迁移后再构建/重启 Java 镜像。
+
+这条链路的目标是让“缺表/缺列”在部署阶段暴露，不再拖到页面运行时报 500。
+
 ### 核心建表脚本
 
 | 文件 | 说明 |
@@ -55,6 +72,13 @@
 | `create_product_performance_actual.sql` | ③线真实战绩表 |
 | `create_line_one_baselines.sql` | ①线大类/小类基线表 |
 | `create_subcategory_alias_layer.sql` | 小类别名对齐层 + 小类基线 canonical 升级 |
+| `create_bazhuayu_weekly_raw.sql` | 八爪鱼每周原始采集表 |
+| `create_bazhuayu_image_search_result.sql` | 八爪鱼以图识图缓存结果表 |
+| `create_product_line_guidance.sql` | 品线指导记录表 |
+| `create_analysis_baseline_tables.sql` | analysis-baseline 画像/方法证据/商品家族表 |
+| `create_shop_collection_tables.sql` | 店铺全集商品与观察池表 |
+| `create_shop_candidate_tables.sql` | 店铺候选池与抓取运行记录表 |
+| `create_sellersprite_request_center_tables.sql` | 卖家精灵请求中心与精品店铺池表 |
 | `create_material_carrier_tables.sql` | 素材库 + 运营商库 |
 | `create_scoring_tables.sql` | 评分系统 |
 | `system_log_tables.sql` | 系统日志 |
@@ -63,6 +87,13 @@
 ### 字段变更脚本
 
 以 `add_` / `fix_` / `update_` / `remove_` 开头，记录每次表结构变更。
+
+近期必须保留的补丁脚本：
+
+| 文件 | 说明 |
+|------|------|
+| `add_batch_code_to_shop_products.sql` | 店铺全集增加 ISO 周批次 |
+| `add_competitor_lookup_log_pages_total.sql` | 竞品查询日志补齐 `pages` / `total` |
 
 ## 选品关键表补充
 

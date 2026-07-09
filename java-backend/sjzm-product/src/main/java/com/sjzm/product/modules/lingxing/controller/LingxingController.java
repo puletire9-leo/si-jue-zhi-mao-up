@@ -19,6 +19,7 @@ import com.sjzm.product.modules.lingxing.service.LingxingConfigService;
 import com.sjzm.product.modules.lingxing.service.LingxingLocalProductSyncService;
 import com.sjzm.product.modules.lingxing.service.LingxingProductPerformanceSyncService;
 import com.sjzm.product.modules.lingxing.service.LingxingProfitAsinSyncService;
+import com.sjzm.product.modules.lingxing.service.LingxingSamplingModelService;
 import com.sjzm.product.modules.lingxing.service.LingxingSellerSyncService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -52,6 +53,7 @@ public class LingxingController {
     private final LingxingProductPerformanceMapper performanceMapper;
     private final LingxingProfitAsinSyncService profitSyncService;
     private final LingxingProfitAsinMapper profitMapper;
+    private final LingxingSamplingModelService samplingModelService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @PostMapping("/ping")
@@ -191,6 +193,16 @@ public class LingxingController {
                 .like(StringUtils.hasText(asin), LingxingProfitAsin::getAsin, asin)
                 .orderByDesc(LingxingProfitAsin::getDataDate);
         return Result.success(profitMapper.selectPage(new Page<>(current, size), qw));
+    }
+
+    // ============================================================
+    // 精铺测品模型
+    // ============================================================
+
+    @PostMapping("/sampling-model/analyze")
+    @Operation(summary = "精铺测品模型分析：基于已落库领星数据计算 cohort R1/R2 和盈亏平衡试算")
+    public Result<Map<String, Object>> analyzeSamplingModel(@RequestBody(required = false) Map<String, Object> req) {
+        return Result.success(samplingModelService.analyze(req));
     }
 
     /** 从请求体解析 Long 数组（如 sids）。缺失/非数组返回空列表。 */

@@ -2,20 +2,19 @@
   <div class="shop-watchlist">
     <el-card shadow="never" class="header-card">
       <div class="toolbar">
+        <el-button type="primary" @click="goCandidatePool">去方法卡找店</el-button>
         <el-select v-model="marketplace" placeholder="站点" style="width: 120px">
           <el-option label="全部站点" value="" />
           <el-option label="UK" value="UK" />
           <el-option label="DE" value="DE" />
           <el-option label="US" value="US" />
         </el-select>
-        <el-select v-model="methodId" placeholder="方法卡" style="width: 140px">
-          <el-option label="M01 新品加速法" value="M01" />
+        <el-select v-model="sourceTypeFilter" placeholder="来源" clearable style="width: 150px" @change="loadList">
+          <el-option label="候选确认" value="CANDIDATE_CONFIRM" />
+          <el-option label="人工加入" value="MANUAL" />
+          <el-option label="基线" value="BASELINE" />
+          <el-option label="历史方法卡" value="METHOD_CARD" />
         </el-select>
-        <el-input-number v-model="minCount" :min="1" :max="100" controls-position="right" style="width: 130px" />
-        <span class="hint">命中数下限</span>
-        <el-button type="primary" :loading="syncing" @click="handleSyncFromRank">
-          按方法卡刷新观察池
-        </el-button>
         <div class="spacer" />
         <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 140px" @change="loadList">
           <el-option label="观察中 WATCHING" value="WATCHING" />
@@ -26,8 +25,8 @@
         <el-button @click="loadList">刷新</el-button>
       </div>
       <div class="tip">
-        主线：方法卡命中 → 观察池（记录为什么盯）→ 抓店铺全集 → 画像解释。
-        「按方法卡刷新观察池」会跑一遍 M01 店铺排名，把命中达标的店铺写入观察池。
+        正式观察池只放“已经确认要盯”的店铺，记录为什么盯、是否已抓全集、后续是否确认。
+        方法卡命中的大量店铺先去「方法卡找店」候选池；卖家精灵抓取实况统一去「请求中心」。
       </div>
     </el-card>
 
@@ -58,7 +57,6 @@
         </el-table-column>
         <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" type="primary" link @click="handleFetch(row)">抓全集</el-button>
             <el-button size="small" link @click="openShop(row)">看画像</el-button>
             <el-dropdown @command="(c: string) => handleStatus(row, c)" trigger="click">
               <el-button size="small" link>标记<el-icon><ArrowDown /></el-icon></el-button>
@@ -87,56 +85,23 @@ import shopCollectionApi, { type ShopWatchlist } from '@/api/shopCollection'
 
 const router = useRouter()
 const marketplace = ref('')
-const methodId = ref('M01')
-const minCount = ref(1)
 const statusFilter = ref('')
+const sourceTypeFilter = ref('')
 const rows = ref<ShopWatchlist[]>([])
 const loading = ref(false)
-const syncing = ref(false)
 
 async function loadList() {
   loading.value = true
   try {
-    rows.value = await shopCollectionApi.listWatchlist(marketplace.value || undefined, statusFilter.value || undefined)
+    rows.value = await shopCollectionApi.listWatchlist(
+      marketplace.value || undefined,
+      statusFilter.value || undefined,
+      sourceTypeFilter.value || undefined
+    )
   } catch (e: any) {
     ElMessage.error(e?.message || '加载观察池失败')
   } finally {
     loading.value = false
-  }
-}
-
-async function handleSyncFromRank() {
-  syncing.value = true
-  try {
-    const r = await shopCollectionApi.syncWatchlistFromMethodRank(methodId.value, marketplace.value || undefined, minCount.value)
-    ElMessage.success(`${r.methodId} 排名 ${r.rankedShops} 家，写入观察池 ${r.upserted} 家`)
-    await loadList()
-  } catch (e: any) {
-    ElMessage.error(e?.message || '同步失败')
-  } finally {
-    syncing.value = false
-  }
-}
-
-async function handleFetch(row: ShopWatchlist) {
-  try {
-    await ElMessageBox.confirm(
-      `将调用卖家精灵抓取「${row.sellerName}」(${row.marketplace}) 的店铺全集，消耗卖家精灵使用次数。确认继续？`,
-      '抓取店铺全集',
-      { type: 'warning', confirmButtonText: '抓取', cancelButtonText: '取消' }
-    )
-  } catch {
-    return
-  }
-  const loadingMsg = ElMessage({ message: `抓取中：${row.sellerName}…`, duration: 0, type: 'info' })
-  try {
-    const r = await shopCollectionApi.syncShopProducts(row.marketplace, row.sellerName, row.reason || undefined, row.id)
-    ElMessage.success(`抓取完成：${r.total} 个商品，入库 ${r.inserted}`)
-    await loadList()
-  } catch (e: any) {
-    ElMessage.error(e?.message || '抓取失败')
-  } finally {
-    loadingMsg.close()
   }
 }
 
@@ -145,6 +110,10 @@ function openShop(row: ShopWatchlist) {
     name: 'module-shop-collection-shops-ShopCollectionShops',
     query: { marketplace: row.marketplace, sellerName: row.sellerName }
   })
+}
+
+function goCandidatePool() {
+  router.push({ name: 'module-shop-candidate-pool-ShopCandidatePool' })
 }
 
 async function handleStatus(row: ShopWatchlist, status: string) {
