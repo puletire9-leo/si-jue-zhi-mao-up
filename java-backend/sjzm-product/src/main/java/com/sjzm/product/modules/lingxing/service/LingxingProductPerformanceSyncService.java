@@ -41,6 +41,8 @@ public class LingxingProductPerformanceSyncService {
 
     private final LingxingClient client;
     private final LingxingProductPerformanceMapper mapper;
+    private final LingxingSkuDataLayerService skuDataLayerService;
+    private final LingxingRawJsonArchiveService rawJsonArchiveService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -51,18 +53,45 @@ public class LingxingProductPerformanceSyncService {
      * @param endDate      时间窗结束 YYYY-MM-DD
      * @param summaryField 汇总维度 asin/parent_asin/msku/sku（默认 asin）
      * @param currencyCode 币种 USD/CNY（可空，空为原币种）
+     * @param searchField    搜索字段名（可空：不传则不做 SKU 筛选；传 local_sku 时按 searchValues 搜索）
+     * @param searchValues   搜索值列表（可空，上限 50；配合 searchField 使用）
+     * @param isRecentlyEnum 是否仅查询活跃商品；null 时使用领星默认值，SKU 池全量链路传 false
      * @return 同步结果统计 {pages, fetched, upserted}
      */
     public Map<String, Object> sync(List<Long> sids, String startDate, String endDate,
-                                    String summaryField, String currencyCode) {
+                                    String summaryField, String currencyCode,
+                                    String searchField, List<String> searchValues,
+                                    Boolean isRecentlyEnum) {
+        return syncInternal(sids, startDate, endDate, summaryField, currencyCode,
+                searchField, searchValues, isRecentlyEnum, true);
+    }
+
+    public Map<String, Object> syncWithoutWeeklyNormalization(List<Long> sids, String startDate, String endDate,
+                                                              String summaryField, String currencyCode,
+                                                              String searchField, List<String> searchValues,
+                                                              Boolean isRecentlyEnum) {
+        return syncInternal(sids, startDate, endDate, summaryField, currencyCode,
+                searchField, searchValues, isRecentlyEnum, false);
+    }
+
+    private Map<String, Object> syncInternal(List<Long> sids, String startDate, String endDate,
+                                             String summaryField, String currencyCode,
+                                             String searchField, List<String> searchValues,
+                                             Boolean isRecentlyEnum,
+                                             boolean normalizeWeeklyAfterSync) {
         if (sids == null || sids.isEmpty()) {
             throw new IllegalArgumentException("sids 必填：请先同步领星店铺并选择店铺");
         }
         if (sids.size() > 200) {
             throw new IllegalArgumentException("sid 上限 200，当前 " + sids.size());
         }
+        if (searchValues != null && searchValues.size() > 50) {
+            throw new IllegalArgumentException("searchValues 上限 50，当前 " + searchValues.size());
+        }
         validateSpan(startDate, endDate, MAX_SPAN_DAYS);
         String summary = (summaryField == null || summaryField.isBlank()) ? "asin" : summaryField;
+        boolean hasSearch = searchField != null && !searchField.isBlank()
+                && searchValues != null && !searchValues.isEmpty();
         // 店铺集合排序后拼接，作为业务键的一部分（同一集合聚合为一行口径）
         String sidScope = sids.stream().sorted().map(String::valueOf).collect(Collectors.joining(","));
 
@@ -71,47 +100,70 @@ public class LingxingProductPerformanceSyncService {
         int fetched = 0;
         int upserted = 0;
 
-        for (int p = 0; p < MAX_PAGES; p++) {
-            ObjectNode body = objectMapper.createObjectNode();
-            body.put("offset", offset);
-            body.put("length", PAGE_SIZE);
-            body.put("sort_field", "volume");
-            body.put("sort_type", "desc");
-            body.put("summary_field", summary);
-            ArrayNode sidArr = body.putArray("sid");
-            sids.forEach(sidArr::add);
-            body.put("start_date", startDate);
-            body.put("end_date", endDate);
-            if (currencyCode != null && !currencyCode.isBlank()) {
-                body.put("currency_code", currencyCode);
+        try (LingxingRawJsonArchiveService.ArchiveWriter archiveWriter =
+                     rawJsonArchiveService.openProductPerformanceWriter(summary, startDate, endDate, sidScope)) {
+            for (int p = 0; p < MAX_PAGES; p++) {
+                ObjectNode body = objectMapper.createObjectNode();
+                body.put("offset", offset);
+                body.put("length", PAGE_SIZE);
+                body.put("sort_field", "volume");
+                body.put("sort_type", "desc");
+                body.put("summary_field", summary);
+                ArrayNode sidArr = body.putArray("sid");
+                sids.forEach(sidArr::add);
+                body.put("start_date", startDate);
+                body.put("end_date", endDate);
+                if (currencyCode != null && !currencyCode.isBlank()) {
+                    body.put("currency_code", currencyCode);
+                }
+                if (hasSearch) {
+                    body.put("search_field", searchField);
+                    ArrayNode svArr = body.putArray("search_value");
+                    searchValues.forEach(svArr::add);
+                }
+                if (isRecentlyEnum != null) {
+                    body.put("is_recently_enum", isRecentlyEnum);
+                }
+
+                JsonNode resp = client.post(PATH, body);
+                JsonNode list = resp.path("data").path("list");
+                if (!list.isArray() || list.isEmpty()) break;
+
+                pages++;
+                for (JsonNode row : list) {
+                    LingxingProductPerformance e = mapRow(row, summary, sidScope, startDate, endDate, currencyCode);
+                    if (e.getId() == null) e.setId(com.baomidou.mybatisplus.core.toolkit.IdWorker.getId());
+                    mapper.upsert(e);
+                    archiveWriter.write(row);
+                    upserted++;
+                }
+                fetched += list.size();
+
+                if (list.size() < PAGE_SIZE) break;
+                offset += PAGE_SIZE;
+                // 令牌桶容量 1：多店铺间隔 10s，单店铺 1s（文档限流规则）
+                sleep(sids.size() > 1 ? 10_000L : 1_000L);
             }
 
-            JsonNode resp = client.post(PATH, body);
-            JsonNode list = resp.path("data").path("list");
-            if (!list.isArray() || list.isEmpty()) break;
-
-            pages++;
-            for (JsonNode row : list) {
-                LingxingProductPerformance e = mapRow(row, summary, sidScope, startDate, endDate, currencyCode);
-                if (e.getId() == null) e.setId(com.baomidou.mybatisplus.core.toolkit.IdWorker.getId());
-                mapper.upsert(e);
-                upserted++;
+            Map<String, Object> normalized = null;
+            if (normalizeWeeklyAfterSync && "msku".equalsIgnoreCase(summary)) {
+                normalized = skuDataLayerService.upsertWeeklyFromExistingPerformance(
+                        startDate, endDate, null, archiveWriter.getRunId());
             }
-            fetched += list.size();
+            rawJsonArchiveService.cleanupExpiredFiles();
 
-            if (list.size() < PAGE_SIZE) break;
-            offset += PAGE_SIZE;
-            // 令牌桶容量 1：多店铺间隔 10s，单店铺 1s（文档限流规则）
-            sleep(sids.size() > 1 ? 10_000L : 1_000L);
+            log.info("领星产品表现同步完成：{} 页 / 拉取 {} 条 / upsert {} 条（summary={}, 窗口 {}~{}）",
+                    pages, fetched, upserted, summary, startDate, endDate);
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("pages", pages);
+            r.put("fetched", fetched);
+            r.put("upserted", upserted);
+            r.put("rawArchiveRunId", archiveWriter.getRunId());
+            if (normalized != null) {
+                r.put("normalized", normalized);
+            }
+            return r;
         }
-
-        log.info("领星产品表现同步完成：{} 页 / 拉取 {} 条 / upsert {} 条（summary={}, 窗口 {}~{}）",
-                pages, fetched, upserted, summary, startDate, endDate);
-        Map<String, Object> r = new LinkedHashMap<>();
-        r.put("pages", pages);
-        r.put("fetched", fetched);
-        r.put("upserted", upserted);
-        return r;
     }
 
     private LingxingProductPerformance mapRow(JsonNode row, String summary, String sidScope,

@@ -143,6 +143,9 @@ export interface PerformanceSyncPayload {
   endDate: string
   summaryField?: string
   currencyCode?: string
+  searchField?: string
+  searchValues?: string[]
+  isRecentlyEnum?: boolean
 }
 
 /** 利润同步入参 */
@@ -153,13 +156,47 @@ export interface ProfitSyncPayload {
   currencyCode?: string
 }
 
+export interface SkuPoolPayload {
+  snapshotWeek?: string
+}
+
+export interface SkuPoolSyncPayload extends SkuPoolPayload {
+  startDate: string
+  endDate: string
+  currencyCode?: string
+}
+
+export interface SkuDataLayerBackfillPayload {
+  snapshotWeek?: string
+  snapshotDate?: string
+  startDate?: string
+  endDate?: string
+  yearMonth?: string
+}
+
+export interface SkuWeeklyBackfillPayload {
+  snapshotWeek?: string
+  startDate: string
+  endDate: string
+}
+
+export interface SkuWeeklySyncTargetPoolPayload extends SkuWeeklyBackfillPayload {
+  currencyCode?: string
+  marketplace?: 'UK' | 'DE'
+  sid?: number
+}
+
+export interface SkuMonthlyRebuildPayload {
+  yearMonth: string
+}
+
 /** Result<T> 包装解包：拦截器返回整个 {code,message,data}，业务层只需 data */
 function unwrap<T>(p: Promise<any>): Promise<T> {
   return p.then((res) => res?.data as T)
 }
 
 export const lingxingProductApi = {
-  /** 手动触发：全量同步领星本地产品到库（分页拉取 + 幂等 upsert，可能耗时数分钟） */
+  /** 全量同步领星本地产品到库（分页拉取 + 幂等 upsert，可能耗时数分钟） */
   syncLocalProducts(): Promise<SyncResult> {
     return unwrap<SyncResult>(
       request({
@@ -216,7 +253,7 @@ export const lingxingProductApi = {
     )
   },
 
-  /** 手动触发：同步领星亚马逊店铺列表（sid 来源，一次性返回全部授权店铺） */
+  /** 同步领星亚马逊店铺列表（sid 来源，一次性返回全部授权店铺） */
   syncSellers(): Promise<SellerSyncResult> {
     return unwrap<SellerSyncResult>(
       request({
@@ -237,7 +274,7 @@ export const lingxingProductApi = {
     ).then((d) => (Array.isArray(d) ? d : []))
   },
 
-  /** 手动触发：按店铺+时间窗(≤92天)同步产品表现 */
+  /** 按店铺+时间窗(≤92天)同步产品表现 */
   syncProductPerformance(payload: PerformanceSyncPayload): Promise<ReportSyncResult> {
     return unwrap<ReportSyncResult>(
       request({
@@ -264,7 +301,121 @@ export const lingxingProductApi = {
     )
   },
 
-  /** 手动触发：按店铺+时间窗(≤7天)同步利润统计-ASIN */
+  /** 从已落库产品表现 raw_json.tag_set 自动重建 UK/DE 6 标签 SKU 池 */
+  rebuildSkuPool(payload: SkuPoolPayload = {}): Promise<any> {
+    return unwrap<any>(
+      request({
+        url: '/api/v1/modules/lingxing/sku-pool/rebuild',
+        method: 'post',
+        data: payload,
+        timeout: 600000
+      })
+    )
+  },
+
+  /** 串行同步 UK/DE 全量 SKU 产品表现后，自动重建 6 标签 SKU 池 */
+  syncUkDeSkuAndRebuild(payload: SkuPoolSyncPayload): Promise<any> {
+    return unwrap<any>(
+      request({
+        url: '/api/v1/modules/lingxing/sku-pool/sync-uk-de-and-rebuild',
+        method: 'post',
+        data: payload,
+        timeout: 1800000
+      })
+    )
+  },
+
+  /** 查看 UK/DE 6 标签 SKU 池统计 */
+  getSkuPoolStats(snapshotWeek?: string): Promise<any> {
+    return unwrap<any>(
+      request({
+        url: '/api/v1/modules/lingxing/sku-pool/stats',
+        method: 'get',
+        params: snapshotWeek ? { snapshotWeek } : {}
+      })
+    )
+  },
+
+  /** 分页查看 UK/DE 6 标签 SKU 池 */
+  listSkuPool(params: {
+    snapshotWeek?: string
+    marketplace?: string
+    sku?: string
+    current?: number
+    size?: number
+  } = {}): Promise<any> {
+    return unwrap<any>(
+      request({
+        url: '/api/v1/modules/lingxing/sku-pool',
+        method: 'get',
+        params
+      })
+    )
+  },
+
+  /** 从现有真实领星表回填规范 SKU 数据层 */
+  backfillSkuDataLayer(payload: SkuDataLayerBackfillPayload = {}): Promise<any> {
+    return unwrap<any>(
+      request({
+        url: '/api/v1/modules/lingxing/sku-data-layer/backfill-existing',
+        method: 'post',
+        data: payload,
+        timeout: 1800000
+      })
+    )
+  },
+
+  /** 从现有产品表现表回填 SKU 周数据规范表 */
+  backfillSkuWeekly(payload: SkuWeeklyBackfillPayload): Promise<any> {
+    return unwrap<any>(
+      request({
+        url: '/api/v1/modules/lingxing/sku-data-layer/weekly/backfill-existing',
+        method: 'post',
+        data: payload,
+        timeout: 1200000
+      })
+    )
+  },
+
+  /** 从目标 SKU 池反查有用店铺，按国家分组同步一周 MSKU 表现 */
+  syncSkuWeeklyFromTargetPool(payload: SkuWeeklySyncTargetPoolPayload): Promise<any> {
+    return unwrap<any>(
+      request({
+        url: '/api/v1/modules/lingxing/sku-data-layer/weekly/sync-target-pool',
+        method: 'post',
+        data: payload,
+        timeout: 1800000
+      })
+    )
+  },
+
+  /** 从 SKU 周数据规范表聚合生成 SKU 月数据规范表 */
+  rebuildSkuMonthly(payload: SkuMonthlyRebuildPayload): Promise<any> {
+    return unwrap<any>(
+      request({
+        url: '/api/v1/modules/lingxing/sku-data-layer/monthly/rebuild',
+        method: 'post',
+        data: payload,
+        timeout: 600000
+      })
+    )
+  },
+
+  /** 查看领星 SKU 规范数据层统计 */
+  getSkuDataLayerStats(snapshotWeek?: string, yearMonth?: string): Promise<any> {
+    return unwrap<any>(
+      request({
+        url: '/api/v1/modules/lingxing/sku-data-layer/stats',
+        method: 'get',
+        params: {
+          ...(snapshotWeek ? { snapshotWeek } : {}),
+          ...(yearMonth ? { yearMonth } : {})
+        }
+      })
+    )
+  },
+
+  /** 按店铺+时间窗(≤7天)同步利润统计-ASIN */
   syncProfitAsin(payload: ProfitSyncPayload): Promise<ReportSyncResult> {
     return unwrap<ReportSyncResult>(
       request({
