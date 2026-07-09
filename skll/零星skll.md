@@ -29,20 +29,20 @@ curl -s -X POST http://localhost:8002/api/v1/modules/lingxing/ping
 
 > **重要：UK 和 DE 必须串行执行**，不要同时跑。两个请求会抢领星令牌桶，触发限流 3001008。
 
-#### 同步 UK（mid=4，115 家店铺）
+#### 同步 UK（mid=4，status 1/2 店铺）
 
 ```bash
-UK=$(docker exec dev-mysql mysql -uroot -proot -N -B -e "SELECT GROUP_CONCAT(sid ORDER BY sid SEPARATOR ',') FROM sijuelishi_dev.lingxing_seller WHERE status=1 AND mid=4")
+UK=$(docker exec dev-mysql mysql -uroot -proot -N -B -e "SELECT GROUP_CONCAT(sid ORDER BY sid SEPARATOR ',') FROM sijuelishi_dev.lingxing_seller WHERE status IN (1,2) AND mid=4")
 
 curl -s -X POST http://localhost:8002/api/v1/modules/lingxing/product-performance/sync \
   -H "Content-Type: application/json" \
   -d "{\"sids\":[$UK],\"startDate\":\"$(date +'%Y-%m-%d' -d '7 days ago')\",\"endDate\":\"$(date +'%Y-%m-%d')\",\"summaryField\":\"asin\"}"
 ```
 
-#### 等待完成后，再同步 DE（mid=5，115 家店铺）
+#### 等待完成后，再同步 DE（mid=5，status 1/2 店铺）
 
 ```bash
-DE=$(docker exec dev-mysql mysql -uroot -proot -N -B -e "SELECT GROUP_CONCAT(sid ORDER BY sid SEPARATOR ',') FROM sijuelishi_dev.lingxing_seller WHERE status=1 AND mid=5")
+DE=$(docker exec dev-mysql mysql -uroot -proot -N -B -e "SELECT GROUP_CONCAT(sid ORDER BY sid SEPARATOR ',') FROM sijuelishi_dev.lingxing_seller WHERE status IN (1,2) AND mid=5")
 
 curl -s -X POST http://localhost:8002/api/v1/modules/lingxing/product-performance/sync \
   -H "Content-Type: application/json" \
@@ -76,28 +76,29 @@ curl -s -X POST http://localhost:8002/api/v1/modules/lingxing/product-performanc
 推荐来源：
 
 ```text
-优先验证 lingxing_local_product.raw_json.global_tags 是否包含这 6 个目标标签；若包含，用它建 SKU 池。
-如果本地产品标签不全，则先走领星后台按标签筛选导出，再导入 product_performance_actual 作为 SKU 池来源。
-产品表现 API 只负责拉每日经营表现，不作为稳定标签来源。
+主来源：lingxing_product_performance.raw_json.tag_set。
+筛选键：6 个目标标签的 global_tag_id。
+补充来源：lingxing_local_product 只补开发人、成本、图片、状态等主数据。
 ```
 
 执行口径：
 
 ```text
-1. 每周同步/增量更新领星本地产品 productList。
-2. 先抽样核对 raw_json.global_tags 是否能覆盖 6 个目标标签。
-3. 若能覆盖，从 global_tags 中筛选 6 个目标标签，得到目标 SKU 集合。
-4. 若不能覆盖，用领星后台按标签导出 + product_performance_actual 导入结果形成 SKU 集合。
-5. 保存 SKU 池，记录 SKU、标签来源、开发人、状态、创建时间、更新时间、成本、图片等主数据。
-6. 对比上周 SKU 池，识别新增、移除、标签变化、状态变化。
+1. 同步 UK + DE 产品表现，summary_field=sku。
+2. 展开 lingxing_product_performance.raw_json.tag_set。
+3. 按 6 个 global_tag_id 自动筛出目标 SKU。
+4. 展开 `raw_json.price_list[*]`，按 `price_list.mid` 限定 UK(mid=4)、DE(mid=5)。
+5. JOIN lingxing_local_product 补开发人、成本、图片、状态等主数据。
+6. UPSERT sku_pool，记录 snapshot_week。
+7. 对比上周 SKU 池，识别新增、移除、标签变化、状态变化。
 ```
 
 注意：
 
 ```text
-产品表现接口不能直接按标签请求。官方文档里有 tag_set 返回字段，但当前实测同步表没有结构化 listing_tags，且不能把它当稳定筛选条件。
-因此不能指望领星产品表现直接“只返回这 6 个标签”。
-正确做法是先在本地形成目标 SKU 池，再按 SKU 查每日表现。
+产品表现接口不能直接按标签请求，但响应里的 tag_set 已落在 raw_json。
+正确做法是先同步产品表现，再在本地按 tag_set.global_tag_id 自动筛 SKU 池。
+SKU 池形成后，再按 SKU 查每日表现。
 ```
 
 #### 第二部分：每天更新 SKU 日表现
@@ -151,40 +152,64 @@ curl -s -X POST http://localhost:8002/api/v1/modules/lingxing/product-performanc
 
 ```text
 1. 标签可信性取决于领星后台标签维护是否及时；需要每周对比标签变化。
-2. productList 的 global_tags 是产品标签，productPerformance 官方文档里的 tag_set 是 Listing 标签，两者可能不是完全同一口径。
-3. 当前 API 同步表 lingxing_product_performance 没有 listing_tags 结构化列，标签筛选不能直接读这张表。
-4. 如果 global_tags 不能稳定覆盖目标标签，SKU 池必须先用 product_performance_actual 这条后台导出链路兜底。
+2. productList 的 global_tags 是产品标签，productPerformance 的 tag_set 是 Listing 标签，SKU 池以 tag_set 为准。
+3. `lingxing_product_performance` 没有结构化 listing_tags 列，筛选时读取 raw_json.tag_set。
+4. 筛选优先使用 global_tag_id，tag_name 只作为展示和兜底。
 5. 产品表现按天查询是双闭区间 start_date=end_date，但领星侧结算/广告/退货可能存在延迟回写。
 6. 历史回补 2026-01-01~2026-07-09 共 190 天，6000 SKU 约 120 批/天/国家，UK+DE 约 45600 次请求，按多店铺 10 秒限流理论下限约 5.3 天。
 7. 若 SKU 同时存在多店铺/多 MSKU，summary_field=sku 需要保留 sid_scope/raw_json，避免把跨店铺数据混成一行后无法追溯。
 8. 日快照表必须幂等，可重跑同一天同一批，不应重复累计。
+9. SKU 池全量同步必须传 `is_recently_enum=false`，否则领星默认只查活跃商品，会漏掉淘汰 SKU。
+10. SKU 池站点口径取 `raw_json.price_list[*].mid`，不要用历史 `sid_scope`，因为旧 ASIN 聚合数据里可能是多店铺 sid 拼接。
 ```
 
 ### 3. 查询目标标签商品数（验证）
 
-同步后通过以下 6 个标签筛选：
+同步后通过以下 6 个标签 ID 筛选：
 
-| 标签 | HEX 编码 |
-|------|---------|
-| 绿标 | E7BBBFE6A087 |
-| 欧洲精铺2025 | E6ACA7E6B4B2E7B2BEE993BA32303235 |
-| 欧洲精铺2025非标品 | E6ACA7E6B4B2E7B2BEE993BA32303235E99D9EE6A087E59381 |
-| 欧洲精铺2025季节性断货 | E6ACA7E6B4B2E7B2BEE993BA32303235E5ADA3E88A82E680A7E696ADE8B4A7 |
-| 欧洲精铺2025待淘汰 | E6ACA7E6B4B2E7B2BEE993BA32303235E5BE85E6B798E6B1B0 |
-| 欧洲精铺2025淘汰 | E6ACA7E6B4B2E7B2BEE993BA32303235E6B798E6B1B0 |
+| 标签 | global_tag_id |
+|------|---------------|
+| 绿标 | 907657425150046095 |
+| 欧洲精铺2025 | 907563170455592213 |
+| 欧洲精铺2025非标品 | 907654877317203632 |
+| 欧洲精铺2025季节性断货 | 907596133278666918 |
+| 欧洲精铺2025待淘汰 | 907585847123066054 |
+| 欧洲精铺2025淘汰 | 907585631391968576 |
 
 ```sql
-SELECT COUNT(DISTINCT asin)
-FROM lingxing_product_performance
-WHERE raw_json LIKE CONCAT('%', UNHEX('E6ACA7E6B4B2E7B2BEE993BA32303235'), '%')
-   OR raw_json LIKE CONCAT('%', UNHEX('E7BBBFE6A087'), '%')
-   OR raw_json LIKE CONCAT('%', UNHEX('E6ACA7E6B4B2E7B2BEE993BA32303235E6B798E6B1B0'), '%')
-   OR raw_json LIKE CONCAT('%', UNHEX('E6ACA7E6B4B2E7B2BEE993BA32303235E99D9EE6A087E59381'), '%')
-   OR raw_json LIKE CONCAT('%', UNHEX('E6ACA7E6B4B2E7B2BEE993BA32303235E5ADA3E88A82E680A7E696ADE8B4A7'), '%')
-   OR raw_json LIKE CONCAT('%', UNHEX('E6ACA7E6B4B2E7B2BEE993BA32303235E5BE85E6B798E6B1B0'), '%');
+SELECT pl.mid, COUNT(DISTINCT pl.local_sku) AS sku_count
+FROM lingxing_product_performance p
+JOIN JSON_TABLE(
+  p.raw_json,
+  '$.tag_set[*]'
+  COLUMNS (
+    global_tag_id VARCHAR(64) PATH '$.global_tag_id',
+    tag_name VARCHAR(255) PATH '$.tag_name'
+  )
+) jt
+JOIN JSON_TABLE(
+  p.raw_json,
+  '$.price_list[*]'
+  COLUMNS (
+    local_sku VARCHAR(128) PATH '$.local_sku',
+    mid VARCHAR(16) PATH '$.mid'
+  )
+) pl
+WHERE pl.mid IN ('4', '5')
+  AND pl.local_sku IS NOT NULL
+  AND pl.local_sku <> ''
+  AND jt.global_tag_id IN (
+    '907657425150046095',
+    '907563170455592213',
+    '907654877317203632',
+    '907596133278666918',
+    '907585847123066054',
+    '907585631391968576'
+  )
+GROUP BY pl.mid;
 ```
 
-正常结果：UK+DE 合计约 **6,000+** 个独立 ASIN。
+当前 dev 库结果（2026-07-09，全量 `is_recently_enum=false`，并补入前台可见 `status=2` 店铺后）：UK **5,573** 个 `sku+marketplace`，DE **647** 个 `sku+marketplace`，合计 **6,220**；去重 SKU **5,870**。与前台 `sku.md` 的 `SKU+店铺+国家` 口径对比，缺口为 **0**。
 
 ## 时间预估
 
@@ -196,31 +221,30 @@ WHERE raw_json LIKE CONCAT('%', UNHEX('E6ACA7E6B4B2E7B2BEE993BA32303235'), '%')
 | 容错缓冲（可能的限流重试） | ~3 分 |
 | **合计** | **~10 分钟** |
 
-> 如果触发限流 3001008，代码会自动重试（最多 5 次，每次等 15s），耗时可能延长到 15~20 分钟。
-> 如果触发 103（请勿频繁请求），需要人工等 30 秒后重新跑该国家的同步。
+> 如果触发限流或网络超时，代码会自动退避重试（最多 8 次，每次等 30s × attempt），耗时可能延长到 15~30 分钟。
 
 ## 常见问题
 
-### 限流 3001008
-已自动处理，无需人工介入。如果连续重试 5 次仍失败，等 30 秒后重新跑该国家。
+### 限流 3001008 / 103
+已自动处理。连续重试 8 次仍失败时，任务返回失败并保留已落库数据，下次可重跑同一时间窗。
 
-### 限流 103（请勿频繁请求）
-人工处理：**不要并行跑 UK 和 DE**。等 30 秒后重试。
+### 网络超时
+已自动处理为临时失败重试。重跑同一时间窗是幂等 upsert，不会重复累计。
 
 ### 同步成功但数据量明显偏少
 检查：
 1. 时间窗是否太短（建议 ≥7 天）
-2. 店铺列表是否完整（`SELECT COUNT(*) FROM lingxing_seller WHERE status=1 AND mid=4` 应为 115 家）
+2. 店铺列表是否完整（SKU 池口径使用 `status IN (1,2)`；2026-07-09 dev 库 UK=143 家、DE=140 家）
 3. 领星凭证是否有对应权限
 
 ### 标签名称变了
 如果领星后台改了标签名称（如 "欧洲精铺2025" → "欧洲精铺2026"），需要更新：
-1. 本手册的 HEX 编码对照表
-2. 查询 SQL 里的 HEX 条件
+1. 展示文案
+2. 必要时更新 tag_id 白名单
 
 ## 参考
 
 - `LingxingClient.java` — 限流自动重试逻辑（`sendWithRetry` 方法）
 - `LingxingProductPerformanceSyncService.java` — 同步服务
 - `lingxing_product_performance` 表 — 唯一键 `uk_biz_key`（SHA-256 幂等键）
-- `lingxing_local_product` 表 — 36,848 条本地产品（产品标签 `global_tags`）
+- `sku_pool` 表 — UK/DE 6 标签 SKU 池
