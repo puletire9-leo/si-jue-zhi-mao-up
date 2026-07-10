@@ -159,17 +159,19 @@ public class LingxingClient {
                 + "&app_key=" + enc(configService.getAppId())
                 + "&timestamp=" + timestamp
                 + "&sign=" + enc(sign);
+        String payload;
         try {
-            HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .header("Content-Type", "application/json")
-                    .timeout(config.getReadTimeout())
-                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(bodyNode)))
-                    .build();
-            return send(req);
+            payload = objectMapper.writeValueAsString(bodyNode);
         } catch (Exception e) {
             throw new RuntimeException("领星请求序列化失败: " + e.getMessage(), e);
         }
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", "application/json")
+                .timeout(config.getReadTimeout())
+                .POST(HttpRequest.BodyPublishers.ofString(payload))
+                .build();
+        return send(req);
     }
 
     /**
@@ -258,8 +260,8 @@ public class LingxingClient {
         return hex.toString();
     }
 
-    private static final int RATE_LIMIT_RETRIES = 5;
-    private static final long RATE_LIMIT_BACKOFF_MS = 15_000L;
+    private static final int RATE_LIMIT_RETRIES = 8;
+    private static final long RATE_LIMIT_BACKOFF_MS = 30_000L;
 
     // ============================================================
     // HTTP 底层
@@ -275,12 +277,10 @@ public class LingxingClient {
             JsonNode body = objectMapper.readTree(resp.body());
             // 领星错误：code 非 0/200 视为失败（业务接口 code=0，token 接口 code="200"）
             String code = body.path("code").asText("");
-            if ("3001008".equals(code)) {
-                // 令牌桶限流：等待后重试
+            if (isRateLimitCode(code)) {
+                // 令牌桶限流：等待后重试。领星不同接口会返回 3001008 或 103。
                 if (attempt < RATE_LIMIT_RETRIES) {
-                    long wait = RATE_LIMIT_BACKOFF_MS * (attempt + 1);
-                    log.warn("领星限流(3001008)，第{}次重试，等待{}ms", attempt + 1, wait);
-                    try { Thread.sleep(wait); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                    waitBeforeRetry("领星限流(" + code + ")", attempt);
                     return sendWithRetry(req, attempt + 1);
                 }
                 throw new RuntimeException("领星 API 限流，重试" + RATE_LIMIT_RETRIES + "次后仍失败");
@@ -292,11 +292,27 @@ public class LingxingClient {
                         + " (request_id: " + body.path("request_id").asText("") + ")");
             }
             return body;
-        } catch (RuntimeException e) {
-            throw e;
         } catch (Exception e) {
+            if (attempt < RATE_LIMIT_RETRIES) {
+                waitBeforeRetry("领星 API 临时失败: " + e.getMessage(), attempt);
+                return sendWithRetry(req, attempt + 1);
+            }
             throw new RuntimeException("领星 API 调用失败: " + e.getMessage(), e);
         }
+    }
+
+    private void waitBeforeRetry(String reason, int attempt) {
+        long wait = RATE_LIMIT_BACKOFF_MS * (attempt + 1);
+        log.warn("{}，第{}次重试，等待{}ms", reason, attempt + 1, wait);
+        try {
+            Thread.sleep(wait);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private boolean isRateLimitCode(String code) {
+        return "3001008".equals(code) || "103".equals(code);
     }
 
     private String enc(String s) {

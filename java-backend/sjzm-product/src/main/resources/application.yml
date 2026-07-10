@@ -112,4 +112,4 @@ resilience4j.circuitbreaker:
 logging:
   level:
     root: info
-    com.sjzm.product: debug
+    com.sjzm.product: info

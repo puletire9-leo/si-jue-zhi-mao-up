@@ -21,6 +21,8 @@ import com.sjzm.product.modules.lingxing.service.LingxingProductPerformanceSyncS
 import com.sjzm.product.modules.lingxing.service.LingxingProfitAsinSyncService;
 import com.sjzm.product.modules.lingxing.service.LingxingSamplingModelService;
 import com.sjzm.product.modules.lingxing.service.LingxingSellerSyncService;
+import com.sjzm.product.modules.lingxing.service.LingxingSkuDataLayerService;
+import com.sjzm.product.modules.lingxing.service.LingxingSkuPoolService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -54,6 +56,8 @@ public class LingxingController {
     private final LingxingProfitAsinSyncService profitSyncService;
     private final LingxingProfitAsinMapper profitMapper;
     private final LingxingSamplingModelService samplingModelService;
+    private final LingxingSkuPoolService skuPoolService;
+    private final LingxingSkuDataLayerService skuDataLayerService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @PostMapping("/ping")
@@ -147,14 +151,117 @@ public class LingxingController {
     // ============================================================
 
     @PostMapping("/product-performance/sync")
-    @Operation(summary = "手动触发：按店铺+时间窗(≤92天)同步产品表现（双写 + 维度组合键幂等）")
+    @Operation(summary = "按店铺+时间窗(≤92天)同步产品表现（双写 + 维度组合键幂等）。可选 searchField/searchValues 按 SKU 筛选（searchValues 上限 50）")
     public Result<Map<String, Object>> syncProductPerformance(@RequestBody Map<String, Object> req) {
         List<Long> sids = readLongList(req, "sids");
         String startDate = readStr(req, "startDate");
         String endDate = readStr(req, "endDate");
         String summaryField = readStr(req, "summaryField");
         String currencyCode = readStr(req, "currencyCode");
-        return Result.success(performanceSyncService.sync(sids, startDate, endDate, summaryField, currencyCode));
+        String searchField = readStr(req, "searchField");
+        List<String> searchValues = readStrList(req, "searchValues");
+        Boolean isRecentlyEnum = readBool(req, "isRecentlyEnum");
+        return Result.success(performanceSyncService.sync(sids, startDate, endDate, summaryField, currencyCode,
+                searchField, searchValues, isRecentlyEnum));
+    }
+
+    // ============================================================
+    // 6 标签 SKU 池（全自动）
+    // ============================================================
+
+    @PostMapping("/sku-pool/rebuild")
+    @Operation(summary = "从已落库产品表现 raw_json.tag_set 自动重建 UK/DE 6 标签 SKU 池")
+    public Result<Map<String, Object>> rebuildSkuPool(@RequestBody(required = false) Map<String, Object> req) {
+        String snapshotWeek = req == null ? null : readStr(req, "snapshotWeek");
+        return Result.success(skuPoolService.rebuildFromExistingPerformance(snapshotWeek));
+    }
+
+    @PostMapping("/sku-pool/sync-uk-de-and-rebuild")
+    @Operation(summary = "串行同步 UK/DE 全量 SKU 产品表现后，自动重建 6 标签 SKU 池")
+    public Result<Map<String, Object>> syncUkDeSkuAndRebuild(@RequestBody Map<String, Object> req) {
+        String startDate = readStr(req, "startDate");
+        String endDate = readStr(req, "endDate");
+        String currencyCode = readStr(req, "currencyCode");
+        String snapshotWeek = readStr(req, "snapshotWeek");
+        return Result.success(skuPoolService.syncUkDeSkuPerformanceAndRebuild(
+                startDate, endDate, currencyCode, snapshotWeek));
+    }
+
+    @GetMapping("/sku-pool/stats")
+    @Operation(summary = "查看 UK/DE 6 标签 SKU 池统计")
+    public Result<Map<String, Object>> skuPoolStats(@RequestParam(required = false) String snapshotWeek) {
+        return Result.success(skuPoolService.stats(snapshotWeek));
+    }
+
+    @GetMapping("/sku-pool")
+    @Operation(summary = "分页查看 UK/DE 6 标签 SKU 池")
+    public Result<Map<String, Object>> listSkuPool(
+            @RequestParam(required = false) String snapshotWeek,
+            @RequestParam(required = false) String marketplace,
+            @RequestParam(required = false) String sku,
+            @RequestParam(defaultValue = "1") int current,
+            @RequestParam(defaultValue = "50") int size) {
+        return Result.success(skuPoolService.list(snapshotWeek, marketplace, sku, current, size));
+    }
+
+    @PostMapping("/sku-data-layer/backfill-existing")
+    @Operation(summary = "从现有真实领星表回填规范 SKU 数据层（全量快照/目标池/可选周月表）")
+    public Result<Map<String, Object>> backfillSkuDataLayer(@RequestBody(required = false) Map<String, Object> req) {
+        Map<String, Object> body = req == null ? Map.of() : req;
+        String snapshotWeek = readStr(body, "snapshotWeek");
+        String snapshotDate = readStr(body, "snapshotDate");
+        String startDate = readStr(body, "startDate");
+        String endDate = readStr(body, "endDate");
+        String yearMonth = readStr(body, "yearMonth");
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("snapshotAndTargetPool",
+                skuDataLayerService.rebuildSkuSnapshotAndTargetPoolFromExisting(snapshotWeek, snapshotDate));
+        if (StringUtils.hasText(startDate) && StringUtils.hasText(endDate)) {
+            result.put("weekly",
+                    skuDataLayerService.upsertWeeklyFromExistingPerformance(startDate, endDate, snapshotWeek, null));
+        }
+        if (StringUtils.hasText(yearMonth)) {
+            result.put("monthly", skuDataLayerService.rebuildMonthly(yearMonth));
+        }
+        return Result.success(result);
+    }
+
+    @PostMapping("/sku-data-layer/weekly/backfill-existing")
+    @Operation(summary = "从现有产品表现表回填 SKU 周数据规范表")
+    public Result<Map<String, Object>> backfillSkuWeekly(@RequestBody Map<String, Object> req) {
+        return Result.success(skuDataLayerService.upsertWeeklyFromExistingPerformance(
+                readStr(req, "startDate"),
+                readStr(req, "endDate"),
+                readStr(req, "snapshotWeek"),
+                null));
+    }
+
+    @PostMapping("/sku-data-layer/weekly/sync-target-pool")
+    @Operation(summary = "按规范目标 SKU 池反查有用店铺，按店铺同步一周 SKU 产品表现，并写入 SKU 周表")
+    public Result<Map<String, Object>> syncWeeklyFromTargetPool(@RequestBody Map<String, Object> req) {
+        return Result.success(skuDataLayerService.syncWeeklyFromTargetPool(
+                readStr(req, "snapshotWeek"),
+                readStr(req, "startDate"),
+                readStr(req, "endDate"),
+                readStr(req, "currencyCode"),
+                readStr(req, "marketplace"),
+                readLong(req, "sid"),
+                readInt(req, "limitRows"),
+                readInt(req, "batchSize")));
+    }
+
+    @PostMapping("/sku-data-layer/monthly/rebuild")
+    @Operation(summary = "从 SKU 周数据规范表聚合生成 SKU 月数据规范表")
+    public Result<Map<String, Object>> rebuildSkuMonthly(@RequestBody Map<String, Object> req) {
+        return Result.success(skuDataLayerService.rebuildMonthly(readStr(req, "yearMonth")));
+    }
+
+    @GetMapping("/sku-data-layer/stats")
+    @Operation(summary = "查看领星 SKU 规范数据层统计")
+    public Result<Map<String, Object>> skuDataLayerStats(@RequestParam(required = false) String snapshotWeek,
+                                                         @RequestParam(required = false) String yearMonth) {
+        return Result.success(skuDataLayerService.stats(snapshotWeek, yearMonth));
     }
 
     @GetMapping("/product-performance")
@@ -231,5 +338,51 @@ public class LingxingController {
     private String readStr(Map<String, Object> req, String field) {
         Object v = req.get(field);
         return v == null ? null : String.valueOf(v);
+    }
+
+    private List<String> readStrList(Map<String, Object> req, String field) {
+        List<String> out = new ArrayList<>();
+        Object v = req.get(field);
+        if (v instanceof List<?> list) {
+            for (Object item : list) {
+                if (item != null) out.add(String.valueOf(item));
+            }
+        }
+        return out;
+    }
+
+    private Boolean readBool(Map<String, Object> req, String field) {
+        Object v = req.get(field);
+        if (v instanceof Boolean b) return b;
+        if (v == null) return null;
+        String s = String.valueOf(v).trim();
+        if (s.isEmpty()) return null;
+        return Boolean.parseBoolean(s);
+    }
+
+    private Integer readInt(Map<String, Object> req, String field) {
+        Object v = req.get(field);
+        if (v instanceof Number n) return n.intValue();
+        if (v == null) return null;
+        String s = String.valueOf(v).trim();
+        if (s.isEmpty()) return null;
+        try {
+            return Integer.parseInt(s);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private Long readLong(Map<String, Object> req, String field) {
+        Object v = req.get(field);
+        if (v instanceof Number n) return n.longValue();
+        if (v == null) return null;
+        String s = String.valueOf(v).trim();
+        if (s.isEmpty()) return null;
+        try {
+            return Long.parseLong(s);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 }
