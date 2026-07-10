@@ -54,6 +54,7 @@ Java sjzm-product 内的领星 ERP 开放平台对接模块。参照 `产品数�
 | GET `/purchase/stats` | 查看采购事实层统计 |
 | POST `/profit-asin/sync`、GET `/profit-asin` | 利润统计同步 / 分页 |
 | POST `/sampling-model/analyze` | 精铺测品模型分析：基于已落库数据计算 cohort R1/R2 和盈亏平衡试算 |
+| POST `/sampling-model/batch-analyze` | 第一版 SKU 批次模型：按真实 Q1/Q2 采购批次关联周表现并试算 |
 
 产品表现同步入参（sync）走 JSON body：`{sids:[..], startDate, endDate, summaryField?, currencyCode?, searchField?, searchValues?, isRecentlyEnum?}`。`isRecentlyEnum=false` 表示不要只查活跃商品。
 
@@ -183,6 +184,39 @@ Q2 = Q1 之后下一次有效采购单子项 quantity_real
 - `source=performance` 使用产品表现时间窗报表，数据量更全；如果同步窗口重叠，可能重复计入。
 - `source=profit` 使用利润统计逐日数据，更适合严肃财务复盘，但目前需要先补齐 UK/DE 全量利润同步。
 - `cohortMonth` 当前使用 `lingxing_local_product.lx_create_time` 近似 SKU cohort；真正上架日期还未结构化。
+
+### 第一版 SKU 批次模型
+
+`POST /sampling-model/batch-analyze` 使用已落库的采购事实层和 SKU 周事实层：
+
+```json
+{
+  "startDate": "2026-04-01",
+  "endDate": "2026-07-10",
+  "snapshotWeek": "2026-W29",
+  "turnoverUnitsThreshold": 30,
+  "minObservationWeeks": 4,
+  "q1": 20,
+  "q2": 45,
+  "unitMargin": 3.5,
+  "firstBatchLoss": 2.2,
+  "secondBatchLoss": 2.8,
+  "fixedCost": 12000,
+  "detailLimit": 200
+}
+```
+
+第一版规则：
+
+- 只取 `status=9 AND status_shipped=3` 且未删除的采购子项。
+- 每个 SKU 按 `order_time/create_time + order_sn + item_id` 排序，第一批为 Q1，第二批为 Q2。
+- `R1` 使用实际存在 Q2 采购批次的 SKU / 有 Q1 的 SKU。
+- `R2` 使用 Q2 后观察满 `minObservationWeeks` 且累计销量达到阈值的 SKU / 成熟 Q2 SKU。
+- 周表现按 Q2 下单日近似切分；`firstFbaActiveWeek`、`firstSaleWeek`、`stockoutWeek` 仅为周级信号。
+- `sid` 缺失、跨市场混合、Q2 观察期不足等问题写入每个 SKU 的 `dataQualityFlags`。
+- 未提供 `firstBatchLoss` 或 `secondBatchLoss` 时只输出批次/经营统计，不伪造净利润。
+
+该接口是实验性第一版，仍按 SKU 汇总，不能解释店铺级采购归属；实际 FBA 入仓日期、清仓损失和固定成本分摊后续再补。
 
 ## 前端
 

@@ -348,6 +348,13 @@ public class LingxingController {
         return Result.success(samplingModelService.analyze(req));
     }
 
+    @PostMapping("/sampling-model/batch-analyze")
+    @Operation(summary = "精铺测品第一版批次模型：按 Q1/Q2 采购批次关联周表现并试算")
+    public Result<Map<String, Object>> analyzeSamplingBatchModel(
+            @RequestBody(required = false) Map<String, Object> req) {
+        return Result.success(samplingModelService.analyzeBatch(req));
+    }
+
     /** 从请求体解析 Long 数组（如 sids）。缺失/非数组返回空列表。 */
     private List<Long> readLongList(Map<String, Object> req, String field) {
         List<Long> out = new ArrayList<>();

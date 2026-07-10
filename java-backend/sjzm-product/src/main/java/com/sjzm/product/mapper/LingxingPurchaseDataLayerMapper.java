@@ -245,4 +245,72 @@ public interface LingxingPurchaseDataLayerMapper {
             FROM lingxing_purchase_order_item
             """)
     List<Map<String, Object>> stats();
+
+    /** Returns completed, non-deleted purchase batches for the active target SKU pool. */
+    @Select("""
+            <script>
+            SELECT
+              i.sku AS sku,
+              i.order_sn AS orderSn,
+              i.item_id AS itemId,
+              COALESCE(o.order_time, o.create_time) AS orderTime,
+              i.sid AS sid,
+              i.wid AS wid,
+              i.quantity_real AS quantityReal,
+              i.quantity_entry AS quantityEntry,
+              i.quantity_receive AS quantityReceive,
+              o.status AS status,
+              o.status_shipped AS statusShipped
+            FROM lingxing_purchase_order_item i
+            JOIN lingxing_purchase_order o ON o.order_sn = i.order_sn
+            WHERE (i.is_delete IS NULL OR i.is_delete = 0)
+              AND i.quantity_real &gt; 0
+              AND o.status = 9
+              AND o.status_shipped = 3
+              AND COALESCE(o.order_time, o.create_time) &gt;= #{startDate}
+              AND COALESCE(o.order_time, o.create_time) &lt; DATE_ADD(#{endDate}, INTERVAL 1 DAY)
+              AND EXISTS (
+                SELECT 1
+                FROM lingxing_target_sku_pool t
+                WHERE t.snapshot_week = COALESCE(
+                    #{snapshotWeek},
+                    (SELECT MAX(snapshot_week) FROM lingxing_target_sku_pool))
+                  AND t.is_active = 1
+                  AND t.sku = i.sku
+              )
+            ORDER BY i.sku, COALESCE(o.order_time, o.create_time), i.order_sn, i.item_id
+            </script>
+            """)
+    List<Map<String, Object>> selectCompletedPurchaseFacts(@Param("startDate") String startDate,
+                                                            @Param("endDate") String endDate,
+                                                            @Param("snapshotWeek") String snapshotWeek);
+
+    @Select("""
+            SELECT COUNT(DISTINCT sku)
+            FROM lingxing_target_sku_pool
+            WHERE snapshot_week = COALESCE(
+                #{snapshotWeek},
+                (SELECT MAX(snapshot_week) FROM lingxing_target_sku_pool))
+              AND is_active = 1
+            """)
+    Long countActiveTargetSkus(@Param("snapshotWeek") String snapshotWeek);
+
+    @Select("""
+            SELECT
+              sku AS sku,
+              week_start AS weekStart,
+              week_end AS weekEnd,
+              volume AS volume,
+              gross_profit AS grossProfit,
+              afn_fulfillable_quantity AS afnFulfillableQuantity,
+              tags AS tags,
+              sid AS sid,
+              marketplace AS marketplace
+            FROM lingxing_sku_weekly_performance
+            WHERE week_start &lt; DATE_ADD(#{endDate}, INTERVAL 1 DAY)
+              AND week_end &gt;= #{startDate}
+            ORDER BY sku, week_start
+            """)
+    List<Map<String, Object>> selectWeeklyFacts(@Param("startDate") String startDate,
+                                                @Param("endDate") String endDate);
 }

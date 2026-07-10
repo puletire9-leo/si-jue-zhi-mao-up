@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.sjzm.product.mapper.LingxingLocalProductMapper;
 import com.sjzm.product.mapper.LingxingProductPerformanceMapper;
 import com.sjzm.product.mapper.LingxingProfitAsinMapper;
+import com.sjzm.product.mapper.LingxingPurchaseDataLayerMapper;
 import com.sjzm.product.modules.lingxing.entity.LingxingLocalProduct;
 import com.sjzm.product.modules.lingxing.entity.LingxingProductPerformance;
 import com.sjzm.product.modules.lingxing.entity.LingxingProfitAsin;
@@ -45,6 +46,7 @@ public class LingxingSamplingModelService {
     private final LingxingLocalProductMapper localProductMapper;
     private final LingxingProductPerformanceMapper performanceMapper;
     private final LingxingProfitAsinMapper profitAsinMapper;
+    private final LingxingPurchaseDataLayerMapper purchaseDataLayerMapper;
 
     public Map<String, Object> analyze(Map<String, Object> req) {
         Map<String, Object> body = req == null ? Map.of() : req;
@@ -150,6 +152,130 @@ public class LingxingSamplingModelService {
         log.info("精铺测品模型分析完成: source={}, window={}~{}, skuCount={}, hit={}, turned={}, r1={}, r2={}",
                 source, startDate, endDate, skuCount, hitSkuCount, turnedSkuCount, pct(r1), pct(r2));
         return result;
+    }
+
+    /**
+     * First-pass batch analysis. Purchase rows define Q1/Q2; weekly rows only
+     * provide an approximate lifecycle because actual FBA arrival dates are not
+     * available in the current data layer.
+     */
+    public Map<String, Object> analyzeBatch(Map<String, Object> req) {
+        Map<String, Object> body = req == null ? Map.of() : req;
+        LocalDate endDate = readDate(body, "endDate", LocalDate.now());
+        LocalDate startDate = readDate(body, "startDate", endDate.minusDays(180));
+        if (endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException("endDate 不能早于 startDate");
+        }
+
+        String snapshotWeek = readString(body, "snapshotWeek", null);
+        BigDecimal scenarioQ1 = readDecimal(body, "q1", null);
+        BigDecimal scenarioQ2 = readDecimal(body, "q2", null);
+        int thresholdDefault = scenarioQ1 != null && scenarioQ2 != null
+                ? scenarioQ1.add(scenarioQ2).setScale(0, RoundingMode.CEILING).intValue()
+                : 30;
+        int turnoverThreshold = readInt(body, "turnoverUnitsThreshold", thresholdDefault);
+        int minObservationWeeks = readInt(body, "minObservationWeeks", 4);
+        BigDecimal unitMargin = readDecimal(body, "unitMargin", null);
+        BigDecimal firstBatchLoss = readDecimal(body, "firstBatchLoss", null);
+        BigDecimal secondBatchLoss = readDecimal(body, "secondBatchLoss", null);
+        BigDecimal fixedCost = readDecimal(body, "fixedCost", BigDecimal.ZERO);
+
+        List<LingxingBatchModelCalculator.PurchaseFact> purchases = purchaseDataLayerMapper
+                .selectCompletedPurchaseFacts(startDate.toString(), endDate.toString(), snapshotWeek)
+                .stream().map(this::toPurchaseFact).toList();
+        List<LingxingBatchModelCalculator.WeeklyFact> weeklyFacts = purchaseDataLayerMapper
+                .selectWeeklyFacts(startDate.toString(), endDate.toString())
+                .stream().map(this::toWeeklyFact).toList();
+        Long targetSkuCount = purchaseDataLayerMapper.countActiveTargetSkus(snapshotWeek);
+
+        LingxingBatchModelCalculator.Parameters parameters = new LingxingBatchModelCalculator.Parameters(
+                turnoverThreshold, minObservationWeeks, scenarioQ1, scenarioQ2, unitMargin,
+                firstBatchLoss, secondBatchLoss, fixedCost);
+        Map<String, Object> result = new LinkedHashMap<>(
+                new LingxingBatchModelCalculator().calculate(purchases, weeklyFacts,
+                        targetSkuCount == null ? 0 : targetSkuCount, parameters));
+        result.put("window", mapOf(
+                "startDate", startDate.toString(),
+                "endDate", endDate.toString(),
+                "snapshotWeek", snapshotWeek,
+                "purchaseSource", "completed purchase orders: status=9 and status_shipped=3",
+                "performanceSource", "lingxing_sku_weekly_performance"));
+        result.put("limitations", List.of(
+                "采购子项 sid 缺失时按 SKU 汇总，不能证明店铺级归属。",
+                "Q2 后表现按采购下单日切分，实际 FBA 入仓日尚未接入。",
+                "未传淘汰损失时不输出净利润，避免把采购成本冒充清仓损失。"));
+
+        int detailLimit = readInt(body, "detailLimit", 200);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.get("rows");
+        int totalRows = rows.size();
+        int safeLimit = Math.max(0, Math.min(detailLimit, totalRows));
+        result.put("rowsTotal", totalRows);
+        result.put("rowsReturned", safeLimit);
+        result.put("rows", new ArrayList<>(rows.subList(0, safeLimit)));
+        return result;
+    }
+
+    private LingxingBatchModelCalculator.PurchaseFact toPurchaseFact(Map<String, Object> row) {
+        return new LingxingBatchModelCalculator.PurchaseFact(
+                text(row.get("sku")), text(row.get("orderSn")), longValue(row.get("itemId")),
+                dateTime(row.get("orderTime")), longValue(row.get("sid")), longValue(row.get("wid")),
+                integerValue(row.get("quantityReal")), integerValue(row.get("quantityEntry")),
+                integerValue(row.get("quantityReceive")), integerValue(row.get("status")),
+                integerValue(row.get("statusShipped")));
+    }
+
+    private LingxingBatchModelCalculator.WeeklyFact toWeeklyFact(Map<String, Object> row) {
+        return new LingxingBatchModelCalculator.WeeklyFact(
+                text(row.get("sku")), dateValue(row.get("weekStart")), dateValue(row.get("weekEnd")),
+                integerValue(row.get("volume")), decimalValue(row.get("grossProfit")),
+                integerValue(row.get("afnFulfillableQuantity")), text(row.get("tags")),
+                longValue(row.get("sid")), text(row.get("marketplace")));
+    }
+
+    private String text(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private Long longValue(Object value) {
+        if (value == null) return null;
+        if (value instanceof Number number) return number.longValue();
+        try {
+            return Long.valueOf(String.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private Integer integerValue(Object value) {
+        Long number = longValue(value);
+        return number == null ? null : number.intValue();
+    }
+
+    private BigDecimal decimalValue(Object value) {
+        if (value == null) return null;
+        if (value instanceof BigDecimal decimal) return decimal;
+        if (value instanceof Number number) return BigDecimal.valueOf(number.doubleValue());
+        try {
+            return new BigDecimal(String.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private LocalDate dateValue(Object value) {
+        if (value == null) return null;
+        if (value instanceof LocalDate date) return date;
+        if (value instanceof java.sql.Date date) return date.toLocalDate();
+        return LocalDate.parse(String.valueOf(value));
+    }
+
+    private java.time.LocalDateTime dateTime(Object value) {
+        if (value == null) return null;
+        if (value instanceof java.time.LocalDateTime dateTime) return dateTime;
+        if (value instanceof java.sql.Timestamp timestamp) return timestamp.toLocalDateTime();
+        String text = String.valueOf(value).replace(' ', 'T');
+        return java.time.LocalDateTime.parse(text);
     }
 
     private List<LingxingLocalProduct> loadLocalProducts(String cohortMonth, String targetTag) {
