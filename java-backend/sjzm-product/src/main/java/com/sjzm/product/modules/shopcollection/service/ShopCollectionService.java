@@ -2,18 +2,29 @@ package com.sjzm.product.modules.shopcollection.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.sjzm.common.PageResult;
+import com.sjzm.product.methodrule.M01Rule;
 import com.sjzm.product.modules.analysisbaseline.common.MarketplaceSupport;
 import com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileProduct;
 import com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileSummary;
 import com.sjzm.product.modules.analysisbaseline.shopprofile.mapper.ShopProfileMapper;
 import com.sjzm.product.modules.shopcandidate.entity.ShopFetchRun;
 import com.sjzm.product.modules.shopcandidate.mapper.ShopFetchRunMapper;
+import com.sjzm.product.modules.shopcollection.dto.ShopAgeBucketStat;
+import com.sjzm.product.modules.shopcollection.dto.ShopCategoryInsight;
+import com.sjzm.product.modules.shopcollection.dto.ShopCategoryRiskInsight;
 import com.sjzm.product.modules.shopcollection.dto.ShopCollectionDetail;
+import com.sjzm.product.modules.shopcollection.dto.ShopCollectionInsight;
+import com.sjzm.product.modules.shopcollection.dto.ShopMatrix;
+import com.sjzm.product.modules.shopcollection.dto.ShopMatrixCell;
 import com.sjzm.product.modules.shopcollection.dto.ShopSnapshot;
+import com.sjzm.product.modules.shopcollection.dto.ShopTierAgeCategoryCell;
+import com.sjzm.product.modules.shopcollection.dto.ShopTierInsight;
 import com.sjzm.product.modules.shopcollection.entity.ShopProduct;
 import com.sjzm.product.modules.shopcollection.entity.ShopWatchlist;
 import com.sjzm.product.modules.shopcollection.mapper.ShopProductMapper;
 import com.sjzm.product.modules.shopcollection.mapper.ShopWatchlistMapper;
+import com.sjzm.product.modules.shopcollection.rule.ShopProfileLabelRule;
+import com.sjzm.product.modules.shopcollection.rule.ShopProfileLabelRule.CategoryLabel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -33,8 +44,14 @@ public class ShopCollectionService {
     private final ShopProductMapper shopProductMapper;
     private final ShopWatchlistMapper watchlistMapper;
     private final ShopFetchRunMapper fetchRunMapper;
+    private final ShopProfileLabelRule labelRule;
 
     private static final Set<String> SUCCESS_STATUSES = Set.of("SUCCESS", "PARTIAL_SUCCESS");
+
+    private static final List<String> TIER_ORDER = List.of("A", "B", "C", "D", "UNKNOWN");
+    private static final List<String> AGE_ORDER = List.of("NEW", "GROWING", "MATURE", "OLD", "UNKNOWN");
+    private static final List<String> ATTENTION_ORDER =
+            List.of("GOOD_TENDENCY", "NEUTRAL", "ATTENTION_REVIEW", "ATTENTION_STRONG", "UNKNOWN");
 
     // ========================================================================
     //  快照解析与列表
@@ -384,6 +401,72 @@ public class ShopCollectionService {
     // ========================================================================
 
     /** 单店全景：观察池进入原因 + 全集 A/B/C/D 画像 + 类目结构。 */
+    public ShopCollectionInsight insight(String marketplace, String sellerName, String sourceRunId, String batchCode) {
+        String mp = MarketplaceSupport.require(marketplace);
+        String seller = requireText(sellerName, "sellerName cannot be blank");
+        ShopSnapshot snapshot = resolveSnapshot(mp, seller, sourceRunId, batchCode);
+        M01Rule rule = M01Rule.forMarketplace(mp);
+
+        ShopProfileSummary profile = shopProfileMapper.selectShopInsightOverviewFromShopProducts(
+                mp, seller, snapshot.batchDate(), snapshot.sourceRunId(),
+                rule.priceMin(), rule.priceMax(), rule.weightMax(), rule.listingDaysMax(),
+                rule.sales30(), rule.sales60(), rule.sales90(), rule.bsrMax());
+        if (profile == null) {
+            throw new IllegalArgumentException("shop snapshot has no product rows: marketplace=" + mp
+                    + ", sellerName=" + seller + ", sourceRunId=" + snapshot.sourceRunId());
+        }
+        completeSummary(profile);
+
+        List<ShopTierInsight> tierStats = shopProfileMapper.selectTierInsightsFromShopProducts(
+                mp, seller, snapshot.batchDate(), snapshot.sourceRunId(),
+                rule.priceMin(), rule.priceMax(), rule.weightMax(), rule.listingDaysMax(),
+                rule.sales30(), rule.sales60(), rule.sales90(), rule.bsrMax());
+        List<ShopCategoryInsight> categoryStats = shopProfileMapper.selectCategoryInsightsFromShopProducts(
+                mp, seller, snapshot.batchDate(), snapshot.sourceRunId(),
+                rule.priceMin(), rule.priceMax(), rule.weightMax(), rule.listingDaysMax(),
+                rule.sales30(), rule.sales60(), rule.sales90(), rule.bsrMax());
+
+        categoryStats.forEach(this::attachRisk);
+
+        List<ShopTierAgeCategoryCell> cells = shopProfileMapper.selectTierAgeCategoryCellsFromShopProducts(
+                mp, seller, snapshot.batchDate(), snapshot.sourceRunId(),
+                rule.priceMin(), rule.priceMax(), rule.weightMax(), rule.listingDaysMax(),
+                rule.sales30(), rule.sales60(), rule.sales90(), rule.bsrMax());
+        cells.forEach(this::attachCellAttention);
+
+        ShopCollectionInsight insight = new ShopCollectionInsight();
+        insight.setSnapshot(snapshot);
+        insight.setProfile(profile);
+        insight.setMethodId("M01");
+        insight.setM01HitCount(nvl(profile.getM01HitCount()));
+        insight.setM01HitRatio(profile.getM01HitRatio());
+        insight.setEarliestAvailableDate(profile.getEarliestAvailableDate());
+        insight.setEarliestAvailableDateText(profile.getEarliestAvailableDateText());
+        insight.setMaxListingDays(profile.getMaxListingDays());
+        insight.setAvgListingDays(profile.getAvgListingDays());
+        insight.setAvgUnits(profile.getAvgUnits());
+        insight.setNew30Count(nvl(profile.getNew30Count()));
+        insight.setNew90Count(nvl(profile.getNew90Count()));
+        insight.setNew180Count(nvl(profile.getNew180Count()));
+        insight.setOld180Count(nvl(profile.getOld180Count()));
+        insight.setUnknownListingDaysCount(nvl(profile.getUnknownListingDaysCount()));
+        insight.setTierStats(tierStats);
+        insight.setCategoryStats(categoryStats);
+        insight.setAgeBucketStats(buildAgeBucketStats(cells));
+        insight.setSalesAgeMatrix(buildMatrix(cells, "SALES_AGE"));
+        insight.setSalesAttentionMatrix(buildMatrix(cells, "SALES_ATTENTION"));
+        insight.setAgeAttentionMatrix(buildMatrix(cells, "AGE_ATTENTION"));
+        insight.setTopGoodTendencyCategories(topCategoriesByAttention(cells, true));
+        insight.setTopAttentionCategories(topCategoriesByAttention(cells, false));
+        String type3d = resolveShopProfile3dType(profile, cells);
+        insight.setShopProfile3dType(type3d);
+        insight.setShopProfile3dExplanation(explainShopProfile3dType(type3d));
+        List<ShopCategoryRiskInsight> labelStats = buildCategoryLabelStats(categoryStats);
+        insight.setCategoryLabelStats(labelStats);
+        insight.setRiskStats(labelStats);
+        return insight;
+    }
+
     public ShopCollectionDetail detail(String marketplace, String sellerName, String batchDate, String sourceRunId) {
         String mp = MarketplaceSupport.require(marketplace);
         String seller = requireText(sellerName, "sellerName 不能为空");
@@ -406,7 +489,7 @@ public class ShopCollectionService {
                 .orderByDesc(ShopWatchlist::getUpdatedAt);
         detail.setWatchlistEntries(watchlistMapper.selectList(wlQw));
 
-        List<ShopProfileSummary> summaries = shopProfileMapper.selectSummaryFromShopProducts(mp, bd, resolvedSourceRunId, seller, null, 50);
+        List<ShopProfileSummary> summaries = selectSummaryFromShopProducts(mp, bd, resolvedSourceRunId, seller, null, 50);
         ShopProfileSummary profile = summaries.stream()
                 .filter(s -> seller.equals(s.getSellerName()))
                 .findFirst()
@@ -438,15 +521,39 @@ public class ShopCollectionService {
 
         String bd = resolveBatchDate(mp, batchDate);
         int lim = limit == null || limit < 1 ? 100 : Math.min(limit, 1000);
-        List<ShopProfileSummary> list = shopProfileMapper.selectSummaryFromShopProducts(
+        List<ShopProfileSummary> list = selectSummaryFromShopProducts(
                 mp, bd, resolvedSourceRunId, blankToNull(sellerNameKeyword), minProductCount, lim);
         list.forEach(this::completeSummary);
+        enrichSummary3d(mp, bd, resolvedSourceRunId, list);
         return list;
     }
 
-    /** 单店全集商品明细分页。 */
+    public List<ShopProfileSummary> selectionShops(String marketplace, String batchDate, String sellerNameKeyword,
+                                                   Integer minProductCount, Integer minM01HitCount,
+                                                   Integer minNew90Count, Integer minGoodTendencyCount,
+                                                   Integer maxAttentionStrongCount, Integer limit, String sourceRunId) {
+        int finalLimit = limit == null || limit < 1 ? 100 : Math.min(limit, 1000);
+        int m01Min = minM01HitCount == null ? 0 : Math.max(0, minM01HitCount);
+        int new90Min = minNew90Count == null ? 0 : Math.max(0, minNew90Count);
+        int goodMin = minGoodTendencyCount == null ? 0 : Math.max(0, minGoodTendencyCount);
+        int strongMax = maxAttentionStrongCount == null ? Integer.MAX_VALUE : Math.max(0, maxAttentionStrongCount);
+        boolean hasPostFilter = m01Min > 0 || new90Min > 0 || goodMin > 0 || strongMax != Integer.MAX_VALUE;
+        int queryLimit = hasPostFilter ? Math.min(Math.max(finalLimit * 5, 1000), 5000) : finalLimit;
+        List<ShopProfileSummary> list = summary(marketplace, batchDate, sellerNameKeyword, minProductCount, queryLimit, sourceRunId);
+        return list.stream()
+                .filter(s -> nvl(s.getM01HitCount()) >= m01Min)
+                .filter(s -> nvl(s.getNew90Count()) >= new90Min)
+                .filter(s -> nvl(s.getGoodTendencyCount()) >= goodMin)
+                .filter(s -> nvl(s.getAttentionStrongCount()) <= strongMax)
+                .limit(finalLimit)
+                .collect(Collectors.toList());
+    }
+
+    /** 单店全集商品明细分页（三维筛选：销量层 / 时间层 / 注意层 / M01 / 关键词 / 类目）。 */
     public PageResult<ShopProfileProduct> products(String marketplace, String sellerName, String batchDate,
-                                                   String sourceRunId, String salesTier, String category, Integer page, Integer size) {
+                                                   String sourceRunId, String salesTier, String ageBucket,
+                                                   String attentionLevel, Boolean m01Only, String keyword,
+                                                   String category, Integer page, Integer size) {
         String mp = MarketplaceSupport.require(marketplace);
         String seller = requireText(sellerName, "sellerName 不能为空");
         String resolvedSourceRunId = null;
@@ -457,22 +564,422 @@ public class ShopCollectionService {
         }
         String bd = resolveBatchDate(mp, batchDate);
         String tier = normalizeSalesTier(salesTier);
+        String age = normalizeAgeBucket(ageBucket);
+        String level = normalizeAttentionLevel(attentionLevel);
+        boolean m01 = Boolean.TRUE.equals(m01Only);
         int safePage = Math.max(1, page == null ? 1 : page);
         int safeSize = Math.max(1, Math.min(size == null ? 60 : size, 200));
         int offset = (safePage - 1) * safeSize;
+        M01Rule rule = M01Rule.forMarketplace(mp);
 
-        long total = shopProfileMapper.countProductsFromShopProducts(mp, seller, bd, resolvedSourceRunId, tier, blankToNull(category));
+        if (level != null) {
+            return productsWithExactAttentionFilter(mp, seller, bd, resolvedSourceRunId, tier, age, level,
+                    m01, keyword, category, safePage, safeSize, rule);
+        }
+
+        long total = shopProfileMapper.countProductsFromShopProducts(
+                mp, seller, bd, resolvedSourceRunId, tier, age, m01, blankToNull(keyword), null, blankToNull(category),
+                rule.priceMin(), rule.priceMax(), rule.weightMax(), rule.listingDaysMax(),
+                rule.sales30(), rule.sales60(), rule.sales90(), rule.bsrMax());
         if (total == 0) {
             return PageResult.empty((long) safePage, (long) safeSize);
         }
         List<ShopProfileProduct> list = shopProfileMapper.selectProductsFromShopProducts(
-                mp, seller, bd, resolvedSourceRunId, tier, blankToNull(category), offset, safeSize);
+                mp, seller, bd, resolvedSourceRunId, tier, age, m01, blankToNull(keyword), null, blankToNull(category),
+                rule.priceMin(), rule.priceMax(), rule.weightMax(), rule.listingDaysMax(),
+                rule.sales30(), rule.sales60(), rule.sales90(), rule.bsrMax(),
+                offset, safeSize);
+        list.forEach(this::attachProductLabel);
         return PageResult.of(list, total, (long) safePage, (long) safeSize);
+    }
+
+    /**
+     * 注意/倾向层不是落库字段，必须逐商品按 categoryLeaf + nodeLabelPath 精确打标签。
+     *
+     * <p>这里先用 SQL 下推销量层/时间层/M01/关键词/类目，再在单店候选商品内做 Java 侧精确分页。
+     * 单店全集通常是百级到千级商品；超过保护上限时要求缩窄筛选，避免一次性拉取异常大店。
+     */
+    private PageResult<ShopProfileProduct> productsWithExactAttentionFilter(
+            String marketplace, String sellerName, String batchDate, String sourceRunId,
+            String salesTier, String ageBucket, String attentionLevel, boolean m01Only,
+            String keyword, String category, int page, int size, M01Rule rule) {
+        long baseTotal = shopProfileMapper.countProductsFromShopProducts(
+                marketplace, sellerName, batchDate, sourceRunId, salesTier, ageBucket, m01Only,
+                blankToNull(keyword), null, blankToNull(category),
+                rule.priceMin(), rule.priceMax(), rule.weightMax(), rule.listingDaysMax(),
+                rule.sales30(), rule.sales60(), rule.sales90(), rule.bsrMax());
+        if (baseTotal == 0) {
+            return PageResult.empty((long) page, (long) size);
+        }
+        if (baseTotal > 20000) {
+            throw new IllegalArgumentException("注意/倾向层筛选需要逐商品精确打标签，当前候选商品超过 20000，请先缩窄销量层、时间层、关键词或类目");
+        }
+        List<ShopProfileProduct> candidates = shopProfileMapper.selectProductsFromShopProducts(
+                marketplace, sellerName, batchDate, sourceRunId, salesTier, ageBucket, m01Only,
+                blankToNull(keyword), null, blankToNull(category),
+                rule.priceMin(), rule.priceMax(), rule.weightMax(), rule.listingDaysMax(),
+                rule.sales30(), rule.sales60(), rule.sales90(), rule.bsrMax(),
+                0, (int) baseTotal);
+        candidates.forEach(this::attachProductLabel);
+        List<ShopProfileProduct> filtered = candidates.stream()
+                .filter(p -> attentionLevel.equals(defaultAttention(p.getAttentionLevel())))
+                .collect(Collectors.toList());
+        return PageResult.of(paginateList(filtered, page, size), (long) filtered.size(), (long) page, (long) size);
+    }
+
+    /** 给商品行补注意/倾向标签，让前端能解释“为什么筛出来”。 */
+    private void attachProductLabel(ShopProfileProduct product) {
+        CategoryLabel label = labelRule.classify(product.getCategoryLeaf(), product.getNodeLabelPath());
+        product.setAttentionLevel(label.level());
+        product.setAttentionReason(label.reason());
+        product.setLabelMeaning(label.meaning());
+    }
+
+    // ========================================================================
+    //  三维聚合：注意层补齐 + 时间桶统计 + 三张矩阵 + 店铺类型
+    // ========================================================================
+
+    /** 给每个三维 cell 打上注意/倾向层（复用类目标签规则，口径唯一）。 */
+    private void attachCellAttention(ShopTierAgeCategoryCell cell) {
+        CategoryLabel label = labelRule.classify(cell.getCategoryKey(), cell.getNodeLabelPath());
+        cell.setAttentionLevel(label.level());
+    }
+
+    /** 给列表摘要补三维字段，供“竞品店铺列表”直接筛选/排序/判断。 */
+    private void enrichSummary3d(String marketplace, String batchDate, String sourceRunId, List<ShopProfileSummary> summaries) {
+        if (summaries == null || summaries.isEmpty()) {
+            return;
+        }
+        M01Rule rule = M01Rule.forMarketplace(marketplace);
+        List<String> sellerNames = summaries.stream()
+                .map(ShopProfileSummary::getSellerName)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .collect(Collectors.toList());
+        if (sellerNames.isEmpty()) {
+            return;
+        }
+
+        List<ShopTierAgeCategoryCell> allCells = shopProfileMapper.selectTierAgeCategoryCellsBatchFromShopProducts(
+                marketplace, sellerNames, batchDate, sourceRunId,
+                rule.priceMin(), rule.priceMax(), rule.weightMax(), rule.listingDaysMax(),
+                rule.sales30(), rule.sales60(), rule.sales90(), rule.bsrMax());
+        allCells.forEach(this::attachCellAttention);
+        Map<String, List<ShopTierAgeCategoryCell>> cellsBySeller = allCells.stream()
+                .filter(c -> StringUtils.hasText(c.getSellerName()))
+                .collect(Collectors.groupingBy(ShopTierAgeCategoryCell::getSellerName));
+
+        for (ShopProfileSummary summary : summaries) {
+            if (!StringUtils.hasText(summary.getSellerName())) {
+                continue;
+            }
+            List<ShopTierAgeCategoryCell> cells = cellsBySeller.getOrDefault(summary.getSellerName(), Collections.emptyList());
+            applySummary3d(summary, cells);
+        }
+    }
+
+    private void applySummary3d(ShopProfileSummary summary, List<ShopTierAgeCategoryCell> cells) {
+        long total = nvl(summary.getProductCount());
+        long newProduct = 0;
+        long newAbc = 0;
+        long oldD = 0;
+        long good = 0;
+        long strong = 0;
+        long review = 0;
+        for (ShopTierAgeCategoryCell c : cells) {
+            String tier = defaultTier(c.getSalesTier());
+            String age = defaultAge(c.getAgeBucket());
+            String attention = defaultAttention(c.getAttentionLevel());
+            long cnt = nvl(c.getProductCount());
+            if ("NEW".equals(age)) {
+                newProduct += cnt;
+                if (isAbc(tier)) {
+                    newAbc += cnt;
+                }
+            }
+            if ("OLD".equals(age) && "D".equals(tier)) {
+                oldD += cnt;
+            }
+            if ("GOOD_TENDENCY".equals(attention)) {
+                good += cnt;
+            } else if ("ATTENTION_STRONG".equals(attention)) {
+                strong += cnt;
+            } else if ("ATTENTION_REVIEW".equals(attention)) {
+                review += cnt;
+            }
+        }
+        summary.setNewProductCount(newProduct);
+        summary.setNewABCCount(newAbc);
+        summary.setNewABCRatio(ratio(newAbc, total));
+        summary.setOldDCount(oldD);
+        summary.setOldDRatio(ratio(oldD, total));
+        summary.setGoodTendencyCount(good);
+        summary.setAttentionStrongCount(strong);
+        summary.setAttentionReviewCount(review);
+        String type = resolveShopProfile3dType(summary, cells);
+        summary.setShopProfile3dType(type);
+        summary.setShopProfile3dExplanation(explainShopProfile3dType(type));
+    }
+
+    /** 互斥时间桶统计（模型分层，非累计窗口）。 */
+    private List<ShopAgeBucketStat> buildAgeBucketStats(List<ShopTierAgeCategoryCell> cells) {
+        Map<String, ShopAgeBucketStat> map = new LinkedHashMap<>();
+        for (String age : AGE_ORDER) {
+            ShopAgeBucketStat stat = new ShopAgeBucketStat();
+            stat.setAgeBucket(age);
+            stat.setProductCount(0L);
+            stat.setUnitsSum(0L);
+            stat.setM01HitCount(0L);
+            stat.setAbcCount(0L);
+            map.put(age, stat);
+        }
+        for (ShopTierAgeCategoryCell c : cells) {
+            ShopAgeBucketStat stat = map.get(defaultAge(c.getAgeBucket()));
+            if (stat == null) continue;
+            long count = nvl(c.getProductCount());
+            stat.setProductCount(stat.getProductCount() + count);
+            stat.setUnitsSum(stat.getUnitsSum() + nvl(c.getUnitsSum()));
+            stat.setM01HitCount(stat.getM01HitCount() + nvl(c.getM01HitCount()));
+            if (isAbc(c.getSalesTier())) {
+                stat.setAbcCount(stat.getAbcCount() + count);
+            }
+        }
+        for (ShopAgeBucketStat stat : map.values()) {
+            long count = stat.getProductCount();
+            stat.setAvgUnits(count == 0 ? 0.0 : round2(stat.getUnitsSum() * 1.0 / count));
+        }
+        return map.values().stream().filter(s -> s.getProductCount() > 0).collect(Collectors.toList());
+    }
+
+    /** 从 cells 聚合出指定二维矩阵。cell 的注意层此时已由 Java 规则补齐。 */
+    private ShopMatrix buildMatrix(List<ShopTierAgeCategoryCell> cells, String type) {
+        List<String> rowKeys;
+        List<String> colKeys;
+        String rowDim;
+        String colDim;
+        switch (type) {
+            case "SALES_AGE" -> { rowKeys = TIER_ORDER; colKeys = AGE_ORDER; rowDim = "销量层"; colDim = "时间层"; }
+            case "SALES_ATTENTION" -> { rowKeys = TIER_ORDER; colKeys = ATTENTION_ORDER; rowDim = "销量层"; colDim = "注意/倾向层"; }
+            case "AGE_ATTENTION" -> { rowKeys = AGE_ORDER; colKeys = ATTENTION_ORDER; rowDim = "时间层"; colDim = "注意/倾向层"; }
+            default -> throw new IllegalArgumentException("unknown matrix type: " + type);
+        }
+        Map<String, ShopMatrixCell> agg = new LinkedHashMap<>();
+        for (ShopTierAgeCategoryCell c : cells) {
+            String row;
+            String col;
+            switch (type) {
+                case "SALES_AGE" -> { row = defaultTier(c.getSalesTier()); col = defaultAge(c.getAgeBucket()); }
+                case "SALES_ATTENTION" -> { row = defaultTier(c.getSalesTier()); col = defaultAttention(c.getAttentionLevel()); }
+                default -> { row = defaultAge(c.getAgeBucket()); col = defaultAttention(c.getAttentionLevel()); }
+            }
+            String key = row + "" + col;
+            ShopMatrixCell mc = agg.computeIfAbsent(key, ignored -> new ShopMatrixCell(row, col));
+            mc.setProductCount(mc.getProductCount() + nvl(c.getProductCount()));
+            mc.setUnitsSum(mc.getUnitsSum() + nvl(c.getUnitsSum()));
+            mc.setM01HitCount(mc.getM01HitCount() + nvl(c.getM01HitCount()));
+        }
+        ShopMatrix matrix = new ShopMatrix();
+        matrix.setName(type);
+        matrix.setRowDim(rowDim);
+        matrix.setColDim(colDim);
+        matrix.setRowKeys(rowKeys);
+        matrix.setColKeys(colKeys);
+        matrix.setCells(agg.values().stream()
+                .filter(c -> c.getProductCount() > 0)
+                .collect(Collectors.toList()));
+        return matrix;
+    }
+
+    /** 好品倾向 / 强注意+需复核 的 top 类目（按商品数）。 */
+    private List<String> topCategoriesByAttention(List<ShopTierAgeCategoryCell> cells, boolean goodTendency) {
+        Map<String, Long> counts = new HashMap<>();
+        for (ShopTierAgeCategoryCell c : cells) {
+            String level = defaultAttention(c.getAttentionLevel());
+            boolean match = goodTendency
+                    ? "GOOD_TENDENCY".equals(level)
+                    : ("ATTENTION_STRONG".equals(level) || "ATTENTION_REVIEW".equals(level));
+            if (match && StringUtils.hasText(c.getCategoryKey())) {
+                counts.merge(c.getCategoryKey(), nvl(c.getProductCount()), Long::sum);
+            }
+        }
+        return counts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(8)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+    }
+
+    /** 三维店铺类型（解释标签，非最终评级）。基于销量结构 + 新品/老品互斥桶 + 好品倾向/注意占比。 */
+    private String resolveShopProfile3dType(ShopProfileSummary profile, List<ShopTierAgeCategoryCell> cells) {
+        long total = nvl(profile.getProductCount());
+        if (total < 10) return "小样本待观察型";
+
+        long newAbc = 0, m01Hit = 0, oldD = 0, good = 0, attention = 0;
+        long a = 0, b = 0, matureOldAb = 0;
+        for (ShopTierAgeCategoryCell c : cells) {
+            String tier = defaultTier(c.getSalesTier());
+            String age = defaultAge(c.getAgeBucket());
+            String level = defaultAttention(c.getAttentionLevel());
+            long cnt = nvl(c.getProductCount());
+            m01Hit += nvl(c.getM01HitCount());
+            if ("A".equals(tier)) a += cnt;
+            if ("B".equals(tier)) b += cnt;
+            if ("NEW".equals(age) && isAbc(tier)) newAbc += cnt;
+            if ("OLD".equals(age) && "D".equals(tier)) oldD += cnt;
+            if (("MATURE".equals(age) || "OLD".equals(age)) && ("A".equals(tier) || "B".equals(tier))) matureOldAb += cnt;
+            if ("GOOD_TENDENCY".equals(level)) good += cnt;
+            if ("ATTENTION_STRONG".equals(level) || "ATTENTION_REVIEW".equals(level)) attention += cnt;
+        }
+        double newAbcRatio = ratio(newAbc, total);
+        double oldDRatio = ratio(oldD, total);
+        double goodRatio = ratio(good, total);
+        double attentionRatio = ratio(attention, total);
+        double abRatio = ratio(a + b, total);
+
+        if (newAbcRatio >= 0.15 && attentionRatio >= 0.35) return "高注意高销量型";
+        if (newAbcRatio >= 0.20 && m01Hit >= 5 && goodRatio >= 0.20) return "新品发动机型";
+        if (abRatio >= 0.15 && oldDRatio >= 0.20 && newAbcRatio >= 0.10) return "健康精铺飞轮型";
+        if (matureOldAb > 0 && abRatio >= 0.15 && newAbcRatio < 0.10) return "成熟利润型";
+        if (oldDRatio >= 0.45) return "老品沉淀型";
+        if (newAbcRatio >= 0.10) return "成长测品型";
+        return "稳定候选池型";
+    }
+
+    private String explainShopProfile3dType(String type) {
+        return switch (type == null ? "" : type) {
+            case "新品发动机型" -> "新品 A/B/C 多、M01 命中多、好品倾向高，代表当前选品能力，最值得学。";
+            case "健康精铺飞轮型" -> "老 A/B 有利润锚点、新 D 在测品、新 B/C 有成长，结构健康的飞轮。";
+            case "成熟利润型" -> "A/B 偏成熟/老品，利润稳但新品能力一般，可学类目样貌而非最新机会。";
+            case "成长测品型" -> "新 D 多并开始出现新 C/B，处于测品放量阶段，适合持续观察。";
+            case "稳定候选池型" -> "B/C 成熟品厚、A 不多，稳定但缺爆发力。";
+            case "高注意高销量型" -> "新品有市场信号但强注意/需复核占比高，涉及合规、责任、体积或履约，需人工判断。";
+            case "老品沉淀型" -> "老 D 多、新品少，低价值沉淀，通常不是优先学习对象。";
+            case "小样本待观察型" -> "商品数不足，暂不下结论，先补抓或观察。";
+            default -> "解释标签，仅用于分析，不代表最终评级。";
+        };
+    }
+
+    private boolean isAbc(String tier) {
+        String t = defaultTier(tier);
+        return "A".equals(t) || "B".equals(t) || "C".equals(t);
+    }
+
+    private String defaultAge(String age) {
+        return StringUtils.hasText(age) ? age : "UNKNOWN";
+    }
+
+    private String defaultAttention(String level) {
+        return StringUtils.hasText(level) ? level : "UNKNOWN";
+    }
+
+    private String normalizeAgeBucket(String ageBucket) {
+        if (!StringUtils.hasText(ageBucket)) return null;
+        String v = ageBucket.trim().toUpperCase(Locale.ROOT);
+        return switch (v) {
+            case "NEW", "GROWING", "MATURE", "OLD", "UNKNOWN" -> v;
+            default -> throw new IllegalArgumentException("ageBucket 仅支持 NEW/GROWING/MATURE/OLD/UNKNOWN");
+        };
+    }
+
+    private String normalizeAttentionLevel(String level) {
+        if (!StringUtils.hasText(level)) return null;
+        String v = level.trim().toUpperCase(Locale.ROOT);
+        return switch (v) {
+            case "ATTENTION_STRONG", "ATTENTION_REVIEW", "GOOD_TENDENCY", "NEUTRAL", "UNKNOWN" -> v;
+            default -> throw new IllegalArgumentException("attentionLevel 仅支持 ATTENTION_STRONG/ATTENTION_REVIEW/GOOD_TENDENCY/NEUTRAL/UNKNOWN");
+        };
     }
 
     // ========================================================================
     //  私有工具方法
     // ========================================================================
+
+    private List<ShopProfileSummary> selectSummaryFromShopProducts(String marketplace, String batchDate, String sourceRunId,
+                                                                   String sellerNameKeyword, Integer minProductCount, Integer limit) {
+        M01Rule rule = M01Rule.forMarketplace(marketplace);
+        return shopProfileMapper.selectSummaryFromShopProducts(
+                marketplace, batchDate, sourceRunId, sellerNameKeyword, minProductCount, limit,
+                rule.priceMin(), rule.priceMax(), rule.weightMax(), rule.listingDaysMax(),
+                rule.sales30(), rule.sales60(), rule.sales90(), rule.bsrMax());
+    }
+
+    private void attachRisk(ShopCategoryInsight category) {
+        CategoryLabel label = labelRule.classify(category.getCategoryKey(), category.getNodeLabelPath());
+        category.setAttentionLevel(label.level());        category.setAttentionReason(label.reason());
+        category.setLabelMeaning(label.meaning());
+        category.setAttentionTags(label.attentionTags());
+        category.setTendencyTags(label.tendencyTags());
+        category.setRiskLevel(label.level());
+        category.setRiskReason(label.reason());
+    }
+
+    private List<ShopCategoryRiskInsight> buildCategoryLabelStats(List<ShopCategoryInsight> categories) {
+        Map<String, ShopCategoryRiskInsight> grouped = new LinkedHashMap<>();
+        Map<String, Double> listingWeighted = new HashMap<>();
+
+        for (ShopCategoryInsight c : categories) {
+            String level = StringUtils.hasText(c.getAttentionLevel()) ? c.getAttentionLevel() : "UNKNOWN";
+            String reason = StringUtils.hasText(c.getAttentionReason()) ? c.getAttentionReason() : "UNKNOWN";
+            String key = level + "\u0001" + reason;
+            ShopCategoryRiskInsight stat = grouped.computeIfAbsent(key, ignored -> {
+                ShopCategoryRiskInsight created = new ShopCategoryRiskInsight();
+                created.setAttentionLevel(level);
+                created.setAttentionReason(reason);
+                created.setLabelMeaning(c.getLabelMeaning());
+                created.setAttentionTags(new ArrayList<>(c.getAttentionTags()));
+                created.setTendencyTags(new ArrayList<>(c.getTendencyTags()));
+                created.setRiskLevel(level);
+                created.setRiskReason(reason);
+                return created;
+            });
+            long count = nvl(c.getProductCount());
+            stat.setProductCount(nvl(stat.getProductCount()) + count);
+            stat.setUnitsSum(nvl(stat.getUnitsSum()) + nvl(c.getUnitsSum()));
+            stat.setM01HitCount(nvl(stat.getM01HitCount()) + nvl(c.getM01HitCount()));
+            stat.setCategoryCount(nvl(stat.getCategoryCount()) + 1);
+            if (StringUtils.hasText(c.getCategoryKey())) {
+                stat.getTopCategories().add(c.getCategoryKey());
+            }
+            stat.getAttentionTags().addAll(c.getAttentionTags());
+            stat.getTendencyTags().addAll(c.getTendencyTags());
+            if (c.getAvgListingDays() != null && count > 0) {
+                listingWeighted.merge(key, c.getAvgListingDays() * count, Double::sum);
+            }
+        }
+
+        for (Map.Entry<String, ShopCategoryRiskInsight> entry : grouped.entrySet()) {
+            ShopCategoryRiskInsight stat = entry.getValue();
+            long count = nvl(stat.getProductCount());
+            stat.setUnitsAvg(count == 0 ? 0.0 : round2(nvl(stat.getUnitsSum()) * 1.0 / count));
+            stat.setAvgListingDays(count == 0 ? 0.0 : round2(listingWeighted.getOrDefault(entry.getKey(), 0.0) / count));
+            stat.setTopCategories(stat.getTopCategories().stream()
+                    .distinct()
+                    .limit(5)
+                    .collect(Collectors.toList()));
+            stat.setAttentionTags(stat.getAttentionTags().stream().distinct().collect(Collectors.toList()));
+            stat.setTendencyTags(stat.getTendencyTags().stream().distinct().collect(Collectors.toList()));
+        }
+
+        List<ShopCategoryRiskInsight> result = new ArrayList<>(grouped.values());
+        result.sort(Comparator
+                .comparing((ShopCategoryRiskInsight r) -> attentionSortRank(r.getAttentionLevel()))
+                .thenComparing(ShopCategoryRiskInsight::getProductCount, Comparator.nullsLast(Comparator.reverseOrder())));
+        return result;
+    }
+
+    private int attentionSortRank(String attentionLevel) {
+        return switch (attentionLevel == null ? "" : attentionLevel) {
+            case "ATTENTION_STRONG" -> 1;
+            case "ATTENTION_REVIEW" -> 2;
+            case "GOOD_TENDENCY" -> 3;
+            case "UNKNOWN" -> 4;
+            default -> 5;
+        };
+    }
+
+    private Double round2(double value) {
+        return Math.round(value * 100.0) / 100.0;
+    }
 
     private String resolveBatchDate(String marketplace, String batchDate) {
         if (StringUtils.hasText(batchDate)) {

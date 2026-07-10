@@ -53,6 +53,20 @@ public class ProductApplication {
         return executor;
     }
 
+    @Bean("sellerspriteRequestExecutor")
+    public ThreadPoolTaskExecutor sellerspriteRequestExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(1000);
+        executor.setThreadNamePrefix("sellersprite-request-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(120);
+        executor.initialize();
+        return executor;
+    }
+
     /**
      * 八爪鱼采集专用池：6 个任务(榜单×3 + 以图识图×3)可并行。
      * 与 sellerImportExecutor / 默认 taskExecutor 隔离，一条龙长任务不阻塞卖家精灵执行。

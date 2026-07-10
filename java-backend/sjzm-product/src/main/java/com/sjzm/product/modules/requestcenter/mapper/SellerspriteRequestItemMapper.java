@@ -35,4 +35,7 @@ public interface SellerspriteRequestItemMapper extends BaseMapper<SellerspriteRe
 
     @Update("UPDATE sellersprite_request_run SET pending_count=pending_count+1, failed_count=GREATEST(failed_count-1,0), status=CASE WHEN status IN ('SUCCESS','FAILED','PARTIAL_SUCCESS') THEN 'RUNNING' ELSE status END, finished_at=NULL, updated_at=NOW() WHERE run_id=#{runId}")
     int reopenForRetry(@Param("runId") String runId);
+
+    @Update("UPDATE sellersprite_request_item SET status='PENDING', started_at=NULL WHERE run_id=#{runId} AND status='RUNNING'")
+    int resetRunningToPending(@Param("runId") String runId);
 }

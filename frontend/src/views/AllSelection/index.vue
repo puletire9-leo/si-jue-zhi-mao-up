@@ -3,6 +3,15 @@
     <div class="selection-layout">
       <!-- 内容区域 -->
       <div class="content">
+        <el-alert
+          v-if="isReferenceProductsRoute"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="reference-hint"
+          title="这里是历史导入 / 旧竞品商品数据"
+          description="按店铺研究商品，请进入「店铺总览 → 店铺全集画像」，那里的商品数据源为 shop_products，是最新的店铺全集。"
+        />
         <el-card class="main-card">
           <template #header>
             <div class="card-header">
@@ -1049,6 +1058,10 @@ import { useUserStore } from "@/stores/user";
 
 const router = useRouter();
 const route = useRoute();
+// 竞品店铺（reference-products）复用本视图，仅在该路由下提示已降级为历史竞品商品池。
+const isReferenceProductsRoute = computed(() =>
+  String(route.name || "").endsWith("ReferenceProducts"),
+);
 const queryParamsState = ref<SelectionQueryParams>({ ...defaultQueryParams });
 
 const syncQueryParamsState = (params?: Partial<SelectionQueryParams>) => {

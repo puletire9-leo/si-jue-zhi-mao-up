@@ -10,6 +10,7 @@ import com.sjzm.product.modules.shopcandidate.mapper.ShopFetchRunMapper;
 import com.sjzm.product.modules.shopcollection.entity.ShopWatchlist;
 import com.sjzm.product.modules.shopcollection.mapper.ShopWatchlistMapper;
 import com.sjzm.product.modules.shopcollection.service.ShopProductSyncService;
+import com.sjzm.product.modules.shoprating.dto.ShopMethodBatchOption;
 import com.sjzm.product.modules.shoprating.dto.ShopMethodRankItem;
 import com.sjzm.product.modules.shoprating.service.ShopMethodRankService;
 import com.sjzm.product.util.WeekTagUtil;
@@ -58,6 +59,13 @@ public class ShopCandidateService {
     private record FetchPreparation(ShopCandidatePool candidate, ShopWatchlist watchlist, ShopFetchRun run) {}
 
     // ── sync from method rank ────────────────────────────────────
+
+    /**
+     * 方法卡找店来源批次。返回的是方法卡读数源头，而不是候选池已有批次。
+     */
+    public List<ShopMethodBatchOption> listMethodBatches(String methodId, String marketplace, Integer limit) {
+        return methodRankService.listMethodBatches(methodId, marketplace, limit);
+    }
 
     /**
      * 从方法卡店铺排名同步候选池（替代旧 ShopWatchlistService.syncFromMethodRank 直写观察池）。
@@ -132,6 +140,36 @@ public class ShopCandidateService {
         Page<ShopCandidatePool> mpPage = new Page<>(p, s);
         Page<ShopCandidatePool> result = candidateMapper.selectPage(mpPage, qw);
         return PageResult.of(result.getRecords(), result.getTotal(), (long) p, (long) s);
+    }
+
+    /**
+     * 按当前筛选条件返回全部可抓候选，用于前端跨分页全选。
+     *
+     * <p>只返回 PENDING / SELECTED / FETCH_FAILED，避免把已抓取、抓取中、已忽略、
+     * 已入精品池的店铺误选进请求中心任务。</p>
+     */
+    public List<ShopCandidatePool> listFetchable(String marketplace, String batchCode, String sourceType,
+                                                 String sourceCode, String status, Integer minHitCount,
+                                                 String sellerName, Integer limit) {
+        int lim = limit == null || limit < 1 ? 5000 : Math.min(limit, 10000);
+        List<String> fetchableStatuses = List.of("PENDING", "SELECTED", "FETCH_FAILED");
+        if (StringUtils.hasText(status) && !fetchableStatuses.contains(status.trim().toUpperCase(Locale.ROOT))) {
+            return List.of();
+        }
+        LambdaQueryWrapper<ShopCandidatePool> qw = new LambdaQueryWrapper<ShopCandidatePool>()
+                .eq(StringUtils.hasText(marketplace), ShopCandidatePool::getMarketplace, marketplace)
+                .eq(StringUtils.hasText(batchCode), ShopCandidatePool::getBatchCode, batchCode)
+                .eq(StringUtils.hasText(sourceType), ShopCandidatePool::getSourceType, sourceType)
+                .eq(StringUtils.hasText(sourceCode), ShopCandidatePool::getSourceCode, sourceCode)
+                .eq(StringUtils.hasText(status), ShopCandidatePool::getStatus,
+                        StringUtils.hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : null)
+                .in(!StringUtils.hasText(status), ShopCandidatePool::getStatus, fetchableStatuses)
+                .ge(minHitCount != null, ShopCandidatePool::getHitCount, minHitCount)
+                .like(StringUtils.hasText(sellerName), ShopCandidatePool::getSellerName, sellerName)
+                .orderByDesc(ShopCandidatePool::getHitCount)
+                .orderByDesc(ShopCandidatePool::getUpdatedAt)
+                .last("LIMIT " + lim);
+        return candidateMapper.selectList(qw);
     }
 
     public ShopCandidatePool getById(Long id) {

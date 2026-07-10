@@ -78,7 +78,7 @@ const routes: RouteRecordRaw[] = [
         path: "reference-products",
         name: "ReferenceProducts",
         component: () => import("@/views/AllSelection/index.vue"),
-        meta: { title: "竞品店铺", icon: "Shop" },
+        meta: { title: "历史竞品商品池", icon: "Shop" },
       },
       {
         path: "zheng-products",

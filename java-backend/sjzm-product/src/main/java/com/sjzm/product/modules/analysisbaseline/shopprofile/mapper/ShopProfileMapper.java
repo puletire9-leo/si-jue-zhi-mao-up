@@ -3,9 +3,13 @@ package com.sjzm.product.modules.analysisbaseline.shopprofile.mapper;
 import com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileCategory;
 import com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileProduct;
 import com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileSummary;
+import com.sjzm.product.modules.shopcollection.dto.ShopCategoryInsight;
+import com.sjzm.product.modules.shopcollection.dto.ShopTierAgeCategoryCell;
+import com.sjzm.product.modules.shopcollection.dto.ShopTierInsight;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -63,7 +67,86 @@ public interface ShopProfileMapper {
             @Param("sourceRunId") String sourceRunId,
             @Param("sellerNameKeyword") String sellerNameKeyword,
             @Param("minProductCount") Integer minProductCount,
-            @Param("limit") Integer limit);
+            @Param("limit") Integer limit,
+            @Param("priceMin") BigDecimal priceMin,
+            @Param("priceMax") BigDecimal priceMax,
+            @Param("weightMax") BigDecimal weightMax,
+            @Param("listingDaysMax") Integer listingDaysMax,
+            @Param("sales30") Integer sales30,
+            @Param("sales60") Integer sales60,
+            @Param("sales90") Integer sales90,
+            @Param("bsrMax") Integer bsrMax);
+
+    ShopProfileSummary selectShopInsightOverviewFromShopProducts(
+            @Param("marketplace") String marketplace,
+            @Param("sellerName") String sellerName,
+            @Param("batchDate") String batchDate,
+            @Param("sourceRunId") String sourceRunId,
+            @Param("priceMin") BigDecimal priceMin,
+            @Param("priceMax") BigDecimal priceMax,
+            @Param("weightMax") BigDecimal weightMax,
+            @Param("listingDaysMax") Integer listingDaysMax,
+            @Param("sales30") Integer sales30,
+            @Param("sales60") Integer sales60,
+            @Param("sales90") Integer sales90,
+            @Param("bsrMax") Integer bsrMax);
+
+    List<ShopTierInsight> selectTierInsightsFromShopProducts(
+            @Param("marketplace") String marketplace,
+            @Param("sellerName") String sellerName,
+            @Param("batchDate") String batchDate,
+            @Param("sourceRunId") String sourceRunId,
+            @Param("priceMin") BigDecimal priceMin,
+            @Param("priceMax") BigDecimal priceMax,
+            @Param("weightMax") BigDecimal weightMax,
+            @Param("listingDaysMax") Integer listingDaysMax,
+            @Param("sales30") Integer sales30,
+            @Param("sales60") Integer sales60,
+            @Param("sales90") Integer sales90,
+            @Param("bsrMax") Integer bsrMax);
+
+    List<ShopCategoryInsight> selectCategoryInsightsFromShopProducts(
+            @Param("marketplace") String marketplace,
+            @Param("sellerName") String sellerName,
+            @Param("batchDate") String batchDate,
+            @Param("sourceRunId") String sourceRunId,
+            @Param("priceMin") BigDecimal priceMin,
+            @Param("priceMax") BigDecimal priceMax,
+            @Param("weightMax") BigDecimal weightMax,
+            @Param("listingDaysMax") Integer listingDaysMax,
+            @Param("sales30") Integer sales30,
+            @Param("sales60") Integer sales60,
+            @Param("sales90") Integer sales90,
+            @Param("bsrMax") Integer bsrMax);
+
+    /** 三维聚合原子单元：销量层 × 互斥时间桶 × 类目。注意/倾向层在 Java 侧补。 */
+    List<ShopTierAgeCategoryCell> selectTierAgeCategoryCellsFromShopProducts(
+            @Param("marketplace") String marketplace,
+            @Param("sellerName") String sellerName,
+            @Param("batchDate") String batchDate,
+            @Param("sourceRunId") String sourceRunId,
+            @Param("priceMin") BigDecimal priceMin,
+            @Param("priceMax") BigDecimal priceMax,
+            @Param("weightMax") BigDecimal weightMax,
+            @Param("listingDaysMax") Integer listingDaysMax,
+            @Param("sales30") Integer sales30,
+            @Param("sales60") Integer sales60,
+            @Param("sales90") Integer sales90,
+            @Param("bsrMax") Integer bsrMax);
+
+    List<ShopTierAgeCategoryCell> selectTierAgeCategoryCellsBatchFromShopProducts(
+            @Param("marketplace") String marketplace,
+            @Param("sellerNames") List<String> sellerNames,
+            @Param("batchDate") String batchDate,
+            @Param("sourceRunId") String sourceRunId,
+            @Param("priceMin") BigDecimal priceMin,
+            @Param("priceMax") BigDecimal priceMax,
+            @Param("weightMax") BigDecimal weightMax,
+            @Param("listingDaysMax") Integer listingDaysMax,
+            @Param("sales30") Integer sales30,
+            @Param("sales60") Integer sales60,
+            @Param("sales90") Integer sales90,
+            @Param("bsrMax") Integer bsrMax);
 
     long countProductsFromShopProducts(
             @Param("marketplace") String marketplace,
@@ -71,7 +154,19 @@ public interface ShopProfileMapper {
             @Param("batchDate") String batchDate,
             @Param("sourceRunId") String sourceRunId,
             @Param("salesTier") String salesTier,
-            @Param("category") String category);
+            @Param("ageBucket") String ageBucket,
+            @Param("m01Only") Boolean m01Only,
+            @Param("keyword") String keyword,
+            @Param("categoryKeys") List<String> categoryKeys,
+            @Param("category") String category,
+            @Param("priceMin") BigDecimal priceMin,
+            @Param("priceMax") BigDecimal priceMax,
+            @Param("weightMax") BigDecimal weightMax,
+            @Param("listingDaysMax") Integer listingDaysMax,
+            @Param("sales30") Integer sales30,
+            @Param("sales60") Integer sales60,
+            @Param("sales90") Integer sales90,
+            @Param("bsrMax") Integer bsrMax);
 
     List<ShopProfileProduct> selectProductsFromShopProducts(
             @Param("marketplace") String marketplace,
@@ -79,7 +174,19 @@ public interface ShopProfileMapper {
             @Param("batchDate") String batchDate,
             @Param("sourceRunId") String sourceRunId,
             @Param("salesTier") String salesTier,
+            @Param("ageBucket") String ageBucket,
+            @Param("m01Only") Boolean m01Only,
+            @Param("keyword") String keyword,
+            @Param("categoryKeys") List<String> categoryKeys,
             @Param("category") String category,
+            @Param("priceMin") BigDecimal priceMin,
+            @Param("priceMax") BigDecimal priceMax,
+            @Param("weightMax") BigDecimal weightMax,
+            @Param("listingDaysMax") Integer listingDaysMax,
+            @Param("sales30") Integer sales30,
+            @Param("sales60") Integer sales60,
+            @Param("sales90") Integer sales90,
+            @Param("bsrMax") Integer bsrMax,
             @Param("offset") int offset,
             @Param("size") int size);
 

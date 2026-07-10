@@ -5,6 +5,7 @@ import com.sjzm.common.Result;
 import com.sjzm.product.modules.shopcandidate.entity.ShopCandidatePool;
 import com.sjzm.product.modules.shopcandidate.entity.ShopFetchRun;
 import com.sjzm.product.modules.shopcandidate.service.ShopCandidateService;
+import com.sjzm.product.modules.shoprating.dto.ShopMethodBatchOption;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +39,16 @@ public class ShopCandidateController {
         return Result.success(candidateService.syncFromMethodRank(methodId, marketplace, minCount, batchCode, limit));
     }
 
+    @GetMapping("/method-batches")
+    @Operation(summary = "方法卡找店来源批次",
+            description = "返回方法卡实际读取的数据表和周批次。M01 当前读取 competitor_products_clean.effective_week_tag。")
+    public Result<List<ShopMethodBatchOption>> methodBatches(
+            @RequestParam(defaultValue = "M01") String methodId,
+            @RequestParam(required = false) String marketplace,
+            @RequestParam(defaultValue = "30") int limit) {
+        return Result.success(candidateService.listMethodBatches(methodId, marketplace, limit));
+    }
+
     // ── list / detail ────────────────────────────────────────────
 
     @GetMapping
@@ -54,6 +65,22 @@ public class ShopCandidateController {
             @RequestParam(defaultValue = "50") int size) {
         return Result.success(candidateService.list(marketplace, batchCode, sourceType, sourceCode,
                 status, minHitCount, sellerName, page, size));
+    }
+
+    @GetMapping("/fetchable")
+    @Operation(summary = "按当前筛选条件返回全部可抓候选（跨分页全选用）",
+            description = "只返回 PENDING/SELECTED/FETCH_FAILED，避免批量抓取误选已抓取、抓取中、已忽略或已入精品池记录。")
+    public Result<List<ShopCandidatePool>> listFetchable(
+            @RequestParam(required = false) String marketplace,
+            @RequestParam(required = false) String batchCode,
+            @RequestParam(required = false) String sourceType,
+            @RequestParam(required = false) String sourceCode,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Integer minHitCount,
+            @RequestParam(required = false) String sellerName,
+            @RequestParam(defaultValue = "5000") int limit) {
+        return Result.success(candidateService.listFetchable(marketplace, batchCode, sourceType, sourceCode,
+                status, minHitCount, sellerName, limit));
     }
 
     @GetMapping("/{id}")
