@@ -19,6 +19,7 @@ import com.sjzm.product.modules.lingxing.service.LingxingConfigService;
 import com.sjzm.product.modules.lingxing.service.LingxingLocalProductSyncService;
 import com.sjzm.product.modules.lingxing.service.LingxingProductPerformanceSyncService;
 import com.sjzm.product.modules.lingxing.service.LingxingProfitAsinSyncService;
+import com.sjzm.product.modules.lingxing.service.LingxingPurchaseDataLayerService;
 import com.sjzm.product.modules.lingxing.service.LingxingSamplingModelService;
 import com.sjzm.product.modules.lingxing.service.LingxingSellerSyncService;
 import com.sjzm.product.modules.lingxing.service.LingxingSkuDataLayerService;
@@ -55,6 +56,7 @@ public class LingxingController {
     private final LingxingProductPerformanceMapper performanceMapper;
     private final LingxingProfitAsinSyncService profitSyncService;
     private final LingxingProfitAsinMapper profitMapper;
+    private final LingxingPurchaseDataLayerService purchaseDataLayerService;
     private final LingxingSamplingModelService samplingModelService;
     private final LingxingSkuPoolService skuPoolService;
     private final LingxingSkuDataLayerService skuDataLayerService;
@@ -264,6 +266,40 @@ public class LingxingController {
         return Result.success(skuDataLayerService.stats(snapshotWeek, yearMonth));
     }
 
+    // ============================================================
+    // 采购事实层（Q1/Q2 精确备货量来源）
+    // ============================================================
+
+    @PostMapping("/purchase/plans/sync")
+    @Operation(summary = "同步领星采购计划列表到采购事实层（计划量 quantity_plan）")
+    public Result<Map<String, Object>> syncPurchasePlans(@RequestBody Map<String, Object> req) {
+        return Result.success(purchaseDataLayerService.syncPurchasePlans(
+                readStr(req, "startDate"),
+                readStr(req, "endDate"),
+                readStr(req, "searchFieldTime"),
+                readStrList(req, "planSns"),
+                readIntList(req, "statuses"),
+                readLongList(req, "sids")));
+    }
+
+    @PostMapping("/purchase/orders/sync")
+    @Operation(summary = "同步领星采购单列表到采购事实层（实际采购量 quantity_real / 入库量 quantity_entry）")
+    public Result<Map<String, Object>> syncPurchaseOrders(@RequestBody Map<String, Object> req) {
+        return Result.success(purchaseDataLayerService.syncPurchaseOrders(
+                readStr(req, "startDate"),
+                readStr(req, "endDate"),
+                readStr(req, "searchFieldTime"),
+                readStrList(req, "orderSns"),
+                readStrList(req, "customOrderSns"),
+                readInt(req, "purchaseType")));
+    }
+
+    @GetMapping("/purchase/stats")
+    @Operation(summary = "查看领星采购事实层统计")
+    public Result<Map<String, Object>> purchaseStats() {
+        return Result.success(purchaseDataLayerService.stats());
+    }
+
     @GetMapping("/product-performance")
     @Operation(summary = "分页查询已落库的产品表现（可按 ASIN 模糊）")
     public Result<Page<LingxingProductPerformance>> listProductPerformance(
@@ -346,6 +382,28 @@ public class LingxingController {
         if (v instanceof List<?> list) {
             for (Object item : list) {
                 if (item != null) out.add(String.valueOf(item));
+            }
+        }
+        return out;
+    }
+
+    private List<Integer> readIntList(Map<String, Object> req, String field) {
+        List<Integer> out = new ArrayList<>();
+        Object v = req.get(field);
+        if (v instanceof List<?> list) {
+            for (Object item : list) {
+                if (item instanceof Number n) {
+                    out.add(n.intValue());
+                } else if (item != null) {
+                    String s = String.valueOf(item).trim();
+                    if (!s.isEmpty()) {
+                        try {
+                            out.add(Integer.parseInt(s));
+                        } catch (NumberFormatException ignored) {
+                            // 跳过非法值
+                        }
+                    }
+                }
             }
         }
         return out;

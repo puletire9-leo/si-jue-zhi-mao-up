@@ -26,6 +26,7 @@ Java sjzm-product 内的领星 ERP 开放平台对接模块。参照 `产品数�
 | 利润统计-ASIN | `POST /bd/profit/statistics/open/asin/list` | `lingxing_profit_asin` | `asin\|sid\|dataDate\|currency` | 时间窗 ≤7天；逐日拆行；令牌桶 10 |
 | 6 标签 SKU 池 | 已落库产品表现 `raw_json.tag_set` | `sku_pool` | `sku\|marketplace\|snapshot_week` | UK/DE 自动筛选 6 个目标标签 |
 | SKU 规范数据层 | 已落库产品表现 + SKU 池 | `lingxing_sku_store_snapshot` / `lingxing_target_sku_pool` / `lingxing_sku_weekly_performance` / `lingxing_sku_monthly_performance` | SHA-256 业务键 | 全量快照、目标池、周事实、月聚合 |
+| 采购事实层 | `POST .../getPurchasePlans`、`POST .../purchaseOrderList` | `lingxing_purchase_plan` / `lingxing_purchase_order` / `lingxing_purchase_order_item` | SHA-256 业务键 | Q1/Q2 精确备货量来源 |
 
 建表脚本：`java-backend/sql/create_lingxing_*.sql`（charset `utf8mb4_unicode_ci`，与其它表一致）。
 
@@ -48,6 +49,9 @@ Java sjzm-product 内的领星 ERP 开放平台对接模块。参照 `产品数�
 | POST `/sku-data-layer/weekly/backfill-existing` | 从现有产品表现表回填 SKU 周数据规范表 |
 | POST `/sku-data-layer/monthly/rebuild` | 从 SKU 周表聚合生成 SKU 月表 |
 | GET `/sku-data-layer/stats` | 查看规范 SKU 数据层统计 |
+| POST `/purchase/plans/sync` | 同步采购计划列表，落 `quantity_plan` 计划量 |
+| POST `/purchase/orders/sync` | 同步采购单列表，落 `quantity_real` 实际采购量和 `quantity_entry` 入库量 |
+| GET `/purchase/stats` | 查看采购事实层统计 |
 | POST `/profit-asin/sync`、GET `/profit-asin` | 利润统计同步 / 分页 |
 | POST `/sampling-model/analyze` | 精铺测品模型分析：基于已落库数据计算 cohort R1/R2 和盈亏平衡试算 |
 
@@ -102,6 +106,45 @@ raw JSON 文件归档：
 - `LINGXING_RAW_ARCHIVE_MAX_FILE_MB=50`
 
 每次产品表现同步结束后会自动清理超过保留期的 gzip JSONL 文件；数据库周表/月表/同步记录不随文件清理删除。
+
+## 采购事实层
+
+2026-07-10 已新增采购接口规范层：
+
+- `lingxing_purchase_plan`：采购计划。`quantity_plan` 是计划采购量，只能用于计划口径、采购前预测和采购单对账。
+- `lingxing_purchase_order`：采购单主表。记录订单状态、到货状态、总实际采购量、总入库量、供应商、仓库。
+- `lingxing_purchase_order_item`：采购单子项。`quantity_real` 是实际采购量，优先作为精铺模型 Q1/Q2 主口径；`quantity_entry` 是到货入库量，用于确认实际到货。
+
+同步接口：
+
+```http
+POST /api/v1/modules/lingxing/purchase/plans/sync
+{
+  "searchFieldTime": "creator_time",
+  "startDate": "2026-05-01",
+  "endDate": "2026-05-31",
+  "statuses": [-2],
+  "sids": [4298]
+}
+
+POST /api/v1/modules/lingxing/purchase/orders/sync
+{
+  "searchFieldTime": "order_time",
+  "startDate": "2026-05-01",
+  "endDate": "2026-05-31",
+  "purchaseType": 1
+}
+```
+
+模型使用规则：
+
+```text
+Q1 = SKU 首个有效采购单子项 quantity_real
+Q1_entry = 同一采购批次 quantity_entry
+Q2 = Q1 之后下一次有效采购单子项 quantity_real
+```
+
+有效采购单过滤建议：作废单 `status IN (-1,124)` 和删除子项 `item_list.is_delete=1` 不进入模型；只看已完成批次时优先 `status=9 AND status_shipped=3`。部分到货 `status_shipped=2` 可以保留采购决策量 `quantity_real`，但已入库可用量只能看 `quantity_entry`。
 
 ## 精铺测品模型分析
 

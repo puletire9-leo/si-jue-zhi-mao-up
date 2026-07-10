@@ -190,6 +190,24 @@ export interface SkuMonthlyRebuildPayload {
   yearMonth: string
 }
 
+export interface PurchasePlanSyncPayload {
+  startDate: string
+  endDate: string
+  searchFieldTime?: 'creator_time' | 'expect_arrive_time' | 'update_time'
+  planSns?: string[]
+  statuses?: number[]
+  sids?: number[]
+}
+
+export interface PurchaseOrderSyncPayload {
+  startDate: string
+  endDate: string
+  searchFieldTime?: 'create_time' | 'expect_arrive_time' | 'update_time'
+  orderSns?: string[]
+  customOrderSns?: string[]
+  purchaseType?: number
+}
+
 /** Result<T> 包装解包：拦截器返回整个 {code,message,data}，业务层只需 data */
 function unwrap<T>(p: Promise<any>): Promise<T> {
   return p.then((res) => res?.data as T)
@@ -411,6 +429,40 @@ export const lingxingProductApi = {
           ...(snapshotWeek ? { snapshotWeek } : {}),
           ...(yearMonth ? { yearMonth } : {})
         }
+      })
+    )
+  },
+
+  /** 同步领星采购计划列表（计划量 quantity_plan） */
+  syncPurchasePlans(payload: PurchasePlanSyncPayload): Promise<any> {
+    return unwrap<any>(
+      request({
+        url: '/api/v1/modules/lingxing/purchase/plans/sync',
+        method: 'post',
+        data: payload,
+        timeout: 1800000
+      })
+    )
+  },
+
+  /** 同步领星采购单列表（实际采购量 quantity_real / 入库量 quantity_entry） */
+  syncPurchaseOrders(payload: PurchaseOrderSyncPayload): Promise<any> {
+    return unwrap<any>(
+      request({
+        url: '/api/v1/modules/lingxing/purchase/orders/sync',
+        method: 'post',
+        data: payload,
+        timeout: 1800000
+      })
+    )
+  },
+
+  /** 查看领星采购事实层统计 */
+  getPurchaseStats(): Promise<any> {
+    return unwrap<any>(
+      request({
+        url: '/api/v1/modules/lingxing/purchase/stats',
+        method: 'get'
       })
     )
   },

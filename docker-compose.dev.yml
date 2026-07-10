@@ -135,8 +135,8 @@ services:
       VITE_JAVA_USER_HOST: java-user
       VITE_JAVA_USER_PORT: "8001"
     ports:
-      # host 5175 → container 5175; 8179/8180 can fall inside Windows excluded port ranges.
-      - "5175:5175"
+      # host 6175 → container 5175; 5175 can fall inside Windows excluded port ranges.
+      - "6175:5175"
     volumes:
       - ./frontend:/app
       - dev-node-modules:/app/node_modules
