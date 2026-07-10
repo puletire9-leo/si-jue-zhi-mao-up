@@ -200,6 +200,10 @@ export const requestCenterApi = {
     return unwrap<ConsumeNextResult>(request({ url: `${RC_BASE}/tasks/${runId}/consume`, method: 'post', params: { batchSize }, timeout: 600000 }))
   },
 
+  startAutoConsume(runId: string): Promise<Record<string, any>> {
+    return unwrap<Record<string, any>>(request({ url: `${RC_BASE}/tasks/${runId}/start`, method: 'post' }))
+  },
+
   pause(runId: string): Promise<number> {
     return unwrap<number>(request({ url: `${RC_BASE}/tasks/${runId}/pause`, method: 'post' }))
   },

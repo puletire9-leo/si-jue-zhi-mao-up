@@ -70,6 +70,39 @@
         LIMIT #{limit}
     </select>
 
+    <select id="selectM01MethodBatches"
+            resultType="com.sjzm.product.modules.shoprating.dto.ShopMethodBatchOption">
+        SELECT
+            'M01' AS methodId,
+            <choose>
+                <when test="marketplace != null and marketplace != ''">
+                    #{marketplace} AS marketplace,
+                </when>
+                <otherwise>
+                    'ALL' AS marketplace,
+                </otherwise>
+            </choose>
+            c.effective_week_tag AS batchCode,
+            'competitor_products_clean' AS sourceTable,
+            'effective_week_tag' AS sourceWeekField,
+            COUNT(DISTINCT CONCAT(
+                c.marketplace, '|', c.seller_name, '|', COALESCE(NULLIF(c.parent_asin, ''), c.asin)
+            )) AS productCount,
+            COUNT(DISTINCT CONCAT(c.marketplace, '|', c.seller_name)) AS sellerCount,
+            MAX(c.created_at) AS latestCreatedAt
+        FROM competitor_products_clean c
+        WHERE c.m01_active = 1
+          AND c.effective_week_tag IS NOT NULL AND c.effective_week_tag != ''
+          AND c.seller_name IS NOT NULL AND c.seller_name != ''
+          AND c.asin IS NOT NULL AND c.asin != ''
+          <if test="marketplace != null and marketplace != ''">
+          AND c.marketplace = #{marketplace}
+          </if>
+        GROUP BY c.effective_week_tag
+        ORDER BY MAX(c.created_at) DESC, c.effective_week_tag DESC
+        LIMIT #{limit}
+    </select>
+
     <update id="normalizeM01UnknownListingDaysRaw">
         UPDATE competitor_products
         SET listing_days = #{unknownListingDays}

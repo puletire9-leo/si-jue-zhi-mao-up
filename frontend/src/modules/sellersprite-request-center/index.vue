@@ -19,7 +19,7 @@
         </el-select>
         <el-button type="primary" @click="loadTasks">刷新</el-button>
         <div class="spacer" />
-        <span class="tip">统一管理 ASIN/店铺全集/候选批量/精品复抓的实况、暂停、停止、失败重试和使用次数统计</span>
+        <span class="tip">任务创建后自动按卖家精灵限制执行；当前店铺请求完成后响应暂停/停止；页面每 3 秒刷新进度和使用次数</span>
       </div>
     </el-card>
 
@@ -44,8 +44,8 @@
         <el-table-column prop="createdAt" label="创建时间" width="160" />
         <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" type="primary" link @click.stop="handleConsume(row)"
-                       :disabled="!canConsume(row.status)">推进</el-button>
+            <el-button size="small" type="primary" link @click.stop="handleStart(row)"
+                       :disabled="!canStart(row.status)">唤醒自动</el-button>
             <el-button size="small" link @click.stop="handlePause(row)" :disabled="row.status !== 'RUNNING'">暂停</el-button>
             <el-button size="small" link @click.stop="handleResume(row)" :disabled="row.status !== 'PAUSED'">恢复</el-button>
             <el-button size="small" type="danger" link @click.stop="handleStop(row)"
@@ -120,7 +120,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute } from 'vue-router'
 import {
@@ -142,11 +142,13 @@ const drawerVisible = ref(false)
 const currentRun = ref<SellerspriteRequestRun | null>(null)
 const items = ref<SellerspriteRequestItem[]>([])
 const detailLoading = ref(false)
+let refreshTimer: number | null = null
 
 const detailTitle = computed(() => currentRun.value ? `任务 ${currentRun.value.runId}` : '任务详情')
 
-async function loadTasks() {
-  loading.value = true
+async function loadTasks(silentFlag: unknown = false) {
+  const silent = silentFlag === true
+  if (!silent) loading.value = true
   try {
     const r = await requestCenterApi.listTasks({
       requestType: requestTypeFilter.value || undefined,
@@ -157,9 +159,9 @@ async function loadTasks() {
     rows.value = r.list || []
     total.value = r.total || 0
   } catch (e: any) {
-    ElMessage.error(e?.message || '加载任务失败')
+    if (!silent) ElMessage.error(e?.message || '加载任务失败')
   } finally {
-    loading.value = false
+    if (!silent) loading.value = false
   }
 }
 
@@ -176,21 +178,17 @@ async function openDetail(row: SellerspriteRequestRun) {
   }
 }
 
-async function handleConsume(row: SellerspriteRequestRun) {
+async function handleStart(row: SellerspriteRequestRun) {
   try {
-    const r = await requestCenterApi.consumeNext(row.runId, 1)
-    if (r.finished) {
-      ElMessage.info(r.message || '任务已完结')
-    } else {
-      ElMessage.success(`推进 ${r.consumed} 条：成功 ${r.success}，失败 ${r.failed}，跳过 ${r.skipped}，使用次数 ${r.apiCalls}`)
-    }
+    await requestCenterApi.startAutoConsume(row.runId)
+    ElMessage.success('已唤醒自动执行')
     await loadTasks()
     if (drawerVisible.value && currentRun.value?.runId === row.runId) {
       currentRun.value = await requestCenterApi.getTask(row.runId)
       items.value = await requestCenterApi.listItems(row.runId)
     }
   } catch (e: any) {
-    ElMessage.error(e?.message || '推进失败')
+    ElMessage.error(e?.message || '唤醒自动执行失败')
   }
 }
 
@@ -212,7 +210,7 @@ async function handleStop(row: SellerspriteRequestRun) {
 async function handleRetryItem(row: SellerspriteRequestItem) {
   try {
     await requestCenterApi.retryItem(row.id)
-    ElMessage.success('子项已置回 PENDING，可继续推进')
+    ElMessage.success('子项已置回 PENDING，并自动继续执行')
     if (currentRun.value) {
       currentRun.value = await requestCenterApi.getTask(currentRun.value.runId)
       items.value = await requestCenterApi.listItems(currentRun.value.runId)
@@ -223,7 +221,7 @@ async function handleRetryItem(row: SellerspriteRequestItem) {
   }
 }
 
-function canConsume(status: string) {
+function canStart(status: string) {
   return ['PENDING', 'RUNNING'].includes(status)
 }
 function canStop(status: string) {
@@ -252,11 +250,34 @@ function itemStatusType(s: string): 'primary' | 'success' | 'warning' | 'info' |
   } as Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'>)[s] || 'info'
 }
 
+function hasActiveTask() {
+  return rows.value.some((r) => ['PENDING', 'RUNNING'].includes(r.status))
+}
+
+async function refreshCurrentDetail() {
+  if (!drawerVisible.value || !currentRun.value) return
+  const runId = currentRun.value.runId
+  currentRun.value = await requestCenterApi.getTask(runId)
+  items.value = await requestCenterApi.listItems(runId)
+}
+
 onMounted(async () => {
   await loadTasks()
   if (route.query.runId) {
     const hit = rows.value.find((r) => r.runId === route.query.runId)
     if (hit) await openDetail(hit)
+  }
+  refreshTimer = window.setInterval(async () => {
+    if (!hasActiveTask() && !drawerVisible.value) return
+    await loadTasks(true)
+    await refreshCurrentDetail()
+  }, 3000)
+})
+
+onUnmounted(() => {
+  if (refreshTimer) {
+    window.clearInterval(refreshTimer)
+    refreshTimer = null
   }
 })
 </script>

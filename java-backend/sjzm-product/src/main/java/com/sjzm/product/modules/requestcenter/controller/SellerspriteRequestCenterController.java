@@ -26,7 +26,7 @@ public class SellerspriteRequestCenterController {
     private final SellerspriteRequestCenterService centerService;
 
     @PostMapping("/tasks")
-    @Operation(summary = "创建请求中心任务（入队子项，不立即消费）")
+    @Operation(summary = "创建请求中心任务（入队后自动执行）")
     public Result<SellerspriteRequestRun> createTask(@RequestBody CreateTaskRequest req) {
         List<RequestItemInput> items = req.items() == null ? List.of()
                 : req.items().stream().map(i -> new RequestItemInput(i.marketplace(), i.sellerName(), i.triggerId())).toList();
@@ -49,6 +49,12 @@ public class SellerspriteRequestCenterController {
     public Result<Map<String, Object>> consumeNext(@PathVariable String runId,
                                                    @RequestParam(defaultValue = "5") int batchSize) {
         return Result.success(centerService.consumeNext(runId, batchSize));
+    }
+
+    @PostMapping("/tasks/{runId}/start")
+    @Operation(summary = "唤醒自动执行 worker（任务创建后默认会自动执行，此接口用于手动恢复卡住的 PENDING/RUNNING 任务）")
+    public Result<Map<String, Object>> startAutoConsume(@PathVariable String runId) {
+        return Result.success(centerService.startAutoConsume(runId));
     }
 
     @PostMapping("/tasks/{runId}/pause")

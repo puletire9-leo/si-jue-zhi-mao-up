@@ -7,12 +7,12 @@ import com.sjzm.common.Result;
 import com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileProduct;
 import com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileSummary;
 import com.sjzm.product.modules.shopcollection.dto.ShopCollectionDetail;
+import com.sjzm.product.modules.shopcollection.dto.ShopCollectionInsight;
 import com.sjzm.product.modules.shopcollection.dto.ShopSnapshot;
 import com.sjzm.product.modules.shopcollection.entity.ShopProduct;
 import com.sjzm.product.modules.shopcollection.entity.ShopWatchlist;
 import com.sjzm.product.modules.shopcollection.mapper.ShopProductMapper;
 import com.sjzm.product.modules.shopcollection.service.ShopCollectionService;
-import com.sjzm.product.modules.shopcollection.service.ShopProductSyncService;
 import com.sjzm.product.modules.shopcollection.service.ShopWatchlistService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -35,7 +35,6 @@ import java.util.Map;
 public class ShopCollectionController {
 
     private final ShopWatchlistService watchlistService;
-    private final ShopProductSyncService syncService;
     private final ShopCollectionService collectionService;
     private final ShopProductMapper shopProductMapper;
 
@@ -44,12 +43,14 @@ public class ShopCollectionController {
     // ============================================================
 
     @PostMapping("/watchlist/sync-from-method-rank")
-    @Operation(summary = "方法卡排名同步观察池", description = "跑方法卡店铺排名（M01），把命中达标店铺写入 shop_watchlist")
+    @Deprecated(since = "店铺候选池链路落地", forRemoval = false)
+    @Operation(summary = "已下线：方法卡不再直写观察池",
+            description = "方法卡命中必须先写 shop_candidate_pool；前端请调用 /api/v1/modules/shop-candidates/sync-from-method-rank")
     public Result<Map<String, Object>> syncWatchlistFromMethodRank(
             @RequestParam(defaultValue = "M01") String methodId,
             @RequestParam(required = false) String marketplace,
             @RequestParam(defaultValue = "1") Integer minCount) {
-        return Result.success(watchlistService.syncFromMethodRank(methodId, marketplace, minCount));
+        return Result.error("旧入口已下线：方法卡命中只允许进入「方法卡找店/候选池」，请调用 /api/v1/modules/shop-candidates/sync-from-method-rank");
     }
 
     @GetMapping("/watchlist")
@@ -89,21 +90,11 @@ public class ShopCollectionController {
     // ============================================================
 
     @PostMapping("/products/sync")
-    @Operation(summary = "抓取店铺全集", description = "卖家精灵店铺名查询（variation=Y），写 shop_products；消耗请求次数（每月限 2 万次），勿反复触发")
+    @Deprecated(since = "卖家精灵请求中心落地", forRemoval = false)
+    @Operation(summary = "已下线：禁止直连抓取店铺全集",
+            description = "店铺全集抓取必须进入请求中心，候选池抓取请创建 CANDIDATE_BATCH 任务，人工抓取请创建 SHOP_FULL_LOOKUP 任务")
     public Result<Map<String, Object>> syncShopProducts(@RequestBody Map<String, Object> body) {
-        String sellerName = (String) body.get("sellerName");
-        String marketplace = (String) body.get("marketplace");
-        String fetchReason = (String) body.get("fetchReason");
-        Object watchlistObj = body.get("watchlistId");
-        Long watchlistId = watchlistObj instanceof Number ? ((Number) watchlistObj).longValue() : null;
-        if (!StringUtils.hasText(sellerName) || !StringUtils.hasText(marketplace)) {
-            return Result.error("sellerName 和 marketplace 不能为空");
-        }
-        Map<String, Object> result = syncService.syncBySellerName(sellerName, marketplace, fetchReason, watchlistId);
-        if (watchlistId != null) {
-            watchlistService.markFetched(watchlistId, String.valueOf(result.get("runId")));
-        }
-        return Result.success(result);
+        return Result.error("旧入口已下线：卖家精灵店铺全集抓取必须进入「请求中心」，以便暂停/停止/重试和统计使用次数");
     }
 
     @GetMapping("/products")
@@ -138,6 +129,24 @@ public class ShopCollectionController {
         return Result.success(collectionService.summary(marketplace, batchDate, sellerName, minProductCount, limit, sourceRunId));
     }
 
+    @GetMapping("/selection-shops")
+    @Operation(summary = "选品中心竞品店铺列表", description = "读取 shop_products 店铺全集画像，带 M01 命中数和新品时间维度，供前端跳转到单店选品页面")
+    public Result<List<ShopProfileSummary>> selectionShops(
+            @RequestParam String marketplace,
+            @RequestParam(required = false) String batchDate,
+            @RequestParam(required = false) String sellerName,
+            @RequestParam(required = false) Integer minProductCount,
+            @RequestParam(required = false) Integer minM01HitCount,
+            @RequestParam(required = false) Integer minNew90Count,
+            @RequestParam(required = false) Integer minGoodTendencyCount,
+            @RequestParam(required = false) Integer maxAttentionStrongCount,
+            @RequestParam(defaultValue = "100") Integer limit,
+            @RequestParam(required = false) String sourceRunId) {
+        return Result.success(collectionService.selectionShops(
+                marketplace, batchDate, sellerName, minProductCount, minM01HitCount, minNew90Count,
+                minGoodTendencyCount, maxAttentionStrongCount, limit, sourceRunId));
+    }
+
     @GetMapping("/{marketplace}/{sellerName}")
     @Operation(summary = "单店全景详情", description = "为什么进观察池 + 全集 A/B/C/D 画像 + 类目结构")
     public Result<ShopCollectionDetail> detail(
@@ -148,18 +157,33 @@ public class ShopCollectionController {
         return Result.success(collectionService.detail(marketplace, sellerName, batchDate, sourceRunId));
     }
 
+    @GetMapping("/{marketplace}/{sellerName}/insight")
+    @Operation(summary = "单店全集画像分析", description = "M01 命中、上架时间、销量等级、类目结构和注意/好品倾向标签")
+    public Result<ShopCollectionInsight> insight(
+            @PathVariable String marketplace,
+            @PathVariable String sellerName,
+            @RequestParam(required = false) String sourceRunId,
+            @RequestParam(required = false) String batchCode) {
+        return Result.success(collectionService.insight(marketplace, sellerName, sourceRunId, batchCode));
+    }
+
     @GetMapping("/{marketplace}/{sellerName}/products")
-    @Operation(summary = "单店全集商品明细", description = "按销量等级和类目查看父体去重后的商品明细")
+    @Operation(summary = "单店全集商品明细", description = "三维筛选：销量层 salesTier / 时间层 ageBucket / 注意层 attentionLevel / M01 命中 / 关键词 / 类目")
     public Result<PageResult<ShopProfileProduct>> shopProducts(
             @PathVariable String marketplace,
             @PathVariable String sellerName,
             @RequestParam(required = false) String batchDate,
             @RequestParam(required = false) String sourceRunId,
             @RequestParam(required = false) String salesTier,
+            @RequestParam(required = false) String ageBucket,
+            @RequestParam(required = false) String attentionLevel,
+            @RequestParam(required = false) Boolean m01Only,
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String category,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "60") Integer size) {
-        return Result.success(collectionService.products(marketplace, sellerName, batchDate, sourceRunId, salesTier, category, page, size));
+        return Result.success(collectionService.products(marketplace, sellerName, batchDate, sourceRunId,
+                salesTier, ageBucket, attentionLevel, m01Only, keyword, category, page, size));
     }
 
     // ============================================================

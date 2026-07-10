@@ -1,6 +1,7 @@
 package com.sjzm.product.mapper;
 
 import com.sjzm.product.modules.shoprating.dto.ShopMethodRankItem;
+import com.sjzm.product.modules.shoprating.dto.ShopMethodBatchOption;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -26,6 +27,13 @@ public interface ShopMethodRankMapper {
                                                   @Param("effectiveWeekTag") String effectiveWeekTag,
                                                   @Param("minCount") int minCount,
                                                   @Param("limit") int limit);
+
+    /**
+     * M01 可用来源批次。注意：这里读取的是 clean 表的 effective_week_tag，
+     * 不是候选池 batch_code，也不是 created_at 临时推导周次。
+     */
+    List<ShopMethodBatchOption> selectM01MethodBatches(@Param("marketplace") String marketplace,
+                                                       @Param("limit") int limit);
 
     int normalizeM01UnknownListingDaysRaw(@Param("marketplace") String marketplace,
                                           @Param("listingDaysMax") int listingDaysMax,

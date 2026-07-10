@@ -116,6 +116,15 @@
                   <div class="info-label">店铺名称：</div>
                   <div class="info-value">
                     {{ product.storeName || product.sellerName }}
+                    <el-button
+                      v-if="(product.storeName || product.sellerName) && (product.marketplace || product.country)"
+                      size="small"
+                      type="primary"
+                      link
+                      @click="goShopProfile"
+                    >
+                      查看店铺画像
+                    </el-button>
                   </div>
                 </div>
 
@@ -505,6 +514,7 @@
 
 <script setup>
 import { ref, computed, watch } from "vue";
+import { useRouter } from "vue-router";
 import { Picture, Edit, Delete, Promotion } from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { productApi } from "@/api/product";
@@ -549,6 +559,47 @@ const emit = defineEmits([
   "delete",
   "select-product",
 ]);
+
+const router = useRouter();
+
+// 从商品跳店铺画像：店铺维度统一进店铺总览，用 snapshots 判断是否抓过全集由目标页处理。
+function goShopProfile() {
+  const sellerName = props.product?.storeName || props.product?.sellerName;
+  const marketplace = normalizeMarketplace(
+    props.product?.marketplace || props.product?.country,
+  );
+  if (!sellerName || !marketplace) {
+    ElMessage.warning("该商品缺少店铺名或标准市场码，无法跳转店铺画像");
+    return;
+  }
+  emit("update:visible", false);
+  router.push({
+    name: "module-shop-collection-shops-ShopCollectionShops",
+    query: { marketplace, sellerName, tab: "products" },
+  });
+}
+
+function normalizeMarketplace(value) {
+  if (value === null || value === undefined) return "";
+  const raw = String(value).trim();
+  if (!raw) return "";
+  const upper = raw.toUpperCase();
+  const map = {
+    UK: "UK",
+    GB: "UK",
+    "UNITED KINGDOM": "UK",
+    英国: "UK",
+    DE: "DE",
+    GER: "DE",
+    GERMANY: "DE",
+    德国: "DE",
+    US: "US",
+    USA: "US",
+    "UNITED STATES": "US",
+    美国: "US",
+  };
+  return map[upper] || map[raw] || "";
+}
 
 const dialogVisible = computed({
   get: () => props.visible,

@@ -10,10 +10,14 @@ import com.sjzm.product.modules.requestcenter.mapper.SellerspriteRequestRunMappe
 import com.sjzm.product.modules.shopcandidate.service.ShopCandidateService;
 import com.sjzm.product.modules.shopcollection.service.ShopProductSyncService;
 import com.sjzm.product.util.WeekTagUtil;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
@@ -21,6 +25,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 
 /**
  * 卖家精灵请求中心最小骨架。
@@ -37,7 +43,6 @@ import java.util.*;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class SellerspriteRequestCenterService {
 
     private final SellerspriteRequestRunMapper runMapper;
@@ -46,10 +51,33 @@ public class SellerspriteRequestCenterService {
     private final ShopCandidateService candidateService;
     private final WeekTagUtil weekTagUtil;
     private final TransactionTemplate transactionTemplate;
+    @Qualifier("sellerspriteRequestExecutor")
+    private final Executor sellerspriteRequestExecutor;
     private final com.sjzm.product.modules.shoppremium.mapper.ShopPremiumPoolMapper premiumMapper;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final int DEFAULT_BATCH_SIZE = 5;
+    private static final Set<String> RUNNABLE_STATUS = Set.of("PENDING", "RUNNING");
+    private static final Set<String> TERMINAL_STATUS = Set.of("SUCCESS", "FAILED", "PARTIAL_SUCCESS", "STOPPED");
+    private final Set<String> activeAutoRuns = ConcurrentHashMap.newKeySet();
+
+    public SellerspriteRequestCenterService(SellerspriteRequestRunMapper runMapper,
+                                            SellerspriteRequestItemMapper itemMapper,
+                                            ShopProductSyncService productSyncService,
+                                            ShopCandidateService candidateService,
+                                            WeekTagUtil weekTagUtil,
+                                            TransactionTemplate transactionTemplate,
+                                            @Qualifier("sellerspriteRequestExecutor") Executor sellerspriteRequestExecutor,
+                                            com.sjzm.product.modules.shoppremium.mapper.ShopPremiumPoolMapper premiumMapper) {
+        this.runMapper = runMapper;
+        this.itemMapper = itemMapper;
+        this.productSyncService = productSyncService;
+        this.candidateService = candidateService;
+        this.weekTagUtil = weekTagUtil;
+        this.transactionTemplate = transactionTemplate;
+        this.sellerspriteRequestExecutor = sellerspriteRequestExecutor;
+        this.premiumMapper = premiumMapper;
+    }
 
     // ── create task ──────────────────────────────────────────────
 
@@ -110,6 +138,7 @@ public class SellerspriteRequestCenterService {
 
         log.info("请求中心任务已创建: runId={}, requestType={}, marketplace={}, items={}",
                 runId, requestType, marketplace, items.size());
+        startAutoConsumeAfterCommit(runId);
         return run;
     }
 
@@ -144,6 +173,7 @@ public class SellerspriteRequestCenterService {
     public int resume(String runId) {
         int affected = runMapper.resume(runId);
         if (affected == 0) throw new IllegalStateException("恢复失败：run " + runId + " 当前状态非 PAUSED");
+        startAutoConsume(runId);
         return affected;
     }
 
@@ -158,16 +188,105 @@ public class SellerspriteRequestCenterService {
     // ── consume ──────────────────────────────────────────────────
 
     /**
-     * 消费一步——从 run 取一批 PENDING 子项，逐条抓取。
-     *
-     * <p>run 必须处于 RUNNING 或 PENDING。PENDING 会先 claimRunning 抢成 RUNNING。
-     * 暂停（PAUSED）/停止（STOPPED）的 run 不消费。2 秒限速由 ShopProductSyncService 内部保证。
-     * 单条失败不阻塞后续。所有子项消费完后，根据成功/失败比例置 run 终态。</p>
-     *
-     * @param runId     任务 id
-     * @param batchSize 单步最多消费条数（默认 5）
-     * @return 本步消费结果统计
+     * Starts the background worker for a queued/running request-center task.
+     * Normal task creation calls this automatically after transaction commit.
      */
+    public Map<String, Object> startAutoConsume(String runId) {
+        SellerspriteRequestRun run = getRun(runId);
+        if (!RUNNABLE_STATUS.contains(run.getStatus())) {
+            return Map.of(
+                    "runId", runId,
+                    "started", false,
+                    "status", run.getStatus(),
+                    "message", "Only PENDING/RUNNING tasks can be auto-consumed");
+        }
+        if (!activeAutoRuns.add(runId)) {
+            return Map.of(
+                    "runId", runId,
+                    "started", false,
+                    "status", run.getStatus(),
+                    "message", "Auto worker is already active");
+        }
+        sellerspriteRequestExecutor.execute(() -> {
+            try {
+                autoConsumeLoop(runId);
+            } catch (Exception e) {
+                log.error("Request center auto worker failed: runId={}, error={}", runId, e.getMessage(), e);
+            } finally {
+                activeAutoRuns.remove(runId);
+            }
+        });
+        log.info("Request center auto worker started: runId={}, status={}", runId, run.getStatus());
+        return Map.of(
+                "runId", runId,
+                "started", true,
+                "status", run.getStatus(),
+                "message", "Auto worker started");
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void recoverAutoConsumeTasks() {
+        List<String> runIds = runMapper.selectRunnableRunIds();
+        if (runIds.isEmpty()) {
+            return;
+        }
+        log.info("Recovering request center auto workers: count={}", runIds.size());
+        for (String runId : runIds) {
+            int reset = itemMapper.resetRunningToPending(runId);
+            runMapper.recountItemCounters(runId);
+            if (reset > 0) {
+                log.warn("Reset stale RUNNING request items to PENDING on startup: runId={}, count={}", runId, reset);
+            }
+            startAutoConsume(runId);
+        }
+    }
+
+    private void startAutoConsumeAfterCommit(String runId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            startAutoConsume(runId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                startAutoConsume(runId);
+            }
+        });
+    }
+
+    private void autoConsumeLoop(String runId) {
+        while (true) {
+            SellerspriteRequestRun run = runMapper.selectById(runId);
+            if (run == null) {
+                log.warn("Request center auto worker stopped because run is missing: runId={}", runId);
+                return;
+            }
+            if ("PAUSED".equals(run.getStatus()) || TERMINAL_STATUS.contains(run.getStatus())) {
+                log.info("Request center auto worker stopped: runId={}, status={}", runId, run.getStatus());
+                return;
+            }
+            Map<String, Object> result = consumeNext(runId, 1);
+            SellerspriteRequestRun after = runMapper.selectById(runId);
+            if (after == null) {
+                return;
+            }
+            if ("PAUSED".equals(after.getStatus()) || TERMINAL_STATUS.contains(after.getStatus())) {
+                log.info("Request center auto worker stopped after consume: runId={}, status={}", runId, after.getStatus());
+                return;
+            }
+            int consumed = getInt(result, "consumed", 0);
+            int pending = nvl(after.getPendingCount());
+            if (consumed == 0) {
+                if (pending <= 0) {
+                    finalizeRun(runId);
+                } else {
+                    log.warn("Request center auto worker found pending_count but no PENDING item: runId={}, pending={}", runId, pending);
+                }
+                return;
+            }
+        }
+    }
+
     public Map<String, Object> consumeNext(String runId, Integer batchSize) {
         SellerspriteRequestRun run = runMapper.selectById(runId);
         if (run == null) throw new IllegalArgumentException("任务不存在: " + runId);
@@ -366,6 +485,7 @@ public class SellerspriteRequestCenterService {
         int reset = itemMapper.resetFailedToPending(itemId);
         if (reset == 0) return 0;
         itemMapper.reopenForRetry(item.getRunId());
+        startAutoConsumeAfterCommit(item.getRunId());
         log.info("请求中心子项重试: runId={}, itemId={}", item.getRunId(), itemId);
         return reset;
     }

@@ -40,6 +40,147 @@ export interface ShopProfileSummary {
   profileType: string | null;
   latestBatchDate: string | null;
   variationMode: string | null;
+  m01HitCount: number | null;
+  m01HitRatio: number | null;
+  avgListingDays: number | null;
+  avgUnits: number | null;
+  earliestAvailableDate: number | null;
+  earliestAvailableDateText: string | null;
+  maxListingDays: number | null;
+  new30Count: number | null;
+  new90Count: number | null;
+  new180Count: number | null;
+  old180Count: number | null;
+  unknownListingDaysCount: number | null;
+  newProductCount: number | null;
+  newABCCount: number | null;
+  newABCRatio: number | null;
+  oldDCount: number | null;
+  oldDRatio: number | null;
+  goodTendencyCount: number | null;
+  attentionStrongCount: number | null;
+  attentionReviewCount: number | null;
+  shopProfile3dType: string | null;
+  shopProfile3dExplanation: string | null;
+}
+
+/** 单店销量等级维度洞察（后端 ShopTierInsight） */
+export interface ShopTierInsight {
+  salesTier: string;
+  productCount: number | null;
+  m01HitCount: number | null;
+  m01HitRatio: number | null;
+  avgListingDays: number | null;
+  avgUnits: number | null;
+  earliestAvailableDate: number | null;
+  earliestAvailableDateText: string | null;
+  maxListingDays: number | null;
+  new30Count: number | null;
+  new90Count: number | null;
+  new180Count: number | null;
+  old180Count: number | null;
+  unknownListingDaysCount: number | null;
+}
+
+/** 单店类目维度洞察（后端 ShopCategoryInsight） */
+export interface ShopCategoryInsight {
+  salesTier: string;
+  categoryKey: string;
+  nodeLabelPath: string | null;
+  productCount: number | null;
+  unitsSum: number | null;
+  unitsAvg: number | null;
+  avgListingDays: number | null;
+  m01HitCount: number | null;
+  m01HitRatio: number | null;
+  attentionLevel: string | null;
+  attentionReason: string | null;
+  labelMeaning: string | null;
+  attentionTags: string[];
+  tendencyTags: string[];
+  /** 兼容别名，新页面请勿使用 */
+  riskLevel?: string | null;
+  riskReason?: string | null;
+}
+
+/** 类目标签聚合洞察（后端 ShopCategoryRiskInsight） */
+export interface ShopCategoryLabelInsight {
+  attentionLevel: string | null;
+  attentionReason: string | null;
+  labelMeaning: string | null;
+  attentionTags: string[];
+  tendencyTags: string[];
+  productCount: number | null;
+  unitsSum: number | null;
+  unitsAvg: number | null;
+  avgListingDays: number | null;
+  m01HitCount: number | null;
+  categoryCount: number | null;
+  topCategories: string[];
+  /** 兼容别名，新页面请勿使用 */
+  riskLevel?: string | null;
+  riskReason?: string | null;
+}
+
+/** 互斥时间桶统计（模型分层，非累计窗口） */
+export interface ShopAgeBucketStat {
+  ageBucket: string;
+  productCount: number | null;
+  unitsSum: number | null;
+  avgUnits: number | null;
+  m01HitCount: number | null;
+  abcCount: number | null;
+}
+
+/** 二维矩阵单元格 */
+export interface ShopMatrixCell {
+  rowKey: string;
+  colKey: string;
+  productCount: number | null;
+  unitsSum: number | null;
+  m01HitCount: number | null;
+}
+
+/** 二维矩阵 */
+export interface ShopMatrix {
+  name: string;
+  rowDim: string;
+  colDim: string;
+  rowKeys: string[];
+  colKeys: string[];
+  cells: ShopMatrixCell[];
+}
+
+/** 单店全集画像分析（后端 ShopCollectionInsight） */
+export interface ShopCollectionInsight {
+  snapshot: ShopSnapshot | null;
+  profile: ShopProfileSummary | null;
+  methodId: string | null;
+  m01HitCount: number | null;
+  m01HitRatio: number | null;
+  earliestAvailableDate: number | null;
+  earliestAvailableDateText: string | null;
+  maxListingDays: number | null;
+  avgListingDays: number | null;
+  avgUnits: number | null;
+  new30Count: number | null;
+  new90Count: number | null;
+  new180Count: number | null;
+  old180Count: number | null;
+  unknownListingDaysCount: number | null;
+  tierStats: ShopTierInsight[];
+  categoryStats: ShopCategoryInsight[];
+  ageBucketStats: ShopAgeBucketStat[];
+  salesAgeMatrix: ShopMatrix | null;
+  salesAttentionMatrix: ShopMatrix | null;
+  ageAttentionMatrix: ShopMatrix | null;
+  topGoodTendencyCategories: string[];
+  topAttentionCategories: string[];
+  shopProfile3dType: string | null;
+  shopProfile3dExplanation: string | null;
+  categoryLabelStats: ShopCategoryLabelInsight[];
+  /** 兼容别名，新页面请勿使用 */
+  riskStats?: ShopCategoryLabelInsight[];
 }
 
 /** 店铺画像类目结构 */
@@ -78,8 +219,14 @@ export interface ShopProfileProduct {
   ratings: number | null;
   fulfillment: string | null;
   availableDate: number | null;
+  listingDays: number | null;
   batchDate: string | null;
   createdAt: string | null;
+  ageBucket: string | null;
+  m01Hit: number | null;
+  attentionLevel: string | null;
+  attentionReason: string | null;
+  labelMeaning: string | null;
 }
 
 /** 单店全景详情 */
@@ -162,26 +309,6 @@ export interface MpPage<T> {
   pages: number;
 }
 
-/** 观察池同步结果 */
-export interface WatchlistSyncResult {
-  methodId: string;
-  marketplace: string | null;
-  minCount: number;
-  rankedShops: number;
-  upserted: number;
-}
-
-/** 店铺全集抓取结果 */
-export interface ShopSyncResult {
-  sellerName: string;
-  marketplace: string;
-  total: number;
-  inserted: number;
-  apiCalls: number;
-  runId: string;
-  batchDate: string;
-}
-
 /** Result<T> 解包 */
 function unwrap<T>(p: Promise<any>): Promise<T> {
   return p.then((res) => res?.data as T);
@@ -190,22 +317,6 @@ function unwrap<T>(p: Promise<any>): Promise<T> {
 const BASE = "/api/v1/modules/shop-collection";
 
 export const shopCollectionApi = {
-  /** 方法卡排名同步观察池 */
-  syncWatchlistFromMethodRank(
-    methodId = "M01",
-    marketplace?: string,
-    minCount = 1,
-  ): Promise<WatchlistSyncResult> {
-    return unwrap<WatchlistSyncResult>(
-      request({
-        url: `${BASE}/watchlist/sync-from-method-rank`,
-        method: "post",
-        params: { methodId, minCount, ...(marketplace ? { marketplace } : {}) },
-        timeout: 120000,
-      }),
-    );
-  },
-
   /** 查询观察池 */
   listWatchlist(
     marketplace?: string,
@@ -258,23 +369,6 @@ export const shopCollectionApi = {
     );
   },
 
-  /** 抓取店铺全集（消耗卖家精灵请求次数，每月限 2 万次；放大超时到 10 分钟） */
-  syncShopProducts(
-    marketplace: string,
-    sellerName: string,
-    fetchReason?: string,
-    watchlistId?: number,
-  ): Promise<ShopSyncResult> {
-    return unwrap<ShopSyncResult>(
-      request({
-        url: `${BASE}/products/sync`,
-        method: "post",
-        data: { marketplace, sellerName, fetchReason, watchlistId },
-        timeout: 600000,
-      }),
-    );
-  },
-
   /** 店铺全集原始分页 */
   listShopProducts(
     current = 1,
@@ -321,6 +415,54 @@ export const shopCollectionApi = {
         },
       }),
     ).then((d) => (Array.isArray(d) ? d : []));
+  },
+
+  /** 选品中心竞品店铺列表（带 M01 命中与新品维度） */
+  selectionShops(params: {
+    marketplace: string;
+    sellerName?: string;
+    batchDate?: string;
+    minProductCount?: number;
+    minM01HitCount?: number;
+    minNew90Count?: number;
+    minGoodTendencyCount?: number;
+    maxAttentionStrongCount?: number;
+    limit?: number;
+    sourceRunId?: string;
+  }): Promise<ShopProfileSummary[]> {
+    const { marketplace, limit = 100, ...rest } = params;
+    return unwrap<ShopProfileSummary[]>(
+      request({
+        url: `${BASE}/selection-shops`,
+        method: "get",
+        params: {
+          marketplace,
+          limit,
+          ...Object.fromEntries(
+            Object.entries(rest).filter(([, v]) => v != null && v !== ""),
+          ),
+        },
+      }),
+    ).then((d) => (Array.isArray(d) ? d : []));
+  },
+
+  /** 单店全集画像分析（M01 命中/上架时间/等级/类目标签） */
+  insight(
+    marketplace: string,
+    sellerName: string,
+    sourceRunId?: string,
+    batchCode?: string,
+  ): Promise<ShopCollectionInsight> {
+    return unwrap<ShopCollectionInsight>(
+      request({
+        url: `${BASE}/${marketplace}/${encodeURIComponent(sellerName)}/insight`,
+        method: "get",
+        params: {
+          ...(sourceRunId ? { sourceRunId } : {}),
+          ...(batchCode ? { batchCode } : {}),
+        },
+      }),
+    );
   },
 
   /** 单店全景详情 */
@@ -390,26 +532,33 @@ export const shopCollectionApi = {
     );
   },
 
-  /** 单店全集商品明细分页 */
-  shopProducts(
-    marketplace: string,
-    sellerName: string,
-    salesTier?: string,
-    category?: string,
-    page = 1,
-    size = 60,
-    sourceRunId?: string,
-  ): Promise<PageResult<ShopProfileProduct>> {
+  /** 单店全集商品明细分页（三维筛选） */
+  shopProducts(params: {
+    marketplace: string;
+    sellerName: string;
+    salesTier?: string;
+    ageBucket?: string;
+    attentionLevel?: string;
+    m01Only?: boolean;
+    keyword?: string;
+    category?: string;
+    sourceRunId?: string;
+    page?: number;
+    size?: number;
+  }): Promise<PageResult<ShopProfileProduct>> {
+    const { marketplace, sellerName, page = 1, size = 60, ...rest } = params;
     return unwrap<PageResult<ShopProfileProduct>>(
       request({
         url: `${BASE}/${marketplace}/${encodeURIComponent(sellerName)}/products`,
         method: "get",
         params: {
-          ...(salesTier ? { salesTier } : {}),
-          ...(category ? { category } : {}),
-          ...(sourceRunId ? { sourceRunId } : {}),
           page,
           size,
+          ...Object.fromEntries(
+            Object.entries(rest).filter(
+              ([, v]) => v != null && v !== "" && v !== false,
+            ),
+          ),
         },
       }),
     );

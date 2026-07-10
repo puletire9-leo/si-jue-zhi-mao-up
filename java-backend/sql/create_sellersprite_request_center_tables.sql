@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS sellersprite_request_run (
     request_type VARCHAR(32) NOT NULL COMMENT 'SHOP_FULL_LOOKUP/ASIN_LOOKUP/CANDIDATE_BATCH/PREMIUM_REFRESH',
     marketplace VARCHAR(16) NOT NULL DEFAULT '' COMMENT '站点（任务级，item 可覆盖；多站点任务为 MIXED）',
     trigger_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT 'CANDIDATE_CONFIRM/WATCHLIST/PREMIUM_REFRESH/MANUAL',
-    trigger_ref VARCHAR(128) NULL COMMENT '来源引用（如 premium 池 id 列表 JSON）',
+    trigger_ref TEXT NULL COMMENT '来源引用摘要/JSON；批量任务不要依赖长度固定的 VARCHAR',
     fetch_reason VARCHAR(512) NULL COMMENT '抓取原因',
     batch_code VARCHAR(16) NULL COMMENT 'ISO 周批次',
     batch_date VARCHAR(64) NULL COMMENT '入库日期 yyyyMMdd',

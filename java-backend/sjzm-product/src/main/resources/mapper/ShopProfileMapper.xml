@@ -266,6 +266,92 @@
             FROM shop_products ds
     ]]></sql>
 
+    <sql id="shopM01HitExpression">
+        CASE WHEN
+            price BETWEEN #{priceMin} AND #{priceMax}
+            AND weight_g IS NOT NULL
+            AND weight_g &lt; #{weightMax}
+            AND listing_days IS NOT NULL
+            AND listing_days &lt; #{listingDaysMax}
+            AND (
+                (listing_days &lt;= 30 AND units IS NOT NULL AND units &gt;= #{sales30})
+                OR (listing_days &lt;= 60 AND units IS NOT NULL AND units &gt;= #{sales60})
+                OR (listing_days &lt;= 90 AND units IS NOT NULL AND units &gt;= #{sales90})
+                <if test="bsrMax != null">
+                    OR (bsr IS NOT NULL AND bsr &gt; 0 AND bsr &lt; #{bsrMax})
+                </if>
+            )
+        THEN 1 ELSE 0 END
+    </sql>
+
+    <!-- 互斥时间桶（模型分层，非累计窗口）：NEW<=90 / GROWING 91-180 / MATURE 181-365 / OLD>365 / UNKNOWN -->
+    <sql id="shopAgeBucketExpression">
+        CASE
+            WHEN listing_days IS NULL THEN 'UNKNOWN'
+            WHEN listing_days &lt;= 90 THEN 'NEW'
+            WHEN listing_days &lt;= 180 THEN 'GROWING'
+            WHEN listing_days &lt;= 365 THEN 'MATURE'
+            ELSE 'OLD'
+        END
+    </sql>
+
+    <!-- 三维聚合原子单元：销量层 × 互斥时间桶 × 类目。注意/倾向层在 Java 侧按类目补。 -->
+    <select id="selectTierAgeCategoryCellsFromShopProducts" resultType="com.sjzm.product.modules.shopcollection.dto.ShopTierAgeCategoryCell">
+        <include refid="rankedFromShopProducts"/>
+            WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL AND ds.seller_name IS NOT NULL
+              AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
+            <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+            <if test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</if>
+        ), base AS (
+            SELECT * FROM ranked WHERE rn = 1
+        ), enriched AS (
+            SELECT base.*, <include refid="shopM01HitExpression"/> AS m01_hit,
+                <include refid="shopAgeBucketExpression"/> AS age_bucket
+            FROM base
+        )
+        SELECT sales_tier_calc AS salesTier,
+            age_bucket AS ageBucket,
+            category_leaf AS categoryKey,
+            MAX(node_label_path) AS nodeLabelPath,
+            COUNT(*) AS productCount,
+            COALESCE(SUM(units), 0) AS unitsSum,
+            SUM(m01_hit) AS m01HitCount,
+            ROUND(AVG(listing_days), 2) AS avgListingDays
+        FROM enriched
+        GROUP BY sales_tier_calc, age_bucket, category_leaf
+    </select>
+
+    <select id="selectTierAgeCategoryCellsBatchFromShopProducts" resultType="com.sjzm.product.modules.shopcollection.dto.ShopTierAgeCategoryCell">
+        <include refid="rankedFromShopProducts"/>
+            WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL AND ds.seller_name IS NOT NULL
+              AND ds.marketplace = #{marketplace}
+            <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+            <if test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</if>
+            <if test="sellerNames != null and sellerNames.size() > 0">
+              AND ds.seller_name IN
+              <foreach collection="sellerNames" item="seller" open="(" separator="," close=")">#{seller}</foreach>
+            </if>
+        ), base AS (
+            SELECT * FROM ranked WHERE rn = 1
+        ), enriched AS (
+            SELECT base.*, <include refid="shopM01HitExpression"/> AS m01_hit,
+                <include refid="shopAgeBucketExpression"/> AS age_bucket
+            FROM base
+        )
+        SELECT marketplace,
+            seller_name AS sellerName,
+            sales_tier_calc AS salesTier,
+            age_bucket AS ageBucket,
+            category_leaf AS categoryKey,
+            MAX(node_label_path) AS nodeLabelPath,
+            COUNT(*) AS productCount,
+            COALESCE(SUM(units), 0) AS unitsSum,
+            SUM(m01_hit) AS m01HitCount,
+            ROUND(AVG(listing_days), 2) AS avgListingDays
+        FROM enriched
+        GROUP BY marketplace, seller_name, sales_tier_calc, age_bucket, category_leaf
+    </select>
+
     <select id="selectSummaryFromShopProducts" resultType="com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileSummary">
         <include refid="rankedFromShopProducts"/>
             WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL AND ds.seller_name IS NOT NULL
@@ -275,6 +361,9 @@
             <if test="sellerNameKeyword != null and sellerNameKeyword != ''">AND ds.seller_name LIKE CONCAT('%', #{sellerNameKeyword}, '%')</if>
         ), base AS (
             SELECT * FROM ranked WHERE rn = 1
+        ), enriched AS (
+            SELECT base.*, <include refid="shopM01HitExpression"/> AS m01_hit
+            FROM base
         ), seller_agg AS (
             SELECT marketplace, seller_name AS sellerName, MAX(seller_id) AS sellerId,
                 COUNT(*) AS productCount,
@@ -283,12 +372,27 @@
                 SUM(CASE WHEN sales_tier_calc = 'C' THEN 1 ELSE 0 END) AS cCount,
                 SUM(CASE WHEN sales_tier_calc = 'D' THEN 1 ELSE 0 END) AS dCount,
                 SUM(CASE WHEN sales_tier_calc = 'UNKNOWN' THEN 1 ELSE 0 END) AS unknownCount,
+                SUM(m01_hit) AS m01HitCount,
+                ROUND(SUM(m01_hit) / NULLIF(COUNT(*), 0), 4) AS m01HitRatio,
+                ROUND(AVG(listing_days), 2) AS avgListingDays,
+                ROUND(AVG(units), 2) AS avgUnits,
+                MIN(CASE WHEN available_date IS NOT NULL AND available_date &gt; 0 THEN available_date END) AS earliestAvailableDate,
+                DATE_FORMAT(FROM_UNIXTIME(MIN(CASE WHEN available_date IS NOT NULL AND available_date &gt; 0 THEN available_date END) / 1000), '%Y-%m-%d') AS earliestAvailableDateText,
+                MAX(listing_days) AS maxListingDays,
+                SUM(CASE WHEN listing_days IS NOT NULL AND listing_days &lt;= 30 THEN 1 ELSE 0 END) AS new30Count,
+                SUM(CASE WHEN listing_days IS NOT NULL AND listing_days &lt;= 90 THEN 1 ELSE 0 END) AS new90Count,
+                SUM(CASE WHEN listing_days IS NOT NULL AND listing_days &lt;= 180 THEN 1 ELSE 0 END) AS new180Count,
+                SUM(CASE WHEN listing_days IS NOT NULL AND listing_days &gt; 180 THEN 1 ELSE 0 END) AS old180Count,
+                SUM(CASE WHEN listing_days IS NULL THEN 1 ELSE 0 END) AS unknownListingDaysCount,
+                SUM(CASE WHEN listing_days IS NOT NULL AND listing_days &lt;= 90 THEN 1 ELSE 0 END) AS newProductCount,
+                SUM(CASE WHEN listing_days IS NOT NULL AND listing_days &lt;= 90 AND sales_tier_calc IN ('A','B','C') THEN 1 ELSE 0 END) AS newABCCount,
+                SUM(CASE WHEN listing_days IS NOT NULL AND listing_days &gt; 365 AND sales_tier_calc = 'D' THEN 1 ELSE 0 END) AS oldDCount,
                 MAX(batch_date) AS latestBatchDate
-            FROM base GROUP BY marketplace, seller_name
+            FROM enriched GROUP BY marketplace, seller_name
         ), category_source AS (
-            SELECT marketplace, seller_name AS sellerName, 'A' AS bucket, category_leaf FROM base WHERE sales_tier_calc = 'A'
-            UNION ALL SELECT marketplace, seller_name AS sellerName, 'ABC' AS bucket, category_leaf FROM base WHERE sales_tier_calc IN ('A','B','C')
-            UNION ALL SELECT marketplace, seller_name AS sellerName, 'D' AS bucket, category_leaf FROM base WHERE sales_tier_calc = 'D'
+            SELECT marketplace, seller_name AS sellerName, 'A' AS bucket, category_leaf FROM enriched WHERE sales_tier_calc = 'A'
+            UNION ALL SELECT marketplace, seller_name AS sellerName, 'ABC' AS bucket, category_leaf FROM enriched WHERE sales_tier_calc IN ('A','B','C')
+            UNION ALL SELECT marketplace, seller_name AS sellerName, 'D' AS bucket, category_leaf FROM enriched WHERE sales_tier_calc = 'D'
         ), category_counts AS (
             SELECT marketplace, sellerName, bucket, category_leaf, COUNT(*) AS cnt
             FROM category_source GROUP BY marketplace, sellerName, bucket, category_leaf
@@ -308,7 +412,14 @@
             (sa.aCount + sa.bCount) AS abCount,
             (sa.aCount + sa.bCount + sa.cCount) AS abcCount,
             tc.topACategory, tc.topABCCategory, tc.topDCategory,
-            sa.latestBatchDate
+            sa.latestBatchDate,
+            sa.m01HitCount, sa.m01HitRatio, sa.avgListingDays, sa.avgUnits,
+            sa.earliestAvailableDate, sa.earliestAvailableDateText, sa.maxListingDays,
+            sa.new30Count, sa.new90Count, sa.new180Count, sa.old180Count, sa.unknownListingDaysCount,
+            sa.newProductCount, sa.newABCCount,
+            ROUND(sa.newABCCount / NULLIF(sa.productCount, 0), 4) AS newABCRatio,
+            sa.oldDCount,
+            ROUND(sa.oldDCount / NULLIF(sa.productCount, 0), 4) AS oldDRatio
         FROM seller_agg sa
         LEFT JOIN top_categories tc ON tc.marketplace = sa.marketplace AND tc.sellerName = sa.sellerName
         <where>
@@ -318,17 +429,159 @@
         LIMIT #{limit}
     </select>
 
+    <select id="selectShopInsightOverviewFromShopProducts" resultType="com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileSummary">
+        <include refid="rankedFromShopProducts"/>
+            WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL AND ds.seller_name IS NOT NULL
+              AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
+            <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+            <if test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</if>
+        ), base AS (
+            SELECT * FROM ranked WHERE rn = 1
+        ), enriched AS (
+            SELECT base.*, <include refid="shopM01HitExpression"/> AS m01_hit
+            FROM base
+        ), category_source AS (
+            SELECT marketplace, seller_name AS sellerName, 'A' AS bucket, category_leaf FROM enriched WHERE sales_tier_calc = 'A'
+            UNION ALL SELECT marketplace, seller_name AS sellerName, 'ABC' AS bucket, category_leaf FROM enriched WHERE sales_tier_calc IN ('A','B','C')
+            UNION ALL SELECT marketplace, seller_name AS sellerName, 'D' AS bucket, category_leaf FROM enriched WHERE sales_tier_calc = 'D'
+        ), category_counts AS (
+            SELECT marketplace, sellerName, bucket, category_leaf, COUNT(*) AS cnt
+            FROM category_source GROUP BY marketplace, sellerName, bucket, category_leaf
+        ), category_ranked AS (
+            SELECT category_counts.*, ROW_NUMBER() OVER (
+                PARTITION BY marketplace, sellerName, bucket ORDER BY cnt DESC, category_leaf ASC
+            ) AS category_rank FROM category_counts
+        ), top_categories AS (
+            SELECT marketplace, sellerName,
+                MAX(CASE WHEN bucket = 'A'   AND category_rank = 1 THEN category_leaf END) AS topACategory,
+                MAX(CASE WHEN bucket = 'ABC' AND category_rank = 1 THEN category_leaf END) AS topABCCategory,
+                MAX(CASE WHEN bucket = 'D'   AND category_rank = 1 THEN category_leaf END) AS topDCategory
+            FROM category_ranked GROUP BY marketplace, sellerName
+        )
+        SELECT e.marketplace, e.seller_name AS sellerName, MAX(e.seller_id) AS sellerId,
+            COUNT(*) AS productCount,
+            SUM(CASE WHEN e.sales_tier_calc = 'A' THEN 1 ELSE 0 END) AS aCount,
+            SUM(CASE WHEN e.sales_tier_calc = 'B' THEN 1 ELSE 0 END) AS bCount,
+            SUM(CASE WHEN e.sales_tier_calc = 'C' THEN 1 ELSE 0 END) AS cCount,
+            SUM(CASE WHEN e.sales_tier_calc = 'D' THEN 1 ELSE 0 END) AS dCount,
+            SUM(CASE WHEN e.sales_tier_calc = 'UNKNOWN' THEN 1 ELSE 0 END) AS unknownCount,
+            SUM(CASE WHEN e.sales_tier_calc IN ('A','B') THEN 1 ELSE 0 END) AS abCount,
+            SUM(CASE WHEN e.sales_tier_calc IN ('A','B','C') THEN 1 ELSE 0 END) AS abcCount,
+            ROUND(SUM(CASE WHEN e.sales_tier_calc = 'A' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 4) AS aRatio,
+            ROUND(SUM(CASE WHEN e.sales_tier_calc IN ('A','B') THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 4) AS abRatio,
+            ROUND(SUM(CASE WHEN e.sales_tier_calc IN ('A','B','C') THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 4) AS abcRatio,
+            ROUND(SUM(CASE WHEN e.sales_tier_calc = 'D' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 4) AS dRatio,
+            tc.topACategory, tc.topABCCategory, tc.topDCategory,
+            MAX(e.batch_date) AS latestBatchDate,
+            SUM(e.m01_hit) AS m01HitCount,
+            ROUND(SUM(e.m01_hit) / NULLIF(COUNT(*), 0), 4) AS m01HitRatio,
+            ROUND(AVG(e.listing_days), 2) AS avgListingDays,
+            ROUND(AVG(e.units), 2) AS avgUnits,
+            MIN(CASE WHEN e.available_date IS NOT NULL AND e.available_date &gt; 0 THEN e.available_date END) AS earliestAvailableDate,
+            DATE_FORMAT(FROM_UNIXTIME(MIN(CASE WHEN e.available_date IS NOT NULL AND e.available_date &gt; 0 THEN e.available_date END) / 1000), '%Y-%m-%d') AS earliestAvailableDateText,
+            MAX(e.listing_days) AS maxListingDays,
+            SUM(CASE WHEN e.listing_days IS NOT NULL AND e.listing_days &lt;= 30 THEN 1 ELSE 0 END) AS new30Count,
+            SUM(CASE WHEN e.listing_days IS NOT NULL AND e.listing_days &lt;= 90 THEN 1 ELSE 0 END) AS new90Count,
+            SUM(CASE WHEN e.listing_days IS NOT NULL AND e.listing_days &lt;= 180 THEN 1 ELSE 0 END) AS new180Count,
+            SUM(CASE WHEN e.listing_days IS NOT NULL AND e.listing_days &gt; 180 THEN 1 ELSE 0 END) AS old180Count,
+            SUM(CASE WHEN e.listing_days IS NULL THEN 1 ELSE 0 END) AS unknownListingDaysCount,
+            SUM(CASE WHEN e.listing_days IS NOT NULL AND e.listing_days &lt;= 90 THEN 1 ELSE 0 END) AS newProductCount,
+            SUM(CASE WHEN e.listing_days IS NOT NULL AND e.listing_days &lt;= 90 AND e.sales_tier_calc IN ('A','B','C') THEN 1 ELSE 0 END) AS newABCCount,
+            ROUND(SUM(CASE WHEN e.listing_days IS NOT NULL AND e.listing_days &lt;= 90 AND e.sales_tier_calc IN ('A','B','C') THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 4) AS newABCRatio,
+            SUM(CASE WHEN e.listing_days IS NOT NULL AND e.listing_days &gt; 365 AND e.sales_tier_calc = 'D' THEN 1 ELSE 0 END) AS oldDCount,
+            ROUND(SUM(CASE WHEN e.listing_days IS NOT NULL AND e.listing_days &gt; 365 AND e.sales_tier_calc = 'D' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 4) AS oldDRatio
+        FROM enriched e
+        LEFT JOIN top_categories tc ON tc.marketplace = e.marketplace AND tc.sellerName = e.seller_name
+        GROUP BY e.marketplace, e.seller_name, tc.topACategory, tc.topABCCategory, tc.topDCategory
+    </select>
+
+    <select id="selectTierInsightsFromShopProducts" resultType="com.sjzm.product.modules.shopcollection.dto.ShopTierInsight">
+        <include refid="rankedFromShopProducts"/>
+            WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL AND ds.seller_name IS NOT NULL
+              AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
+            <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+            <if test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</if>
+        ), base AS (
+            SELECT * FROM ranked WHERE rn = 1
+        ), enriched AS (
+            SELECT base.*, <include refid="shopM01HitExpression"/> AS m01_hit
+            FROM base
+        )
+        SELECT sales_tier_calc AS salesTier,
+            COUNT(*) AS productCount,
+            SUM(m01_hit) AS m01HitCount,
+            ROUND(SUM(m01_hit) / NULLIF(COUNT(*), 0), 4) AS m01HitRatio,
+            ROUND(AVG(listing_days), 2) AS avgListingDays,
+            ROUND(AVG(units), 2) AS avgUnits,
+            MIN(CASE WHEN available_date IS NOT NULL AND available_date &gt; 0 THEN available_date END) AS earliestAvailableDate,
+            DATE_FORMAT(FROM_UNIXTIME(MIN(CASE WHEN available_date IS NOT NULL AND available_date &gt; 0 THEN available_date END) / 1000), '%Y-%m-%d') AS earliestAvailableDateText,
+            MAX(listing_days) AS maxListingDays,
+            SUM(CASE WHEN listing_days IS NOT NULL AND listing_days &lt;= 30 THEN 1 ELSE 0 END) AS new30Count,
+            SUM(CASE WHEN listing_days IS NOT NULL AND listing_days &lt;= 90 THEN 1 ELSE 0 END) AS new90Count,
+            SUM(CASE WHEN listing_days IS NOT NULL AND listing_days &lt;= 180 THEN 1 ELSE 0 END) AS new180Count,
+            SUM(CASE WHEN listing_days IS NOT NULL AND listing_days &gt; 180 THEN 1 ELSE 0 END) AS old180Count,
+            SUM(CASE WHEN listing_days IS NULL THEN 1 ELSE 0 END) AS unknownListingDaysCount
+        FROM enriched
+        GROUP BY sales_tier_calc
+        ORDER BY CASE sales_tier_calc WHEN 'A' THEN 1 WHEN 'B' THEN 2 WHEN 'C' THEN 3 WHEN 'D' THEN 4 ELSE 5 END ASC
+    </select>
+
+    <select id="selectCategoryInsightsFromShopProducts" resultType="com.sjzm.product.modules.shopcollection.dto.ShopCategoryInsight">
+        <include refid="rankedFromShopProducts"/>
+            WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL AND ds.seller_name IS NOT NULL
+              AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
+            <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
+            <if test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</if>
+        ), base AS (
+            SELECT * FROM ranked WHERE rn = 1
+        ), enriched AS (
+            SELECT base.*, <include refid="shopM01HitExpression"/> AS m01_hit
+            FROM base
+        )
+        SELECT sales_tier_calc AS salesTier,
+            category_leaf AS categoryKey,
+            MAX(node_label_path) AS nodeLabelPath,
+            COUNT(*) AS productCount,
+            COALESCE(SUM(units), 0) AS unitsSum,
+            ROUND(AVG(units), 2) AS unitsAvg,
+            ROUND(AVG(listing_days), 2) AS avgListingDays,
+            SUM(m01_hit) AS m01HitCount,
+            ROUND(SUM(m01_hit) / NULLIF(COUNT(*), 0), 4) AS m01HitRatio
+        FROM enriched
+        GROUP BY sales_tier_calc, category_leaf
+        ORDER BY
+            CASE sales_tier_calc WHEN 'A' THEN 1 WHEN 'B' THEN 2 WHEN 'C' THEN 3 WHEN 'D' THEN 4 ELSE 5 END ASC,
+            productCount DESC, category_leaf ASC
+    </select>
+
+    <!-- 商品明细三维筛选公共 where：销量层 / 互斥时间桶 / M01 命中 / 标题关键词 / 类目 -->
+    <sql id="shopProductsThreeDimWhere">
+        <if test="salesTier != null and salesTier != ''">AND sales_tier_calc = #{salesTier}</if>
+        <if test="ageBucket != null and ageBucket != ''">AND age_bucket = #{ageBucket}</if>
+        <if test="m01Only != null and m01Only == true">AND m01_hit = 1</if>
+        <if test="keyword != null and keyword != ''">AND title LIKE CONCAT('%', #{keyword}, '%')</if>
+        <if test="category != null and category != ''">AND category_leaf = #{category}</if>
+        <if test="categoryKeys != null and categoryKeys.size() > 0">
+            AND category_leaf IN
+            <foreach collection="categoryKeys" item="ck" open="(" separator="," close=")">#{ck}</foreach>
+        </if>
+    </sql>
+
     <select id="countProductsFromShopProducts" resultType="long">
         <include refid="rankedFromShopProducts"/>
             WHERE ds.title IS NOT NULL AND ds.asin IS NOT NULL
               AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
             <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
             <if test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</if>
-        ), base AS (SELECT * FROM ranked WHERE rn = 1)
-        SELECT COUNT(*) FROM base
+        ), base AS (SELECT * FROM ranked WHERE rn = 1
+        ), enriched AS (
+            SELECT base.*, <include refid="shopM01HitExpression"/> AS m01_hit,
+                <include refid="shopAgeBucketExpression"/> AS age_bucket
+            FROM base
+        )
+        SELECT COUNT(*) FROM enriched
         <where>
-            <if test="salesTier != null and salesTier != ''">sales_tier_calc = #{salesTier}</if>
-            <if test="category != null and category != ''">AND category_leaf = #{category}</if>
+            <include refid="shopProductsThreeDimWhere"/>
         </where>
     </select>
 
@@ -338,15 +591,21 @@
               AND ds.marketplace = #{marketplace} AND ds.seller_name = #{sellerName}
             <if test="batchDate != null and batchDate != ''">AND ds.batch_date = #{batchDate}</if>
             <if test="sourceRunId != null and sourceRunId != ''">AND ds.source_run_id = #{sourceRunId}</if>
-        ), base AS (SELECT * FROM ranked WHERE rn = 1)
+        ), base AS (SELECT * FROM ranked WHERE rn = 1
+        ), enriched AS (
+            SELECT base.*, <include refid="shopM01HitExpression"/> AS m01_hit,
+                <include refid="shopAgeBucketExpression"/> AS age_bucket
+            FROM base
+        )
         SELECT id, marketplace, seller_name AS sellerName, seller_id AS sellerId, asin, parent_asin AS parentAsin,
             sales_tier_calc AS salesTier, title, brand, image_url AS imageUrl, product_url AS productUrl, similar_url AS similarUrl,
             node_id AS nodeId, node_label_path AS nodeLabelPath, category_leaf AS categoryLeaf, bsr_id AS bsrId,
-            units, bsr, price, rating, ratings, fulfillment, available_date AS availableDate, batch_date AS batchDate, created_at AS createdAt
-        FROM base
+            units, bsr, price, rating, ratings, fulfillment, available_date AS availableDate, listing_days AS listingDays,
+            batch_date AS batchDate, created_at AS createdAt,
+            age_bucket AS ageBucket, m01_hit AS m01Hit
+        FROM enriched
         <where>
-            <if test="salesTier != null and salesTier != ''">sales_tier_calc = #{salesTier}</if>
-            <if test="category != null and category != ''">AND category_leaf = #{category}</if>
+            <include refid="shopProductsThreeDimWhere"/>
         </where>
         ORDER BY
             CASE sales_tier_calc WHEN 'A' THEN 1 WHEN 'B' THEN 2 WHEN 'C' THEN 3 WHEN 'D' THEN 4 ELSE 5 END ASC,

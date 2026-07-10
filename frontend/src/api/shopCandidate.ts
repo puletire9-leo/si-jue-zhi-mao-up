@@ -69,6 +69,18 @@ export interface CandidateSyncResult {
   upserted: number
 }
 
+/** 方法卡找店来源批次（M01 当前来自 competitor_products_clean.effective_week_tag） */
+export interface ShopMethodBatchOption {
+  methodId: string
+  marketplace: string
+  batchCode: string
+  sourceTable: string
+  sourceWeekField: string
+  productCount: number
+  sellerCount: number
+  latestCreatedAt: string | null
+}
+
 /** 确认抓取结果 */
 export interface ConfirmFetchResult {
   candidateId: number
@@ -93,6 +105,17 @@ function unwrap<T>(p: Promise<any>): Promise<T> {
 const BASE = '/api/v1/modules/shop-candidates'
 
 export const shopCandidateApi = {
+  /** 方法卡找店来源批次：用于周批次下拉，避免手输和 created_at 周次口径混用 */
+  methodBatches(params: {
+    methodId?: string
+    marketplace?: string
+    limit?: number
+  }): Promise<ShopMethodBatchOption[]> {
+    return unwrap<ShopMethodBatchOption[]>(
+      request({ url: `${BASE}/method-batches`, method: 'get', params })
+    )
+  },
+
   /** 方法卡排名同步候选池（替代旧的直写观察池） */
   syncFromMethodRank(methodId = 'M01', marketplace?: string, minCount = 1, batchCode?: string, limit = 1000): Promise<CandidateSyncResult> {
     return unwrap<CandidateSyncResult>(
@@ -119,6 +142,22 @@ export const shopCandidateApi = {
   }): Promise<PageResult<ShopCandidatePool>> {
     return unwrap<PageResult<ShopCandidatePool>>(
       request({ url: BASE, method: 'get', params })
+    )
+  },
+
+  /** 按当前筛选条件返回全部可抓候选（跨分页全选用） */
+  listFetchable(params: {
+    marketplace?: string
+    batchCode?: string
+    sourceType?: string
+    sourceCode?: string
+    status?: string
+    minHitCount?: number
+    sellerName?: string
+    limit?: number
+  }): Promise<ShopCandidatePool[]> {
+    return unwrap<ShopCandidatePool[]>(
+      request({ url: `${BASE}/fetchable`, method: 'get', params, timeout: 120000 })
     )
   },
 

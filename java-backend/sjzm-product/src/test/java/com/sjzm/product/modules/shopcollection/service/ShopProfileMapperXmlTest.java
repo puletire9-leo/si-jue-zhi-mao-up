@@ -14,6 +14,7 @@ class ShopProfileMapperXmlTest {
         String xml = readMapperXml();
 
         assertSelectContainsSourceRunId(xml, "selectSummaryFromShopProducts");
+        assertSelectContainsSourceRunId(xml, "selectTierAgeCategoryCellsBatchFromShopProducts");
         assertSelectContainsSourceRunId(xml, "countProductsFromShopProducts");
         assertSelectContainsSourceRunId(xml, "selectProductsFromShopProducts");
         assertSelectContainsSourceRunId(xml, "selectCategoriesFromShopProducts");

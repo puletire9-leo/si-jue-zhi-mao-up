@@ -2,6 +2,7 @@ package com.sjzm.product.modules.shoprating.service;
 
 import com.sjzm.product.mapper.ShopMethodRankMapper;
 import com.sjzm.product.methodrule.M01Rule;
+import com.sjzm.product.modules.shoprating.dto.ShopMethodBatchOption;
 import com.sjzm.product.modules.shoprating.dto.ShopMethodRankItem;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -66,6 +67,21 @@ public class ShopMethodRankService {
         return switch (method) {
             case "M01" -> rankByM01(marketplace, effectiveWeekTag, minCount, limit);
             default -> throw new IllegalArgumentException("店铺方法卡排名暂不支持 methodId=" + method + "，当前仅支持 M01");
+        };
+    }
+
+    /**
+     * 返回方法卡找店可选择的来源批次。
+     *
+     * <p>当前 M01 固定从 competitor_products_clean.effective_week_tag 取数。这个接口
+     * 专门给前端批次下拉使用，避免误用 created_at 推导周次导致“有数据但下拉为空”。</p>
+     */
+    public List<ShopMethodBatchOption> listMethodBatches(String methodId, String marketplace, Integer limit) {
+        String method = normalizeMethodId(methodId);
+        int lim = limit == null || limit < 1 ? 20 : Math.min(limit, 100);
+        return switch (method) {
+            case "M01" -> mapper.selectM01MethodBatches(normalizeRankMarketplace(marketplace), lim);
+            default -> throw new IllegalArgumentException("店铺方法卡批次暂不支持 methodId=" + method + "，当前仅支持 M01");
         };
     }
 

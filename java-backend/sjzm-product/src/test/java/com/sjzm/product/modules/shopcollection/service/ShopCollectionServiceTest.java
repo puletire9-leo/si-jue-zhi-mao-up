@@ -3,11 +3,16 @@ package com.sjzm.product.modules.shopcollection.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.sjzm.common.PageResult;
 import com.sjzm.product.modules.analysisbaseline.shopprofile.mapper.ShopProfileMapper;
+import com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileProduct;
+import com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileSummary;
 import com.sjzm.product.modules.shopcandidate.entity.ShopFetchRun;
 import com.sjzm.product.modules.shopcandidate.mapper.ShopFetchRunMapper;
+import com.sjzm.product.modules.shopcollection.dto.ShopTierAgeCategoryCell;
 import com.sjzm.product.modules.shopcollection.entity.ShopProduct;
 import com.sjzm.product.modules.shopcollection.mapper.ShopProductMapper;
 import com.sjzm.product.modules.shopcollection.mapper.ShopWatchlistMapper;
+import com.sjzm.product.modules.shopcollection.rule.ShopProfileLabelRule;
+import com.sjzm.product.modules.shopcollection.rule.ShopProfileLabelRule.CategoryLabel;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
@@ -41,6 +46,9 @@ class ShopCollectionServiceTest {
     @Mock
     ShopFetchRunMapper fetchRunMapper;
 
+    @Mock
+    ShopProfileLabelRule labelRule;
+
     @InjectMocks
     ShopCollectionService service;
 
@@ -71,15 +79,90 @@ class ShopCollectionServiceTest {
     @Test
     void productsUsesResolvedSourceRunIdInsteadOfOnlyBatchDate() {
         when(fetchRunMapper.selectById("RUN_1")).thenReturn(run("RUN_1", "UK", "TUGBA2365", "SUCCESS"));
-        when(shopProfileMapper.countProductsFromShopProducts("UK", "TUGBA2365", "20260708", "RUN_1", null, null))
+        when(shopProfileMapper.countProductsFromShopProducts(
+                eq("UK"), eq("TUGBA2365"), eq("20260708"), eq("RUN_1"),
+                ArgumentMatchers.isNull(), ArgumentMatchers.isNull(), ArgumentMatchers.eq(false),
+                ArgumentMatchers.isNull(), ArgumentMatchers.isNull(), ArgumentMatchers.isNull(),
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
                 .thenReturn(0L);
 
         PageResult<?> result = service.products("UK", "TUGBA2365", null, "RUN_1",
-                null, null, 1, 60);
+                null, null, null, null, null, null, 1, 60);
 
         assertThat(result.getTotal()).isZero();
         verify(shopProfileMapper).countProductsFromShopProducts(
-                eq("UK"), eq("TUGBA2365"), eq("20260708"), eq("RUN_1"), eq(null), eq(null));
+                eq("UK"), eq("TUGBA2365"), eq("20260708"), eq("RUN_1"),
+                ArgumentMatchers.isNull(), ArgumentMatchers.isNull(), ArgumentMatchers.eq(false),
+                ArgumentMatchers.isNull(), ArgumentMatchers.isNull(), ArgumentMatchers.isNull(),
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any());
+    }
+
+    @Test
+    void attentionFilterClassifiesEachProductInsteadOfOnlyLeafCategory() {
+        when(fetchRunMapper.selectById("RUN_1")).thenReturn(run("RUN_1", "UK", "TUGBA2365", "SUCCESS"));
+        when(shopProfileMapper.countProductsFromShopProducts(
+                eq("UK"), eq("TUGBA2365"), eq("20260708"), eq("RUN_1"),
+                ArgumentMatchers.isNull(), ArgumentMatchers.isNull(), ArgumentMatchers.eq(false),
+                ArgumentMatchers.isNull(), ArgumentMatchers.isNull(), ArgumentMatchers.isNull(),
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
+                .thenReturn(2L);
+        ShopProfileProduct good = profileProduct("A1", "Decor", "Arts : Decor");
+        ShopProfileProduct neutral = profileProduct("A2", "Decor", "Industrial : Decor");
+        when(shopProfileMapper.selectProductsFromShopProducts(
+                eq("UK"), eq("TUGBA2365"), eq("20260708"), eq("RUN_1"),
+                ArgumentMatchers.isNull(), ArgumentMatchers.isNull(), ArgumentMatchers.eq(false),
+                ArgumentMatchers.isNull(), ArgumentMatchers.isNull(), ArgumentMatchers.isNull(),
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
+                eq(0), eq(2)))
+                .thenReturn(List.of(good, neutral));
+        when(labelRule.classify("Decor", "Arts : Decor")).thenReturn(new CategoryLabel(
+                "GOOD_TENDENCY", "GOOD_DECOR_SMALL", "好品倾向", List.of(), List.of("GOOD_DECOR_SMALL")));
+        when(labelRule.classify("Decor", "Industrial : Decor")).thenReturn(new CategoryLabel(
+                "NEUTRAL", "NO_RULE_HIT", "未命中", List.of(), List.of()));
+
+        PageResult<ShopProfileProduct> result = service.products("UK", "TUGBA2365", null, "RUN_1",
+                null, null, "GOOD_TENDENCY", null, null, null, 1, 60);
+
+        assertThat(result.getTotal()).isEqualTo(1);
+        assertThat(result.getList()).extracting(ShopProfileProduct::getAsin).containsExactly("A1");
+        assertThat(result.getList().get(0).getAttentionLevel()).isEqualTo("GOOD_TENDENCY");
+    }
+
+    @Test
+    void summaryEnriches3dFieldsWithOneBatchCellQuery() {
+        ShopProfileSummary sellerA = summary("SELLER_A", 20L);
+        ShopProfileSummary sellerB = summary("SELLER_B", 30L);
+        when(shopProductMapper.selectMaxBatchDate("UK")).thenReturn("20260708");
+        when(shopProfileMapper.selectSummaryFromShopProducts(
+                eq("UK"), eq("20260708"), ArgumentMatchers.isNull(), ArgumentMatchers.isNull(),
+                ArgumentMatchers.isNull(), eq(100),
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
+                .thenReturn(List.of(sellerA, sellerB));
+
+        ShopTierAgeCategoryCell aCell = cell("SELLER_A", "A", "NEW", "Decor", "Arts : Decor", 4L);
+        ShopTierAgeCategoryCell bCell = cell("SELLER_B", "D", "OLD", "Decor", "Arts : Decor", 3L);
+        when(shopProfileMapper.selectTierAgeCategoryCellsBatchFromShopProducts(
+                eq("UK"), eq(List.of("SELLER_A", "SELLER_B")), eq("20260708"), ArgumentMatchers.isNull(),
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
+                .thenReturn(List.of(aCell, bCell));
+        when(labelRule.classify("Decor", "Arts : Decor")).thenReturn(new CategoryLabel(
+                "GOOD_TENDENCY", "GOOD_DECOR_SMALL", "好品倾向", List.of(), List.of("GOOD_DECOR_SMALL")));
+
+        List<ShopProfileSummary> result = service.summary("UK", null, null, null, 100, null);
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getNewABCCount()).isEqualTo(4L);
+        assertThat(result.get(1).getOldDCount()).isEqualTo(3L);
+        verify(shopProfileMapper, never()).selectTierAgeCategoryCellsFromShopProducts(
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any());
     }
 
     @Test
@@ -124,5 +207,41 @@ class ShopCollectionServiceTest {
             products.add(product);
         }
         return products;
+    }
+
+    private ShopProfileProduct profileProduct(String asin, String categoryLeaf, String nodeLabelPath) {
+        ShopProfileProduct product = new ShopProfileProduct();
+        product.setAsin(asin);
+        product.setCategoryLeaf(categoryLeaf);
+        product.setNodeLabelPath(nodeLabelPath);
+        return product;
+    }
+
+    private ShopProfileSummary summary(String sellerName, Long productCount) {
+        ShopProfileSummary summary = new ShopProfileSummary();
+        summary.setMarketplace("UK");
+        summary.setSellerName(sellerName);
+        summary.setProductCount(productCount);
+        summary.setACount(0L);
+        summary.setBCount(0L);
+        summary.setCCount(0L);
+        summary.setDCount(0L);
+        summary.setUnknownCount(0L);
+        return summary;
+    }
+
+    private ShopTierAgeCategoryCell cell(String sellerName, String tier, String ageBucket,
+                                         String categoryKey, String nodeLabelPath, Long count) {
+        ShopTierAgeCategoryCell cell = new ShopTierAgeCategoryCell();
+        cell.setMarketplace("UK");
+        cell.setSellerName(sellerName);
+        cell.setSalesTier(tier);
+        cell.setAgeBucket(ageBucket);
+        cell.setCategoryKey(categoryKey);
+        cell.setNodeLabelPath(nodeLabelPath);
+        cell.setProductCount(count);
+        cell.setUnitsSum(0L);
+        cell.setM01HitCount(0L);
+        return cell;
     }
 }
