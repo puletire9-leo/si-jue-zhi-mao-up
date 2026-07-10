@@ -133,7 +133,7 @@ public final class LingxingBatchModelCalculator {
 
     private SkuBatch buildBatch(PurchaseFact q1, PurchaseFact q2,
                                 List<WeeklyFact> weekly, Parameters parameters) {
-        List<WeeklyFact> orderedWeekly = weekly.stream()
+        List<WeeklyFact> orderedWeekly = aggregateWeeklyFacts(weekly).stream()
                 .sorted(Comparator.comparing(WeeklyFact::weekStart,
                         Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
@@ -150,12 +150,18 @@ public final class LingxingBatchModelCalculator {
         boolean eliminated = false;
         boolean pendingElimination = false;
         Set<String> marketplaces = new TreeSet<>();
+        for (WeeklyFact fact : weekly) {
+            if (hasText(fact.marketplace())) {
+                for (String marketplace : fact.marketplace().split(",")) {
+                    if (hasText(marketplace)) marketplaces.add(marketplace.trim());
+                }
+            }
+        }
 
         for (WeeklyFact fact : orderedWeekly) {
             int volume = nz(fact.volume());
             totalVolume += volume;
             totalGrossProfit = totalGrossProfit.add(nz(fact.grossProfit()));
-            if (hasText(fact.marketplace())) marketplaces.add(fact.marketplace());
             if (volume > 0 && firstSaleWeek == null) firstSaleWeek = fact.weekStart();
             if (fact.afnFulfillableQuantity() != null && fact.afnFulfillableQuantity() > 0) {
                 seenFbaActive = true;
@@ -195,6 +201,29 @@ public final class LingxingBatchModelCalculator {
         return new SkuBatch(q1.sku(), q1, q2, q1Volume, postQ2Volume, totalVolume,
                 totalGrossProfit, postQ2ObservationWeeks, firstFbaActiveWeek, firstSaleWeek,
                 stockoutWeek, eliminated, pendingElimination, marketplaces, flags, parameters);
+    }
+
+    private List<WeeklyFact> aggregateWeeklyFacts(List<WeeklyFact> rows) {
+        Map<WeekKey, List<WeeklyFact>> byWeek = rows.stream()
+                .collect(Collectors.groupingBy(row -> new WeekKey(row.sku(), row.weekStart(), row.weekEnd()),
+                        LinkedHashMap::new, Collectors.toList()));
+        List<WeeklyFact> aggregated = new ArrayList<>();
+        for (Map.Entry<WeekKey, List<WeeklyFact>> entry : byWeek.entrySet()) {
+            List<WeeklyFact> facts = entry.getValue();
+            int volume = facts.stream().mapToInt(row -> nz(row.volume())).sum();
+            BigDecimal grossProfit = facts.stream().map(row -> nz(row.grossProfit()))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            boolean hasFbaQuantity = facts.stream().anyMatch(row -> row.afnFulfillableQuantity() != null);
+            int fbaQuantity = facts.stream().mapToInt(row -> nz(row.afnFulfillableQuantity())).sum();
+            String tags = facts.stream().map(WeeklyFact::tags).filter(this::hasText)
+                    .distinct().collect(Collectors.joining(","));
+            aggregated.add(new WeeklyFact(
+                    entry.getKey().sku(), entry.getKey().weekStart(), entry.getKey().weekEnd(),
+                    volume, grossProfit, hasFbaQuantity ? fbaQuantity : null, tags, null,
+                    facts.stream().map(WeeklyFact::marketplace).filter(this::hasText)
+                            .distinct().collect(Collectors.joining(","))));
+        }
+        return aggregated;
     }
 
     private Map<String, Object> buildProfitModel(int n, BigDecimal averageQ1, BigDecimal averageQ2,
@@ -382,5 +411,8 @@ public final class LingxingBatchModelCalculator {
             out.put("dataQualityFlags", dataQualityFlags);
             return out;
         }
+    }
+
+    private record WeekKey(String sku, LocalDate weekStart, LocalDate weekEnd) {
     }
 }

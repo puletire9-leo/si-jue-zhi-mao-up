@@ -90,6 +90,33 @@ class LingxingBatchModelCalculatorTest {
         assertThat(model).doesNotContainKey("netProfit");
     }
 
+    @Test
+    void aggregatesMultipleMarketplaceRowsBeforeCountingObservationWeeks() {
+        var purchases = List.of(
+                purchase("SKU-A", "PO-1", 10L, "2026-04-01", 10, 10),
+                purchase("SKU-A", "PO-2", 20L, "2026-04-20", 20, 20)
+        );
+        var weekly = List.of(
+                weekly("SKU-A", "2026-04-27", 5, 10, ""),
+                new LingxingBatchModelCalculator.WeeklyFact(
+                        "SKU-A", LocalDate.parse("2026-04-27"), LocalDate.parse("2026-05-03"),
+                        3, BigDecimal.valueOf(6), 0, "", null, "DE"),
+                weekly("SKU-A", "2026-05-04", 5, 10, "")
+        );
+
+        Map<String, Object> result = calculator.calculate(
+                purchases,
+                weekly,
+                1,
+                new LingxingBatchModelCalculator.Parameters(20, 2, null, null,
+                        BigDecimal.TEN, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) result.get("rows");
+        assertThat(rows.get(0).get("postQ2ObservationWeeks")).isEqualTo(2);
+        assertThat(rows.get(0).get("stockoutWeek")).isNull();
+    }
+
     private static LingxingBatchModelCalculator.PurchaseFact purchase(
             String sku, String orderSn, long itemId, String date, int quantityReal, int quantityEntry) {
         return new LingxingBatchModelCalculator.PurchaseFact(

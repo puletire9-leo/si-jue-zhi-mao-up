@@ -307,8 +307,8 @@ public interface LingxingPurchaseDataLayerMapper {
               sid AS sid,
               marketplace AS marketplace
             FROM lingxing_sku_weekly_performance
-            WHERE week_start &lt; DATE_ADD(#{endDate}, INTERVAL 1 DAY)
-              AND week_end &gt;= #{startDate}
+            WHERE week_start < DATE_ADD(#{endDate}, INTERVAL 1 DAY)
+              AND week_end >= #{startDate}
             ORDER BY sku, week_start
             """)
     List<Map<String, Object>> selectWeeklyFacts(@Param("startDate") String startDate,
