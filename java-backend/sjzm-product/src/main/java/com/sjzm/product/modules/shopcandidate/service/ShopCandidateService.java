@@ -208,7 +208,9 @@ public class ShopCandidateService {
      *   <li>失败：fetch_run=FAILED, candidate=FETCH_FAILED, 记录 last_error_message</li>
      * </ol>
      */
+    @Deprecated(forRemoval = true)
     public Map<String, Object> confirmFetch(Long candidateId) {
+        rejectLegacyDirectExecution("候选店铺同步确认抓取");
         FetchPreparation preparation = transactionTemplate.execute(status ->
                 prepareFetch(candidateId, "CANDIDATE_CONFIRM", null));
         if (preparation == null) {
@@ -322,7 +324,9 @@ public class ShopCandidateService {
      *
      * @return 每条候选的抓取结果列表
      */
+    @Deprecated(forRemoval = true)
     public List<Map<String, Object>> batchConfirmFetch(List<Long> candidateIds) {
+        rejectLegacyDirectExecution("候选店铺同步批量抓取");
         List<Map<String, Object>> results = new ArrayList<>();
         for (Long id : candidateIds) {
             try {
@@ -363,6 +367,11 @@ public class ShopCandidateService {
 
     public int delete(Long id) {
         return candidateMapper.deleteById(id);
+    }
+
+    /** 旧同步抓取已下线，防止任何 Service 调用绕过卖家精灵请求中心。 */
+    private void rejectLegacyDirectExecution(String operation) {
+        throw new UnsupportedOperationException(operation + " 已迁移到卖家精灵请求中心，请创建 runId 后查看执行进度");
     }
 
     // ── fetch runs ───────────────────────────────────────────────

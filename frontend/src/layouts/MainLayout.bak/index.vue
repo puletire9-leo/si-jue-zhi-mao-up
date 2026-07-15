@@ -40,7 +40,7 @@
             <el-menu-item index="/all-selection">总选品管理</el-menu-item>
             <el-menu-item index="/new-products">新品榜</el-menu-item>
             <el-menu-item index="/reference-products">竞品店铺</el-menu-item>
-            <el-menu-item index="/zheng-products">郑总店铺上新</el-menu-item>
+            <el-menu-item index="/zheng-products">非标店铺上新</el-menu-item>
           </el-sub-menu>
           
           <el-sub-menu index="resources">

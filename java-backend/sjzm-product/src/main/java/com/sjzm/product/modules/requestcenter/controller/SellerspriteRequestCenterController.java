@@ -4,6 +4,7 @@ import com.sjzm.common.PageResult;
 import com.sjzm.common.Result;
 import com.sjzm.product.modules.requestcenter.entity.SellerspriteRequestItem;
 import com.sjzm.product.modules.requestcenter.entity.SellerspriteRequestRun;
+import com.sjzm.product.modules.requestcenter.gateway.SellerspriteExecutionGate;
 import com.sjzm.product.modules.requestcenter.service.SellerspriteRequestCenterService;
 import com.sjzm.product.modules.requestcenter.service.SellerspriteRequestCenterService.RequestItemInput;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,6 +25,7 @@ import java.util.Map;
 public class SellerspriteRequestCenterController {
 
     private final SellerspriteRequestCenterService centerService;
+    private final SellerspriteExecutionGate executionGate;
 
     @PostMapping("/tasks")
     @Operation(summary = "创建请求中心任务（入队后自动执行）")
@@ -33,6 +35,17 @@ public class SellerspriteRequestCenterController {
         return Result.success(centerService.createTask(
                 req.requestType(), req.marketplace(), req.triggerType(),
                 req.triggerRef(), req.fetchReason(), items, req.operator()));
+    }
+
+    @PostMapping("/tasks/from-streaming/{taskId}")
+    @Operation(summary = "从八爪鱼流式初筛 READY 任务创建请求中心 ASIN 批量查询任务",
+            description = "读取 asin_import_results 的 PASS ASIN 去重后每 40 个 ASIN 创建一个子项，" +
+                    "以 ASIN_BATCH_LOOKUP 类型入队请求中心，自动启动后台消费。")
+    public Result<SellerspriteRequestRun> createFromStreamingTask(
+            @PathVariable Long taskId,
+            @RequestParam(defaultValue = "") String operator,
+            @RequestParam(defaultValue = "八爪鱼初筛 PASS 执行卖家精灵") String fetchReason) {
+        return Result.success(centerService.createTaskFromStreamingResult(taskId, operator, fetchReason));
     }
 
     @PostMapping("/dry-run")
@@ -64,7 +77,7 @@ public class SellerspriteRequestCenterController {
     }
 
     @PostMapping("/tasks/{runId}/resume")
-    @Operation(summary = "恢复任务（PAUSED → RUNNING）")
+    @Operation(summary = "恢复任务（PAUSED 或 PAUSED_SYSTEM → RUNNING）")
     public Result<Integer> resume(@PathVariable String runId) {
         return Result.success(centerService.resume(runId));
     }
@@ -85,6 +98,12 @@ public class SellerspriteRequestCenterController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "50") int size) {
         return Result.success(centerService.listRuns(requestType, triggerType, status, batchCode, page, size));
+    }
+
+    @GetMapping("/health")
+    @Operation(summary = "卖家精灵网关健康与熔断状态")
+    public Result<Map<String, Object>> health() {
+        return Result.success(executionGate.health());
     }
 
     @GetMapping("/tasks/{runId}")

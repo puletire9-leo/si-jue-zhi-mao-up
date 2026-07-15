@@ -46,6 +46,13 @@ export interface HistoryItem {
   completedAt: string
 }
 
+export interface SellerExecuteResult {
+  taskId: number
+  runId: string
+  status: string
+  batchTotal: number
+}
+
 export const asinImportApi = {
   upload(files: File | File[], marketplace: string): Promise<UploadPreview> {
     const fd = new FormData()
@@ -88,7 +95,7 @@ export const asinImportApi = {
     return request({ url: `/api/v1/asin-import/results/${taskId}`, method: 'get' })
   },
 
-  retryFailed(taskId: number): Promise<{ newTaskId: number; total: number; duplicatesRemoved: number; batches: number }> {
+  retryFailed(taskId: number): Promise<{ newTaskId: number; runId: string; status: string; total: number; duplicatesRemoved: number; batches: number }> {
     return request({ url: `/api/v1/asin-import/retry/${taskId}`, method: 'post' })
   },
 
@@ -103,7 +110,7 @@ export const asinImportApi = {
     })
   },
 
-  sellerExecute(taskId: number, month?: string, target?: string) {
+  sellerExecute(taskId: number, month?: string, target?: string): Promise<SellerExecuteResult> {
     return request({
       url: '/api/v1/asin-import/seller/execute',
       method: 'post',

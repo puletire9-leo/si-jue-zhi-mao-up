@@ -3,6 +3,8 @@ package com.sjzm.product.controller;
 import com.sjzm.common.Result;
 import com.sjzm.product.entity.AsinImportTask;
 import com.sjzm.product.service.AsinImportService;
+import com.sjzm.product.modules.requestcenter.entity.SellerspriteRequestRun;
+import com.sjzm.product.modules.requestcenter.service.SellerspriteRequestCenterService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +21,7 @@ import java.util.Map;
 public class AsinImportController {
 
     private final AsinImportService asinImportService;
+    private final SellerspriteRequestCenterService requestCenterService;
 
     @PostMapping("/upload")
     @Operation(summary = "上传文件并筛选预览（支持多文件）")
@@ -30,7 +33,7 @@ public class AsinImportController {
     }
 
     @PostMapping("/execute")
-    @Operation(summary = "开始逐批调用卖家精灵API（异步执行）")
+    @Operation(summary = "创建 ASIN 请求中心任务", description = "兼容旧入口：返回 runId，不直接调用卖家精灵")
     public Result<Map<String, Object>> execute(
             @RequestParam Long taskId,
             @RequestParam(defaultValue = "") String month,
@@ -38,8 +41,9 @@ public class AsinImportController {
         if (marketplace != null && !marketplace.isBlank()) {
             asinImportService.updateTaskMarketplace(taskId, marketplace);
         }
-        asinImportService.executeApiCalls(taskId, month);
-        return Result.success(Map.of("taskId", taskId, "status", "RUNNING"));
+        SellerspriteRequestRun run = requestCenterService.createTaskFromStreamingResult(taskId,
+                "ASIN_IMPORT_API", "ASIN 导入执行");
+        return Result.success(Map.of("taskId", taskId, "runId", run.getRunId(), "status", run.getStatus()));
     }
 
     @GetMapping("/progress/{taskId}")
@@ -70,9 +74,14 @@ public class AsinImportController {
     }
 
     @PostMapping("/retry/{taskId}")
-    @Operation(summary = "从失败 ASIN 创建新的导入任务（无重复）")
+    @Operation(summary = "从失败 ASIN 创建新的请求中心任务（无重复）")
     public Result<Map<String, Object>> retry(@PathVariable Long taskId) {
         Map<String, Object> newTask = asinImportService.retryFailedAsins(taskId);
+        Long newTaskId = ((Number) newTask.get("newTaskId")).longValue();
+        SellerspriteRequestRun run = requestCenterService.createTaskFromStreamingResult(newTaskId,
+                "ASIN_IMPORT_RETRY_API", "ASIN 导入失败重试");
+        newTask.put("runId", run.getRunId());
+        newTask.put("status", run.getStatus());
         return Result.success(newTask);
     }
 
@@ -90,14 +99,13 @@ public class AsinImportController {
     }
 
     @PostMapping("/seller/execute")
-    @Operation(summary = "卖家名批量导入 - 执行（异步）")
+    @Operation(summary = "创建卖家名批量请求中心任务", description = "兼容旧入口：返回 runId，不直接调用卖家精灵")
     public Result<Map<String, Object>> sellerExecute(
             @RequestParam Long taskId,
             @RequestParam(defaultValue = "") String month,
             @RequestParam(defaultValue = "competitor_products") String target) {
-        AsinImportTask task = asinImportService.getTaskById(taskId);
-        int batchTotal = task != null && task.getBatchTotal() != null ? task.getBatchTotal() : 0;
-        asinImportService.sellerExecute(taskId, month, target);
-        return Result.success(Map.of("taskId", taskId, "status", "RUNNING", "batchTotal", batchTotal));
+        SellerspriteRequestRun run = requestCenterService.createSellerBatchTask(taskId, target, month, "SELLER_IMPORT_API");
+        return Result.success(Map.of("taskId", taskId, "runId", run.getRunId(), "status", run.getStatus(),
+                "batchTotal", run.getTotalCount()));
     }
 }

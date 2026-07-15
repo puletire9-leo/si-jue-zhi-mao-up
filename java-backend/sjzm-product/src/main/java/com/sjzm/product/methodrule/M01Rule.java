@@ -42,10 +42,12 @@ public record M01Rule(String marketplace,
     }
 
     /**
-     * 站点 M01 阈值定义（唯一权威）。UK/DE/US 与 M01 方法卡文档一致。
+     * 站点 M01 阈值硬编码基线（默认兜底）。UK/DE/US 与 M01 方法卡文档一致。
      * US 站 BSR 阈值文档标注为 —，故 bsrMax=null（判定时跳过 BSR 分支）。
+     *
+     * <p>这是"零配置时"的权威默认；运行时的生效值由 {@link #forMarketplace} 经配置源覆盖后返回。</p>
      */
-    public static M01Rule forMarketplace(String marketplace) {
+    public static M01Rule baseline(String marketplace) {
         return switch (normalizeMarketplace(marketplace)) {
             case "DE" -> new M01Rule("DE", new BigDecimal("5.99"), new BigDecimal("18.99"),
                     new BigDecimal("300"), 90, 4, 20, 50, 25000);
@@ -55,6 +57,15 @@ public record M01Rule(String marketplace,
                     new BigDecimal("300"), 90, 50, 120, 200, null);
             default -> throw new IllegalArgumentException("M01 暂只支持 UK / DE / US");
         };
+    }
+
+    /**
+     * 站点 M01 阈值的运行时生效值：优先取 DB 配置覆盖（经 {@link M01RuleConfigHolder}），
+     * 未配置字段回退 {@link #baseline} 硬编码默认。全系统所有 M01 判定（方法卡列表 / 打标 /
+     * 店铺命中排名 / 店铺全集）都走此入口，改配置即全链路同口径生效。
+     */
+    public static M01Rule forMarketplace(String marketplace) {
+        return M01RuleConfigHolder.resolve(marketplace);
     }
 
     /**

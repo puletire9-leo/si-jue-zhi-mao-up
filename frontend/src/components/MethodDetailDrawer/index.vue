@@ -52,13 +52,27 @@
             <el-tag size="small" type="success" effect="light" round>
               过一个即算
             </el-tag>
+            <el-button
+              v-if="detail.id === 'M01'"
+              size="small"
+              type="primary"
+              link
+              class="rule-card__edit-btn"
+              @click="editorVisible = true"
+            >
+              <el-icon><Edit /></el-icon>
+              编辑阈值
+            </el-button>
           </div>
           <ol class="rule-card__steps">
-            <li v-for="(item, i) in detail.passLogic" :key="i">
+            <li v-for="(item, i) in displayPassLogic" :key="i">
               <span class="step-index">{{ i + 1 }}</span>
               <span class="step-text">{{ item }}</span>
             </li>
           </ol>
+          <p v-if="detail.id === 'M01' && m01Rules" class="rule-card__live-hint">
+            以上为当前实际生效阈值（可编辑）
+          </p>
         </div>
 
         <!-- 参数覆盖: 强制固定 vs 不支持 -->
@@ -166,11 +180,18 @@
         <code>{{ detail.fullDocPath }}</code>
       </div>
     </div>
+
+    <!-- M01 阈值编辑器 -->
+    <M01RuleEditor
+      v-model="editorVisible"
+      :initial-marketplace="editorMarketplace"
+      @saved="onRuleSaved"
+    />
   </el-drawer>
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import {
   MagicStick,
   Aim,
@@ -185,22 +206,31 @@ import {
   DataBoard,
   InfoFilled,
   Files,
+  Edit,
 } from "@element-plus/icons-vue";
 import {
   METHOD_CARD_INFO,
   type MethodCardInfo,
 } from "@/views/AllSelection/composables/methodCardInfo";
+import M01RuleEditor from "./M01RuleEditor.vue";
+import { methodCardsApi, type M01Rule } from "@/api/methodCards";
 
 interface Props {
   /** v-model 控制显示 */
   modelValue: boolean;
   /** 要展示的方法卡 id */
   methodId: "M01" | "M02" | "M03" | null;
+  /** 当前页面是否将方法规则叠加在店铺全集 shop_products 上。 */
+  shopProductsSource?: boolean;
+  /** 当前选品页站点，用于让 M01 编辑器默认打开正确国家。 */
+  marketplace?: string;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<{
   "update:modelValue": [value: boolean];
+  /** M01 阈值保存成功，父组件可据此刷新列表 */
+  "rule-saved": [marketplace: "UK" | "DE" | "US"];
 }>();
 
 const visible = computed({
@@ -208,9 +238,88 @@ const visible = computed({
   set: (v) => emit("update:modelValue", v),
 });
 
-const detail = computed<MethodCardInfo | null>(() =>
-  props.methodId ? METHOD_CARD_INFO[props.methodId] : null,
+const detail = computed<MethodCardInfo | null>(() => {
+  if (!props.methodId) return null;
+  const base = METHOD_CARD_INFO[props.methodId];
+  if (!props.shopProductsSource || base.id === "M02") return base;
+
+  return {
+    ...base,
+    tagline:
+      base.id === "M01"
+        ? "将 M01 的可编辑新品规则叠加到当前店铺商品数据中，不切换至新品榜数据源"
+        : "将 M03 的 FBM 新品规则叠加到当前店铺商品数据中，不切换至新品榜数据源",
+    forcedFilters: [
+      "targetSource = shop_products (店铺商品全集)",
+      `method = ${base.id}`,
+      ...(base.id === "M03" ? ["fulfillment = FBM"] : []),
+    ],
+    dataSource: "shop_products 表（独立店铺商品全集）",
+    output: `${base.id} 规则命中的店铺商品候选清单`,
+  };
+});
+
+const editorVisible = ref(false);
+const editorMarketplace = computed<"UK" | "DE" | "US">(() => {
+  if (props.marketplace === "DE") return "DE";
+  if (props.marketplace === "US") return "US";
+  return "UK";
+});
+
+// M01 三国实时阈值（打开 M01 详情时加载），用于动态渲染达标逻辑文案
+const m01Rules = ref<Record<string, M01Rule> | null>(null);
+
+const CURRENCY: Record<string, string> = { UK: "£", DE: "€", US: "$" };
+const FLAG: Record<string, string> = { UK: "🇬🇧", DE: "🇩🇪", US: "🇺🇸" };
+
+async function loadM01Rules() {
+  try {
+    const markets: Array<"UK" | "DE" | "US"> = ["UK", "DE", "US"];
+    const results = await Promise.all(markets.map((m) => methodCardsApi.getM01Rule(m)));
+    const map: Record<string, M01Rule> = {};
+    results.forEach((res, i) => {
+      if (res.data) map[markets[i]] = res.data;
+    });
+    m01Rules.value = map;
+  } catch {
+    m01Rules.value = null; // 失败则回退静态文案
+  }
+}
+
+/** 单站点达标逻辑文案（用实时配置拼）。 */
+function ruleLine(mp: string, r: M01Rule): string {
+  const c = CURRENCY[mp] ?? "";
+  const bsrPart = r.bsrMax != null ? `，或 BSR<${r.bsrMax}` : "";
+  return `${FLAG[mp] ?? ""} ${mp}：价格 ${c}${r.priceMin}-${c}${r.priceMax}，`
+    + `30天≥${r.sales30} / 60天≥${r.sales60} / 90天≥${r.sales90} 单${bsrPart}`;
+}
+
+// M01 有实时配置则动态生成达标逻辑，否则回退静态 passLogic
+const displayPassLogic = computed<string[]>(() => {
+  if (detail.value?.id === "M01" && m01Rules.value) {
+    const lines = ["UK", "DE", "US"]
+      .filter((mp) => m01Rules.value![mp])
+      .map((mp) => ruleLine(mp, m01Rules.value![mp]));
+    lines.push("销量与 BSR 达标是「或」的关系，过一个即算");
+    lines.push("三个国家都产出候选清单 — 本质都是决策参考，是否真上架由人决定");
+    return lines;
+  }
+  return detail.value?.passLogic ?? [];
+});
+
+// 打开 M01 详情时拉取实时阈值
+watch(
+  () => [props.modelValue, props.methodId] as const,
+  ([open, id]) => {
+    if (open && id === "M01") loadM01Rules();
+  },
+  { immediate: true },
 );
+
+function onRuleSaved(marketplace: "UK" | "DE" | "US") {
+  loadM01Rules(); // 保存后刷新抽屉内展示的达标逻辑
+  emit("rule-saved", marketplace);
+}
 </script>
 
 <style scoped lang="scss">
@@ -314,6 +423,18 @@ const detail = computed<MethodCardInfo | null>(() =>
         margin-left: 4px;
         font-size: 11px;
       }
+    }
+
+    &__edit-btn {
+      margin-left: auto;
+      font-size: 12px;
+    }
+
+    &__live-hint {
+      margin: 8px 0 0;
+      font-size: 11px;
+      color: var(--el-color-success);
+      text-align: right;
     }
 
     &__criteria {

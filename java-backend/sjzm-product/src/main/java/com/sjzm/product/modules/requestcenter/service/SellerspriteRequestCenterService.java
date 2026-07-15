@@ -2,18 +2,34 @@ package com.sjzm.product.modules.requestcenter.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sjzm.common.PageResult;
+import com.sjzm.product.dto.CompetitorLookupRequest;
+import com.sjzm.product.entity.AsinImportResult;
+import com.sjzm.product.entity.AsinImportTask;
+import com.sjzm.product.entity.SkipAsin;
+import com.sjzm.product.mapper.AsinImportResultMapper;
+import com.sjzm.product.mapper.AsinImportTaskMapper;
 import com.sjzm.product.modules.requestcenter.entity.SellerspriteRequestItem;
 import com.sjzm.product.modules.requestcenter.entity.SellerspriteRequestRun;
+import com.sjzm.product.modules.requestcenter.gateway.SellerspriteExecutionGateway;
+import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutionContext;
+import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutionException;
+import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutionRequest;
+import com.sjzm.product.modules.requestcenter.model.SellerspriteExecutionErrorCode;
 import com.sjzm.product.modules.requestcenter.mapper.SellerspriteRequestItemMapper;
 import com.sjzm.product.modules.requestcenter.mapper.SellerspriteRequestRunMapper;
 import com.sjzm.product.modules.shopcandidate.service.ShopCandidateService;
 import com.sjzm.product.modules.shopcollection.service.ShopProductSyncService;
+import com.sjzm.product.service.CompetitorService;
+import com.sjzm.product.service.DengZongShopService;
 import com.sjzm.product.util.WeekTagUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -27,6 +43,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 卖家精灵请求中心最小骨架。
@@ -54,12 +71,28 @@ public class SellerspriteRequestCenterService {
     @Qualifier("sellerspriteRequestExecutor")
     private final Executor sellerspriteRequestExecutor;
     private final com.sjzm.product.modules.shoppremium.mapper.ShopPremiumPoolMapper premiumMapper;
+    private final AsinImportTaskMapper asinImportTaskMapper;
+    private final AsinImportResultMapper asinImportResultMapper;
+    private final CompetitorService competitorService;
+    private final SellerspriteExecutionGateway executionGateway;
+    private final DengZongShopService dengZongShopService;
+    private final org.redisson.api.RedissonClient redissonClient;
+    private final com.sjzm.product.service.ScoringService scoringService;
+    private final com.sjzm.product.service.CleanLayerService cleanLayerService;
+    private final com.sjzm.product.mapper.SkipAsinMapper skipAsinMapper;
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    /** 创建任务幂等锁前缀：按 idempotencyKey 串行化"查活跃→插入"，堵住并发重复建任务窗口（跨实例）。 */
+    private static final String CREATE_LOCK_PREFIX = "sellersprite:request-center:create-lock:";
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final int DEFAULT_BATCH_SIZE = 5;
+    private static final int ASIN_BATCH_SIZE = 40;
     private static final Set<String> RUNNABLE_STATUS = Set.of("PENDING", "RUNNING");
     private static final Set<String> TERMINAL_STATUS = Set.of("SUCCESS", "FAILED", "PARTIAL_SUCCESS", "STOPPED");
     private final Set<String> activeAutoRuns = ConcurrentHashMap.newKeySet();
+    /** consumeNext 的 per-run 互斥：同一 run 绝不允许两个线程同时消费，防止抢子项导致 skipped_count 虚高。 */
+    private final Set<String> consumingRuns = ConcurrentHashMap.newKeySet();
 
     public SellerspriteRequestCenterService(SellerspriteRequestRunMapper runMapper,
                                             SellerspriteRequestItemMapper itemMapper,
@@ -68,7 +101,16 @@ public class SellerspriteRequestCenterService {
                                             WeekTagUtil weekTagUtil,
                                             TransactionTemplate transactionTemplate,
                                             @Qualifier("sellerspriteRequestExecutor") Executor sellerspriteRequestExecutor,
-                                            com.sjzm.product.modules.shoppremium.mapper.ShopPremiumPoolMapper premiumMapper) {
+                                            com.sjzm.product.modules.shoppremium.mapper.ShopPremiumPoolMapper premiumMapper,
+                                            AsinImportTaskMapper asinImportTaskMapper,
+                                            AsinImportResultMapper asinImportResultMapper,
+                                            CompetitorService competitorService,
+                                            SellerspriteExecutionGateway executionGateway,
+                                            DengZongShopService dengZongShopService,
+                                            org.redisson.api.RedissonClient redissonClient,
+                                            com.sjzm.product.service.ScoringService scoringService,
+                                            com.sjzm.product.service.CleanLayerService cleanLayerService,
+                                            com.sjzm.product.mapper.SkipAsinMapper skipAsinMapper) {
         this.runMapper = runMapper;
         this.itemMapper = itemMapper;
         this.productSyncService = productSyncService;
@@ -77,6 +119,52 @@ public class SellerspriteRequestCenterService {
         this.transactionTemplate = transactionTemplate;
         this.sellerspriteRequestExecutor = sellerspriteRequestExecutor;
         this.premiumMapper = premiumMapper;
+        this.asinImportTaskMapper = asinImportTaskMapper;
+        this.asinImportResultMapper = asinImportResultMapper;
+        this.competitorService = competitorService;
+        this.executionGateway = executionGateway;
+        this.dengZongShopService = dengZongShopService;
+        this.redissonClient = redissonClient;
+        this.scoringService = scoringService;
+        this.cleanLayerService = cleanLayerService;
+        this.skipAsinMapper = skipAsinMapper;
+    }
+
+    /**
+     * 按幂等键串行执行"查活跃任务→无则新建"，堵住并发重复创建（重复扣费）窗口。
+     * 关键：这些创建方法是 @Transactional，锁必须持有到事务提交之后才释放——否则第二个线程
+     * 在第一个事务提交前拿到锁、查不到未提交的 run，仍会重复建。故在事务内注册 afterCompletion 释放，
+     * 无事务时用 try-finally 立即释放。锁租约 30s、等待 20s；跨实例安全。
+     */
+    private <T> T withCreateLock(String idempotencyKey, java.util.function.Supplier<T> action) {
+        org.redisson.api.RLock lock = redissonClient.getLock(CREATE_LOCK_PREFIX + idempotencyKey);
+        boolean locked;
+        try {
+            locked = lock.tryLock(20L, 30L, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("等待创建任务幂等锁被中断: " + idempotencyKey, e);
+        }
+        if (!locked) {
+            throw new IllegalStateException("获取创建任务幂等锁超时: " + idempotencyKey);
+        }
+        boolean deferredUnlock = false;
+        try {
+            T result = action.get();
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                // 事务提交后再释放锁，确保插入的 run 已可见，杜绝并发重复创建
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCompletion(int status) {
+                        if (lock.isHeldByCurrentThread()) lock.unlock();
+                    }
+                });
+                deferredUnlock = true;
+            }
+            return result;
+        } finally {
+            if (!deferredUnlock && lock.isHeldByCurrentThread()) lock.unlock();
+        }
     }
 
     // ── create task ──────────────────────────────────────────────
@@ -100,21 +188,131 @@ public class SellerspriteRequestCenterService {
         if (items == null || items.isEmpty()) {
             throw new IllegalArgumentException("子项不能为空");
         }
+        String effectiveMarketplace = resolveTaskMarketplace(marketplace, items);
+        String idempotencyKey = buildIdempotencyKey(requestType, effectiveMarketplace, triggerType, triggerRef, items);
+        return withCreateLock(idempotencyKey, () -> {
+            SellerspriteRequestRun active = runMapper.selectActiveByIdempotencyKey(idempotencyKey);
+            if (active != null) {
+                log.info("复用活跃请求中心任务: runId={}, key={}", active.getRunId(), idempotencyKey);
+                return active;
+            }
+            String runId = "REQ_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+            String batchCode = weekTagUtil.currentWeekTag();
+            String batchDate = LocalDate.now().format(DATE_FMT);
+
+            SellerspriteRequestRun run = new SellerspriteRequestRun();
+            run.setRunId(runId);
+            run.setRequestType(requestType);
+            run.setMarketplace(effectiveMarketplace);
+            run.setTriggerType(triggerType);
+            run.setTriggerRef(triggerRef);
+            run.setIdempotencyKey(idempotencyKey);
+            run.setFetchReason(fetchReason);
+            run.setBatchCode(batchCode);
+            run.setBatchDate(batchDate);
+            run.setTotalCount(items.size());
+            run.setPendingCount(items.size());
+            run.setRunningCount(0);
+            run.setSuccessCount(0);
+            run.setFailedCount(0);
+            run.setSkippedCount(0);
+            run.setApiCalls(0);
+            run.setStatus("PENDING");
+            run.setOperator(operator);
+            runMapper.insert(run);
+
+            int seq = 0;
+            for (RequestItemInput input : items) {
+                SellerspriteRequestItem item = new SellerspriteRequestItem();
+                item.setRunId(runId);
+                item.setSeq(seq++);
+                item.setMarketplace(StringUtils.hasText(input.marketplace()) ? input.marketplace() : marketplace);
+                item.setSellerName(input.sellerName());
+                item.setTriggerId(input.triggerId());
+                item.setStatus("PENDING");
+                itemMapper.insert(item);
+            }
+
+            log.info("请求中心任务已创建: runId={}, requestType={}, marketplace={}, items={}",
+                    runId, requestType, marketplace, items.size());
+            startAutoConsumeAfterCommit(runId);
+            return run;
+        });
+    }
+
+    /**
+     * 从八爪鱼流式初筛任务的 PASS 结果创建请求中心 ASIN 批量查询任务。
+     *
+     * <p>读取指定初筛任务的 PASS ASIN 并去重，按 {@link #ASIN_BATCH_SIZE}（40）每批一个子项创建请求中心任务。
+     * 子项以 {@code asin_list}（JSON 数组）存储 ASIN 批次载荷，并关联来源任务 ID。
+     * 创建后自动进入后台消费。</p>
+     *
+     * @param taskId     初筛任务 ID（asin_import_tasks.id），必须为 READY 状态
+     * @param operator   操作人，可空
+     * @param fetchReason 抓取原因
+     * @return 创建的 run
+     * @throws IllegalArgumentException 任务不存在、非 READY 或 PASS ASIN 为空
+     */
+    @Transactional
+    public SellerspriteRequestRun createTaskFromStreamingResult(Long taskId, String operator, String fetchReason) {
+        AsinImportTask srcTask = asinImportTaskMapper.selectByIdForUpdate(taskId);
+        if (srcTask == null) {
+            throw new IllegalArgumentException("初筛任务不存在: " + taskId);
+        }
+        if (!"READY".equals(srcTask.getTaskStatus())) {
+            throw new IllegalArgumentException("初筛任务状态必须为 READY，当前: " + srcTask.getTaskStatus());
+        }
+
+        // 同一来源任务在 PENDING/RUNNING/PAUSED 期间只允许一个请求中心运行任务，避免重复扣费。
+        SellerspriteRequestRun activeRun = runMapper.selectActiveAsinRunBySourceTaskId(taskId);
+        if (activeRun != null) {
+            log.info("复用来源初筛任务的活跃请求中心任务: taskId={}, runId={}", taskId, activeRun.getRunId());
+            return activeRun;
+        }
+
+        String dataMonth = resolveDataMonth(srcTask);
+        if (!dataMonth.equals(srcTask.getDataMonth())) {
+            srcTask.setDataMonth(dataMonth);
+            asinImportTaskMapper.updateById(srcTask);
+        }
+
+        List<String> asins = asinImportResultMapper.selectAsinListByTaskAndStatus(taskId, "PASS");
+        if (asins == null || asins.isEmpty()) {
+            throw new IllegalArgumentException("初筛任务无 PASS ASIN: " + taskId);
+        }
+
+        // 内存去重（PASS 结果本身已去重，但防御性做一次）
+        Set<String> deduped = new LinkedHashSet<>(asins);
+        List<String> distinctAsins = new ArrayList<>(deduped);
+        int totalItems = (distinctAsins.size() + ASIN_BATCH_SIZE - 1) / ASIN_BATCH_SIZE;
+
         String runId = "REQ_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         String batchCode = weekTagUtil.currentWeekTag();
         String batchDate = LocalDate.now().format(DATE_FMT);
 
+        // 在 triggerRef 中存储来源信息
+        Map<String, Object> triggerMeta = new LinkedHashMap<>();
+        triggerMeta.put("sourceTaskId", taskId);
+        triggerMeta.put("month", dataMonth);
+        String triggerRefJson;
+        try {
+            triggerRefJson = OBJECT_MAPPER.writeValueAsString(triggerMeta);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("序列化 triggerRef 失败", e);
+        }
+
         SellerspriteRequestRun run = new SellerspriteRequestRun();
         run.setRunId(runId);
-        run.setRequestType(requestType);
-        run.setMarketplace(resolveTaskMarketplace(marketplace, items));
-        run.setTriggerType(triggerType);
-        run.setTriggerRef(triggerRef);
-        run.setFetchReason(fetchReason);
+        run.setRequestType("ASIN_BATCH_LOOKUP");
+        run.setMarketplace(srcTask.getMarketplace());
+        run.setTriggerType("MANUAL");
+        run.setTriggerRef(triggerRefJson);
+        run.setSourceTaskId(taskId);
+        run.setFetchReason(fetchReason != null ? fetchReason : "八爪鱼初筛 PASS 执行卖家精灵");
         run.setBatchCode(batchCode);
         run.setBatchDate(batchDate);
-        run.setTotalCount(items.size());
-        run.setPendingCount(items.size());
+        run.setTotalCount(totalItems);
+        run.setPendingCount(totalItems);
         run.setRunningCount(0);
         run.setSuccessCount(0);
         run.setFailedCount(0);
@@ -124,22 +322,125 @@ public class SellerspriteRequestCenterService {
         run.setOperator(operator);
         runMapper.insert(run);
 
-        int seq = 0;
-        for (RequestItemInput input : items) {
+        for (int i = 0; i < totalItems; i++) {
+            int from = i * ASIN_BATCH_SIZE;
+            int to = Math.min(from + ASIN_BATCH_SIZE, distinctAsins.size());
+            List<String> batch = distinctAsins.subList(from, to);
+
+            String asinListJson;
+            try {
+                asinListJson = OBJECT_MAPPER.writeValueAsString(batch);
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException("序列化 asin_list 失败", e);
+            }
+
             SellerspriteRequestItem item = new SellerspriteRequestItem();
             item.setRunId(runId);
-            item.setSeq(seq++);
-            item.setMarketplace(StringUtils.hasText(input.marketplace()) ? input.marketplace() : marketplace);
-            item.setSellerName(input.sellerName());
-            item.setTriggerId(input.triggerId());
+            item.setSeq(i);
+            item.setMarketplace(srcTask.getMarketplace());
+            item.setSourceTaskId(taskId);
+            item.setAsinList(asinListJson);
             item.setStatus("PENDING");
             itemMapper.insert(item);
         }
 
-        log.info("请求中心任务已创建: runId={}, requestType={}, marketplace={}, items={}",
-                runId, requestType, marketplace, items.size());
+        log.info("从初筛任务创建请求中心任务: runId={}, taskId={}, asins={}, items={}",
+                runId, taskId, distinctAsins.size(), totalItems);
         startAutoConsumeAfterCommit(runId);
         return run;
+    }
+
+    /** 创建手动 ASIN 查询任务；请求会按 40 个 ASIN 分批执行并完整进入请求中心。 */
+    /**
+     * 为初筛来源页提供最新 ASIN 批量运行摘要。
+     * 来源任务仍保留 READY 等初筛状态，页面不得再把它误认为“尚未执行卖家精灵”。
+     */
+    public Map<Long, SellerspriteRequestRun> findLatestAsinRunsBySourceTaskIds(Collection<Long> sourceTaskIds) {
+        if (sourceTaskIds == null || sourceTaskIds.isEmpty()) {
+            return Map.of();
+        }
+        List<SellerspriteRequestRun> runs = runMapper.selectLatestAsinRunsBySourceTaskIds(
+                sourceTaskIds.stream().filter(Objects::nonNull).distinct().toList());
+        return runs.stream()
+                .filter(run -> run.getSourceTaskId() != null)
+                .collect(java.util.stream.Collectors.toMap(SellerspriteRequestRun::getSourceTaskId,
+                        run -> run, (left, right) -> left, LinkedHashMap::new));
+    }
+
+    @Transactional
+    public SellerspriteRequestRun createManualAsinTask(CompetitorLookupRequest request, String operator) {
+        if (request.getAsins() == null || request.getAsins().isEmpty()) {
+            throw new IllegalArgumentException("ASIN 列表不能为空");
+        }
+        List<String> asins = new ArrayList<>(new LinkedHashSet<>(request.getAsins()));
+        String month = StringUtils.hasText(request.getMonth()) ? request.getMonth() : currentDataMonth();
+        String idempotencyKey = buildManualAsinIdempotencyKey(request, asins, month);
+        return withCreateLock(idempotencyKey, () -> {
+            SellerspriteRequestRun active = runMapper.selectActiveByIdempotencyKey(idempotencyKey);
+            if (active != null) {
+                log.info("复用活跃手动 ASIN 请求中心任务: runId={}, key={}", active.getRunId(), idempotencyKey);
+                return active;
+            }
+            String runId = "REQ_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+            int itemCount = (asins.size() + ASIN_BATCH_SIZE - 1) / ASIN_BATCH_SIZE;
+            SellerspriteRequestRun run = new SellerspriteRequestRun();
+            run.setRunId(runId);
+            run.setRequestType("MANUAL_ASIN_LOOKUP");
+            run.setMarketplace(request.getMarketplace());
+            run.setTriggerType("MANUAL");
+            run.setTriggerRef(writeMonthTriggerRef(month));
+            run.setIdempotencyKey(idempotencyKey);
+            run.setFetchReason("手动 ASIN 查询");
+            run.setBatchCode(weekTagUtil.currentWeekTag());
+            run.setBatchDate(LocalDate.now().format(DATE_FMT));
+            run.setTotalCount(itemCount);
+            run.setPendingCount(itemCount);
+            run.setRunningCount(0); run.setSuccessCount(0); run.setFailedCount(0); run.setSkippedCount(0); run.setApiCalls(0);
+            run.setStatus("PENDING");
+            run.setOperator(operator);
+            runMapper.insert(run);
+            for (int i = 0; i < itemCount; i++) {
+                List<String> batchAsins = asins.subList(i * ASIN_BATCH_SIZE,
+                        Math.min((i + 1) * ASIN_BATCH_SIZE, asins.size()));
+                SellerspriteRequestItem item = new SellerspriteRequestItem();
+                item.setRunId(runId); item.setSeq(i); item.setMarketplace(request.getMarketplace());
+                item.setAsinList(writeAsinList(batchAsins));
+                item.setPayloadJson(writeLookupPayload(copyLookupRequest(request, batchAsins)));
+                item.setStatus("PENDING");
+                itemMapper.insert(item);
+            }
+            startAutoConsumeAfterCommit(runId);
+            return run;
+        });
+    }
+
+    /** 将卖家名预览任务转换为请求中心任务，普通目标写竞品库，邓总目标写 deng_zong_shop。 */
+    @Transactional
+    public SellerspriteRequestRun createSellerBatchTask(Long sourceTaskId, String target, String month, String operator) {
+        AsinImportTask sourceTask = asinImportTaskMapper.selectById(sourceTaskId);
+        if (sourceTask == null) throw new IllegalArgumentException("卖家名导入任务不存在: " + sourceTaskId);
+        List<AsinImportResult> rows = asinImportResultMapper.selectList(new LambdaQueryWrapper<AsinImportResult>()
+                .eq(AsinImportResult::getTaskId, sourceTaskId)
+                .eq(AsinImportResult::getStatus, "PASS"));
+        List<RequestItemInput> items = rows.stream()
+                .map(AsinImportResult::getSellerName)
+                .filter(StringUtils::hasText)
+                .map(name -> new RequestItemInput(sourceTask.getMarketplace(), name, null))
+                .distinct().toList();
+        if (items.isEmpty()) throw new IllegalArgumentException("卖家名导入任务没有可执行店铺: " + sourceTaskId);
+        String requestType = "deng_zong_shop".equalsIgnoreCase(target) ? "DENG_ZONG_SHOP_SYNC" : "SELLER_BATCH_LOOKUP";
+        String resolvedMonth = StringUtils.hasText(month) ? month : currentDataMonth();
+        String triggerRef;
+        try {
+            Map<String, Object> meta = new LinkedHashMap<>();
+            meta.put("sourceTaskId", sourceTaskId);
+            meta.put("month", resolvedMonth);
+            triggerRef = OBJECT_MAPPER.writeValueAsString(meta);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("序列化 triggerRef 失败", e);
+        }
+        return createTask(requestType, sourceTask.getMarketplace(), "MANUAL", triggerRef,
+                "卖家名批量导入", items, operator);
     }
 
     // ── dry-run preview ──────────────────────────────────────────
@@ -172,7 +473,7 @@ public class SellerspriteRequestCenterService {
 
     public int resume(String runId) {
         int affected = runMapper.resume(runId);
-        if (affected == 0) throw new IllegalStateException("恢复失败：run " + runId + " 当前状态非 PAUSED");
+        if (affected == 0) throw new IllegalStateException("恢复失败：run " + runId + " 当前状态非 PAUSED 或 PAUSED_SYSTEM");
         startAutoConsume(runId);
         return affected;
     }
@@ -234,10 +535,30 @@ public class SellerspriteRequestCenterService {
         for (String runId : runIds) {
             int reset = itemMapper.resetRunningToPending(runId);
             runMapper.recountItemCounters(runId);
+            int waitingRetry = itemMapper.countWaitingRetry(runId);
             if (reset > 0) {
-                log.warn("Reset stale RUNNING request items to PENDING on startup: runId={}, count={}", runId, reset);
+                log.warn("Recovered stale request items on startup: runId={}, count={}, waitingRetry={}",
+                        runId, reset, waitingRetry);
+            }
+            if (waitingRetry > 0) {
+                runMapper.pauseSystem(runId, "服务重启：存在已发出但结果未知的请求，等待人工确认", null);
+                continue;
             }
             startAutoConsume(runId);
+        }
+    }
+
+    /** 仅恢复确认未发出的瞬时故障；结果未知请求必须保留给人工确认。 */
+    @Scheduled(fixedDelayString = "${sellersprite.retry-recovery-delay-ms:10000}")
+    public void recoverDueSafeRetries() {
+        for (String runId : runMapper.selectDueSystemRetryRunIds()) {
+            int released = itemMapper.releaseDueSafeRetries(runId);
+            if (released <= 0) continue;
+            if (runMapper.resume(runId) > 0) {
+                runMapper.recountItemCounters(runId);
+                startAutoConsume(runId);
+                log.info("恢复卖家精灵安全重试: runId={}, items={}", runId, released);
+            }
         }
     }
 
@@ -261,7 +582,8 @@ public class SellerspriteRequestCenterService {
                 log.warn("Request center auto worker stopped because run is missing: runId={}", runId);
                 return;
             }
-            if ("PAUSED".equals(run.getStatus()) || TERMINAL_STATUS.contains(run.getStatus())) {
+            if ("PAUSED".equals(run.getStatus()) || "PAUSED_SYSTEM".equals(run.getStatus())
+                    || TERMINAL_STATUS.contains(run.getStatus())) {
                 log.info("Request center auto worker stopped: runId={}, status={}", runId, run.getStatus());
                 return;
             }
@@ -270,7 +592,8 @@ public class SellerspriteRequestCenterService {
             if (after == null) {
                 return;
             }
-            if ("PAUSED".equals(after.getStatus()) || TERMINAL_STATUS.contains(after.getStatus())) {
+            if ("PAUSED".equals(after.getStatus()) || "PAUSED_SYSTEM".equals(after.getStatus())
+                    || TERMINAL_STATUS.contains(after.getStatus())) {
                 log.info("Request center auto worker stopped after consume: runId={}, status={}", runId, after.getStatus());
                 return;
             }
@@ -287,11 +610,32 @@ public class SellerspriteRequestCenterService {
         }
     }
 
+    /**
+     * 消费一批子项。per-run 互斥：同一 run 同时只允许一个线程进入消费循环，
+     * 避免自动 worker 与手动 consume 端点并发抢子项，导致 skipped_count 虚高、计数漂移。
+     * 卖家精灵实际调用另有全局单进程锁（{@code DefaultSellerspriteExecutionGateway}）保证串行。
+     */
     public Map<String, Object> consumeNext(String runId, Integer batchSize) {
+        if (!consumingRuns.add(runId)) {
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("runId", runId);
+            r.put("consumed", 0);
+            r.put("skipped", true);
+            r.put("message", "该任务正在被另一消费者处理，跳过本次并发消费");
+            return r;
+        }
+        try {
+            return consumeNextGuarded(runId, batchSize);
+        } finally {
+            consumingRuns.remove(runId);
+        }
+    }
+
+    private Map<String, Object> consumeNextGuarded(String runId, Integer batchSize) {
         SellerspriteRequestRun run = runMapper.selectById(runId);
         if (run == null) throw new IllegalArgumentException("任务不存在: " + runId);
         String status = run.getStatus();
-        if ("PAUSED".equals(status) || "STOPPED".equals(status)) {
+        if ("PAUSED".equals(status) || "PAUSED_SYSTEM".equals(status) || "STOPPED".equals(status)) {
             Map<String, Object> r = new LinkedHashMap<>();
             r.put("runId", runId);
             r.put("status", status);
@@ -325,10 +669,12 @@ public class SellerspriteRequestCenterService {
         }
 
         int success = 0, failed = 0, skipped = 0, consumed = 0, apiCallsTotal = 0;
+        boolean recountRequired = false;
         for (SellerspriteRequestItem item : pending) {
             // 再次检查 run 状态（可能被并发 stop）
             SellerspriteRequestRun fresh = runMapper.selectById(runId);
-            if ("STOPPED".equals(fresh.getStatus()) || "PAUSED".equals(fresh.getStatus())) {
+            if ("STOPPED".equals(fresh.getStatus()) || "PAUSED".equals(fresh.getStatus())
+                    || "PAUSED_SYSTEM".equals(fresh.getStatus())) {
                 log.info("任务 {} 被 {}，停止消费剩余子项", runId, fresh.getStatus());
                 break;
             }
@@ -353,6 +699,33 @@ public class SellerspriteRequestCenterService {
                         markItemSuccess(item.getId(), runId, syncResult, total, fetched, written, itemFailed, apiCalls, itemStatus));
                 success++;
                 apiCallsTotal += apiCalls;
+            } catch (SellerspriteExecutionException e) {
+                if (requiresSystemPause(e)) {
+                    String summary = truncate(e.getMessage(), 512);
+                    LocalDateTime retryAt = safeRetryAt(e, item);
+                    transactionTemplate.executeWithoutResult(s -> {
+                        itemMapper.markWaitingRetry(item.getId(), summary, e.getErrorCode().name(), summary,
+                                e.isRequestDispatched(), e.isUsageConfirmed(), retryAt);
+                        runMapper.pauseSystem(runId, e.getErrorCode().name() + ": " + summary, retryAt);
+                    });
+                    recountRequired = true;
+                    log.warn("卖家精灵保护暂停任务: runId={}, itemId={}, code={}, dispatched={}, retryAt={}, error={}",
+                            runId, item.getId(), e.getErrorCode(), e.isRequestDispatched(), retryAt, summary);
+                    break;
+                }
+                String errMsg = truncate(e.getMessage(), 512);
+                transactionTemplate.executeWithoutResult(s -> {
+                    markItemFailed(item.getId(), runId, null, errMsg, 0, 0, 0, 0, 0);
+                    SellerspriteRequestItem failedItem = itemMapper.selectById(item.getId());
+                    failedItem.setErrorCode(e.getErrorCode().name());
+                    failedItem.setErrorSummary(errMsg);
+                    failedItem.setRequestDispatched(e.isRequestDispatched());
+                    failedItem.setUsageConfirmed(e.isUsageConfirmed());
+                    itemMapper.updateById(failedItem);
+                });
+                failed++;
+                log.warn("请求中心子项业务失败: runId={}, itemId={}, code={}, error={}",
+                        runId, item.getId(), e.getErrorCode(), errMsg);
             } catch (RequestItemFailedException e) {
                 Map<String, Object> failedResult = e.getResult();
                 int apiCalls = getInt(failedResult, "apiCalls", 0);
@@ -389,7 +762,9 @@ public class SellerspriteRequestCenterService {
         }
 
         // 累加 run 计数（事务内）
-        if (consumed > 0) {
+        if (recountRequired) {
+            runMapper.recountItemCounters(runId);
+        } else if (consumed > 0) {
             final int fSuccess = success, fFailed = failed, fSkipped = skipped, fConsumed = consumed, fApiCalls = apiCallsTotal;
             transactionTemplate.executeWithoutResult(s -> {
                 itemMapper.applyItemResult(runId, fSuccess, fFailed, fSkipped, fConsumed);
@@ -427,6 +802,55 @@ public class SellerspriteRequestCenterService {
      * 这条链路保持一致。</p>
      */
     private Map<String, Object> consumeSellerSpriteItem(SellerspriteRequestRun run, SellerspriteRequestItem item) {
+        // ── ASIN 批量查询 ──────────────────────────────────────────
+        if ("ASIN_BATCH_LOOKUP".equals(run.getRequestType()) || "MANUAL_ASIN_LOOKUP".equals(run.getRequestType())) {
+            if (item.getAsinList() == null || item.getAsinList().isBlank()) {
+                throw new IllegalStateException("ASIN_BATCH_LOOKUP item 缺少 asin_list");
+            }
+            List<String> asins;
+            try {
+                asins = OBJECT_MAPPER.readValue(item.getAsinList(),
+                        OBJECT_MAPPER.getTypeFactory().constructCollectionType(List.class, String.class));
+            } catch (Exception e) {
+                throw new IllegalStateException("解析 asin_list 失败: " + e.getMessage());
+            }
+            if (asins == null || asins.isEmpty()) {
+                throw new IllegalStateException("asin_list 解析结果为空");
+            }
+
+            String month = resolveRunMonth(run);
+            CompetitorLookupRequest req = readLookupPayload(item);
+            if (req == null) {
+                req = new CompetitorLookupRequest();
+                req.setVariation("Y");  // 不含变体，父体口径，与店铺请求一致
+                req.setSize(100);
+            }
+            req.setMarketplace(item.getMarketplace() != null ? item.getMarketplace() : run.getMarketplace());
+            req.setAsins(new ArrayList<>(asins));
+
+            String itemMarketplace = req.getMarketplace();
+            String scope = "marketplace=" + itemMarketplace + ", asins=" + asins.size();
+            AtomicInteger attemptNo = new AtomicInteger(nvl(item.getAttemptCount()));
+            Map<String, Object> raw = competitorService.doLookupAndSave(req,
+                    StringUtils.hasText(month) ? month : currentDataMonth(), LocalDateTime.now(),
+                    apiRequest -> executionGateway.execute(new SellerspriteExecutionRequest(apiRequest,
+                            new SellerspriteExecutionContext(run.getRunId(), item.getId(), run.getRequestType(),
+                                    scope, attemptNo.incrementAndGet()))).data());
+            int total = ((Number) raw.getOrDefault("total", 0)).intValue();
+            int apiCalls = ((Number) raw.getOrDefault("apiCalls", 0)).intValue();
+
+            // 请求过的 ASIN 写入 skip_asins「API已请求」，下次导入不再重复请求扣费。
+            // 与旧链路 AsinImportService.executeApiCalls 每批收尾一致；insertBatchIgnoreDup 幂等，重复写无害。
+            markAsinsRequested(asins, itemMarketplace);
+
+            // 补齐 consumeNext 期望的 key（与 syncBySellerName 返回格式对齐）
+            Map<String, Object> result = new LinkedHashMap<>(raw);
+            result.putIfAbsent("fetchedCount", total);
+            result.putIfAbsent("writtenCount", total);
+            return result;
+        }
+
+        // ── 候选池批量抓取 ──────────────────────────────────────────
         if ("CANDIDATE_BATCH".equals(run.getRequestType())
                 || "CANDIDATE_CONFIRM".equals(run.getTriggerType())) {
             if (item.getTriggerId() == null) {
@@ -440,9 +864,36 @@ public class SellerspriteRequestCenterService {
             }
             return result;
         }
+
+        if ("DENG_ZONG_SHOP_SYNC".equals(run.getRequestType())) {
+            return dengZongShopService.syncBySellerName(item.getSellerName(), item.getMarketplace());
+        }
+
+        if ("SELLER_BATCH_LOOKUP".equals(run.getRequestType())) {
+            CompetitorLookupRequest req = new CompetitorLookupRequest();
+            req.setMarketplace(item.getMarketplace());
+            req.setSellerName(item.getSellerName());
+            req.setAsins(List.of());
+            req.setVariation("Y");  // 不含变体，父体口径，与店铺请求一致
+            req.setSize(100);
+            AtomicInteger attemptNo = new AtomicInteger(nvl(item.getAttemptCount()));
+            String scope = "marketplace=" + item.getMarketplace() + ", seller=" + item.getSellerName();
+            Map<String, Object> raw = competitorService.doLookupAndSave(req, currentDataMonth(), LocalDateTime.now(),
+                    apiRequest -> executionGateway.execute(new SellerspriteExecutionRequest(apiRequest,
+                            new SellerspriteExecutionContext(run.getRunId(), item.getId(), run.getRequestType(),
+                                    scope, attemptNo.incrementAndGet()))).data());
+            raw.putIfAbsent("fetchedCount", raw.getOrDefault("total", 0));
+            raw.putIfAbsent("writtenCount", raw.getOrDefault("total", 0));
+            return raw;
+        }
+
+        // ── 默认：店铺全量同步 ──────────────────────────────────────
         return productSyncService.syncBySellerName(
                 item.getSellerName(), item.getMarketplace(), run.getFetchReason(),
-                null, null, run.getBatchCode());
+                null, null, run.getBatchCode(), () -> {
+                    SellerspriteRequestRun fresh = runMapper.selectById(run.getRunId());
+                    return fresh != null && "RUNNING".equals(fresh.getStatus());
+                });
     }
 
     // ── list / detail ────────────────────────────────────────────
@@ -479,18 +930,33 @@ public class SellerspriteRequestCenterService {
     public int retryItem(Long itemId) {
         SellerspriteRequestItem item = itemMapper.selectById(itemId);
         if (item == null) throw new IllegalArgumentException("子项不存在: " + itemId);
-        if (!"FAILED".equals(item.getStatus())) {
-            throw new IllegalStateException("只有 FAILED 子项可重试，当前: " + item.getStatus());
+        if (!"FAILED".equals(item.getStatus()) && !"WAITING_RETRY".equals(item.getStatus())) {
+            throw new IllegalStateException("只有 FAILED 或 WAITING_RETRY 子项可重试，当前: " + item.getStatus());
         }
         int reset = itemMapper.resetFailedToPending(itemId);
         if (reset == 0) return 0;
         itemMapper.reopenForRetry(item.getRunId());
+        runMapper.recountItemCounters(item.getRunId());
         startAutoConsumeAfterCommit(item.getRunId());
         log.info("请求中心子项重试: runId={}, itemId={}", item.getRunId(), itemId);
         return reset;
     }
 
     // ── internal helpers ─────────────────────────────────────────
+
+    private String resolveDataMonth(AsinImportTask task) {
+        if (StringUtils.hasText(task.getDataMonth())) {
+            return task.getDataMonth();
+        }
+        if (task.getCreatedAt() != null) {
+            return task.getCreatedAt().toLocalDate().format(DateTimeFormatter.ofPattern("yyyyMM"));
+        }
+        return currentDataMonth();
+    }
+
+    private String currentDataMonth() {
+        return java.time.YearMonth.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
+    }
 
     private void markItemSuccess(Long itemId, String runId, Map<String, Object> syncResult,
                                  int total, int fetched, int written, int failed, int apiCalls, String itemStatus) {
@@ -563,8 +1029,8 @@ public class SellerspriteRequestCenterService {
         if (run.getPendingCount() != null && run.getPendingCount() > 0) {
             return; // 还有待处理，不完结
         }
-        // PAUSED 不强制完结（用户可能 resume）
-        if ("PAUSED".equals(status)) return;
+        // 暂停不强制完结（用户/系统恢复后可继续）
+        if ("PAUSED".equals(status) || "PAUSED_SYSTEM".equals(status)) return;
 
         int success = nvl(run.getSuccessCount());
         int failed = nvl(run.getFailedCount());
@@ -582,6 +1048,61 @@ public class SellerspriteRequestCenterService {
         runMapper.updateById(run);
         log.info("请求中心任务完结: runId={}, status={}, success={}, failed={}, apiCalls={}",
                 runId, finalStatus, success, failed, run.getApiCalls());
+
+        // ASIN 批量查询写入 competitor_products 后，补做旧链路同款收尾：打周标 + 刷清洗层，
+        // 否则新品榜/方法卡（读 competitor_products_clean）看不到本批数据。店铺类任务走 shop_products
+        // 独立链路，不触发此收尾。
+        if (success > 0 && writesCompetitorProducts(run.getRequestType())) {
+            finalizeCompetitorCleanLayer(run);
+        }
+    }
+
+    /**
+     * 结果写进 competitor_products、需要清洗层收尾（打周标 + 刷 clean）的任务类型。
+     * 与 {@link #consumeSellerSpriteItem} 里走 competitorService.doLookupAndSave 的分支保持一致：
+     * ASIN_BATCH_LOOKUP / MANUAL_ASIN_LOOKUP / SELLER_BATCH_LOOKUP。
+     * （ASIN_LOOKUP 为历史预留常量，无消费分支，不在此列。）
+     */
+    private boolean writesCompetitorProducts(String requestType) {
+        return "ASIN_BATCH_LOOKUP".equals(requestType)
+                || "MANUAL_ASIN_LOOKUP".equals(requestType)
+                || "SELLER_BATCH_LOOKUP".equals(requestType);
+    }
+
+    /**
+     * 把请求过的 ASIN 写入 skip_asins「API已请求」，下次初筛/导入去重不再重复扣费。
+     * 与 AsinImportService.executeApiCalls 每批收尾一致。异常不影响主流程。
+     */
+    private void markAsinsRequested(List<String> asins, String marketplace) {
+        if (asins == null || asins.isEmpty()) return;
+        try {
+            List<SkipAsin> skips = new ArrayList<>(asins.size());
+            for (String asin : asins) {
+                if (asin == null || asin.isBlank()) continue;
+                SkipAsin s = new SkipAsin();
+                s.setAsin(asin);
+                s.setMarketplace(marketplace);
+                s.setFilterReasons("API已请求");
+                skips.add(s);
+            }
+            if (!skips.isEmpty()) skipAsinMapper.insertBatchIgnoreDup(skips);
+        } catch (Exception e) {
+            log.warn("写入 skip_asins(API已请求) 失败(忽略): marketplace={}, asins={}, err={}",
+                    marketplace, asins.size(), e.getMessage());
+        }
+    }
+
+    /** 打周标 + 增量刷清洗层，与 AsinImportService 导入后收尾一致。异常不影响任务完结。 */
+    private void finalizeCompetitorCleanLayer(SellerspriteRequestRun run) {
+        try {
+            String weekTag = scoringService.updateWeekTags();
+            Map<String, Object> cleanResult = cleanLayerService.cleanWeekBatch(run.getMarketplace(), weekTag);
+            log.info("请求中心任务完结后清洗层刷新: runId={}, marketplace={}, weekTag={}, affected={}",
+                    run.getRunId(), run.getMarketplace(), weekTag, cleanResult.get("affectedRows"));
+        } catch (Exception e) {
+            log.error("请求中心任务完结后清洗层刷新失败(不影响任务完结): runId={}, marketplace={}, err={}",
+                    run.getRunId(), run.getMarketplace(), e.getMessage(), e);
+        }
     }
 
     private int getInt(Map<String, Object> map, String key, int def) {
@@ -592,6 +1113,24 @@ public class SellerspriteRequestCenterService {
     }
 
     private int nvl(Integer v) { return v == null ? 0 : v; }
+
+    private boolean requiresSystemPause(SellerspriteExecutionException error) {
+        return switch (error.getErrorCode()) {
+            case CONNECT_TIMEOUT, READ_TIMEOUT, NETWORK, CIRCUIT_OPEN, RATE_LIMIT, INTERNAL_ERROR -> true;
+            case AUTH, INVALID_REQUEST, UPSTREAM_ERROR, PARSE_ERROR -> false;
+        };
+    }
+
+    private LocalDateTime safeRetryAt(SellerspriteExecutionException error, SellerspriteRequestItem item) {
+        if (error.getRetryAt() != null) return error.getRetryAt();
+        if (error.isRequestDispatched()) return null;
+        return switch (error.getErrorCode()) {
+            case CONNECT_TIMEOUT, NETWORK -> LocalDateTime.now().plusSeconds(Math.min(60,
+                    5L * (1L << Math.min(4, nvl(item.getAttemptCount())))));
+            case RATE_LIMIT -> LocalDateTime.now().plusSeconds(30);
+            default -> null;
+        };
+    }
 
     private boolean hasPartialItems(String runId) {
         return itemMapper.selectList(new LambdaQueryWrapper<SellerspriteRequestItem>()
@@ -634,6 +1173,81 @@ public class SellerspriteRequestCenterService {
     private String truncate(String s, int max) {
         if (s == null) return null;
         return s.length() > max ? s.substring(0, max) : s;
+    }
+
+    /** 构造只含 month 的 triggerRef JSON，避免字符串拼接导致的 JSON 破坏。 */
+    private String writeMonthTriggerRef(String month) {
+        try { return OBJECT_MAPPER.writeValueAsString(Map.of("month", month == null ? "" : month)); }
+        catch (JsonProcessingException e) { throw new IllegalStateException("序列化 triggerRef 失败", e); }
+    }
+
+    private String writeAsinList(List<String> asins) {
+        try { return OBJECT_MAPPER.writeValueAsString(asins); }
+        catch (JsonProcessingException e) { throw new IllegalStateException("序列化 ASIN 载荷失败", e); }
+    }
+
+    private String writeLookupPayload(CompetitorLookupRequest request) {
+        try { return OBJECT_MAPPER.writeValueAsString(request); }
+        catch (JsonProcessingException e) { throw new IllegalStateException("序列化卖家精灵请求载荷失败", e); }
+    }
+
+    private CompetitorLookupRequest readLookupPayload(SellerspriteRequestItem item) {
+        if (!StringUtils.hasText(item.getPayloadJson())) return null;
+        try {
+            return OBJECT_MAPPER.readValue(item.getPayloadJson(), CompetitorLookupRequest.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("请求中心子项请求载荷解析失败: itemId=" + item.getId(), e);
+        }
+    }
+
+    private CompetitorLookupRequest copyLookupRequest(CompetitorLookupRequest source, List<String> asins) {
+        CompetitorLookupRequest copy = new CompetitorLookupRequest();
+        copy.setMarketplace(source.getMarketplace());
+        copy.setBrand(source.getBrand());
+        copy.setSellerName(source.getSellerName());
+        copy.setAsins(new ArrayList<>(asins));
+        copy.setNodeIdPath(source.getNodeIdPath());
+        copy.setNodeIdPathEqual(source.getNodeIdPathEqual());
+        copy.setKeyword(source.getKeyword());
+        copy.setMatchType(source.getMatchType());
+        copy.setVariation(source.getVariation());
+        copy.setPage(source.getPage());
+        copy.setSize(source.getSize());
+        copy.setOrderField(source.getOrderField());
+        copy.setOrderDesc(source.getOrderDesc());
+        return copy;
+    }
+
+    private String resolveRunMonth(SellerspriteRequestRun run) {
+        if (StringUtils.hasText(run.getTriggerRef())) {
+            try {
+                Map<String, Object> meta = OBJECT_MAPPER.readValue(run.getTriggerRef(),
+                        OBJECT_MAPPER.getTypeFactory().constructMapType(Map.class, String.class, Object.class));
+                Object month = meta.get("month");
+                if (month != null && StringUtils.hasText(String.valueOf(month))) return String.valueOf(month);
+            } catch (Exception ignored) {
+                // 兼容旧任务：无效 triggerRef 时回落到当前数据月份。
+            }
+        }
+        return currentDataMonth();
+    }
+
+    private String buildManualAsinIdempotencyKey(CompetitorLookupRequest request, List<String> asins, String month) {
+        // ASIN 先排序再入 hash：同一批 ASIN 换序提交应得到同一 key，才能命中活跃任务复用
+        List<String> sortedAsins = new ArrayList<>(asins);
+        Collections.sort(sortedAsins);
+        return "MANUAL_ASIN_" + Integer.toUnsignedString(Objects.hash(
+                request.getMarketplace(), month, sortedAsins, request.getBrand(), request.getSellerName(),
+                request.getNodeIdPath(), request.getNodeIdPathEqual(), request.getKeyword(), request.getMatchType(),
+                request.getVariation(), request.getSize(), request.getOrderField(), request.getOrderDesc()), 36);
+    }
+
+    private String buildIdempotencyKey(String requestType, String marketplace, String triggerType,
+                                       String triggerRef, List<RequestItemInput> items) {
+        String itemKey = items.stream().map(item -> String.valueOf(item.triggerId()) + "@"
+                        + item.marketplace() + "@" + item.sellerName())
+                .sorted().reduce("", (a, b) -> a + "|" + b);
+        return "REQ_" + Integer.toUnsignedString(Objects.hash(requestType, marketplace, triggerType, triggerRef, itemKey), 36);
     }
 
     private static class RequestItemFailedException extends RuntimeException {

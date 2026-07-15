@@ -89,6 +89,18 @@
           清除全部
         </el-button>
       </div>
+      <el-button
+        class="csv-export-button"
+        type="success"
+        plain
+        size="small"
+        :icon="Download"
+        :loading="store.exportLoading"
+        :disabled="store.competitorLoading || store.competitorTotal === 0"
+        @click="store.exportAllResultsCsv()"
+      >
+        下载全部 CSV
+      </el-button>
     </div>
 
     <!-- 统一筛选抽屉 -->
@@ -151,7 +163,7 @@
         <div class="method-card method-card--m02">
           <div class="method-card__body">
             <div class="method-card__head">
-              <div class="method-card__name">M02 郑总同行品线跟随法</div>
+              <div class="method-card__name">M02 非标同行品线跟随法</div>
               <el-tag
                 v-if="store.activeMethodCard?.id === 'M02'"
                 type="success"
@@ -162,7 +174,7 @@
               </el-tag>
             </div>
             <div class="method-card__desc">
-              用郑总同行店铺最新批次作为基准盘子，重排品线树并标记被同行验证过的
+              用非标同行店铺最新批次作为基准盘子，重排品线树并标记被同行验证过的
               L1 / L2。
             </div>
             <div class="method-card__meta">
@@ -230,7 +242,7 @@
       </div>
     </FilterDrawer>
 
-    <!-- 郑总店铺数据完整性确认 -->
+    <!-- 非标店铺数据完整性确认 -->
     <div
       v-if="
         store.activeMethodCard?.id === 'M02' &&
@@ -241,7 +253,7 @@
     >
       <el-icon class="cb-icon"><WarningFilled /></el-icon>
       <span class="cb-text">
-        本周郑总店铺数据：<b>{{ store.completeness.fetchedSellers }}</b> /
+        本周非标店铺数据：<b>{{ store.completeness.fetchedSellers }}</b> /
         {{ store.completeness.totalSellers }} 家有数据，缺失
         {{ store.completeness.missingSellers.length }} 家
       </span>
@@ -451,12 +463,6 @@
         @click="store.batchAddToSelection()"
         >批量加入选品</el-button
       >
-      <el-button
-        size="small"
-        :loading="store.exportLoading"
-        @click="store.exportSelectedExcel()"
-        >导出Excel</el-button
-      >
     </div>
 
     <!-- 商品详情弹窗（侧边抽屉） -->
@@ -490,6 +496,7 @@ import {
   CaretBottom,
   WarningFilled,
   Filter,
+  Download,
 } from "@element-plus/icons-vue";
 import { useProductLineSelectionStore } from "./store";
 import ProductLineTree from "./components/ProductLineTree.vue";
@@ -570,7 +577,7 @@ const drawerSnapshotKind = computed<
 );
 const drawerRangeSource = computed(() => {
   if (store.activeMethodCard?.id === "M01") return "新品榜";
-  if (store.activeMethodCard?.id === "M02") return "郑总店铺";
+  if (store.activeMethodCard?.id === "M02") return "非标店铺";
   return "";
 });
 const drawerAutoSelectLatestWeek = computed(() => !store.activeMethodCard);
@@ -1104,6 +1111,10 @@ export default { name: "ProductLineSelection" };
     gap: 8px;
     flex-wrap: wrap;
   }
+
+  .csv-export-button {
+    margin-left: auto;
+  }
 }
 
 // ---- 抽屉内分区（drawer append-to-body，需顶层匹配 slotted 元素，见 :global 段）----
@@ -1171,7 +1182,7 @@ export default { name: "ProductLineSelection" };
   flex-shrink: 0;
 }
 
-// ---- 郑总数据完整性提示 ----
+// ---- 非标数据完整性提示 ----
 .completeness-banner {
   display: flex;
   align-items: center;

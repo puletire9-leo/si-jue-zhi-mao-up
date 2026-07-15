@@ -116,22 +116,6 @@ const countryOptions = [
   { label: "德国", value: "DE" },
 ];
 
-// 数据筛选模式选项（值必须与数据库中存储的值一致）
-const dataFilterModeOptions = [
-  { label: "模式一", value: "MODE1" },
-  { label: "模式二", value: "MODE2" },
-  { label: "未通过", value: "FAIL" },
-];
-
-// 等级选项
-const gradeOptions = [
-  { label: "S", value: "S", color: "#67C23A" },
-  { label: "A", value: "A", color: "#409EFF" },
-  { label: "B", value: "B", color: "#E6A23C" },
-  { label: "C", value: "C", color: "#909399" },
-  { label: "D", value: "D", color: "#F56C6C" },
-];
-
 // 根据页面类型获取默认配置
 const pageConfig = computed(() => {
   return pageTypeConfig[props.pageType] || {};
@@ -384,10 +368,14 @@ const handleAdvancedSearch = () => {
   }
 
   // 按行分割，获取搜索列表
-  const searchList = content
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line);
+  const searchList = Array.from(
+    new Set(
+      content
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line),
+    ),
+  ).slice(0, 2000);
 
   if (searchList.length === 0) {
     return;
@@ -402,22 +390,20 @@ const handleAdvancedSearch = () => {
   formData.storeName = "";
   formData.category = "";
 
-  // 如果有多个值，使用第一个值作为主要搜索条件
-  // 其他值可以通过其他方式处理（如发送到后端进行批量查询）
-  const firstValue = searchList[0];
-
   switch (searchType) {
     case "asin":
-      formData.asin = firstValue;
+      // 保留全部 ASIN；queryPlan 会按换行拆成数组并交给各数据源的 IN 查询。
+      formData.asin = searchList.join("\n");
       break;
     case "productTitle":
-      formData.productTitle = firstValue;
+      formData.productTitle = searchList[0];
       break;
     case "storeName":
-      formData.storeName = firstValue;
+      formData.storeName = searchList[0];
       break;
     case "category":
-      formData.category = firstValue;
+      // 类目查询链路原生支持逗号分隔的多选值。
+      formData.category = searchList.join(",");
       break;
   }
 
@@ -519,23 +505,6 @@ defineExpose({
           @change="handleSearch"
         />
 
-        <!-- 数据筛选模式选择器 -->
-        <el-select
-          v-if="false"
-          v-model="formData.dataFilterMode"
-          placeholder="数据筛选模式"
-          clearable
-          class="data-filter-select"
-          size="default"
-          @change="handleSearch"
-        >
-          <el-option
-            v-for="option in dataFilterModeOptions"
-            :key="option.value"
-            :label="option.label"
-            :value="option.value"
-          />
-        </el-select>
       </div>
 
       <div class="search-wrapper">
@@ -667,7 +636,7 @@ defineExpose({
           <el-option label="全部" value="" />
           <el-option label="新品榜" value="new" />
           <el-option label="竞品店铺" value="reference" />
-          <el-option label="郑总店铺" value="zheng" />
+          <el-option label="非标店铺" value="zheng" />
         </el-select>
       </el-form-item>
 

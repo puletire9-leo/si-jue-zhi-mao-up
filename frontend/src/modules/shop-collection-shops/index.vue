@@ -13,14 +13,14 @@
         <el-input-number v-model="minGood" :min="0" :controls="false" placeholder="好品倾向≥" style="width: 120px" />
         <el-input-number v-model="maxStrong" :min="0" :controls="false" placeholder="强注意≤" style="width: 110px" />
         <el-button type="primary" @click="loadList">查询</el-button>
-        <div class="tip">只展示已通过请求中心抓取成功的店铺全集，数据源 shop_products（variation=Y，不含变体父体口径）。点击行看单店全景。</div>
+        <div class="tip">展示已通过请求中心抓取成功的店铺选品数据，数据源为 shop_products（variation=Y，不含变体父体）。点击店铺查看商品数据。</div>
       </div>
     </el-card>
 
     <el-card shadow="never">
       <el-table :data="rows" v-loading="loading" stripe height="calc(100vh - 260px)" @row-click="openDetail">
         <template #empty>
-          <el-empty description="暂无店铺全集数据。先在「方法卡找店」选择候选并创建请求中心抓取任务。" />
+          <el-empty description="暂无店铺选品数据。请先创建店铺抓取任务，完成后在此查看商品数据。" />
         </template>
         <el-table-column prop="sellerName" label="店铺名" min-width="170" show-overflow-tooltip />
         <el-table-column prop="productCount" label="商品数" width="90" sortable />
@@ -248,7 +248,7 @@
           </el-tab-pane>
 
           <el-tab-pane label="商品数据" name="products">
-          <div class="attn-hint">此处即店铺商品下钻视图（数据源 shop_products）。按店铺研究商品从这里进；历史导入的旧竞品商品在选品中心「历史竞品商品池」。</div>
+          <div class="attn-hint">店铺商品数据直接读取 shop_products，可按销量层、时间层、注意/倾向层、M01、类目和关键词筛选。</div>
           <div class="section-title">商品明细（三维筛选）</div>
           <div class="prod-filters">
             <el-radio-group v-model="tierFilter" size="small" @change="reloadProducts">
@@ -409,8 +409,10 @@
           </el-tabs>
         </template>
 
-        <!-- 降级视图：无全集快照，读 competitor_products_clean 显示该店零散竞品商品 + 一键抓全集 -->
+        <!-- 店铺选品只展示 shop_products；尚无抓取快照时显示空态。 -->
         <template v-else-if="!detailLoading && currentSeller">
+          <el-empty description="该店尚无店铺商品数据。请在请求中心完成店铺抓取后再查看。" />
+          <div v-if="false">
           <el-alert type="warning" :closable="false" show-icon class="fallback-alert">
             <template #title>
               该店铺<strong>尚未抓取全集</strong>，以下为历史竞品商品数据（competitor_products_clean），<strong>非整店全集，仅供线索参考</strong>。
@@ -461,6 +463,7 @@
             style="margin-top: 10px; justify-content: flex-end"
             @current-change="loadRefProducts"
           />
+          </div>
         </template>
       </div>
     </el-drawer>
@@ -584,9 +587,8 @@ async function openSeller(seller: string, targetTab = 'overview', targetRunId?: 
     // 用 snapshots 判断该店有没有抓过全集，空数组即未抓取，不用 insight 抛异常来判断。
     snapshots.value = await shopCollectionApi.snapshots(marketplace.value, seller)
     if (!snapshots.value.length) {
-      // 降级：无全集快照时，读 competitor_products_clean 显示该店零散竞品商品，并强制切到「商品数据」Tab。
+      // 店铺选品页只读取 shop_products；无快照时保留空态，不混入旧竞品数据。
       activeTab.value = 'products'
-      await loadRefProducts()
       return
     }
     const preferred = targetRunId && snapshots.value.some((s) => s.sourceRunId === targetRunId)
@@ -893,7 +895,8 @@ onMounted(async () => {
 watch(
   () => route.query,
   async () => {
-    if (route.name !== 'module-shop-collection-shops-ShopCollectionShops') return
+    const routeName = String(route.name || '')
+    if (!routeName.endsWith('ShopCollectionShops') && !routeName.endsWith('ReferenceProducts')) return
     const previousMarketplace = marketplace.value
     await openFromRouteQuery()
     if (marketplace.value !== previousMarketplace) {

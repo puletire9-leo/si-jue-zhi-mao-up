@@ -46,6 +46,7 @@ export interface BazhuayuTaskMapItem {
   marketplace: string;
   importType: string;
   status: string;
+  processedCount: number;
   totalCount: number;
   passCount: number;
   priceFailCount: number;
@@ -63,6 +64,23 @@ export interface BazhuayuTaskMapItem {
   errorMessage?: string | null;
   createdAt: string;
   completedAt: string;
+  /** 关联的请求中心 ASIN 批量运行；存在时优先展示其真实执行状态。 */
+  sellerSpriteRun?: SellerspriteRunSummary | null;
+}
+
+export interface SellerspriteRunSummary {
+  runId: string;
+  status: string;
+  totalCount: number;
+  pendingCount: number;
+  runningCount: number;
+  successCount: number;
+  failedCount: number;
+  skippedCount: number;
+  apiCalls: number;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  lastErrorMessage?: string | null;
 }
 
 export interface BazhuayuMarketplaceOverview {

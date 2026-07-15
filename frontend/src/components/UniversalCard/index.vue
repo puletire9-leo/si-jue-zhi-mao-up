@@ -5,6 +5,7 @@
     @click="handleCardClick"
   >
     <el-checkbox
+      v-if="props.selectable"
       v-model="isSelected"
       class="card-checkbox"
       @click.stop
@@ -40,24 +41,6 @@
         <span>{{ formatSalesVolume(salesVolume) }}</span>
       </div>
 
-      <!-- 销量等级 A/B/C/D badge（选品场景常驻显示） -->
-      <div
-        v-if="props.mode === 'selection' && salesTier && salesTier !== 'UNKNOWN'"
-        class="card-tier-badge"
-        :style="{ background: salesTierColor }"
-      >
-        {{ salesTier }}
-      </div>
-
-      <!-- 等级徽章 -->
-      <div
-        v-if="grade"
-        class="card-grade-badge"
-        :style="{ background: gradeColor }"
-      >
-        {{ grade }}
-      </div>
-
       <!-- 时效标签 -->
       <div v-if="timeTag" class="card-time-tag" :class="timeTagClass">
         {{ timeTag }}
@@ -74,6 +57,7 @@
           <span class="link-text">一键打开</span>
         </div>
         <div
+          v-if="props.showImageSearch"
           class="card-link-button image-search-link"
           @click.stop="handleImageSearch"
           title="以图识图"
@@ -83,7 +67,7 @@
         </div>
       </div>
 
-      <div class="card-actions">
+      <div v-if="showViewButton || props.showDelete" class="card-actions">
         <el-button
           v-if="showViewButton"
           type="primary"
@@ -93,6 +77,7 @@
           @click.stop="handleView"
         />
         <el-button
+          v-if="props.showDelete"
           type="danger"
           :icon="Delete"
           circle
@@ -151,18 +136,6 @@
         </el-tag>
       </div>
 
-      <!-- 方法卡命中原因（选品场景展示为什么这个商品值得看） -->
-      <div
-        v-if="props.mode === 'selection' && filterReasonsText"
-        class="card-filter-reasons"
-      >
-        <el-tooltip placement="top" :content="filterReasonsText">
-          <el-tag size="small" type="warning" effect="plain" class="reason-tag">
-            {{ filterReasonsLabel }}
-          </el-tag>
-        </el-tooltip>
-      </div>
-
       <div v-if="showTypeTag && typeTagText" class="card-type-tag">
         <el-tag :type="typeTagType" size="small">
           {{ typeTagText }}
@@ -197,6 +170,7 @@
     </div>
 
     <div
+      v-if="props.selectable"
       class="card-select-bar"
       :class="{ selected: props.isSelectedByMe }"
       @click.stop="handleSelectProduct"
@@ -205,7 +179,7 @@
       <span>{{ props.isSelectedByMe ? "已选中" : "选中此产品" }}</span>
     </div>
     <div
-      v-if="props.selectedByUsers && props.selectedByUsers.length > 0"
+      v-if="props.selectable && props.selectedByUsers && props.selectedByUsers.length > 0"
       class="card-select-users"
     >
       <el-icon :size="12"><Select /></el-icon>
@@ -237,6 +211,12 @@ interface Props {
   mode?: "product" | "selection";
   isSelectedByMe?: boolean;
   selectedByUsers?: { userId: number; userName: string }[];
+  /** 是否展示选择框与“选中此产品”操作栏。 */
+  selectable?: boolean;
+  /** 是否展示删除操作；只读商品来源必须关闭。 */
+  showDelete?: boolean;
+  /** 是否展示以图识图入口。 */
+  showImageSearch?: boolean;
   /** 是否显示 S/A/B/C/D 品级徽章（老品级系统，默认关闭，不干扰视线） */
   showGrade?: boolean;
 }
@@ -255,6 +235,9 @@ const props = withDefaults(defineProps<Props>(), {
   mode: "product",
   isSelectedByMe: false,
   selectedByUsers: () => [],
+  selectable: true,
+  showDelete: true,
+  showImageSearch: true,
   showGrade: false,
 });
 
@@ -333,7 +316,8 @@ const typeBadgeText = computed(() => {
   if (props.mode === "selection") {
     const pt = productType.value || props.product.productType;
     if (pt === "new") return "新品";
-    if (pt === "zheng") return "郑总";
+    if (pt === "zheng") return "非标";
+    if (pt === "shop") return "店铺";
     return "竞品";
   }
   return "";
@@ -409,62 +393,6 @@ const listingInfo = computed<{ text: string; days: number | null }>(() => {
     Math.floor((Date.now() - date.getTime()) / 86400000),
   );
   return { text, days };
-});
-
-const grade = computed(() => {
-  const filterMode =
-    props.product.dataFilterMode || props.product.filterMode || "";
-  if (filterMode === "FAIL") return "不通过";
-  // S/A/B/C/D 老品级系统默认关闭，避免干扰视线；仅在显式开启时展示
-  return props.showGrade ? props.product.grade : "";
-});
-const gradeColor = computed(() => {
-  const filterMode =
-    props.product.dataFilterMode || props.product.filterMode || "";
-  if (filterMode === "FAIL") return "#F56C6C";
-  const colors: Record<string, string> = {
-    S: "#67C23A",
-    A: "#409EFF",
-    B: "#E6A23C",
-    C: "#909399",
-    D: "#F56C6C",
-  };
-  return colors[props.product.grade] || "#909399";
-});
-
-/**
- * 销量等级 salesTier（A/B/C/D）：来自后端 competitor_products.sales_tier。
- * 仅在 selection 模式且值非 UNKNOWN 时展示。
- * 颜色与店铺画像的 salesTier 一致：A 蓝、B 黄、C 灰、D 红。
- */
-const salesTier = computed(
-  () => props.product.salesTier || props.product.sales_tier || "",
-);
-const salesTierColor = computed(() => {
-  const colors: Record<string, string> = {
-    A: "#409EFF",
-    B: "#E6A23C",
-    C: "#909399",
-    D: "#F56C6C",
-    ABC: "#67C23A",
-  };
-  return colors[salesTier.value] || "#909399";
-});
-
-/**
- * 方法卡命中原因 filterReasons：来自后端 filter_reasons 字段。
- * 格式通常是逗号分隔的原因描述，截断展示，hover 查看完整内容。
- */
-const filterReasonsText = computed(() => {
-  const raw =
-    props.product.filterReasons || props.product.filter_reasons || "";
-  return typeof raw === "string" ? raw.trim() : "";
-});
-const filterReasonsLabel = computed(() => {
-  const text = filterReasonsText.value;
-  if (!text) return "";
-  // 取前 20 字符 + 省略号
-  return text.length > 20 ? text.slice(0, 20) + "..." : text;
 });
 
 // 时效标签：根据 created_at/createdAt 判断
@@ -599,7 +527,7 @@ const getTrackParams = (action: "click" | "select") => ({
   source:
     props.product.source ||
     (
-      { new: "新品榜", reference: "竞品", zheng: "郑总店铺" } as Record<
+      { new: "新品榜", reference: "竞品", zheng: "非标店铺" } as Record<
         string,
         string
       >
@@ -751,6 +679,10 @@ const handleImageSearch = (): void => {
     &.reference {
       background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
     }
+
+    &.shop {
+      background: linear-gradient(135deg, #22c55e 0%, #0ea5e9 100%);
+    }
   }
 
   .card-sales-badge {
@@ -776,37 +708,6 @@ const handleImageSearch = (): void => {
     span {
       font-size: 14px;
     }
-  }
-
-  // 销量等级 A/B/C/D badge — 紧贴销量 badge 右侧
-  .card-tier-badge {
-    position: absolute;
-    bottom: 10px;
-    left: 90px;
-    padding: 4px 10px;
-    border-radius: 10px;
-    font-size: 13px;
-    font-weight: 700;
-    color: #fff;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    z-index: 5;
-  }
-
-  .card-grade-badge {
-    position: absolute;
-    top: 10px;
-    left: 40px;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    font-weight: 700;
-    color: #fff;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-    z-index: 10;
   }
 
   .card-time-tag {
@@ -993,18 +894,6 @@ const handleImageSearch = (): void => {
   flex-wrap: wrap;
   gap: 4px;
   margin-bottom: 8px;
-}
-
-.card-filter-reasons {
-  margin-bottom: 8px;
-
-  .reason-tag {
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    cursor: help;
-  }
 }
 
 .card-type-tag {

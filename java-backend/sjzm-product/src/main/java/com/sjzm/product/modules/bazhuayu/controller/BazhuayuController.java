@@ -13,6 +13,8 @@ import com.sjzm.product.modules.bazhuayu.service.BazhuayuConfigService;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuImageSearchService;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuRunStateService;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuScheduledService;
+import com.sjzm.product.modules.requestcenter.entity.SellerspriteRequestRun;
+import com.sjzm.product.modules.requestcenter.service.SellerspriteRequestCenterService;
 import com.sjzm.product.service.ScoringService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -50,6 +52,7 @@ public class BazhuayuController {
     private final BazhuayuWeeklyRawMapper rawMapper;
     private final AsinImportTaskMapper taskMapper;
     private final ScoringService scoringService;
+    private final SellerspriteRequestCenterService requestCenterService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @org.springframework.beans.factory.annotation.Value("${spring.datasource.url:}")
@@ -103,6 +106,8 @@ public class BazhuayuController {
         List<AsinImportTask> weekTasks = allTasks.stream()
                 .filter(t -> t.getCreatedAt() != null && !t.getCreatedAt().isBefore(weekStartDt))
                 .toList();
+        Map<Long, SellerspriteRequestRun> sellerspriteRuns = requestCenterService
+                .findLatestAsinRunsBySourceTaskIds(allTasks.stream().map(AsinImportTask::getId).toList());
         List<BazhuayuWeeklyRaw> raws = rawMapper.selectList(
                 new LambdaQueryWrapper<BazhuayuWeeklyRaw>()
                         .eq(BazhuayuWeeklyRaw::getWeekTag, weekTag));
@@ -160,7 +165,7 @@ public class BazhuayuController {
             row.put("lifetimeTaskCount", mpAllTasks.size());
             row.put("lifetimeDoneCount", lifetimeStatus.getOrDefault("DONE", 0L));
             row.put("lifetimeErrorCount", lifetimeStatus.getOrDefault("ERROR", 0L));
-            row.put("latestTask", latestTask != null ? taskToMap(latestTask) : null);
+            row.put("latestTask", latestTask != null ? taskToMap(latestTask, sellerspriteRuns) : null);
             // 云端行数快照（进程内缓存, 每小时定时刷 + 前端可手动刷）
             // 榜单 taskId 一定接进了业务链路; 以图识图独立展示, 不参与其它段汇总
             row.put("cloudStatsBangdan", cloudStatsService.get(BazhuayuConfigService.FUNC_BANGDAN, marketplace));
@@ -181,8 +186,8 @@ public class BazhuayuController {
         data.put("weekStart", weekStartDt.toString());
         data.put("currentStates", runStateService.all());
         data.put("marketplaces", marketplaceRows);
-        data.put("weekTasks", weekTasks.stream().map(this::taskToMap).toList());
-        data.put("lifetimeTasks", allTasks.stream().map(this::taskToMap).toList());
+        data.put("weekTasks", weekTasks.stream().map(task -> taskToMap(task, sellerspriteRuns)).toList());
+        data.put("lifetimeTasks", allTasks.stream().map(task -> taskToMap(task, sellerspriteRuns)).toList());
         // 历史累计概览（跨站点汇总）
         Map<String, Long> lifetimeStatusAll = statusCounts(allTasks);
         Map<String, Long> weekStatusAll = statusCounts(weekTasks);
@@ -412,12 +417,20 @@ public class BazhuayuController {
         return monday.atStartOfDay();
     }
 
-    private Map<String, Object> taskToMap(AsinImportTask task) {
+    private Map<String, Object> taskToMap(AsinImportTask task,
+                                          Map<Long, SellerspriteRequestRun> sellerspriteRuns) {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("id", task.getId());
         item.put("marketplace", task.getMarketplace());
         item.put("importType", task.getImportType());
-        item.put("status", task.getTaskStatus());
+        // 流式初筛（入库+初筛）处理中的任务在 DB 里是 RUNNING 且 batchTotal 尚未定，
+        // 派生为 DRAINING 展示态，与"一条龙" run-state 的 DRAINING 语义对齐；
+        // RUNNING + batchTotal>0 属卖家精灵 API 执行阶段，保持 RUNNING。
+        int batchTotal = task.getBatchTotal() != null ? task.getBatchTotal() : 0;
+        boolean draining = "RUNNING".equals(task.getTaskStatus()) && batchTotal == 0;
+        item.put("status", draining ? "DRAINING" : task.getTaskStatus());
+        // 已处理行数：流式初筛周期写回的 totalCount 即当前累计处理量
+        item.put("processedCount", task.getTotalCount() != null ? task.getTotalCount() : 0);
         item.put("totalCount", task.getTotalCount() != null ? task.getTotalCount() : 0);
         item.put("passCount", task.getPassCount() != null ? task.getPassCount() : 0);
         item.put("priceFailCount", task.getPriceFailCount() != null ? task.getPriceFailCount() : 0);
@@ -435,6 +448,23 @@ public class BazhuayuController {
         item.put("errorMessage", task.getErrorMessage());
         item.put("createdAt", task.getCreatedAt());
         item.put("completedAt", task.getUpdatedAt());
+        SellerspriteRequestRun run = sellerspriteRuns.get(task.getId());
+        if (run != null) {
+            Map<String, Object> summary = new LinkedHashMap<>();
+            summary.put("runId", run.getRunId());
+            summary.put("status", run.getStatus());
+            summary.put("totalCount", run.getTotalCount());
+            summary.put("pendingCount", run.getPendingCount());
+            summary.put("runningCount", run.getRunningCount());
+            summary.put("successCount", run.getSuccessCount());
+            summary.put("failedCount", run.getFailedCount());
+            summary.put("skippedCount", run.getSkippedCount());
+            summary.put("apiCalls", run.getApiCalls());
+            summary.put("startedAt", run.getStartedAt());
+            summary.put("finishedAt", run.getFinishedAt());
+            summary.put("lastErrorMessage", run.getLastErrorMessage());
+            item.put("sellerSpriteRun", summary);
+        }
         return item;
     }
 }

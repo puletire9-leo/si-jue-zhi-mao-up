@@ -69,6 +69,15 @@ frontend/src/
 | systemConfig.ts | `/api/v1/system-config/`、`/api/v1/sellersprite-config` | 混合：Python 为主，`sellersprite-config` 走 Java |
 | product-line.ts | `/api/v1/product-line/` | 混合：Java 与 Selection Agent 共存，必须结合代理规则判断 |
 
+统一选品框架的“下载全部 CSV”会按当前筛选遍历所有分页，再通过 `competitor.ts` 调用 `/api/v1/competitor/export-current-page`；后端按查询计划回查 `competitor_products_clean` / `competitor_products` / `deng_zong_shop` / `shop_products`，不要从前端展示字段自行拼 CSV。
+
+布局内容区使用 `KeepAlive` 按路由缓存页面实例；新品榜、店铺选品等列表页切换后不得在 `onActivated` 中自动重查，用户显式搜索、筛选、刷新时才更新。
+
+`filter_mode`（MODE1/MODE2/FAIL）、`filter_reasons`、`grade` 与 `sales_tier` 属于旧分级体系：统一选品页不再作为筛选条件，也不在卡片或详情中展示；M01/M02/M03 方法卡不受影响。
+
+人工选品库页面位于 `src/modules/developer-selection-library/`，API 位于 `src/api/developerSelectionLibrary.ts`。新品榜和店铺选品可把当前页已选商品加入好品库或差品库；普通开发只看自己的数据，管理员可按开发筛选，卡片必须显示开发姓名标签。周期、多周及价格/销量/上架/BSR/重量/配送等筛选必须复用 `FilterDrawer + RangeFilterPanel`；“下载全部 CSV”按当前全部筛选遍历分页导出完整记录字段。好品/差品批次彼此独立且归属开发人员；一个商品只能属于一个批次或未分类，转换好/差品时必须清空原批次。页面必须复用统一选品的选择模式（默认关闭、点击卡片多选、全选当前页）和卡片大小控制，批次标签支持“全部/未加入分类/具体批次”筛选，CSV 必须包含 `batchId` 与 `batchName`。
+管理员进入人工选品库时默认选择“刘淼”，从新品榜/店铺选品加入好品或差品时也默认真实归属刘淼账号；不得只改显示标签而仍写入系统管理员账号。
+
 ## 通用组件
 
 | 组件 | 用途 |

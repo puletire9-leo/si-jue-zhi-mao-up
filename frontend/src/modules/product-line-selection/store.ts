@@ -17,8 +17,10 @@ import {
   buildSelectionQueryPlan,
   type SelectionScene,
   type SelectionFilterState,
+  type SelectionQueryPlan,
 } from "@/views/AllSelection/composables/queryPlan";
 import { resolveSelectionQueryPlan } from "@/views/AllSelection/composables/queryRuntime";
+import { downloadAllResultsCsv } from "@/views/AllSelection/composables/selectionCsv";
 
 function emptyRangeFilter(): RangeFilterValue {
   return createEmptyRangeFilter();
@@ -67,6 +69,7 @@ export const useProductLineSelectionStore = defineStore(
     const exportLoading = ref(false);
 
     const competitorResults = ref<CompetitorProductRaw[]>([]);
+    const currentQueryPlan = ref<SelectionQueryPlan | null>(null);
     const competitorTotal = ref(0);
     const competitorPage = ref(1);
     const competitorPageSize = ref(60);
@@ -90,10 +93,10 @@ export const useProductLineSelectionStore = defineStore(
       name: string;
     } | null>(null);
 
-    // 方法卡视角使用的证据批次；M02 时为郑总同行盘子最新批次。
+    // 方法卡视角使用的证据批次；M02 时为非标同行盘子最新批次。
     const zhengBatchDate = ref("");
 
-    // ---- 郑总店铺数据完整性 ----
+    // ---- 非标店铺数据完整性 ----
     interface MissingSeller {
       sellerName: string;
       storeUrl?: string | null;
@@ -267,7 +270,7 @@ export const useProductLineSelectionStore = defineStore(
 
     async function applyM01MethodCard() {
       activeMethodCard.value = { id: "M01", name: "新品榜加速法" };
-      // M01 走 competitor_clean 表,不需要郑总证据批次
+      // M01 走 competitor_clean 表,不需要非标证据批次
       zhengBatchDate.value = "";
       completeness.value = null;
       await fetchTree();
@@ -276,7 +279,7 @@ export const useProductLineSelectionStore = defineStore(
     }
 
     async function applyM02MethodCard() {
-      activeMethodCard.value = { id: "M02", name: "郑总同行品线跟随法" };
+      activeMethodCard.value = { id: "M02", name: "非标同行品线跟随法" };
       await Promise.all([fetchTree(), refreshMethodEvidence()]);
       ensureCategorySelected();
       await reloadCurrentProducts();
@@ -335,7 +338,7 @@ export const useProductLineSelectionStore = defineStore(
             ? `${kw} ${comboFilters.map((f) => f.value).join(" ")}`
             : comboFilters.map((f) => f.value).join(" ");
 
-        // scene 按方法卡分派: M01=新品榜, M02=郑总同行, 无卡=全量
+        // scene 按方法卡分派: M01=新品榜, M02=非标同行, 无卡=全量
         const methodScene: SelectionScene =
           activeMethodCard.value?.id === "M01"
             ? "new"
@@ -386,6 +389,7 @@ export const useProductLineSelectionStore = defineStore(
         const resolved = await resolveSelectionQueryPlan(plan);
         const res = resolved.result;
         if (reqId !== _productsReqId) return; // R3.2: 过时请求丢弃
+        currentQueryPlan.value = resolved.plan;
         competitorResults.value = (res.list ?? []) as CompetitorProductRaw[];
         competitorTotal.value = res.total ?? 0;
         if (activeMethodCard.value?.id === "M02") {
@@ -603,29 +607,25 @@ export const useProductLineSelectionStore = defineStore(
       }
     }
 
-    /**
-     * 导出选中 ASIN 列表到 Excel
-     */
-    async function exportSelectedExcel() {
+    /** 导出当前筛选下全部分页商品的完整数据库字段 CSV。 */
+    async function exportAllResultsCsv() {
       if (exportLoading.value) return;
-      exportLoading.value = true;
-      const products = Array.from(selectedProducts.value);
-      if (products.length === 0) {
-        exportLoading.value = false;
+      if (competitorTotal.value === 0) {
+        ElMessage.warning("当前筛选没有可导出的商品");
         return;
       }
 
+      exportLoading.value = true;
       try {
-        const blob = await selectionApi.exportSelectedAsins(products);
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `selected-asins-${Date.now()}.xlsx`;
-        a.click();
-        window.URL.revokeObjectURL(url);
-        ElMessage.success(`已导出 ${products.length} 条 ASIN`);
+        const result = await downloadAllResultsCsv({
+          plan: currentQueryPlan.value,
+          total: competitorTotal.value,
+          marketplace: marketplace.value,
+        });
+        ElMessage.success(`已导出全部 ${result.count} 条商品完整字段`);
       } catch (err) {
-        ElMessage.error("导出 Excel 失败，请重试");
+        console.error("导出全部筛选结果 CSV 失败:", err);
+        ElMessage.error("导出全部 CSV 失败，请重试");
       } finally {
         exportLoading.value = false;
       }
@@ -674,6 +674,7 @@ export const useProductLineSelectionStore = defineStore(
       treeData,
       currentSubCategories,
       competitorResults,
+      currentQueryPlan,
       competitorTotal,
       competitorPage,
       competitorPageSize,
@@ -721,7 +722,7 @@ export const useProductLineSelectionStore = defineStore(
       clearSelection,
       batchAddToSelection,
       searchByKeyword,
-      exportSelectedExcel,
+      exportAllResultsCsv,
       clearBasicFilters,
       applyBasicFilters,
       zhengBatchDate,

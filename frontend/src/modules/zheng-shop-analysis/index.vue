@@ -43,7 +43,7 @@
               size="small"
               style="width: 110px"
             >
-              <el-option label="郑总店铺" value="zheng" />
+              <el-option label="非标店铺" value="zheng" />
               <el-option label="选品管理" value="selection" />
             </el-select>
             <el-select
@@ -353,7 +353,7 @@
           <span>已选店铺：</span><b>{{ selectedStores.length }}</b> 个
         </div>
         <div class="batch-stat">
-          <span>郑总店铺：</span><b>{{ zhengStoreCount }}</b> 个 →
+          <span>非标店铺：</span><b>{{ zhengStoreCount }}</b> 个 →
           deng_zong_shop
         </div>
         <div class="batch-stat">
@@ -368,7 +368,7 @@
         :closable="false"
         style="margin: 12px 0"
       >
-        混合来源将分别处理：郑总店铺 → deng_zong_shop，选品店铺 →
+        混合来源将分别处理：非标店铺 → deng_zong_shop，选品店铺 →
         competitor_products
       </el-alert>
 
@@ -382,7 +382,7 @@
             :type="store.source === 'zheng' ? 'danger' : 'success'"
             size="small"
           >
-            {{ store.source === "zheng" ? "郑总" : "选品" }}
+            {{ store.source === "zheng" ? "非标" : "选品" }}
           </el-tag>
           <span class="store-name-text">{{ store.storeName }}</span>
           <span v-if="store.marketplace" class="store-mp">{{
@@ -397,10 +397,8 @@
           :status="batchProgress.status === 'DONE' ? 'success' : undefined"
         />
         <div class="progress-detail">
-          {{ batchProgress.batchCurrent }} / {{ batchProgress.batchTotal }} 卖家
-          <span v-if="batchProgress.apiSuccess">
-            | 入库 {{ batchProgress.apiSuccess }}</span
-          >
+          已创建请求任务：{{ batchProgress.batchCurrent }} / {{ batchProgress.batchTotal }} 店铺
+          <span v-if="batchProgress.apiFail"> | 创建失败 {{ batchProgress.apiFail }} 店铺</span>
         </div>
         <div v-if="batchProgress.progressLog" class="progress-log">
           {{ batchProgress.progressLog }}
@@ -528,7 +526,7 @@ let ratingPollTimer: ReturnType<typeof setInterval> | null = null;
 // 分页显示
 const displayCount = ref(STORE_PAGE_SIZE);
 
-// 唯一标识店铺卡片：同一卖家可能在 UK/DE 两站点各登记一行（郑总盘子常见），
+// 唯一标识店铺卡片：同一卖家可能在 UK/DE 两站点各登记一行（非标盘子常见），
 // 必须带上 marketplace，否则跨站点同名卡 Vue key 重复、勾选会串台。
 const shopKey = (shop: UnifiedStore) =>
   `${shop.source}:${shop.marketplace || ""}:${shop.storeName}`;
@@ -545,7 +543,7 @@ const gradeStats = computed(() => {
   }
   return [
     { key: "", label: "全部", count: stores.value.length },
-    { key: "zheng", label: "郑总", count: counts.zheng },
+    { key: "zheng", label: "非标", count: counts.zheng },
     { key: "premium", label: "优质", count: counts.premium },
     { key: "normal", label: "一般", count: counts.normal },
     { key: "poor", label: "差", count: counts.poor },
@@ -557,12 +555,12 @@ const gradeStats = computed(() => {
 const filteredStores = computed(() => {
   let list = stores.value;
 
-  // 站点筛选（仅对郑总店铺生效，选品店铺无站点信息）
+  // 站点筛选（仅对非标店铺生效，选品店铺无站点信息）
   if (marketplace.value) {
     list = list.filter((s) => !s.marketplace || s.marketplace === marketplace.value);
   }
 
-  // 等级筛选：郑总店铺仅在"郑总"tab显示，不串台到其他等级
+  // 等级筛选：非标店铺仅在"非标"tab显示，不串台到其他等级
   if (gradeFilter.value) {
     if (gradeFilter.value === "zheng") {
       list = list.filter((s) => s.source === "zheng");
@@ -656,7 +654,7 @@ const gradeTagType = (
 
 const gradeLabel = (grade: StoreGrade) => {
   const map: Record<StoreGrade, string> = {
-    zheng: "郑总",
+    zheng: "非标",
     premium: "优质",
     normal: "一般",
     poor: "差",
@@ -710,7 +708,7 @@ const loadMoreStores = () => {
   displayCount.value += STORE_PAGE_SIZE;
 };
 
-// 加载郑总店铺
+// 加载非标店铺
 const loadZhengShops = async (): Promise<UnifiedStore[]> => {
   try {
     const params: Record<string, string> = {};
@@ -746,7 +744,7 @@ const loadZhengShops = async (): Promise<UnifiedStore[]> => {
       latestBatchDate: latestBatchDate || s.latestBatchDate,
     }));
   } catch {
-    ElMessage.error("加载郑总店铺失败");
+    ElMessage.error("加载非标店铺失败");
     return [];
   }
 };
@@ -823,7 +821,7 @@ const loadAllStores = async () => {
       loadSelectionStores(),
     ]);
 
-    // 去重：如果选品店铺名已在郑总中出现，跳过
+    // 去重：如果选品店铺名已在非标中出现，跳过
     const zhengNames = new Set(
       zhengStores.map((s) => s.storeName.toLowerCase()),
     );
@@ -868,12 +866,13 @@ const handleSyncShop = async (shop: UnifiedStore) => {
   const key = shopKey(shop);
   syncingShop.value = key;
   try {
-    await competitorApi.syncDengZongShop({
+    const response = await competitorApi.syncDengZongShop({
       sellerName: shop.storeName,
       marketplace: shop.marketplace,
     });
-    ElMessage.success(`${shop.storeName} 同步完成`);
-    await loadAllStores();
+    const task = response?.data || response;
+    ElMessage.success(`${shop.storeName} 请求任务已创建`);
+    await router.push({ name: 'module-sellersprite-request-center-SellerspriteRequestCenter', query: { runId: task.runId } });
   } catch {
     ElMessage.error(`${shop.storeName} 同步失败`);
   } finally {
@@ -933,7 +932,7 @@ const handleStartRating = async () => {
                 store.ratingGrade = r.grade;
                 store.ratingBestMatch = r.bestMatchSeller;
                 // 选品店铺评级后同步更新 grade（用于 tab 分类）
-                // 郑总店铺保持 grade='zheng'，不改变 tab 归属
+                // 非标店铺保持 grade='zheng'，不改变 tab 归属
                 if (store.source !== "zheng") {
                   const g = r.grade;
                   if (g === "A") store.grade = "premium";
@@ -1009,8 +1008,6 @@ const batchProgressPercent = computed(() => {
   );
 });
 
-let batchPollingTimer: ReturnType<typeof setInterval> | null = null;
-
 const selectRange = (start: number, end: number) => {
   const s = Math.max(0, start);
   const e = Math.min(end, filteredStores.value.length);
@@ -1051,8 +1048,11 @@ const handleBatchImport = async () => {
     return map;
   };
 
-  const tasks: Array<{ names: string[]; target: string; marketplace: string }> =
-    [];
+  const tasks: Array<{
+    names: string[];
+    target: "deng_zong_shop" | "competitor_products";
+    marketplace: string;
+  }> = [];
   for (const [mp, names] of groupByMp(zhengStores)) {
     tasks.push({ names, target: "deng_zong_shop", marketplace: mp });
   }
@@ -1062,7 +1062,7 @@ const handleBatchImport = async () => {
 
   try {
     await ElMessageBox.confirm(
-      `将为 ${selectedStores.value.length} 个卖家批量导入数据（${zhengStores.length} 郑总 + ${selectionStores.length} 选品）。确认？`,
+      `将为 ${selectedStores.value.length} 个卖家批量导入数据（${zhengStores.length} 非标 + ${selectionStores.length} 选品）。确认？`,
       "确认批量导入",
       { confirmButtonText: "开始", cancelButtonText: "取消" },
     );
@@ -1072,71 +1072,57 @@ const handleBatchImport = async () => {
 
   batchImporting.value = true;
   try {
-    for (const taskInfo of tasks) {
+    batchProgress.status = "RUNNING";
+    batchProgress.batchTotal = selectedStores.value.length;
+    batchProgress.batchCurrent = 0;
+    batchProgress.apiFail = 0;
+    batchProgress.progressLog = "正在按站点创建卖家精灵请求中心任务...";
+
+    const creations = await Promise.allSettled(tasks.map(async (taskInfo) => {
       const previewRes = await asinImportApi.sellerPreview(
         taskInfo.names,
         taskInfo.marketplace,
         taskInfo.target,
       );
-      const preview = (previewRes as any).data || previewRes;
-
-      await asinImportApi.sellerExecute(
-        preview.taskId,
+      const run = await asinImportApi.sellerExecute(
+        previewRes.taskId,
         undefined,
         taskInfo.target,
       );
+      batchProgress.batchCurrent += taskInfo.names.length;
+      return { runId: run.runId, marketplace: taskInfo.marketplace, count: taskInfo.names.length };
+    }));
 
-      await new Promise<void>((resolve, reject) => {
-        batchProgress.status = "RUNNING";
-        batchProgress.batchTotal = preview.sellerCount;
-        batchProgress.batchCurrent = 0;
+    const createdRuns = creations
+      .filter((result): result is PromiseFulfilledResult<{ runId: string; marketplace: string; count: number }> => result.status === "fulfilled")
+      .map((result) => result.value);
+    const failedStores = creations.reduce((count, result, index) =>
+      result.status === "rejected" ? count + tasks[index].names.length : count, 0);
 
-        batchPollingTimer = setInterval(async () => {
-          try {
-            const progRes = await asinImportApi.progress(preview.taskId);
-            const p = (progRes as any).data || progRes;
-            batchProgress.batchCurrent = p.batchCurrent || 0;
-            batchProgress.apiSuccess = p.apiSuccess || 0;
-            batchProgress.apiFail = p.apiFail || 0;
-            batchProgress.progressLog = p.progressLog || "";
-            const taskStatus = p.status || p.taskStatus;
-            if (
-              ["DONE", "ERROR", "CANCELLED", "REJECTED"].includes(taskStatus)
-            ) {
-              if (batchPollingTimer) {
-                clearInterval(batchPollingTimer);
-                batchPollingTimer = null;
-              }
-              batchProgress.status = taskStatus;
-              if (taskStatus === "DONE") resolve();
-              else reject(new Error(p.errorMessage || `任务${taskStatus}`));
-            }
-          } catch {
-            /* ignore polling errors */
-          }
-        }, 3000);
-      });
+    if (!createdRuns.length) {
+      throw new Error("未能创建任何请求中心任务");
     }
 
-    batchProgress.status = "DONE";
-    ElMessage.success("批量导入完成");
-    await loadAllStores();
+    batchProgress.apiFail = failedStores;
+    batchProgress.status = failedStores ? "PARTIAL_SUCCESS" : "DONE";
+    batchProgress.progressLog = `已创建 ${createdRuns.length} 个请求中心任务：${createdRuns.map((run) => `${run.marketplace} ${run.count} 店`).join("；")}`;
+    if (failedStores) {
+      ElMessage.warning(`已创建 ${createdRuns.length} 个任务，${failedStores} 个店铺创建失败`);
+    } else {
+      ElMessage.success(`已创建 ${createdRuns.length} 个请求中心任务，正在跳转查看进度`);
+    }
+    await router.push({
+      name: "module-sellersprite-request-center-SellerspriteRequestCenter",
+      query: { runId: createdRuns[0].runId },
+    });
   } catch (e: any) {
     ElMessage.error(e.message || "批量导入失败");
   } finally {
     batchImporting.value = false;
-    if (batchPollingTimer) {
-      clearInterval(batchPollingTimer);
-      batchPollingTimer = null;
-    }
   }
 };
 
 onUnmounted(() => {
-  if (batchPollingTimer) {
-    clearInterval(batchPollingTimer);
-    batchPollingTimer = null;
-  }
   if (ratingPollTimer) {
     clearInterval(ratingPollTimer);
     ratingPollTimer = null;

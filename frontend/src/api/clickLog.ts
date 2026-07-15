@@ -14,6 +14,11 @@ export interface ClickLogParams {
   productTitle: string
 }
 
+export interface SelectionUsersRequest {
+  asins: string[]
+  marketplace: string
+}
+
 function getUserName(): string {
   const userStore = useUserStore()
   return userStore.userInfo?.username || userStore.userInfo?.name || userStore.userInfo?.nickname || ''
@@ -56,8 +61,8 @@ export async function fetchSelectionUsers(asins: string[], marketplace: string):
       ApiResponse<Record<string, { userId: number; userName: string }[]>>
     >({
       url: '/api/v1/click-logs/selection-users',
-      method: 'get',
-      params: { asins, marketplace },
+      method: 'post',
+      data: { asins, marketplace } satisfies SelectionUsersRequest,
     })
     if (res.code === 200 && res.data) {
       return res.data

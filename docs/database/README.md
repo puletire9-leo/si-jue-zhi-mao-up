@@ -13,6 +13,8 @@
 |------|------|-------------|-------------|
 | products | 产品主表 | Product.java | product.py |
 | selections | 选品表 | Selection.java | selection.py |
+| developer_selection_library | 开发个人好品/差品人工选品库 | DeveloperSelectionLibraryItem.java | - |
+| developer_selection_batch | 开发个人好品/差品独立人工批次 | DeveloperSelectionBatch.java | - |
 | final_drafts | 定稿表 | FinalDraft.java | final_draft.py |
 | product_performance_actual | ③线真实战绩表 | ProductPerformanceActual.java | - |
 | category_bsr_baseline | ①线大类 BSR 分桶基线 | CategoryBsrBaseline.java | - |
@@ -80,6 +82,7 @@ Java product 已启用启动期 `SchemaGuard`：
 | `create_shop_candidate_tables.sql` | 店铺候选池与抓取运行记录表 |
 | `create_sellersprite_request_center_tables.sql` | 卖家精灵请求中心与精品店铺池表 |
 | `create_material_carrier_tables.sql` | 素材库 + 运营商库 |
+| `create_developer_selection_library.sql` | 开发个人好品/差品人工选品库 |
 | `create_scoring_tables.sql` | 评分系统 |
 | `system_log_tables.sql` | 系统日志 |
 | `add_download_tasks_table.sql` | 下载任务 |
@@ -96,6 +99,25 @@ Java product 已启用启动期 `SchemaGuard`：
 | `add_competitor_lookup_log_pages_total.sql` | 竞品查询日志补齐 `pages` / `total` |
 
 ## 选品关键表补充
+
+### `developer_selection_library`
+
+- 数据按 `user_id` 隔离，普通开发只能查看、转换和移出自己的商品。
+- 管理员可以查看全部开发，并按开发人员筛选。
+- `developer_name` 用于卡片姓名标签，`bucket` 只取 `GOOD` / `BAD`。
+- 同一开发、站点、ASIN 唯一；重复加入会更新快照，加入另一库会直接转换。
+- `snapshot_json` 保存加入时的完整商品数据，核心卡片字段同时拆列便于查询。
+- 周周期按 `created_at`（加入人工选品库时间）实时计算 ISO 周，支持单周或多周组合筛选；CSV 导出沿用相同权限与筛选条件。
+- `batch_id` 可空；为空表示“未加入分类”，有值时只能指向同一开发、同一 `bucket` 的人工批次。好品/差品转换会清空该字段。
+- 列表与 CSV 返回 `batchId` 和 `batchName`，支持按具体批次或未分类筛选。
+
+### `developer_selection_batch`
+
+- 批次按 `user_id + bucket` 隔离，好品和差品可建立同名批次，互不共享。
+- `batch_name` 是开发手工维护的分类标签，前端新建时默认使用当天 `M.d`，`batch_date` 保存创建日期。
+- 普通开发只可查看和操作自己的批次；管理员需先选开发人员再创建批次。
+- 管理员默认开发人为有效用户“刘淼”；管理员加入商品或未更改默认选项新建批次时，`user_id` 必须写入刘淼账号，而不是系统管理员账号。
+- 一个商品最多加入一个批次；批量归类会校验商品与批次的开发人员、好/差品库一致性。
 
 ### `product_performance_actual`
 

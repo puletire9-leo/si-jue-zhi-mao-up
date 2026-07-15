@@ -4,7 +4,11 @@
       <div class="toolbar">
         <el-select v-model="requestTypeFilter" placeholder="任务类型" clearable style="width: 180px" @change="loadTasks">
           <el-option label="店铺全集查询" value="SHOP_FULL_LOOKUP" />
-          <el-option label="ASIN 查询" value="ASIN_LOOKUP" />
+          <el-option label="ASIN 批量查询" value="ASIN_BATCH_LOOKUP" />
+          <el-option label="手动 ASIN 查询" value="MANUAL_ASIN_LOOKUP" />
+          <el-option label="卖家名批量" value="SELLER_BATCH_LOOKUP" />
+          <el-option label="邓总店铺同步" value="DENG_ZONG_SHOP_SYNC" />
+          <el-option label="ASIN 查询（旧）" value="ASIN_LOOKUP" />
           <el-option label="候选批量抓取" value="CANDIDATE_BATCH" />
           <el-option label="精品池复抓" value="PREMIUM_REFRESH" />
         </el-select>
@@ -12,12 +16,14 @@
           <el-option label="待处理 PENDING" value="PENDING" />
           <el-option label="运行中 RUNNING" value="RUNNING" />
           <el-option label="已暂停 PAUSED" value="PAUSED" />
+          <el-option label="系统暂停" value="PAUSED_SYSTEM" />
           <el-option label="已停止 STOPPED" value="STOPPED" />
           <el-option label="成功 SUCCESS" value="SUCCESS" />
           <el-option label="部分成功" value="PARTIAL_SUCCESS" />
           <el-option label="失败 FAILED" value="FAILED" />
         </el-select>
         <el-button type="primary" @click="loadTasks">刷新</el-button>
+        <el-tag v-if="health?.circuitOpen" type="danger">卖家精灵熔断中：{{ health?.resumeAt || '待人工确认' }}</el-tag>
         <div class="spacer" />
         <span class="tip">任务创建后自动按卖家精灵限制执行；当前店铺请求完成后响应暂停/停止；页面每 3 秒刷新进度和使用次数</span>
       </div>
@@ -47,7 +53,7 @@
             <el-button size="small" type="primary" link @click.stop="handleStart(row)"
                        :disabled="!canStart(row.status)">唤醒自动</el-button>
             <el-button size="small" link @click.stop="handlePause(row)" :disabled="row.status !== 'RUNNING'">暂停</el-button>
-            <el-button size="small" link @click.stop="handleResume(row)" :disabled="row.status !== 'PAUSED'">恢复</el-button>
+            <el-button size="small" link @click.stop="handleResume(row)" :disabled="!canResume(row.status)">恢复</el-button>
             <el-button size="small" type="danger" link @click.stop="handleStop(row)"
                        :disabled="!canStop(row.status)">停止</el-button>
             <el-button size="small" link @click.stop="openDetail(row)">详情</el-button>
@@ -89,6 +95,7 @@
             <el-descriptions-item label="开始">{{ currentRun.startedAt || '-' }}</el-descriptions-item>
             <el-descriptions-item label="结束">{{ currentRun.finishedAt || '-' }}</el-descriptions-item>
             <el-descriptions-item label="原因" :span="3">{{ currentRun.fetchReason || '-' }}</el-descriptions-item>
+            <el-descriptions-item v-if="currentRun.systemPauseReason" label="系统暂停" :span="3">{{ currentRun.systemPauseReason }} {{ currentRun.systemResumeAt ? `（预计恢复 ${currentRun.systemResumeAt}）` : '' }}</el-descriptions-item>
             <el-descriptions-item label="错误" :span="3" v-if="currentRun.lastErrorMessage">{{ currentRun.lastErrorMessage }}</el-descriptions-item>
           </el-descriptions>
 
@@ -96,7 +103,15 @@
           <el-table :data="items" size="small" border max-height="420">
             <el-table-column prop="seq" label="#" width="50" />
             <el-table-column prop="marketplace" label="站点" width="70" />
-            <el-table-column prop="sellerName" label="店铺名" min-width="160" show-overflow-tooltip />
+            <el-table-column label="店铺名/批次" min-width="160" show-overflow-tooltip>
+              <template #default="{ row }">
+                <template v-if="isAsinType(currentRun?.requestType)">
+                  批次 #{{ (row as SellerspriteRequestItem).seq + 1 }}
+                  <span class="muted">({{ asinCount(row) }} ASIN)</span>
+                </template>
+                <span v-else>{{ (row as SellerspriteRequestItem).sellerName || '-' }}</span>
+              </template>
+            </el-table-column>
             <el-table-column label="状态" width="110">
               <template #default="{ row }">
                 <el-tag size="small" :type="itemStatusType(row.status)">{{ itemStatusLabel(row.status) }}</el-tag>
@@ -105,11 +120,14 @@
             <el-table-column prop="total" label="总数" width="70" />
             <el-table-column prop="writtenCount" label="写入" width="70" />
             <el-table-column prop="apiCalls" label="使用次数" width="90" />
+            <el-table-column prop="attemptCount" label="尝试" width="70" />
+            <el-table-column prop="nextRetryAt" label="下次重试" width="160" />
+            <el-table-column prop="errorCode" label="错误码" width="120" />
             <el-table-column prop="errorMessage" label="错误" min-width="180" show-overflow-tooltip />
             <el-table-column label="操作" width="90" fixed="right">
               <template #default="{ row }">
                 <el-button size="small" type="primary" link @click.stop="handleRetryItem(row)"
-                           :disabled="row.status !== 'FAILED'">重试</el-button>
+                           :disabled="!['FAILED', 'WAITING_RETRY'].includes(row.status)">重试</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -121,7 +139,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute } from 'vue-router'
 import {
   requestCenterApi,
@@ -142,6 +160,7 @@ const drawerVisible = ref(false)
 const currentRun = ref<SellerspriteRequestRun | null>(null)
 const items = ref<SellerspriteRequestItem[]>([])
 const detailLoading = ref(false)
+const health = ref<Record<string, any> | null>(null)
 let refreshTimer: number | null = null
 
 const detailTitle = computed(() => currentRun.value ? `任务 ${currentRun.value.runId}` : '任务详情')
@@ -158,6 +177,7 @@ async function loadTasks(silentFlag: unknown = false) {
     })
     rows.value = r.list || []
     total.value = r.total || 0
+    health.value = await requestCenterApi.health()
   } catch (e: any) {
     if (!silent) ElMessage.error(e?.message || '加载任务失败')
   } finally {
@@ -193,18 +213,33 @@ async function handleStart(row: SellerspriteRequestRun) {
 }
 
 async function handlePause(row: SellerspriteRequestRun) {
-  try { await requestCenterApi.pause(row.runId); ElMessage.success('已暂停'); await loadTasks() }
-  catch (e: any) { ElMessage.error(e?.message || '暂停失败') }
+  try {
+    await ElMessageBox.confirm('暂停将在当前已发出请求完成后生效，之后不再领取新子项。', '确认暂停', { type: 'warning' })
+    await requestCenterApi.pause(row.runId); ElMessage.success('已暂停'); await loadTasks()
+  }
+  catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') ElMessage.error(e?.message || '暂停失败')
+  }
 }
 
 async function handleResume(row: SellerspriteRequestRun) {
-  try { await requestCenterApi.resume(row.runId); ElMessage.success('已恢复'); await loadTasks() }
-  catch (e: any) { ElMessage.error(e?.message || '恢复失败') }
+  try {
+    await ElMessageBox.confirm('确认恢复此任务？', '确认恢复', { type: 'info' })
+    await requestCenterApi.resume(row.runId); ElMessage.success('已恢复'); await loadTasks()
+  }
+  catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') ElMessage.error(e?.message || '恢复失败')
+  }
 }
 
 async function handleStop(row: SellerspriteRequestRun) {
-  try { await requestCenterApi.stop(row.runId); ElMessage.success('已停止'); await loadTasks() }
-  catch (e: any) { ElMessage.error(e?.message || '停止失败') }
+  try {
+    await ElMessageBox.confirm('停止后未发起的子项将不会执行；当前已发出请求完成后结束。确认停止？', '确认停止', { type: 'error', confirmButtonText: '停止任务' })
+    await requestCenterApi.stop(row.runId); ElMessage.success('已停止'); await loadTasks()
+  }
+  catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') ElMessage.error(e?.message || '停止失败')
+  }
 }
 
 async function handleRetryItem(row: SellerspriteRequestItem) {
@@ -224,34 +259,52 @@ async function handleRetryItem(row: SellerspriteRequestItem) {
 function canStart(status: string) {
   return ['PENDING', 'RUNNING'].includes(status)
 }
+function canResume(status: string) {
+  return ['PAUSED', 'PAUSED_SYSTEM'].includes(status)
+}
 function canStop(status: string) {
-  return ['RUNNING', 'PAUSED', 'PENDING'].includes(status)
+  return ['RUNNING', 'PAUSED', 'PAUSED_SYSTEM', 'PENDING'].includes(status)
 }
 
 function statusLabel(s: string) {
   return ({
-    PENDING: '待处理', RUNNING: '运行中', PAUSED: '已暂停', STOPPED: '已停止',
+    PENDING: '待处理', RUNNING: '运行中', PAUSED: '已暂停', PAUSED_SYSTEM: '系统暂停', STOPPED: '已停止',
     SUCCESS: '成功', PARTIAL_SUCCESS: '部分成功', FAILED: '失败'
   } as Record<string, string>)[s] || s
 }
 function statusType(s: string): 'primary' | 'success' | 'warning' | 'info' | 'danger' {
   return ({
-    PENDING: 'info', RUNNING: 'primary', PAUSED: 'warning', STOPPED: 'info',
+    PENDING: 'info', RUNNING: 'primary', PAUSED: 'warning', PAUSED_SYSTEM: 'danger', STOPPED: 'info',
     SUCCESS: 'success', PARTIAL_SUCCESS: 'warning', FAILED: 'danger'
   } as Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'>)[s] || 'info'
 }
 function itemStatusLabel(s: string) {
-  return ({ PENDING: '待处理', RUNNING: '处理中', SUCCESS: '成功', PARTIAL_SUCCESS: '部分成功', FAILED: '失败', SKIPPED: '跳过' } as Record<string, string>)[s] || s
+  return ({ PENDING: '待处理', RUNNING: '处理中', WAITING_RETRY: '等待重试', SUCCESS: '成功', PARTIAL_SUCCESS: '部分成功', FAILED: '失败', SKIPPED: '跳过' } as Record<string, string>)[s] || s
 }
 function itemStatusType(s: string): 'primary' | 'success' | 'warning' | 'info' | 'danger' {
   return ({
-    PENDING: 'info', RUNNING: 'primary', SUCCESS: 'success', PARTIAL_SUCCESS: 'warning',
+    PENDING: 'info', RUNNING: 'primary', WAITING_RETRY: 'warning', SUCCESS: 'success', PARTIAL_SUCCESS: 'warning',
     FAILED: 'danger', SKIPPED: 'info'
   } as Record<string, 'primary' | 'success' | 'warning' | 'info' | 'danger'>)[s] || 'info'
 }
 
+/** ASIN 批量查询类型：子项以 asin_list 分批，展示"批次 #N (M ASIN)" */
+const ASIN_TYPES = ['ASIN_BATCH_LOOKUP', 'MANUAL_ASIN_LOOKUP', 'ASIN_LOOKUP']
+function isAsinType(requestType: string | null | undefined): boolean {
+  return !!requestType && ASIN_TYPES.includes(requestType)
+}
+
+/** 从 asinList JSON 解析 ASIN 数量（ASIN 批量查询子项用） */
+function asinCount(item: SellerspriteRequestItem): number {
+  if (!item.asinList) return 0
+  try {
+    const arr = JSON.parse(item.asinList)
+    return Array.isArray(arr) ? arr.length : 0
+  } catch { return 0 }
+}
+
 function hasActiveTask() {
-  return rows.value.some((r) => ['PENDING', 'RUNNING'].includes(r.status))
+  return rows.value.some((r) => ['PENDING', 'RUNNING', 'PAUSED_SYSTEM'].includes(r.status))
 }
 
 async function refreshCurrentDetail() {
@@ -307,5 +360,9 @@ onUnmounted(() => {
   margin: 18px 0 10px;
   padding-left: 8px;
   border-left: 3px solid var(--el-color-primary);
+}
+.muted {
+  color: #909399;
+  font-size: 12px;
 }
 </style>

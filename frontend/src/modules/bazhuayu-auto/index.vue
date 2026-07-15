@@ -181,15 +181,19 @@
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
             <el-tag
-              :type="statusTag((row as BazhuayuTaskMapItem).status)"
+              :type="displayStatusTag(row as BazhuayuTaskMapItem)"
               size="small"
             >
-              {{ statusText((row as BazhuayuTaskMapItem).status) }}
+              {{ displayStatusText(row as BazhuayuTaskMapItem) }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" width="170" />
-        <el-table-column prop="completedAt" label="完成时间" width="170" />
+        <el-table-column label="完成时间" width="170">
+          <template #default="{ row }">
+            {{ displayCompletedAt(row as BazhuayuTaskMapItem) }}
+          </template>
+        </el-table-column>
         <el-table-column label="量级" min-width="180">
           <template #default="{ row }">
             <span>总数 {{ (row as BazhuayuTaskMapItem).totalCount || 0 }}</span>
@@ -216,19 +220,19 @@
         </el-table-column>
         <el-table-column label="API" width="130">
           <template #default="{ row }">
-            <span>{{ (row as BazhuayuTaskMapItem).apiSuccess || 0 }}</span>
+            <span>{{ displayApiSuccess(row as BazhuayuTaskMapItem) }}</span>
             <span
               class="sep"
-              :class="{ danger: (row as BazhuayuTaskMapItem).apiFail }"
-              >/ {{ (row as BazhuayuTaskMapItem).apiFail || 0 }}</span
+              :class="{ danger: displayApiFail(row as BazhuayuTaskMapItem) }"
+              >/ {{ displayApiFail(row as BazhuayuTaskMapItem) }}</span
             >
           </template>
         </el-table-column>
         <el-table-column label="批次" width="90">
           <template #default="{ row }">
             <span
-              >{{ (row as BazhuayuTaskMapItem).batchCurrent || 0 }}/{{
-                (row as BazhuayuTaskMapItem).batchTotal || 0
+              >{{ displayBatchCurrent(row as BazhuayuTaskMapItem) }}/{{
+                displayBatchTotal(row as BazhuayuTaskMapItem)
               }}</span
             >
           </template>
@@ -237,7 +241,15 @@
           <template #default="{ row }">
             <!-- @click.stop 防止触发行点击 openDetail -->
             <el-button
-              v-if="(row as BazhuayuTaskMapItem).status === 'READY'"
+              v-if="hasSellerSpriteRun(row as BazhuayuTaskMapItem)"
+              type="success"
+              link
+              size="small"
+              @click.stop="openSellerSpriteRun(row as BazhuayuTaskMapItem)"
+              >查看请求中心</el-button
+            >
+            <el-button
+              v-else-if="(row as BazhuayuTaskMapItem).status === 'READY'"
               type="primary"
               size="small"
               :loading="executingIds.has((row as BazhuayuTaskMapItem).id)"
@@ -464,7 +476,7 @@
           <span>站点</span><strong>{{ detailRow.marketplace }}</strong>
         </div>
         <div>
-          <span>状态</span><strong>{{ statusText(detailRow.status) }}</strong>
+          <span>状态</span><strong>{{ displayStatusText(detailRow) }}</strong>
         </div>
         <div>
           <span>总数</span><strong>{{ detailRow.totalCount || 0 }}</strong>
@@ -493,12 +505,12 @@
         <div class="section">卖家精灵调用</div>
         <div>
           <span>成功</span
-          ><strong class="ok">{{ detailRow.apiSuccess || 0 }}</strong>
+          ><strong class="ok">{{ displayApiSuccess(detailRow) }}</strong>
         </div>
         <div>
           <span>失败</span
-          ><strong :class="{ danger: detailRow.apiFail }">{{
-            detailRow.apiFail || 0
+          ><strong :class="{ danger: displayApiFail(detailRow) }">{{
+            displayApiFail(detailRow)
           }}</strong>
         </div>
         <div>
@@ -508,8 +520,8 @@
         <div>
           <span>批次进度</span
           ><strong
-            >{{ detailRow.batchCurrent || 0 }} /
-            {{ detailRow.batchTotal || 0 }}</strong
+            >{{ displayBatchCurrent(detailRow) }} /
+            {{ displayBatchTotal(detailRow) }}</strong
           >
         </div>
         <div class="section">其它</div>
@@ -527,7 +539,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import { useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { Warning } from "@element-plus/icons-vue";
 import {
@@ -538,10 +551,11 @@ import {
   type BazhuayuRunState,
   type BazhuayuTaskMapItem,
 } from "@/api/bazhuayu";
-import { asinImportApi } from "@/api/asinImport";
+import { requestCenterApi } from "@/api/shopPremium";
 
 type Scope = "week" | "lifetime";
 
+const router = useRouter();
 const marketplace = ref("");
 const refreshing = ref(false);
 const weekTag = ref("");
@@ -745,6 +759,7 @@ function statusText(status: string) {
       {
         READY: "待确认",
         RUNNING: "运行中",
+        DRAINING: "入库中",
         DONE: "完成",
         ERROR: "失败",
         REJECTED: "已拒绝",
@@ -761,7 +776,76 @@ function statusTag(
   if (status === "DONE") return "success";
   if (status === "ERROR") return "danger";
   if (status === "RUNNING") return "warning";
+  if (status === "DRAINING") return "primary";
   return "info";
+}
+
+function sellerSpriteRun(row: BazhuayuTaskMapItem) {
+  return row.sellerSpriteRun || null;
+}
+
+function hasSellerSpriteRun(row: BazhuayuTaskMapItem) {
+  return sellerSpriteRun(row) !== null;
+}
+
+function displayStatusText(row: BazhuayuTaskMapItem) {
+  const run = sellerSpriteRun(row);
+  if (!run) return statusText(row.status);
+  return (
+    {
+      PENDING: "卖家精灵待执行",
+      RUNNING: "卖家精灵执行中",
+      PAUSED: "卖家精灵已暂停",
+      PAUSED_SYSTEM: "卖家精灵系统暂停",
+      SUCCESS: "卖家精灵已完成",
+      PARTIAL_SUCCESS: "卖家精灵部分成功",
+      FAILED: "卖家精灵执行失败",
+      STOPPED: "卖家精灵已停止",
+    } as Record<string, string>
+  )[run.status] || run.status;
+}
+
+function displayStatusTag(
+  row: BazhuayuTaskMapItem,
+): "primary" | "success" | "warning" | "info" | "danger" {
+  const run = sellerSpriteRun(row);
+  if (!run) return statusTag(row.status);
+  if (run.status === "SUCCESS") return "success";
+  if (run.status === "FAILED") return "danger";
+  if (run.status === "PARTIAL_SUCCESS" || run.status === "PAUSED" || run.status === "PAUSED_SYSTEM") return "warning";
+  if (run.status === "RUNNING") return "primary";
+  return "info";
+}
+
+function displayCompletedAt(row: BazhuayuTaskMapItem) {
+  return sellerSpriteRun(row)?.finishedAt || row.completedAt || "-";
+}
+
+function displayApiSuccess(row: BazhuayuTaskMapItem) {
+  return sellerSpriteRun(row)?.successCount ?? row.apiSuccess ?? 0;
+}
+
+function displayApiFail(row: BazhuayuTaskMapItem) {
+  return sellerSpriteRun(row)?.failedCount ?? row.apiFail ?? 0;
+}
+
+function displayBatchCurrent(row: BazhuayuTaskMapItem) {
+  const run = sellerSpriteRun(row);
+  if (!run) return row.batchCurrent || 0;
+  return (run.successCount || 0) + (run.failedCount || 0) + (run.skippedCount || 0) + (run.runningCount || 0);
+}
+
+function displayBatchTotal(row: BazhuayuTaskMapItem) {
+  return sellerSpriteRun(row)?.totalCount ?? row.batchTotal ?? 0;
+}
+
+function openSellerSpriteRun(row: BazhuayuTaskMapItem) {
+  const run = sellerSpriteRun(row);
+  if (!run) return;
+  router.push({
+    name: "module-sellersprite-request-center-SellerspriteRequestCenter",
+    query: { runId: run.runId },
+  });
 }
 
 /**
@@ -814,16 +898,16 @@ const isProdDb = computed(() => {
 });
 
 /**
- * 触发卖家精灵调用：对某个 READY 任务调 /asin-import/execute
- * 后端异步执行，前端立即刷新一次并把 taskId 从 executingIds 移除；
- * 进度靠用户手动/定时刷新 overview 回写（页面没做长轮询以避免刷新抖动）。
+ * 触发卖家精灵调用：对 READY 任务创建请求中心 ASIN_BATCH_LOOKUP 任务，
+ * 由请求中心统一调度、跟踪进度、支持暂停重试。
+ * 旧 /asin-import/execute 暂保留兼容，新链路走请求中心。
  */
 async function executeTask(row: BazhuayuTaskMapItem) {
   const db = overview.value?.datasource;
   const dbLabel = db ? `${db.database} @ ${db.host}:${db.port}` : "当前数据库";
   try {
     await ElMessageBox.confirm(
-      `即将对任务 #${row.id}（${row.marketplace}）调用卖家精灵，写入到 ${dbLabel}。是否继续？`,
+      `即将为任务 #${row.id}（${row.marketplace}）创建请求中心 ASIN 查询任务，写入到 ${dbLabel}。是否继续？`,
       "确认执行",
       { type: "warning", confirmButtonText: "执行", cancelButtonText: "取消" },
     );
@@ -832,12 +916,15 @@ async function executeTask(row: BazhuayuTaskMapItem) {
   }
   executingIds.value.add(row.id);
   try {
-    await asinImportApi.execute(row.id, row.dataMonth || "", row.marketplace);
-    ElMessage.success(`任务 #${row.id} 已提交给卖家精灵，稍后刷新查看进度`);
-    // 立刻刷一次总览，让状态由 READY 变 RUNNING
-    await loadOverview();
+    const run = await requestCenterApi.createFromStreaming(row.id);
+    ElMessage.success(`请求中心任务已创建: ${run.runId}，正在自动执行`);
+    // 跳转到请求中心页面并定位到新创建的任务
+    router.push({
+      name: "module-sellersprite-request-center-SellerspriteRequestCenter",
+      query: { runId: run.runId },
+    });
   } catch (e: any) {
-    ElMessage.error(e?.message || "执行失败");
+    ElMessage.error(e?.message || "创建请求中心任务失败");
   } finally {
     executingIds.value.delete(row.id);
   }
@@ -848,7 +935,11 @@ function openDetail(row: BazhuayuTaskMapItem) {
   detailVisible.value = true;
 }
 
+let loading = false; // 请求在途锁，避免轮询与手动刷新重叠
+
 async function loadOverview() {
+  if (loading) return;
+  loading = true;
   refreshing.value = true;
   try {
     const [overviewResp, states] = await Promise.all([
@@ -859,10 +950,40 @@ async function loadOverview() {
     runStates.value = states;
     weekTag.value = overviewResp.weekTag;
     weekStart.value = overviewResp.weekStart || "";
+    syncPolling();
   } catch (e: any) {
     ElMessage.error(e?.message || "加载八爪鱼总览失败");
   } finally {
     refreshing.value = false;
+    loading = false;
+  }
+}
+
+const POLL_INTERVAL_MS = 3000;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+/** 是否存在处理中的任务：DB 任务处于 RUNNING/DRAINING，或内存运行态处于运行段 */
+function hasActiveWork(): boolean {
+  const tasks = overview.value?.lifetimeTasks ?? [];
+  const taskActive = tasks.some(
+    (t) => t.status === "RUNNING" || t.status === "DRAINING"
+      || ["PENDING", "RUNNING", "PAUSED_SYSTEM"].includes(t.sellerSpriteRun?.status || ""),
+  );
+  const stateActive = runStates.value.some((s) =>
+    RUNNING_PHASES.includes(s.phase),
+  );
+  return taskActive || stateActive;
+}
+
+/** 有处理中任务时开轮询，全部结束则停，避免空轮询 */
+function syncPolling() {
+  if (hasActiveWork()) {
+    if (!pollTimer) {
+      pollTimer = setInterval(loadOverview, POLL_INTERVAL_MS);
+    }
+  } else if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
   }
 }
 
@@ -1155,6 +1276,12 @@ async function stopCloudCollect(row: MappingRow) {
 }
 
 onMounted(loadOverview);
+onUnmounted(() => {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+});
 </script>
 
 <style scoped lang="scss">

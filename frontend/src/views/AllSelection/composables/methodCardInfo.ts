@@ -96,18 +96,18 @@ export const METHOD_CARD_INFO: Record<"M01" | "M02" | "M03", MethodCardInfo> = {
 
   M02: {
     id: "M02",
-    title: "M02 · 郑总同行品线跟随法",
+    title: "M02 · 非标同行品线跟随法",
     tagline:
-      "用 deng_zong_shop 最新批次里的郑总同行店铺盘子,筛出一批「同行已经验证过」的候选商品",
+      "用 deng_zong_shop 最新批次里的非标同行店铺盘子,筛出一批「同行已经验证过」的候选商品",
     whenToUse: [
-      "想快速看郑总同行当前重点铺在哪些商品 / 大类 / 小类",
+      "想快速看非标同行当前重点铺在哪些商品 / 大类 / 小类",
       "想在品线页里拉出同行盘子的候选,优先看已经有人验证过的方向",
       "想判断「这是没人做的机会,还是同行已经扎堆的红海」",
     ],
     whenNotToUse: [
       "找八爪鱼新品榜里的新品机会 → 走 M01 新品榜加速法",
-      "看非郑总同行盘子的通用竞品全量 → 直接用普通竞品查询",
-      "把郑总盘子当默认模型 — 它只是可开关的证据源,不是所有品线分析的默认",
+      "看其他同行盘子的通用竞品全量 → 直接用普通竞品查询",
+      "把非标盘子当默认模型 — 它只是可开关的证据源,不是所有品线分析的默认",
     ],
     hardCriteria: [
       {
@@ -124,7 +124,7 @@ export const METHOD_CARD_INFO: Record<"M01" | "M02" | "M03", MethodCardInfo> = {
       "排序:优先月销量高、BSR 更靠前的商品",
     ],
     forcedFilters: [
-      "targetSource = deng_zong (郑总同行盘子)",
+      "targetSource = deng_zong (非标同行盘子)",
       "dataView = deng_zong",
       "method = M02",
     ],
@@ -137,15 +137,15 @@ export const METHOD_CARD_INFO: Record<"M01" | "M02" | "M03", MethodCardInfo> = {
       "自定义 qualifyRules (方法卡自带内置规则)",
     ],
     output:
-      "候选商品列表 + methodId=M02 + hitReasons + ruleSnapshot.batchDate 标明所用郑总证据批次",
-    dataSource: "deng_zong_shop 表 (郑总同行店铺按批次抓取的商品盘子)",
+      "候选商品列表 + methodId=M02 + hitReasons + ruleSnapshot.batchDate 标明所用非标证据批次",
+    dataSource: "deng_zong_shop 表 (非标同行店铺按批次抓取的商品盘子)",
     rationale: [
       "同行已经验证过的商品有真实数据背书,比纯凭直觉找机会更稳",
-      "品线选品页是通用容器,不应默认带「郑总」标签 — M02 是可开关的方法卡",
+      "品线选品页是通用容器,不应默认带「非标」标签 — M02 是可开关的方法卡",
       "同一 ASIN 取最新记录,避免历史批次数据重复污染",
       "deng_zong_shop 是 M02 的证据源,不是所有品线分析的默认模型",
     ],
-    fullDocPath: "docs/选品方法库/3_消费层/方法卡片/M02_郑总同行品线跟随法.md",
+    fullDocPath: "docs/选品方法库/3_消费层/方法卡片/M02_\u90d1\u603b同行品线跟随法.md",
   },
 
   M03: {
@@ -160,7 +160,7 @@ export const METHOD_CARD_INFO: Record<"M01" | "M02" | "M03", MethodCardInfo> = {
     ],
     whenNotToUse: [
       "找主流 FBA 铺量新品 → 走 M01 新品榜加速法(分档 + BSR)",
-      "找「小而无人抢 + 有价差」的冷门 → 走 M02 郑总同行品线跟随法",
+      "找「小而无人抢 + 有价差」的冷门 → 走 M02 非标同行品线跟随法",
       "老品跟卖或成熟盘子的机会评估",
     ],
     hardCriteria: [

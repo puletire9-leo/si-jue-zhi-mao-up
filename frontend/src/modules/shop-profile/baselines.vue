@@ -134,7 +134,7 @@
           <el-input v-model="baselineForm.baselineCode" placeholder="如 ZHENG_UK_DE" :disabled="!!editingId" />
         </el-form-item>
         <el-form-item label="基线名称" prop="baselineName">
-          <el-input v-model="baselineForm.baselineName" placeholder="如 郑总 UK/DE 精铺基线" />
+          <el-input v-model="baselineForm.baselineName" placeholder="如 非标 UK/DE 精铺基线" />
         </el-form-item>
         <el-form-item label="类型" prop="baselineType">
           <el-select v-model="baselineForm.baselineType" style="width: 100%">

@@ -285,33 +285,6 @@
                   </div>
                 </div>
 
-                <!-- 筛选模式 -->
-                <div
-                  v-if="product.filterMode || product.dataFilterMode"
-                  class="info-item"
-                >
-                  <div class="info-label">筛选结果：</div>
-                  <div class="info-value">
-                    <el-tag
-                      :type="
-                        product.filterMode === 'MODE1'
-                          ? 'success'
-                          : product.filterMode === 'MODE2'
-                            ? 'warning'
-                            : 'danger'
-                      "
-                      size="small"
-                    >
-                      {{ product.filterMode || product.dataFilterMode }}
-                    </el-tag>
-                    <span
-                      v-if="product.filterReasons"
-                      style="margin-left: 8px; font-size: 12px; color: #909399"
-                      >{{ product.filterReasons }}</span
-                    >
-                  </div>
-                </div>
-
                 <!-- 新增字段：来源 -->
                 <div v-if="product.source" class="info-item">
                   <div class="info-label">来源：</div>
@@ -344,19 +317,6 @@
                   <div class="info-value">
                     <el-tag type="success" size="small">{{
                       product.country
-                    }}</el-tag>
-                  </div>
-                </div>
-
-                <!-- 数据筛选模式 -->
-                <div
-                  v-if="product.dataFilterMode || product.filterMode"
-                  class="info-item"
-                >
-                  <div class="info-label">数据筛选模式：</div>
-                  <div class="info-value">
-                    <el-tag type="warning" size="small">{{
-                      product.dataFilterMode || product.filterMode
                     }}</el-tag>
                   </div>
                 </div>
@@ -412,6 +372,24 @@
                 >
                   删除
                 </el-button>
+                <el-button
+                  v-if="showDeveloperLibraryActions"
+                  type="success"
+                  :icon="Collection"
+                  :loading="developerLibraryLoading === 'GOOD'"
+                  @click="handleAddToDeveloperLibrary('GOOD')"
+                >
+                  加入选品库
+                </el-button>
+                <el-button
+                  v-if="showDeveloperLibraryActions"
+                  type="warning"
+                  :icon="Warning"
+                  :loading="developerLibraryLoading === 'BAD'"
+                  @click="handleAddToDeveloperLibrary('BAD')"
+                >
+                  加入差品库
+                </el-button>
               </div>
             </div>
           </div>
@@ -455,12 +433,6 @@
                     <span v-if="v.price">€{{ v.price }}</span>
                     <span v-if="v.units">销量 {{ v.units }}</span>
                     <span v-if="v.bsr">BSR {{ v.bsr }}</span>
-                    <el-tag
-                      v-if="v.filterMode"
-                      :type="v.filterMode === 'MODE1' ? 'success' : 'warning'"
-                      size="small"
-                      >{{ v.filterMode }}</el-tag
-                    >
                   </div>
                 </div>
               </div>
@@ -515,7 +487,14 @@
 <script setup>
 import { ref, computed, watch } from "vue";
 import { useRouter } from "vue-router";
-import { Picture, Edit, Delete, Promotion } from "@element-plus/icons-vue";
+import {
+  Picture,
+  Edit,
+  Delete,
+  Promotion,
+  Collection,
+  Warning,
+} from "@element-plus/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { productApi } from "@/api/product";
 import { selectionApi } from "@/api/selection";
@@ -551,6 +530,14 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  showDeveloperLibraryActions: {
+    type: Boolean,
+    default: false,
+  },
+  developerLibraryLoading: {
+    type: String,
+    default: "",
+  },
 });
 
 const emit = defineEmits([
@@ -558,6 +545,7 @@ const emit = defineEmits([
   "edit",
   "delete",
   "select-product",
+  "add-to-developer-library",
 ]);
 
 const router = useRouter();
@@ -614,7 +602,7 @@ const dialogTitle = computed(() => {
   if (!props.product) return "产品详情";
   if (props.mode === "selection") {
     if (props.dataSource === "zheng") {
-      return `郑总产品详情 - ${props.product.asin}`;
+      return `非标产品详情 - ${props.product.asin}`;
     }
     return `选品详情 - ${props.product.asin}`;
   }
@@ -759,6 +747,10 @@ const handleClose = () => {
 
 const handleEdit = () => {
   emit("edit", props.product);
+};
+
+const handleAddToDeveloperLibrary = (bucket) => {
+  emit("add-to-developer-library", props.product, bucket);
 };
 
 const handleDelete = async () => {
@@ -973,6 +965,7 @@ watch(
 
 .action-buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   margin-top: auto;
 }

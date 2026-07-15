@@ -75,16 +75,10 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "新品榜", icon: "Star" },
       },
       {
-        path: "reference-products",
-        name: "ReferenceProducts",
-        component: () => import("@/views/AllSelection/index.vue"),
-        meta: { title: "历史竞品商品池", icon: "Shop" },
-      },
-      {
         path: "zheng-products",
         name: "ZhengProducts",
         component: () => import("@/views/AllSelection/index.vue"),
-        meta: { title: "郑总店铺上新", icon: "Star" },
+        meta: { title: "非标店铺上新", icon: "Star" },
       },
       {
         path: "asin-import",

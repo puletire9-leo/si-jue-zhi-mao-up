@@ -16,7 +16,7 @@
         </el-select>
         <el-select
           v-model="batchCode"
-          placeholder="来源周批次"
+          placeholder="来源日期"
           clearable
           filterable
           :loading="batchLoading"
@@ -60,7 +60,7 @@
       <div class="source-strip">
         <span>来源表：{{ selectedBatchOption?.sourceTable || 'competitor_products_clean' }}</span>
         <span>批次字段：{{ selectedBatchOption?.sourceWeekField || 'effective_week_tag' }}</span>
-        <span>当前批次：{{ batchCode || '全部候选池批次' }}</span>
+        <span>当前批次：{{ selectedBatchDateLabel || '全部候选池批次' }}</span>
         <span v-if="selectedBatchOption">
           命中商品 {{ selectedBatchOption.productCount }} 个 / 店铺 {{ selectedBatchOption.sellerCount }} 家
         </span>
@@ -96,7 +96,11 @@
           </template>
         </el-table-column>
         <el-table-column prop="topCategory" label="主打类目" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="batchCode" label="周批次" width="110" />
+        <el-table-column label="批次日期" width="130">
+          <template #default="{ row }">
+            {{ displayBatchDate(row.batchCode, row.batchDate) }}
+          </template>
+        </el-table-column>
         <el-table-column label="通过方法" width="150">
           <template #default="{ row }">
             <el-tag size="small" :type="row.sourceType === 'METHOD_CARD' ? 'primary' : 'info'">
@@ -206,6 +210,13 @@ const size = ref(50)
 const total = ref(0)
 const fetchableSelectedCount = computed(() => selectedRows.value.filter((row) => canFetch(row.status)).length)
 const selectedBatchOption = computed(() => batchOptions.value.find((item) => item.batchCode === batchCode.value))
+const selectedBatchDateLabel = computed(() => {
+  const selected = selectedBatchOption.value
+  return displayBatchDate(
+    selected?.batchCode || batchCode.value,
+    selected?.latestCreatedAt
+  )
+})
 const currentPageDuplicateKeys = computed(() => {
   const counts = new Map<string, number>()
   rows.value.forEach((row) => {
@@ -284,7 +295,7 @@ async function handleSyncFromRank() {
       minCount.value,
       batchCode.value || undefined
     )
-    ElMessage.success(`${r.methodId} 通过店铺 ${r.rankedShops} 家，写入候选池 ${r.upserted} 家（${r.batchCode}）`)
+    ElMessage.success(`${r.methodId} 通过店铺 ${r.rankedShops} 家，写入候选池 ${r.upserted} 家（${displayBatchDate(r.batchCode)}）`)
     await loadList()
   } catch (e: any) {
     ElMessage.error(e?.message || '同步失败')
@@ -503,7 +514,44 @@ function compareCandidatePriority(a: ShopCandidatePool, b: ShopCandidatePool) {
 }
 
 function batchOptionLabel(item: ShopMethodBatchOption) {
-  return `${item.batchCode} · ${item.sellerCount} 店 / ${item.productCount} 品`
+  return `${displayBatchDate(item.batchCode, item.latestCreatedAt)} · ${item.sellerCount} 店 / ${item.productCount} 品`
+}
+
+function displayBatchDate(batchCode?: string | null, fallbackDate?: string | null) {
+  const code = String(batchCode || '').trim()
+  const isoWeek = code.match(/^(\d{4})-W(\d{2})$/)
+  if (isoWeek) {
+    const year = Number(isoWeek[1])
+    const week = Number(isoWeek[2])
+    if (week >= 1 && week <= 53) {
+      const januaryFourth = new Date(Date.UTC(year, 0, 4))
+      const januaryFourthWeekday = januaryFourth.getUTCDay() || 7
+      const weekStart = new Date(
+        Date.UTC(year, 0, 4 - januaryFourthWeekday + 1 + (week - 1) * 7)
+      )
+      return formatCalendarDate(weekStart)
+    }
+  }
+
+  const fallback = formatCalendarDate(fallbackDate)
+  if (fallback) return fallback
+
+  const monthBatch = code.match(/^(\d{4})(\d{2})-W\d{2}$/)
+  if (monthBatch) return `${monthBatch[1]}年${Number(monthBatch[2])}月`
+  return code || '-'
+}
+
+function formatCalendarDate(value?: string | Date | null) {
+  if (!value) return ''
+  if (value instanceof Date) {
+    return `${value.getUTCFullYear()}年${value.getUTCMonth() + 1}月${value.getUTCDate()}日`
+  }
+
+  const dateText = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (dateText) {
+    return `${dateText[1]}年${Number(dateText[2])}月${Number(dateText[3])}日`
+  }
+  return ''
 }
 
 function openShop(row: ShopCandidatePool) {

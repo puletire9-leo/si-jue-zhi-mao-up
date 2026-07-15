@@ -5,6 +5,8 @@ import com.sjzm.common.Result;
 import com.sjzm.product.modules.shopcandidate.entity.ShopCandidatePool;
 import com.sjzm.product.modules.shopcandidate.entity.ShopFetchRun;
 import com.sjzm.product.modules.shopcandidate.service.ShopCandidateService;
+import com.sjzm.product.modules.requestcenter.entity.SellerspriteRequestRun;
+import com.sjzm.product.modules.requestcenter.service.SellerspriteRequestCenterService;
 import com.sjzm.product.modules.shoprating.dto.ShopMethodBatchOption;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,6 +26,7 @@ import java.util.Map;
 public class ShopCandidateController {
 
     private final ShopCandidateService candidateService;
+    private final SellerspriteRequestCenterService requestCenterService;
 
     // ── sync from method rank ────────────────────────────────────
 
@@ -100,17 +103,34 @@ public class ShopCandidateController {
     // ── confirm fetch ────────────────────────────────────────────
 
     @PostMapping("/{id}/confirm-fetch")
-    @Operation(summary = "确认抓取单店——原子抢锁 → 创建观察池 → 创建 fetch_run → 抓全集 → 写回状态",
-            description = "消耗卖家精灵使用次数，前端必须二次确认")
+    @Operation(summary = "创建候选店铺抓取任务", description = "返回请求中心 runId，不同步调用卖家精灵")
     public Result<Map<String, Object>> confirmFetch(@PathVariable Long id) {
-        return Result.success(candidateService.confirmFetch(id));
+        ShopCandidatePool candidate = candidateService.getById(id);
+        SellerspriteRequestRun run = requestCenterService.createTask("CANDIDATE_BATCH", candidate.getMarketplace(),
+                "CANDIDATE_CONFIRM", null, "候选店铺确认抓取",
+                List.of(new SellerspriteRequestCenterService.RequestItemInput(candidate.getMarketplace(),
+                        candidate.getSellerName(), candidate.getId())), "CANDIDATE_API");
+        return Result.success(Map.of("runId", run.getRunId(), "status", run.getStatus()));
     }
 
     @PostMapping("/batch-confirm-fetch")
-    @Operation(summary = "批量确认抓取（阶段1同步小批验证）",
-            description = "逐条抢锁+抓取；每次卖家精灵 HTTP 请求仍按 2 秒限速。该同步接口不支持暂停/停止/实况队列，大批量抓取后续走卖家精灵请求中心。")
-    public Result<List<Map<String, Object>>> batchConfirmFetch(@RequestBody List<Long> ids) {
-        return Result.success(candidateService.batchConfirmFetch(ids));
+    @Operation(summary = "创建候选店铺批量抓取任务", description = "返回请求中心 runId，不同步调用卖家精灵")
+    public Result<Map<String, Object>> batchConfirmFetch(@RequestBody List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            throw new IllegalArgumentException("候选店铺 ID 不能为空");
+        }
+        List<SellerspriteRequestCenterService.RequestItemInput> items = ids.stream()
+                .map(candidateService::getById)
+                .map(c -> new SellerspriteRequestCenterService.RequestItemInput(c.getMarketplace(), c.getSellerName(), c.getId()))
+                .toList();
+        if (items.isEmpty()) {
+            throw new IllegalArgumentException("候选店铺 ID 不能为空");
+        }
+        String marketplace = items.stream().map(SellerspriteRequestCenterService.RequestItemInput::marketplace)
+                .distinct().count() == 1 ? items.get(0).marketplace() : "MIXED";
+        SellerspriteRequestRun run = requestCenterService.createTask("CANDIDATE_BATCH", marketplace,
+                "CANDIDATE_CONFIRM", null, "候选店铺批量确认抓取", items, "CANDIDATE_API");
+        return Result.success(Map.of("runId", run.getRunId(), "status", run.getStatus(), "count", items.size()));
     }
 
     // ── fetch runs ───────────────────────────────────────────────

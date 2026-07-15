@@ -14,7 +14,7 @@ public interface MethodCardMapper {
 
     long countM01Products(@Param("marketplace") String marketplace,
                           @Param("month") String month,
-                          @Param("effectiveWeekTag") String effectiveWeekTag,
+                          @Param("effectiveWeekTags") List<String> effectiveWeekTags,
                           @Param("bsrId") String bsrId,
                           @Param("nodeId") Long nodeId,
                           @Param("priceMin") BigDecimal priceMin,
@@ -28,7 +28,7 @@ public interface MethodCardMapper {
 
     List<MethodCardProductResponse> selectM01Products(@Param("marketplace") String marketplace,
                                                       @Param("month") String month,
-                                                      @Param("effectiveWeekTag") String effectiveWeekTag,
+                                                      @Param("effectiveWeekTags") List<String> effectiveWeekTags,
                                                       @Param("bsrId") String bsrId,
                                                       @Param("nodeId") Long nodeId,
                                                       @Param("priceMin") BigDecimal priceMin,

@@ -3,7 +3,10 @@ package com.sjzm.product.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sjzm.product.config.SellerspriteConfig;
+import com.sjzm.product.dto.CompetitorLookupRequest;
+import com.sjzm.product.modules.requestcenter.gateway.SellerspriteExecutionGateway;
+import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutionContext;
+import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutionRequest;
 import com.sjzm.product.entity.DengZongShop;
 import com.sjzm.product.entity.DengZongShopSeller;
 import com.sjzm.product.mapper.DengZongShopMapper;
@@ -13,11 +16,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -30,16 +28,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DengZongShopService {
 
-    private final SellerspriteConfig config;
-    private final SellerspriteConfigService sellerspriteConfigService;
-    private final SellerspriteApiService sellerspriteApiService;
-    private final ApiRateLimitService rateLimitService;
+    private final SellerspriteExecutionGateway executionGateway;
     private final DengZongShopMapper mapper;
     private final DengZongShopSellerMapper sellerMapper;
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
-            .build();
 
     /**
      * 按店铺名查询卖家精灵 API 并存入 deng_zong_shop 表
@@ -85,48 +76,17 @@ public class DengZongShopService {
     }
 
     private JsonNode callApi(String sellerName, String marketplace, int page, int size) {
-        rateLimitService.checkRequestQuota();
-        long startTime = System.currentTimeMillis();
-        String apiStatus = "OK";
-        String errorMsg = null;
-        try {
-            String body = objectMapper.writeValueAsString(Map.of(
-                    "marketplace", marketplace,
-                    "sellerName", sellerName,
-                    "asins", new String[]{},
-                    "variation", "Y",
-                    "page", page,
-                    "size", size,
-                    "orderDesc", true
-            ));
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(config.getApiUrl() + "/product/competitor-lookup"))
-                    .header("secret-key", sellerspriteConfigService.getSecretKey())
-                    .header("Content-Type", "application/json")
-                    .timeout(config.getReadTimeout())
-                    .POST(HttpRequest.BodyPublishers.ofString(body))
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            JsonNode result = objectMapper.readTree(response.body());
-
-            if (!"OK".equals(result.path("code").asText())) {
-                apiStatus = "ERROR";
-                errorMsg = result.path("message").asText();
-                log.error("卖家精灵 API 错误: {}", errorMsg);
-                return null;
-            }
-            return result.path("data");
-        } catch (Exception e) {
-            apiStatus = "ERROR";
-            errorMsg = e.getMessage();
-            log.error("调用卖家精灵 API 失败: {}", e.getMessage(), e);
-            return null;
-        } finally {
-            long took = System.currentTimeMillis() - startTime;
-            sellerspriteApiService.logApiCall(marketplace, currentMonth(), 0, took, apiStatus, errorMsg);
-        }
+        CompetitorLookupRequest request = new CompetitorLookupRequest();
+        request.setMarketplace(marketplace);
+        request.setSellerName(sellerName);
+        request.setAsins(java.util.List.of());
+        request.setVariation("Y");
+        request.setPage(page);
+        request.setSize(size);
+        request.setOrderDesc(true);
+        String scope = "marketplace=" + marketplace + ", seller=" + sellerName + ", page=" + page;
+        return executionGateway.execute(new SellerspriteExecutionRequest(request,
+                SellerspriteExecutionContext.legacy("DENG_ZONG_SHOP_SYNC", scope))).data();
     }
 
     private String currentMonth() {

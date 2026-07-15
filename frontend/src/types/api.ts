@@ -21,6 +21,7 @@ export type { ProductType, Product, ProductListParams, ProductListResponse }
 export interface User {
   id: string
   username: string
+  realName?: string
   name?: string
   nickname?: string
   email?: string

@@ -25,7 +25,7 @@ export interface SelectionQueryParams {
   category: string;
   /** 国家 */
   country: string;
-  /** 数据筛选模式 */
+  /** @deprecated 旧 MODE1/MODE2/FAIL 字段，仅保留兼容历史预设 */
   dataFilterMode: string;
   /** 上架时间开始日期 */
   listingDateStart: string;
@@ -147,7 +147,7 @@ export const defaultQueryParams: SelectionQueryParams = {
   grade: "",
   weekTag: "",
   isCurrent: "",
-  sortField: "score", // 默认排序字段：评分
+  sortField: "createdAt", // 默认排序字段：入库时间
   sortOrder: "desc", // 默认排序方式：降序
   startDate: "",
   endDate: "",
