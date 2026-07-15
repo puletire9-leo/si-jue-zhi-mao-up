@@ -8,6 +8,7 @@ import com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileProd
 import com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileSummary;
 import com.sjzm.product.modules.shopcollection.dto.ShopCollectionDetail;
 import com.sjzm.product.modules.shopcollection.dto.ShopCollectionInsight;
+import com.sjzm.product.modules.shopcollection.dto.ShopProductSelectionQuery;
 import com.sjzm.product.modules.shopcollection.dto.ShopSnapshot;
 import com.sjzm.product.modules.shopcollection.entity.ShopProduct;
 import com.sjzm.product.modules.shopcollection.entity.ShopWatchlist;
@@ -111,6 +112,24 @@ public class ShopCollectionController {
                 .like(StringUtils.hasText(asin), ShopProduct::getAsin, asin)
                 .orderByDesc(ShopProduct::getUpdatedAt);
         return Result.success(shopProductMapper.selectPage(new Page<>(current, size), qw));
+    }
+
+    @PostMapping("/selection-products")
+    @Operation(summary = "统一选品页的店铺商品分页", description = "与新品榜共用选品页筛选口径，数据源固定 shop_products")
+    public Result<PageResult<ShopProduct>> selectionProducts(@RequestBody ShopProductSelectionQuery query) {
+        return Result.success(collectionService.selectionProducts(query));
+    }
+
+    @GetMapping("/selection-categories")
+    @Operation(summary = "统一选品页的店铺商品类目")
+    public Result<List<Map<String, Object>>> selectionCategories(@RequestParam String marketplace) {
+        return Result.success(collectionService.selectionCategories(marketplace));
+    }
+
+    @GetMapping("/selection-batches")
+    @Operation(summary = "统一选品页的店铺抓取批次")
+    public Result<List<Map<String, Object>>> selectionBatches(@RequestParam String marketplace) {
+        return Result.success(collectionService.selectionBatches(marketplace));
     }
 
     // ============================================================

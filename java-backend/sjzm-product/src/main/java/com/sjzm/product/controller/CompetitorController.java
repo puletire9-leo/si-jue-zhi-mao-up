@@ -6,6 +6,8 @@ import com.sjzm.product.dto.CompetitorLookupRequest;
 import com.sjzm.product.dto.CompetitorProductResponse;
 import com.sjzm.product.dto.CompetitorQueryRequest;
 import com.sjzm.product.service.CompetitorService;
+import com.sjzm.product.modules.requestcenter.entity.SellerspriteRequestRun;
+import com.sjzm.product.modules.requestcenter.service.SellerspriteRequestCenterService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -26,12 +28,13 @@ public class CompetitorController {
 
     private final CompetitorService competitorService;
     private final ApiRateLimitService rateLimitService;
+    private final SellerspriteRequestCenterService requestCenterService;
 
     @PostMapping("/lookup")
-    @Operation(summary = "查询竞品数据（调用卖家精灵 API 并入库）")
-    public Result<List<CompetitorProductResponse>> lookup(@Valid @RequestBody CompetitorLookupRequest request) {
-        List<CompetitorProductResponse> results = competitorService.lookupAndSave(request);
-        return Result.success("查询成功，共 " + results.size() + " 条", results);
+    @Operation(summary = "创建手动竞品查询任务", description = "异步返回请求中心 runId，不在 HTTP 请求线程调用卖家精灵")
+    public Result<Map<String, Object>> lookup(@Valid @RequestBody CompetitorLookupRequest request) {
+        SellerspriteRequestRun run = requestCenterService.createManualAsinTask(request, "MANUAL_API");
+        return Result.success(Map.of("runId", run.getRunId(), "status", run.getStatus()));
     }
 
     @GetMapping("/products")

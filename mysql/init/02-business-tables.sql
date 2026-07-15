@@ -303,6 +303,60 @@ CREATE TABLE IF NOT EXISTS `selection_decisions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='选品决策记录表 - 反馈闭环核心';
 
 -- ═══════════════════════════════════════════════════════════
+-- 5.1 developer_selection_library — 开发个人好品/差品库
+-- ═══════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS `developer_selection_batch` (
+    `id` BIGINT NOT NULL,
+    `user_id` BIGINT NOT NULL,
+    `developer_name` VARCHAR(100) NOT NULL,
+    `bucket` VARCHAR(10) NOT NULL COMMENT 'GOOD/BAD',
+    `batch_name` VARCHAR(50) NOT NULL,
+    `batch_date` DATE NOT NULL,
+    `deleted` TINYINT(1) NOT NULL DEFAULT 0,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_developer_bucket_batch` (`user_id`, `bucket`, `batch_name`, `deleted`),
+    KEY `idx_batch_scope` (`user_id`, `bucket`, `deleted`, `batch_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='开发个人人工选品批次（好品/差品独立）';
+
+CREATE TABLE IF NOT EXISTS `developer_selection_library` (
+    `id` BIGINT NOT NULL,
+    `user_id` BIGINT NOT NULL,
+    `developer_name` VARCHAR(100) NOT NULL,
+    `marketplace` VARCHAR(10) NOT NULL,
+    `asin` VARCHAR(20) NOT NULL,
+    `bucket` VARCHAR(10) NOT NULL COMMENT 'GOOD/BAD',
+    `batch_id` BIGINT DEFAULT NULL COMMENT '人工批次ID，NULL为未分类',
+    `origin_scene` VARCHAR(32) DEFAULT NULL,
+    `origin_source` VARCHAR(100) DEFAULT NULL,
+    `snapshot_key` VARCHAR(64) DEFAULT NULL,
+    `title` VARCHAR(1000) DEFAULT NULL,
+    `brand` VARCHAR(255) DEFAULT NULL,
+    `image_url` VARCHAR(1000) DEFAULT NULL,
+    `price` DECIMAL(12,2) DEFAULT NULL,
+    `units` INT DEFAULT NULL,
+    `bsr` INT DEFAULT NULL,
+    `ratings` INT DEFAULT NULL,
+    `rating` DECIMAL(4,2) DEFAULT NULL,
+    `listing_days` INT DEFAULT NULL,
+    `weight_g` DECIMAL(12,2) DEFAULT NULL,
+    `seller_name` VARCHAR(255) DEFAULT NULL,
+    `node_label_path` VARCHAR(2000) DEFAULT NULL,
+    `product_url` VARCHAR(1000) DEFAULT NULL,
+    `snapshot_json` LONGTEXT DEFAULT NULL,
+    `deleted` TINYINT(1) NOT NULL DEFAULT 0,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_developer_marketplace_asin` (`user_id`, `marketplace`, `asin`),
+    KEY `idx_developer_bucket` (`user_id`, `bucket`, `deleted`, `updated_at`),
+    KEY `idx_developer_bucket_batch` (`user_id`, `bucket`, `batch_id`, `deleted`),
+    KEY `idx_admin_bucket` (`bucket`, `marketplace`, `deleted`, `updated_at`),
+    KEY `idx_marketplace_asin` (`marketplace`, `asin`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='开发个人人工选品库（好品/差品）';
+
+-- ═══════════════════════════════════════════════════════════
 -- 6. asin_import_tasks — ASIN导入任务表
 -- ═══════════════════════════════════════════════════════════
 CREATE TABLE IF NOT EXISTS `asin_import_tasks` (
@@ -371,7 +425,18 @@ CREATE TABLE IF NOT EXISTS `competitor_lookup_log` (
     `total`          INT             DEFAULT NULL,
     `api_status`     VARCHAR(20)     DEFAULT NULL,
     `error_message`  TEXT            DEFAULT NULL,
-    `created_at`     DATETIME        DEFAULT CURRENT_TIMESTAMP
+    `run_id`         VARCHAR(64)     DEFAULT NULL,
+    `item_id`        BIGINT          DEFAULT NULL,
+    `request_type`   VARCHAR(32)     DEFAULT NULL,
+    `request_scope`  VARCHAR(512)    DEFAULT NULL,
+    `attempt_no`     INT             DEFAULT NULL,
+    `request_dispatched` TINYINT(1)  NOT NULL DEFAULT 0,
+    `usage_confirmed` TINYINT(1)     NOT NULL DEFAULT 0,
+    `error_code`     VARCHAR(32)     DEFAULT NULL,
+    `error_summary`  VARCHAR(512)    DEFAULT NULL,
+    `created_at`     DATETIME        DEFAULT CURRENT_TIMESTAMP,
+    KEY `idx_competitor_lookup_log_run_item` (`run_id`, `item_id`),
+    KEY `idx_competitor_lookup_log_request_type_created` (`request_type`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='竞品查询日志';
 
 -- ═══════════════════════════════════════════════════════════

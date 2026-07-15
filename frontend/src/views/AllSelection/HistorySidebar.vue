@@ -188,10 +188,7 @@ async function handleRetry(item: HistoryItem) {
   retryingId.value = item.id
   try {
     const res = await asinImportApi.retryFailed(item.id)
-    ElMessage.success(`已创建新任务 #${res.newTaskId}：${res.total} 个 ASIN（去重 ${res.duplicatesRemoved} 个），${res.batches} 批`)
-    // 自动执行新任务
-    await asinImportApi.execute(res.newTaskId)
-    ElMessage.success(`任务 #${res.newTaskId} 已开始执行`)
+    ElMessage.success(`已创建请求中心任务：${res.runId}`)
     emit('retry-created', res.newTaskId)
   } catch (e: any) {
     ElMessage.error(e?.response?.data?.message || e?.message || '重试失败')

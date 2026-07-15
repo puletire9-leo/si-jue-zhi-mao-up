@@ -1,9 +1,11 @@
 import { competitorApi, type CompetitorListResponse } from "@/api/competitor";
 import { methodCardsApi, type MethodCardListParams } from "@/api/methodCards";
+import shopCollectionApi, { type ShopProductRow } from "@/api/shopCollection";
 import type {
   SelectionQueryPlan,
   CompetitorQueryPlan,
   DengZongQueryPlan,
+  ShopProductsQueryPlan,
   MethodCardQueryPlan,
 } from "./queryPlan";
 import type { ApiResponse } from "@/types/api";
@@ -43,6 +45,35 @@ async function resolveDengZongPlan(
     result: {
       list: res.data?.list ?? [],
       total: res.data?.total ?? 0,
+    },
+  };
+}
+
+function normalizeShopProduct(raw: ShopProductRow): Record<string, any> {
+  return {
+    ...raw,
+    productType: "shop",
+    source: "店铺商品",
+    productTitle: raw.title || "",
+    storeName: raw.sellerName || "",
+    productLink: raw.productUrl || "",
+    similarProducts: raw.similarUrl || "",
+    salesVolume: raw.units ?? 0,
+    listingDate: raw.availableDate ?? undefined,
+    variantCount: raw.variations ?? 0,
+    dataFilterMode: raw.filterMode || "",
+  };
+}
+
+async function resolveShopProductsPlan(
+  plan: ShopProductsQueryPlan,
+): Promise<ResolvedQueryResponse> {
+  const res = await shopCollectionApi.selectionProducts(plan.params);
+  return {
+    plan,
+    result: {
+      list: (res.list ?? []).map(normalizeShopProduct),
+      total: res.total ?? 0,
     },
   };
 }
@@ -94,6 +125,8 @@ export async function resolveSelectionQueryPlan(
       return resolveCompetitorPlan(plan);
     case "deng_zong":
       return resolveDengZongPlan(plan);
+    case "shop_products":
+      return resolveShopProductsPlan(plan);
     case "method_card":
       return resolveMethodCardPlan(plan);
     default:

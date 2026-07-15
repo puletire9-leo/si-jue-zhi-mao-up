@@ -309,6 +309,79 @@ export interface MpPage<T> {
   pages: number;
 }
 
+/** 店铺商品原始行：跨店商品卡片流直接读取 shop_products。 */
+export interface ShopProductRow {
+  id: number;
+  marketplace: string;
+  sellerName: string | null;
+  sellerId: string | null;
+  asin: string;
+  parentAsin: string | null;
+  title: string | null;
+  brand: string | null;
+  imageUrl: string | null;
+  productUrl: string | null;
+  similarUrl: string | null;
+  nodeLabelPath: string | null;
+  units: number | null;
+  salesTier: string | null;
+  bsr: number | null;
+  price: string | number | null;
+  rating: string | number | null;
+  ratings: number | null;
+  fulfillment: string | null;
+  variations: number | null;
+  weightG: number | null;
+  grade: string | null;
+  filterMode: string | null;
+  filterReasons: string | null;
+  source: string | null;
+  availableDate: number | null;
+  listingDays: number | null;
+  batchDate: string | null;
+  sourceRunId: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+/** 统一选品页传给 shop_products 的筛选条件。 */
+export interface ShopProductSelectionParams {
+  page?: number;
+  size?: number;
+  marketplace: string;
+  asins?: string[];
+  title?: string;
+  sellerName?: string;
+  brand?: string;
+  categories?: string[];
+  batchDates?: string[];
+  priceMin?: number;
+  priceMax?: number;
+  unitsMin?: number;
+  unitsMax?: number;
+  listingDaysMin?: number;
+  listingDaysMax?: number;
+  bsrMax?: number;
+  weightMax?: number;
+  maxVariantCount?: number;
+  fulfillment?: string[];
+  grade?: string[];
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  /** 规则叠加在 shop_products 数据源上；店铺选品只支持 M01 / M03。 */
+  methodId?: 'M01' | 'M03';
+}
+
+export interface ShopSelectionBatch {
+  batchDate: string;
+  count: number;
+}
+
+export interface ShopSelectionCategory {
+  category: string;
+  count: number;
+}
+
 /** Result<T> 解包 */
 function unwrap<T>(p: Promise<any>): Promise<T> {
   return p.then((res) => res?.data as T);
@@ -376,8 +449,8 @@ export const shopCollectionApi = {
     marketplace?: string,
     sellerName?: string,
     asin?: string,
-  ): Promise<MpPage<any>> {
-    return unwrap<MpPage<any>>(
+  ): Promise<MpPage<ShopProductRow>> {
+    return unwrap<MpPage<ShopProductRow>>(
       request({
         url: `${BASE}/products`,
         method: "get",
@@ -390,6 +463,41 @@ export const shopCollectionApi = {
         },
       }),
     );
+  },
+
+  /** 统一选品页：跨店分页读取 shop_products。 */
+  selectionProducts(
+    params: ShopProductSelectionParams,
+  ): Promise<PageResult<ShopProductRow>> {
+    return unwrap<PageResult<ShopProductRow>>(
+      request({
+        url: `${BASE}/selection-products`,
+        method: 'post',
+        data: params,
+      }),
+    );
+  },
+
+  /** 统一选品页：店铺商品类目下拉。 */
+  selectionCategories(marketplace: string): Promise<ShopSelectionCategory[]> {
+    return unwrap<ShopSelectionCategory[]>(
+      request({
+        url: `${BASE}/selection-categories`,
+        method: 'get',
+        params: { marketplace },
+      }),
+    ).then((items) => (Array.isArray(items) ? items : []));
+  },
+
+  /** 统一选品页：店铺商品抓取批次下拉。 */
+  selectionBatches(marketplace: string): Promise<ShopSelectionBatch[]> {
+    return unwrap<ShopSelectionBatch[]>(
+      request({
+        url: `${BASE}/selection-batches`,
+        method: 'get',
+        params: { marketplace },
+      }),
+    ).then((items) => (Array.isArray(items) ? items : []));
   },
 
   /** 店铺全集画像列表 */

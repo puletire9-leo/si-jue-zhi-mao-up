@@ -21,6 +21,18 @@ public class CompetitorLookupLog {
     private String apiStatus;
     private String errorMessage;
 
+    /** 请求中心关联；兼容旧直连日志时允许为空。 */
+    private String runId;
+    private Long itemId;
+    private String requestType;
+    /** 脱敏后的请求范围摘要，不保存完整密钥或整页请求参数。 */
+    private String requestScope;
+    private Integer attemptNo;
+    private Boolean requestDispatched;
+    private Boolean usageConfirmed;
+    private String errorCode;
+    private String errorSummary;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 }

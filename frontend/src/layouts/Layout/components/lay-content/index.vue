@@ -8,7 +8,9 @@ defineProps<{
   <div class="lay-content">
     <router-view v-slot="{ Component, route }">
       <transition name="fade-transform" mode="out-in">
-        <component :is="Component" :key="route.path" />
+        <keep-alive :max="30">
+          <component :is="Component" :key="route.path" />
+        </keep-alive>
       </transition>
     </router-view>
   </div>

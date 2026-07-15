@@ -2,12 +2,13 @@ package com.sjzm.product.modules.shopcollection.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sjzm.product.config.SellerspriteConfig;
+import com.sjzm.product.dto.CompetitorLookupRequest;
+import com.sjzm.product.modules.requestcenter.gateway.SellerspriteExecutionGateway;
+import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutionContext;
+import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutionRequest;
 import com.sjzm.product.modules.shopcollection.entity.ShopProduct;
 import com.sjzm.product.modules.shopcollection.mapper.ShopProductMapper;
-import com.sjzm.product.service.ApiRateLimitService;
-import com.sjzm.product.service.SellerspriteApiService;
-import com.sjzm.product.service.SellerspriteConfigService;
+import com.sjzm.product.service.ProductFeatureProcessor;
 import com.sjzm.product.util.WeekTagUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,16 +16,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 
 /**
  * 店铺商品全集抓取：卖家精灵"店铺名查询"，固定 variation=Y（不含变体父体口径），写 shop_products。
@@ -39,18 +36,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ShopProductSyncService {
 
-    private final SellerspriteConfig config;
-    private final SellerspriteConfigService sellerspriteConfigService;
-    private final SellerspriteApiService sellerspriteApiService;
-    private final ApiRateLimitService rateLimitService;
+    private final SellerspriteExecutionGateway executionGateway;
     private final ShopProductMapper mapper;
     private final WeekTagUtil weekTagUtil;
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
-            .build();
-    private final Object shopLookupThrottleLock = new Object();
-    private long lastShopLookupAtMillis = 0L;
+    private final ProductFeatureProcessor productFeatureProcessor;
 
     /** 向后兼容重载——不传 runId/batchCode，内部自动生成。保留给旧调用方（观察池直抓等）。 */
     public Map<String, Object> syncBySellerName(String sellerName, String marketplace,
@@ -71,6 +60,16 @@ public class ShopProductSyncService {
     public Map<String, Object> syncBySellerName(String sellerName, String marketplace,
                                                 String fetchReason, Long watchlistId,
                                                 String runId, String batchCode) {
+        return syncBySellerName(sellerName, marketplace, fetchReason, watchlistId, runId, batchCode, () -> true);
+    }
+
+    /**
+     * 带运行控制的店铺抓取。控制状态会在每一页请求前检查，因此暂停/停止不会发出下一页请求。
+     */
+    public Map<String, Object> syncBySellerName(String sellerName, String marketplace,
+                                                String fetchReason, Long watchlistId,
+                                                String runId, String batchCode,
+                                                BooleanSupplier mayRequestNextPage) {
         String effectiveRunId = StringUtils.hasText(runId)
                 ? runId : "SHOP_" + marketplace + "_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
                 + "_" + Integer.toHexString((sellerName + System.identityHashCode(this)).hashCode());
@@ -85,6 +84,11 @@ public class ShopProductSyncService {
         int pageSize = 100;
 
         while (true) {
+            if (!mayRequestNextPage.getAsBoolean()) {
+                log.info("店铺抓取控制已生效，当前页后不再发起请求: sellerName={}, marketplace={}, page={}",
+                        sellerName, marketplace, page);
+                break;
+            }
             log.info("抓取店铺全集: sellerName={}, marketplace={}, page={}", sellerName, marketplace, page);
             JsonNode data;
             try {
@@ -138,74 +142,17 @@ public class ShopProductSyncService {
     }
 
     private JsonNode callApi(String sellerName, String marketplace, int page, int size) {
-        long startTime = System.currentTimeMillis();
-        String apiStatus = "OK";
-        String errorMsg = null;
-        boolean requestSent = false;
-        try {
-            rateLimitService.checkRequestQuota();
-            throttleShopLookup();
-            String body = objectMapper.writeValueAsString(Map.of(
-                    "marketplace", marketplace,
-                    "sellerName", sellerName,
-                    "asins", new String[]{},
-                    "variation", "Y",
-                    "page", page,
-                    "size", size,
-                    "orderDesc", true
-            ));
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(config.getApiUrl() + "/product/competitor-lookup"))
-                    .header("secret-key", sellerspriteConfigService.getSecretKey())
-                    .header("Content-Type", "application/json")
-                    .timeout(config.getReadTimeout())
-                    .POST(HttpRequest.BodyPublishers.ofString(body))
-                    .build();
-
-            requestSent = true;
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            JsonNode result = objectMapper.readTree(response.body());
-
-            if (!"OK".equals(result.path("code").asText())) {
-                apiStatus = "ERROR";
-                errorMsg = result.path("message").asText();
-                log.error("卖家精灵店铺查询错误: {}", errorMsg);
-                throw new ShopLookupException("卖家精灵店铺查询错误: " + errorMsg, null, 1);
-            }
-            return result.path("data");
-        } catch (ShopLookupException e) {
-            apiStatus = "ERROR";
-            errorMsg = e.getMessage();
-            throw e;
-        } catch (Exception e) {
-            apiStatus = "ERROR";
-            errorMsg = e.getMessage();
-            log.error("调用卖家精灵店铺查询失败: {}", e.getMessage(), e);
-            throw new ShopLookupException(errorMsg, e, requestSent ? 1 : 0);
-        } finally {
-            if (requestSent) {
-                long took = System.currentTimeMillis() - startTime;
-                sellerspriteApiService.logApiCall(marketplace, currentMonth(), 0, took, apiStatus, errorMsg);
-            }
-        }
-    }
-
-    /** 店铺名查询按卖家精灵使用次数口径限速：一页一次请求，至少间隔 2 秒。 */
-    private void throttleShopLookup() {
-        synchronized (shopLookupThrottleLock) {
-            long now = System.currentTimeMillis();
-            long waitMs = 2000L - (now - lastShopLookupAtMillis);
-            if (waitMs > 0) {
-                try {
-                    Thread.sleep(waitMs);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException("店铺名查询限速等待被中断", e);
-                }
-            }
-            lastShopLookupAtMillis = System.currentTimeMillis();
-        }
+        CompetitorLookupRequest request = new CompetitorLookupRequest();
+        request.setMarketplace(marketplace);
+        request.setSellerName(sellerName);
+        request.setAsins(java.util.List.of());
+        request.setVariation("Y");
+        request.setPage(page);
+        request.setSize(size);
+        request.setOrderDesc(true);
+        String scope = "marketplace=" + marketplace + ", seller=" + sellerName + ", page=" + page;
+        return executionGateway.execute(new SellerspriteExecutionRequest(request,
+                SellerspriteExecutionContext.legacy("SHOP_FULL_LOOKUP", scope))).data();
     }
 
     private ShopProduct mapToEntity(JsonNode item, String requestSellerName, String marketplace, String batchDate,
@@ -252,7 +199,10 @@ public class ShopProductSyncService {
         e.setSellers(item.path("sellers").isNumber() ? item.path("sellers").intValue() : null);
         e.setFulfillment(item.path("fulfillment").asText(null));
         e.setVariations(item.path("variations").isNumber() ? item.path("variations").intValue() : null);
-        e.setWeight(item.path("weight").asText(null));
+        String weight = item.path("weight").asText(null);
+        e.setWeight(weight);
+        // 与新品榜共用重量标准化口径，确保 M01 和店铺画像能够直接使用 weight_g。
+        e.setWeightG(productFeatureProcessor.extractWeightGrams(weight));
         e.setDimension(item.path("dimension").asText(null));
         e.setBestSeller(getNestedText(item, "badge", "bestSeller"));
         e.setAmazonChoice(getNestedText(item, "badge", "amazonChoice"));

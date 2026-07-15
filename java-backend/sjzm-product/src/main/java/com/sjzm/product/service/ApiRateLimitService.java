@@ -166,7 +166,8 @@ public class ApiRateLimitService {
                 new LambdaQueryWrapper<com.sjzm.product.entity.CompetitorLookupLog>()
                         .ge(com.sjzm.product.entity.CompetitorLookupLog::getCreatedAt,
                                 LocalDateTime.of(Integer.parseInt(currentMonth.substring(0, 4)),
-                                        Integer.parseInt(currentMonth.substring(4, 6)), 1, 0, 0)));
+                                        Integer.parseInt(currentMonth.substring(4, 6)), 1, 0, 0))
+                        .eq(com.sjzm.product.entity.CompetitorLookupLog::getUsageConfirmed, true));
         if (monthCount != null && monthCount >= maxPerMonth) {
             throw new BusinessException(429,
                     String.format("本月 API 请求已达上限 %d 次，请下月再试", maxPerMonth));
@@ -186,7 +187,8 @@ public class ApiRateLimitService {
                 new LambdaQueryWrapper<com.sjzm.product.entity.CompetitorLookupLog>()
                         .ge(com.sjzm.product.entity.CompetitorLookupLog::getCreatedAt,
                                 LocalDateTime.of(Integer.parseInt(currentMonth.substring(0, 4)),
-                                        Integer.parseInt(currentMonth.substring(4, 6)), 1, 0, 0)));
+                                        Integer.parseInt(currentMonth.substring(4, 6)), 1, 0, 0))
+                        .eq(com.sjzm.product.entity.CompetitorLookupLog::getUsageConfirmed, true));
     }
 
     public Map<String, Object> getQuotaInfo() {

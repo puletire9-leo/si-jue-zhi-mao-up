@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.extension.toolkit.Db;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sjzm.product.config.SellerspriteConfig;
 import com.sjzm.product.dto.CompetitorLookupRequest;
 import com.sjzm.product.entity.AsinImportResult;
 import com.sjzm.product.entity.AsinImportTask;
@@ -15,6 +14,9 @@ import com.sjzm.product.entity.DengZongShopSeller;
 import com.sjzm.product.entity.SkipAsin;
 import com.sjzm.product.mapper.AsinImportResultMapper;
 import com.sjzm.product.mapper.AsinImportTaskMapper;
+import com.sjzm.product.modules.requestcenter.gateway.SellerspriteExecutionGateway;
+import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutionContext;
+import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutionRequest;
 import com.sjzm.product.mapper.CompetitorProductMapper;
 import com.sjzm.product.mapper.DengZongShopSellerMapper;
 import com.sjzm.product.mapper.SkipAsinMapper;
@@ -29,11 +31,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
 import java.math.BigDecimal;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -63,15 +60,10 @@ public class AsinImportService {
     private final DengZongShopService dengZongShopService;
     private final ApiRateLimitService rateLimitService;
     private final InitialFilterConfigService initialFilterConfig;
-    private final SellerspriteConfig sellerspriteConfig;
-    private final SellerspriteConfigService sellerspriteConfigService;
-    private final SellerspriteApiService sellerspriteApiService;
+    private final SellerspriteExecutionGateway executionGateway;
     private final ScoringService scoringService;
     private final CleanLayerService cleanLayerService;
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
-            .build();
 
     /**
      * 应用启动时恢复僵尸任务（容器重启导致 RUNNING 但线程已死）
@@ -205,6 +197,8 @@ public class AsinImportService {
         final String marketplace;
         final Set<String> seenAsins = new HashSet<>();   // 跨页去重（in-file 重复）
         int total, pass, priceFail, reviewFail, duplicate, skipBlacklist, skipMain;
+        int pageCount;                                   // 已处理页数，用于周期写回节流
+        long lastFlushMs = System.currentTimeMillis();   // 上次写回时间戳
 
         StreamingFilterContext(Long taskId, String marketplace) {
             this.taskId = taskId;
@@ -213,6 +207,10 @@ public class AsinImportService {
 
         public Long getTaskId() { return taskId; }
     }
+
+    /** 周期写回节流阈值：每 5 页或每 5 秒把累计统计刷进 DB */
+    private static final int PROGRESS_FLUSH_PAGES = 5;
+    private static final long PROGRESS_FLUSH_INTERVAL_MS = 5000;
 
     /**
      * 开始一个流式初筛任务：建 RUNNING 任务（计数全 0），返回上下文。
@@ -231,6 +229,8 @@ public class AsinImportService {
         task.setSkipCount(0);
         task.setBatchTotal(0);
         task.setBatchCurrent(0);
+        task.setDataMonth(java.time.YearMonth.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMM")));
         task.setCreatedAt(java.time.LocalDateTime.now());
         task.setUpdatedAt(java.time.LocalDateTime.now());
         taskMapper.insert(task);
@@ -297,13 +297,44 @@ public class AsinImportService {
         ctx.duplicate += result.get("DUPLICATE").size();
         ctx.skipBlacklist += result.get("SKIP_BLACKLIST").size();
         ctx.skipMain += result.get("SKIP_MAIN").size();
+
+        // 周期写回：每 5 页或每 5 秒把累计统计刷进 RUNNING 任务，让前端看到实时进度
+        ctx.pageCount++;
+        long now = System.currentTimeMillis();
+        if (ctx.pageCount % PROGRESS_FLUSH_PAGES == 0 || now - ctx.lastFlushMs >= PROGRESS_FLUSH_INTERVAL_MS) {
+            flushProgress(ctx);
+            ctx.lastFlushMs = now;
+        }
+    }
+
+    /**
+     * 把当前累计统计写回 asin_import_tasks（保持 RUNNING，不改状态、不定 batchTotal）。
+     * 供流式初筛处理中周期调用，让 overview 能读到实时进度；收口仍由 finishStreamingTask 负责。
+     */
+    private void flushProgress(StreamingFilterContext ctx) {
+        try {
+            AsinImportTask task = new AsinImportTask();
+            task.setId(ctx.taskId);
+            task.setTotalCount(ctx.total);
+            task.setPassCount(ctx.pass);
+            task.setPriceFailCount(ctx.priceFail);
+            task.setReviewFailCount(ctx.reviewFail);
+            task.setDuplicateCount(ctx.duplicate);
+            task.setSkipCount(ctx.skipBlacklist + ctx.skipMain);
+            task.setUpdatedAt(java.time.LocalDateTime.now());
+            taskMapper.updateById(task);
+        } catch (RuntimeException e) {
+            // 写回进度失败不能中断导入主流程，仅记录
+            log.warn("流式初筛进度写回失败(忽略): taskId={}, err={}", ctx.taskId, e.getMessage());
+        }
     }
 
     /**
      * 收尾：用累计计数回填任务，status 置 READY，返回预览（结构与 filterRowsAndCreateTask 一致）。
      */
     public Map<String, Object> finishStreamingTask(StreamingFilterContext ctx) {
-        int fullBatches = ctx.pass / BATCH_SIZE;
+        // 与 executeApiCalls 一致：批次数向上取整，尾批不足 BATCH_SIZE 仍会执行，不丢弃 ASIN
+        int totalBatches = (ctx.pass + BATCH_SIZE - 1) / BATCH_SIZE;
         AsinImportTask task = taskMapper.selectById(ctx.taskId);
         task.setTaskStatus("READY");
         task.setTotalCount(ctx.total);
@@ -312,7 +343,7 @@ public class AsinImportService {
         task.setReviewFailCount(ctx.reviewFail);
         task.setDuplicateCount(ctx.duplicate);
         task.setSkipCount(ctx.skipBlacklist + ctx.skipMain);
-        task.setBatchTotal(fullBatches);
+        task.setBatchTotal(totalBatches);
         task.setUpdatedAt(java.time.LocalDateTime.now());
         taskMapper.updateById(task);
 
@@ -326,8 +357,8 @@ public class AsinImportService {
         preview.put("skipCount", ctx.skipBlacklist + ctx.skipMain);
         preview.put("skipMainCount", ctx.skipMain);
         preview.put("skipBlacklistCount", ctx.skipBlacklist);
-        preview.put("batchTotal", fullBatches);
-        preview.put("discardedAsins", ctx.pass - fullBatches * BATCH_SIZE);
+        preview.put("batchTotal", totalBatches);
+        preview.put("discardedAsins", 0);
         log.info("流式初筛完成: taskId={}, total={}, pass={}", ctx.taskId, ctx.total, ctx.pass);
         return preview;
     }
@@ -353,7 +384,9 @@ public class AsinImportService {
      * 互斥锁：同一时间只允许一个任务执行，避免重复 API 调用
      */
     @Async
+    @Deprecated(forRemoval = true)
     public void executeApiCalls(Long taskId, String month) {
+        rejectLegacyDirectExecution("ASIN 批处理");
         AsinImportTask task = taskMapper.selectById(taskId);
         if (task == null) {
             log.error("任务不存在: {}", taskId);
@@ -774,7 +807,9 @@ public class AsinImportService {
      * 卖家名批量导入 - 执行（异步）
      */
     @Async("sellerImportExecutor")
+    @Deprecated(forRemoval = true)
     public void sellerExecute(Long taskId, String month, String target) {
+        rejectLegacyDirectExecution("卖家名批处理");
         AsinImportTask task = taskMapper.selectById(taskId);
         if (task == null) {
             log.error("卖家导入任务不存在: {}", taskId);
@@ -942,48 +977,18 @@ public class AsinImportService {
     }
 
     private JsonNode callSellerspriteApi(String sellerName, String marketplace, int page, int size, String month) {
-        rateLimitService.checkRequestQuota();
-        long startTime = System.currentTimeMillis();
-        String apiStatus = "OK";
-        String errorMsg = null;
-        try {
-            String body = objectMapper.writeValueAsString(Map.of(
-                    "marketplace", marketplace,
-                    "sellerName", sellerName,
-                    "asins", new String[]{},
-                    "variation", "N",
-                    "page", page,
-                    "size", size,
-                    "orderDesc", true
-            ));
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(sellerspriteConfig.getApiUrl() + "/product/competitor-lookup"))
-                    .header("secret-key", sellerspriteConfigService.getSecretKey())
-                    .header("Content-Type", "application/json")
-                    .timeout(Duration.ofSeconds(120))
-                    .POST(HttpRequest.BodyPublishers.ofString(body))
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            JsonNode result = objectMapper.readTree(response.body());
-
-            if (!"OK".equals(result.path("code").asText())) {
-                apiStatus = "ERROR";
-                errorMsg = result.path("message").asText();
-                log.error("卖家精灵API错误: {}", errorMsg);
-                return null;
-            }
-            return result.path("data");
-        } catch (Exception e) {
-            apiStatus = "ERROR";
-            errorMsg = e.getMessage();
-            log.error("调用卖家精灵API失败: {}", e.getMessage());
-            throw new RuntimeException("API调用失败: " + e.getMessage(), e);
-        } finally {
-            long took = System.currentTimeMillis() - startTime;
-            sellerspriteApiService.logApiCall(marketplace, month, 0, took, apiStatus, errorMsg);
-        }
+        CompetitorLookupRequest request = new CompetitorLookupRequest();
+        request.setMarketplace(marketplace);
+        request.setMonth(month);
+        request.setSellerName(sellerName);
+        request.setAsins(List.of());
+        request.setVariation("N");
+        request.setPage(page);
+        request.setSize(size);
+        request.setOrderDesc(true);
+        String scope = "marketplace=" + marketplace + ", seller=" + sellerName + ", page=" + page;
+        return executionGateway.execute(new SellerspriteExecutionRequest(request,
+                SellerspriteExecutionContext.legacy("SELLER_BATCH_LOOKUP", scope))).data();
     }
 
     private record SellerSyncResult(int products, int apiCalls) {}
@@ -1333,6 +1338,14 @@ public class AsinImportService {
     private String truncateText(String value, int maxLength) {
         if (value == null || value.length() <= maxLength) return value;
         return value.substring(0, maxLength);
+    }
+
+    /**
+     * 旧执行器下线门禁：所有卖家精灵请求必须由请求中心创建 run 后消费。
+     * 保留旧方法签名仅为二进制兼容；任何绕过 Controller 的调用都会被明确拒绝。
+     */
+    private void rejectLegacyDirectExecution(String operation) {
+        throw new UnsupportedOperationException(operation + " 已迁移到卖家精灵请求中心，请创建 runId 后查看执行进度");
     }
 
     // ---- 工具方法 ----

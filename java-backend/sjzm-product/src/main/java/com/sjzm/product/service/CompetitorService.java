@@ -23,6 +23,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -44,7 +45,9 @@ public class CompetitorService {
      * 批量查询竞品：将 ASIN 按 40 个一批分块调用 API
      * 每批正好 40 个，最后不足 40 个的丢弃不浪费请求次数
      */
+    @Deprecated(forRemoval = true)
     public List<CompetitorProductResponse> lookupAndSave(CompetitorLookupRequest request) {
+        rejectLegacyDirectExecution();
         List<String> allAsins = request.getAsins();
         List<List<String>> batches = partition(allAsins, BATCH_SIZE);
 
@@ -89,6 +92,16 @@ public class CompetitorService {
      * 单批查询 + 入库，返回统计摘要供前端进度显示
      */
     public Map<String, Object> doLookupAndSave(CompetitorLookupRequest request, String month, java.time.LocalDateTime batchTime) {
+        return doLookupAndSave(request, month, batchTime, ssApi::competitorLookup);
+    }
+
+    /**
+     * 单批查询 + 入库的可注入执行入口。
+     * 请求中心传入统一执行网关，以便每页调用关联到 run/item 审计；旧入口保留默认卖家精灵代理。
+     */
+    public Map<String, Object> doLookupAndSave(CompetitorLookupRequest request, String month,
+                                               java.time.LocalDateTime batchTime,
+                                               Function<CompetitorLookupRequest, JsonNode> lookupExecutor) {
         log.info("API请求参数: marketplace={}, variation={}, size={}, page={}, asins={}个, month={}",
                 request.getMarketplace(), request.getVariation(), request.getSize(), request.getPage(),
                 request.getAsins() != null ? request.getAsins().size() : 0, month);
@@ -104,7 +117,7 @@ public class CompetitorService {
         int total = 0;
         while (true) {
             request.setPage(page);
-            JsonNode data = ssApi.competitorLookup(request);
+            JsonNode data = lookupExecutor.apply(request);
             if (page == 1) {
                 total = data.path("total").asInt(0);
             }
@@ -221,6 +234,11 @@ public class CompetitorService {
             batches.add(new ArrayList<>(asins.subList(fullBatches * batchSize, total)));
         }
         return batches;
+    }
+
+    /** 旧同步竞品查询已下线，调用方必须创建请求中心运行任务。 */
+    private void rejectLegacyDirectExecution() {
+        throw new UnsupportedOperationException("同步竞品查询已迁移到卖家精灵请求中心，请创建 runId 后查看执行进度");
     }
 
     private static String truncate(String s, int maxLen) {

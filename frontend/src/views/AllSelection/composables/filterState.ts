@@ -55,7 +55,7 @@ function createDefaultFilterState(country: string): FilterState {
     country,
     sellerSelect: "",
     category: [],
-    sortField: "score",
+    sortField: "createdAt",
     sortOrder: "desc",
     range: emptyRange(),
   };
@@ -68,7 +68,7 @@ function createFilterStateFromConfig(config: Record<string, any>): FilterState {
     country: config.country ?? "",
     sellerSelect: config.sellerSelect ?? "",
     category,
-    sortField: config.sortField ?? "score",
+    sortField: config.sortField === "score" ? "createdAt" : (config.sortField ?? "createdAt"),
     sortOrder: config.sortOrder ?? "desc",
     range: {
       priceMin: config.priceMin ?? null,
@@ -87,7 +87,7 @@ function createFilterStateFromConfig(config: Record<string, any>): FilterState {
         ? [...config.createdWeeks]
         : [],
       category,
-      grade: Array.isArray(config.grade) ? [...config.grade] : [],
+      grade: [],
       listingPreset: config.listingPreset ?? null,
     },
   };
@@ -102,7 +102,7 @@ export function buildPresetConfig(
     category: [...filters.category],
     country: filters.country || "",
     sellerSelect: filters.sellerSelect || "",
-    sortField: filters.sortField || "score",
+    sortField: filters.sortField === "score" ? "createdAt" : (filters.sortField || "createdAt"),
     sortOrder: filters.sortOrder || "desc",
     qualifyRules,
   };
@@ -226,10 +226,6 @@ export function useSelectionFilterState(
       });
     }
 
-    if (range.grade.length) {
-      chips.push({ key: "grade", label: `评级: ${range.grade.join("/")}` });
-    }
-
     if (range.createdWeeks.length) {
       chips.push({
         key: "createdWeeks",
@@ -278,7 +274,7 @@ export function useSelectionFilterState(
       country: activeFilters.value.country,
       sellerSelect: "",
       category: [...activeFilters.value.category],
-      sortField: "score",
+      sortField: "createdAt",
       sortOrder: "desc",
       range: emptyRange(),
     };
@@ -326,9 +322,6 @@ export function useSelectionFilterState(
       case "fulfillment":
         range.fulfillment = [];
         break;
-      case "grade":
-        range.grade = [];
-        break;
       case "createdWeeks":
         range.createdWeeks = [];
         break;
@@ -351,7 +344,7 @@ export function useSelectionFilterState(
     buildPresetConfig(activeFilters.value, options.getQualifyRules());
 
   const handlePresetApply = (config: Record<string, any>) => {
-    // preset 里 category/fulfillment/grade/createdWeeks 存的是数组,
+    // preset 里 category/fulfillment/createdWeeks 存的是数组,
     // 但 SelectionQueryParams 里 category 是逗号分隔字符串;
     // 其他数组字段不属于查询表单,只属于 activeFilters,不应回灌到 formData
     options.patchQueryParams({

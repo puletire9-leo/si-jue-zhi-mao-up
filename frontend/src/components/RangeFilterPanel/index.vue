@@ -2,6 +2,7 @@
 import { ref, watch, computed, onMounted } from "vue";
 import { QuestionFilled } from "@element-plus/icons-vue";
 import { getCreatedWeeks, getDengZongBatchDates } from "@/api/competitor";
+import shopCollectionApi from "@/api/shopCollection";
 
 export interface RangeFilterValue {
   priceMin: number | null;
@@ -20,13 +21,25 @@ export interface RangeFilterValue {
   listingPreset: number | null;
 }
 
+export interface RangeSnapshotOption {
+  value: string;
+  label: string;
+  count: number;
+  startDate?: string;
+  endDate?: string;
+}
+
 const props = withDefaults(
   defineProps<{
     modelValue?: RangeFilterValue;
     country?: string;
     /** 来源（如 '新品榜' / '竞品店铺'，与数据库 source 一致），用于把入库批次下拉对齐到查询口径 */
     source?: string;
-    snapshotKind?: "competitor_created_week" | "deng_zong_batch";
+    snapshotKind?: "competitor_created_week" | "deng_zong_batch" | "shop_batch";
+    /** 外部页面提供自己的周期选项时复用本组件，不再请求选品源批次接口。 */
+    snapshotOptions?: RangeSnapshotOption[];
+    snapshotLabelText?: string;
+    snapshotPlaceholderText?: string;
     /** 是否在加载批次列表后自动默认选中最新一项（首次进入时）。默认 true */
     autoSelectLatestWeek?: boolean;
     /** 嵌入抽屉/卡片时为 true：去掉自身灰底边框，与外层风格统一 */
@@ -81,8 +94,6 @@ const LISTING_PRESETS = [
   { label: "360天内", value: 360 },
 ];
 
-const GRADE_OPTIONS = ["S", "A", "B", "C", "D"];
-
 const TOOLTIPS = {
   price: "设置价格区间筛选商品",
   units: "设置月销量区间筛选商品",
@@ -92,17 +103,18 @@ const TOOLTIPS = {
   weight: "仅显示重量不超过该值（克）的商品",
   fulfillment:
     "按配送方式筛选商品，AMZ=亚马逊自营，FBA=亚马逊物流，FBM=自发货",
-  grade: "按评分等级筛选商品",
 } as const;
 
 const currencySymbol = computed(() => CURRENCY_MAP[props.country] ?? "$");
 const snapshotLabel = computed(() =>
-  props.snapshotKind === "deng_zong_batch" ? "入库批次（批次日）" : "入库批次（周）",
+  props.snapshotLabelText ||
+  (props.snapshotKind === "competitor_created_week" ? "入库批次（周）" : "入库批次（批次日）"),
 );
 const snapshotPlaceholder = computed(() =>
-  props.snapshotKind === "deng_zong_batch"
-    ? "选择批次日期（默认最新）"
-    : "选择周批次（默认最新）",
+  props.snapshotPlaceholderText ||
+  (props.snapshotKind === "competitor_created_week"
+    ? "选择周批次（默认最新）"
+    : "选择批次日期"),
 );
 
 function clone(v: RangeFilterValue): RangeFilterValue {
@@ -170,15 +182,7 @@ function clearListingPreset() {
   local.value.listingDaysMax = null;
 }
 
-const availableSnapshots = ref<
-  Array<{
-    value: string;
-    label: string;
-    count: number;
-    startDate?: string;
-    endDate?: string;
-  }>
->([]);
+const availableSnapshots = ref<RangeSnapshotOption[]>([]);
 // 记录已自动填充过默认最新项的 (country|source|snapshotKind) 组合，
 // 避免用户主动清空后又被填回。
 const autoFilledKeys = new Set<string>();
@@ -193,7 +197,7 @@ function toMd(d?: string): string {
 
 /**
  * 批次下拉 label：周批次显示日期范围（如 7/6-7/12），比 ISO 周号（2026-W28）直观；
- * 郑总批次日等无起止范围的，退回原 label。统一带条数。
+ * 非标批次日等无起止范围的，退回原 label。统一带条数。
  */
 function formatSnapshotLabel(item: {
   label: string;
@@ -215,9 +219,18 @@ const latestWeekSummary = computed(() => {
 });
 
 async function loadAvailableWeeks() {
-  if (props.snapshotKind === "deng_zong_batch") {
+  if (props.snapshotOptions !== undefined) {
+    availableSnapshots.value = props.snapshotOptions.map((item) => ({ ...item }));
+  } else if (props.snapshotKind === "deng_zong_batch") {
     const res = await getDengZongBatchDates(props.country);
     availableSnapshots.value = (res?.data ?? []).map((item) => ({
+      value: item.batchDate,
+      label: item.batchDate,
+      count: item.count,
+    }));
+  } else if (props.snapshotKind === "shop_batch") {
+    const rows = await shopCollectionApi.selectionBatches(props.country);
+    availableSnapshots.value = rows.map((item) => ({
       value: item.batchDate,
       label: item.batchDate,
       count: item.count,
@@ -253,6 +266,12 @@ onMounted(loadAvailableWeeks);
 watch(
   () => [props.country, props.source, props.snapshotKind],
   loadAvailableWeeks,
+);
+
+watch(
+  () => props.snapshotOptions,
+  loadAvailableWeeks,
+  { deep: true },
 );
 </script>
 
@@ -485,24 +504,6 @@ watch(
             placement="top"
             trigger="hover"
           >
-            <el-icon class="rfp__tip"><QuestionFilled /></el-icon>
-          </el-tooltip>
-        </div>
-      </div>
-      <div class="rfp__field">
-        <label class="rfp__label">评分等级</label>
-        <div class="rfp__single">
-          <el-checkbox-group v-model="local.grade" class="rfp__chk-group">
-            <el-checkbox
-              v-for="g in GRADE_OPTIONS"
-              :key="g"
-              :label="g"
-              :value="g"
-            >
-              {{ g }}
-            </el-checkbox>
-          </el-checkbox-group>
-          <el-tooltip :content="TOOLTIPS.grade" placement="top" trigger="hover">
             <el-icon class="rfp__tip"><QuestionFilled /></el-icon>
           </el-tooltip>
         </div>

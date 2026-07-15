@@ -1,8 +1,11 @@
 package com.sjzm.product.modules.shopcollection.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.sjzm.common.PageResult;
 import com.sjzm.product.methodrule.M01Rule;
+import com.sjzm.product.methodrule.M03Rule;
 import com.sjzm.product.modules.analysisbaseline.common.MarketplaceSupport;
 import com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileProduct;
 import com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileSummary;
@@ -14,6 +17,7 @@ import com.sjzm.product.modules.shopcollection.dto.ShopCategoryInsight;
 import com.sjzm.product.modules.shopcollection.dto.ShopCategoryRiskInsight;
 import com.sjzm.product.modules.shopcollection.dto.ShopCollectionDetail;
 import com.sjzm.product.modules.shopcollection.dto.ShopCollectionInsight;
+import com.sjzm.product.modules.shopcollection.dto.ShopProductSelectionQuery;
 import com.sjzm.product.modules.shopcollection.dto.ShopMatrix;
 import com.sjzm.product.modules.shopcollection.dto.ShopMatrixCell;
 import com.sjzm.product.modules.shopcollection.dto.ShopSnapshot;
@@ -547,6 +551,164 @@ public class ShopCollectionService {
                 .filter(s -> nvl(s.getAttentionStrongCount()) <= strongMax)
                 .limit(finalLimit)
                 .collect(Collectors.toList());
+    }
+
+    // ========================================================================
+    //  统一选品页适配（跨店 shop_products 卡片流）
+    // ========================================================================
+
+    /**
+     * 店铺商品跨店分页。统一选品页与新品榜共用一套筛选外壳，仅在这里替换数据源。
+     */
+    public PageResult<ShopProduct> selectionProducts(ShopProductSelectionQuery query) {
+        int page = Math.max(1, query.getPage() == null ? 1 : query.getPage());
+        int size = Math.min(500, Math.max(1, query.getSize() == null ? 60 : query.getSize()));
+        String marketplace = MarketplaceSupport.require(query.getMarketplace());
+        String methodId = normalizeSelectionMethod(query.getMethodId());
+
+        LambdaQueryWrapper<ShopProduct> qw = new LambdaQueryWrapper<ShopProduct>()
+                .eq(ShopProduct::getMarketplace, marketplace)
+                .in(hasItems(query.getAsins()), ShopProduct::getAsin, query.getAsins())
+                .like(StringUtils.hasText(query.getTitle()), ShopProduct::getTitle, query.getTitle())
+                .like(StringUtils.hasText(query.getSellerName()), ShopProduct::getSellerName, query.getSellerName())
+                .like(StringUtils.hasText(query.getBrand()), ShopProduct::getBrand, query.getBrand())
+                .in(hasItems(query.getBatchDates()), ShopProduct::getBatchDate, query.getBatchDates())
+                .ge(query.getPriceMin() != null, ShopProduct::getPrice, query.getPriceMin())
+                .le(query.getPriceMax() != null, ShopProduct::getPrice, query.getPriceMax())
+                .ge(query.getUnitsMin() != null, ShopProduct::getUnits, query.getUnitsMin())
+                .le(query.getUnitsMax() != null, ShopProduct::getUnits, query.getUnitsMax())
+                .ge(query.getListingDaysMin() != null, ShopProduct::getListingDays, query.getListingDaysMin())
+                .le(query.getListingDaysMax() != null, ShopProduct::getListingDays, query.getListingDaysMax())
+                .le(query.getBsrMax() != null, ShopProduct::getBsr, query.getBsrMax())
+                .le(query.getWeightMax() != null, ShopProduct::getWeightG, query.getWeightMax())
+                .le(query.getMaxVariantCount() != null, ShopProduct::getVariations, query.getMaxVariantCount())
+                .in(hasItems(query.getFulfillment()), ShopProduct::getFulfillment, query.getFulfillment())
+                .in(hasItems(query.getGrade()), ShopProduct::getGrade, query.getGrade());
+
+        applySelectionMethodRule(qw, methodId, marketplace);
+
+        if (hasItems(query.getCategories())) {
+            List<String> categories = query.getCategories().stream().filter(StringUtils::hasText).toList();
+            if (!categories.isEmpty()) {
+                qw.and(group -> {
+                    group.like(ShopProduct::getNodeLabelPath, categories.get(0));
+                    for (int i = 1; i < categories.size(); i++) {
+                        group.or().like(ShopProduct::getNodeLabelPath, categories.get(i));
+                    }
+                });
+            }
+        }
+
+        boolean asc = "asc".equalsIgnoreCase(query.getSortOrder());
+        switch (query.getSortBy() == null ? "" : query.getSortBy()) {
+            case "salesVolume" -> qw.orderBy(true, asc, ShopProduct::getUnits);
+            case "price" -> qw.orderBy(true, asc, ShopProduct::getPrice);
+            case "listingDate" -> qw.orderBy(true, asc, ShopProduct::getAvailableDate);
+            case "bsr" -> qw.orderBy(true, asc, ShopProduct::getBsr);
+            case "score" -> qw.orderBy(true, asc, ShopProduct::getScore);
+            case "createdAt" -> qw.orderBy(true, asc, ShopProduct::getCreatedAt);
+            default -> qw.orderByDesc(ShopProduct::getUpdatedAt);
+        }
+
+        Page<ShopProduct> result = shopProductMapper.selectPage(new Page<>(page, size), qw);
+        return PageResult.of(result.getRecords(), result.getTotal(), (long) page, (long) size);
+    }
+
+    /** 统一选品页的店铺商品类目下拉。 */
+    public List<Map<String, Object>> selectionCategories(String marketplace) {
+        String mp = MarketplaceSupport.require(marketplace);
+        QueryWrapper<ShopProduct> qw = new QueryWrapper<ShopProduct>()
+                .select("node_label_path AS category", "COUNT(1) AS count")
+                .eq("marketplace", mp)
+                .isNotNull("node_label_path")
+                .ne("node_label_path", "")
+                .groupBy("node_label_path")
+                .orderByDesc("count")
+                .last("LIMIT 200");
+        return shopProductMapper.selectMaps(qw);
+    }
+
+    /** 统一选品页的店铺抓取批次下拉；不默认过滤，用户选择后才按批次收窄。 */
+    public List<Map<String, Object>> selectionBatches(String marketplace) {
+        String mp = MarketplaceSupport.require(marketplace);
+        QueryWrapper<ShopProduct> qw = new QueryWrapper<ShopProduct>()
+                .select("batch_date AS batchDate", "COUNT(1) AS count")
+                .eq("marketplace", mp)
+                .isNotNull("batch_date")
+                .ne("batch_date", "")
+                .groupBy("batch_date")
+                .orderByDesc("batch_date");
+        return shopProductMapper.selectMaps(qw);
+    }
+
+    private static boolean hasItems(Collection<?> values) {
+        return values != null && !values.isEmpty();
+    }
+
+    /**
+     * 方法规则与数据源分离：规则只收窄当前的 shop_products 查询，绝不改为读取其他表。
+     * 所有条件都在 SQL 分页前执行，避免将跨店全量商品拉到 JVM 内存后再筛选。
+     */
+    private static void applySelectionMethodRule(LambdaQueryWrapper<ShopProduct> qw,
+                                                 String methodId,
+                                                 String marketplace) {
+        if (methodId == null) {
+            return;
+        }
+        if ("M01".equals(methodId)) {
+            applyM01SelectionRule(qw, M01Rule.forMarketplace(marketplace));
+            return;
+        }
+        if ("M03".equals(methodId)) {
+            applyM03SelectionRule(qw, M03Rule.forMarketplace(marketplace));
+            return;
+        }
+        throw new IllegalArgumentException("店铺选品仅支持 M01 或 M03 方法卡");
+    }
+
+    private static void applyM01SelectionRule(LambdaQueryWrapper<ShopProduct> qw, M01Rule rule) {
+        qw.ge(ShopProduct::getPrice, rule.priceMin())
+                .le(ShopProduct::getPrice, rule.priceMax())
+                .lt(ShopProduct::getWeightG, rule.weightMax())
+                .lt(ShopProduct::getListingDays, rule.listingDaysMax());
+
+        // 与 M01Rule.matches 的 30/60/90 天分档及 BSR 兜底保持逐项同口径。
+        qw.and(group -> {
+            group.and(days30 -> days30
+                            .le(ShopProduct::getListingDays, 30)
+                            .ge(ShopProduct::getUnits, rule.sales30()))
+                    .or(days60 -> days60
+                            .gt(ShopProduct::getListingDays, 30)
+                            .le(ShopProduct::getListingDays, 60)
+                            .ge(ShopProduct::getUnits, rule.sales60()))
+                    .or(days90 -> days90
+                            .gt(ShopProduct::getListingDays, 60)
+                            .lt(ShopProduct::getListingDays, rule.listingDaysMax())
+                            .ge(ShopProduct::getUnits, rule.sales90()));
+            if (rule.bsrMax() != null) {
+                group.or(bsr -> bsr
+                        .gt(ShopProduct::getBsr, 0)
+                        .lt(ShopProduct::getBsr, rule.bsrMax()));
+            }
+        });
+    }
+
+    private static void applyM03SelectionRule(LambdaQueryWrapper<ShopProduct> qw, M03Rule rule) {
+        // M03Rule 对 fulfillment 的定义为大小写不敏感；数据库条件同步保持该语义。
+        qw.apply("UPPER(fulfillment) = {0}", "FBM")
+                .lt(ShopProduct::getListingDays, rule.listingDaysMax())
+                .ge(ShopProduct::getUnits, rule.sales90());
+    }
+
+    private static String normalizeSelectionMethod(String methodId) {
+        if (!StringUtils.hasText(methodId)) {
+            return null;
+        }
+        String normalized = methodId.trim().toUpperCase(Locale.ROOT);
+        if (!"M01".equals(normalized) && !"M03".equals(normalized)) {
+            throw new IllegalArgumentException("店铺选品暂不支持 " + normalized + " 方法卡");
+        }
+        return normalized;
     }
 
     /** 单店全集商品明细分页（三维筛选：销量层 / 时间层 / 注意层 / M01 / 关键词 / 类目）。 */

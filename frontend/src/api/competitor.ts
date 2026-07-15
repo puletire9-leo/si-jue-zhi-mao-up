@@ -177,6 +177,24 @@ export interface CompetitorListResponse {
   size: number;
 }
 
+export type SelectionCsvSource =
+  | "competitor_clean"
+  | "competitor_raw"
+  | "deng_zong"
+  | "shop_products";
+
+export interface SelectionCsvRowRef {
+  id?: string;
+  asin: string;
+  snapshotKey?: string;
+}
+
+export interface SelectionCsvExportRequest {
+  source: SelectionCsvSource;
+  marketplace: string;
+  rows: SelectionCsvRowRef[];
+}
+
 /**
  * 将 Java 竞品数据转换为前端统一格式（同时提供新旧两种字段名）
  */
@@ -204,7 +222,7 @@ export function normalizeProduct(
 
 /**
  * 根据 source 字段推断产品类型
- * @param source 来源字段（如 '新品榜', '竞品', '郑总店铺'）
+ * @param source 来源字段（如 '新品榜', '竞品', '非标店铺'）
  * @returns 'new' | 'reference' | 'zheng' | ''
  */
 export function getProductType(
@@ -213,11 +231,26 @@ export function getProductType(
   if (!source) return "";
   if (source.includes("新品")) return "new";
   if (source.includes("竞品")) return "reference";
-  if (source.includes("郑总") || source.includes("店铺上新")) return "zheng";
+  if (
+    source.includes("非标") ||
+    source.includes("\u90d1\u603b") ||
+    source.includes("店铺上新")
+  ) {
+    return "zheng";
+  }
   return "";
 }
 
 export const competitorApi = {
+  exportSelectionCsv(data: SelectionCsvExportRequest): Promise<Blob> {
+    return request({
+      url: "/api/v1/competitor/export-current-page",
+      method: "post",
+      data,
+      responseType: "blob",
+    });
+  },
+
   getVariants(
     marketplace: string,
     parentAsin: string,
@@ -387,7 +420,6 @@ export const competitorApi = {
       url: "/api/v1/deng-zong-shop/sync",
       method: "post",
       data,
-      timeout: 120000,
     });
   },
   getDengZongVariants(marketplace: string, parentAsin: string): Promise<any> {
@@ -432,7 +464,7 @@ export function getDengZongBatchDates(
 
 /**
  * 获取入库批次列表（按 created_at 实时计算的 ISO 周 + 每周条数，按周倒序，第一条为最新批次）。
- * @param source 来源（竞品/新品/郑总），按 LIKE 匹配；省略则不限来源
+ * @param source 来源（竞品/新品/非标），按 LIKE 匹配；省略则不限来源
  * @param filterMode 筛选模式，默认 MODE1
  */
 export function getCreatedWeeks(

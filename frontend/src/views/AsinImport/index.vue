@@ -574,13 +574,8 @@ async function handleSellerExecute() {
   try {
     const data: any = await asinImportApi.sellerExecute(sellerPreviewData.value.taskId, month.value)
     const task = data.data || data
-    previewData.value = { taskId: task.taskId } as any
-    Object.assign(progress, {
-      taskId: task.taskId, batchTotal: task.batchTotal ?? sellerPreviewData.value.sellerCount,
-      batchCurrent: 0, apiSuccess: 0, apiFail: 0, statusText: '调用中', taskStatus: 'RUNNING'
-    })
-    startPolling(task.taskId)
-    startQuotaPolling()
+    ElMessage.success('卖家名批量任务已创建，正在跳转请求中心')
+    await router.push({ name: 'module-sellersprite-request-center-SellerspriteRequestCenter', query: { runId: task.runId } })
   } catch (e: any) {
     ElMessage.error(e?.message || '启动失败')
   }
@@ -677,8 +672,8 @@ async function handleConfirmAndExecute() {
   try {
     const data: any = await asinImportApi.execute(previewData.value.taskId, month.value, marketplace.value)
     const task = data.data || data
-    Object.assign(progress, task, { statusText: '调用中' })
-    startPolling(task.taskId || previewData.value.taskId)
+    ElMessage.success('ASIN 请求任务已创建，正在跳转请求中心')
+    await router.push({ name: 'module-sellersprite-request-center-SellerspriteRequestCenter', query: { runId: task.runId } })
   } catch (e: any) {
     ElMessage.error(e?.message || '启动失败')
   }
@@ -738,9 +733,8 @@ async function handleResume() {
   try {
     const data: any = await asinImportApi.execute(taskId, month.value, marketplace.value)
     const task = data.data || data
-    Object.assign(progress, task, { taskStatus: 'RUNNING', statusText: '调用中' })
-    startPolling(taskId)
-    ElMessage.success('继续执行')
+    ElMessage.success('请求任务已恢复，正在跳转请求中心')
+    await router.push({ name: 'module-sellersprite-request-center-SellerspriteRequestCenter', query: { runId: task.runId } })
   } catch (e: any) {
     ElMessage.error(e?.message || '继续失败')
   }
@@ -776,8 +770,8 @@ function onRetryCreated(newTaskId: number) {
 
 function handleDone() {
   stopQuotaPolling()
-  ElMessageBox.confirm('API 调用完成，是否跳转查看竞品数据？', '完成', { confirmButtonText: '去查看', cancelButtonText: '留在此页' })
-    .then(() => router.push('/reference-products'))
+  ElMessageBox.confirm('API 调用完成，是否前往请求中心查看任务与结果？', '完成', { confirmButtonText: '去查看', cancelButtonText: '留在此页' })
+    .then(() => router.push({ name: 'module-sellersprite-request-center-SellerspriteRequestCenter' }))
     .catch(() => {})
 }
 

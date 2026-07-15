@@ -3,57 +3,70 @@
     <div class="selection-layout">
       <!-- 内容区域 -->
       <div class="content">
-        <el-alert
-          v-if="isReferenceProductsRoute"
-          type="warning"
-          :closable="false"
-          show-icon
-          class="reference-hint"
-          title="这里是历史导入 / 旧竞品商品数据"
-          description="按店铺研究商品，请进入「店铺总览 → 店铺全集画像」，那里的商品数据源为 shop_products，是最新的店铺全集。"
-        />
         <el-card class="main-card">
           <template #header>
             <div class="card-header">
               <span>{{ getSectionTitle() }}</span>
               <div class="header-actions">
                 <!-- 高频操作 — 常驻 -->
-                <el-button type="primary" :icon="Plus" @click="handleAdd">
+                <el-button v-if="!isShopProductsScene" type="primary" :icon="Plus" @click="handleAdd">
                   添加选品
                 </el-button>
-                <el-button type="success" :icon="Upload" @click="handleImport">
+                <el-button v-if="!isShopProductsScene" type="success" :icon="Upload" @click="handleImport">
                   导入Excel
                 </el-button>
-                <el-button
-                  type="warning"
-                  :icon="Star"
-                  :loading="scoringCurrentWeek"
-                  @click="handleScoreCurrentWeek"
-                >
-                  一键计算评级
-                </el-button>
-
                 <!-- 选中后出现的批量操作 -->
                 <template v-if="selectedIds.length > 0">
                   <el-button
+                    v-if="isManualLibrarySourceScene"
+                    type="success"
+                    :icon="Collection"
+                    :loading="libraryAddingBucket === 'GOOD'"
+                    @click="handleAddToDeveloperLibrary('GOOD')"
+                  >
+                    加入选品库 ({{ selectedIds.length }})
+                  </el-button>
+                  <el-button
+                    v-if="isManualLibrarySourceScene"
+                    type="warning"
+                    :icon="Warning"
+                    :loading="libraryAddingBucket === 'BAD'"
+                    @click="handleAddToDeveloperLibrary('BAD')"
+                  >
+                    加入差品库 ({{ selectedIds.length }})
+                  </el-button>
+                  <el-button
+                    v-if="!isShopProductsScene"
                     type="danger"
                     :icon="Delete"
                     @click="handleBatchDelete"
                   >
                     批量删除 ({{ selectedIds.length }})
                   </el-button>
-                  <el-button
-                    type="success"
-                    :icon="Download"
-                    :loading="exporting"
-                    @click="handleExportAsins"
-                  >
-                    导出选中ASIN ({{ selectedIds.length }})
-                  </el-button>
                 </template>
 
+                <el-button
+                  type="success"
+                  :icon="Download"
+                  :loading="exportingAllResults"
+                  :disabled="loading || pagination.total === 0"
+                  @click="handleExportAllResultsCsv"
+                >
+                  下载全部 CSV
+                </el-button>
+
+                <el-button
+                  v-if="isManualLibrarySourceScene"
+                  :type="selectionMode ? 'danger' : 'primary'"
+                  :plain="!selectionMode"
+                  :icon="Select"
+                  @click="toggleSelectionMode"
+                >
+                  {{ selectionMode ? '退出选择' : '选择模式' }}
+                </el-button>
+
                 <!-- 全选（带下拉） -->
-                <el-dropdown @command="handleSelectAll">
+                <el-dropdown v-if="cardSelectionEnabled" @command="handleSelectAll">
                   <el-button type="primary" :icon="Select"> 全选 </el-button>
                   <template #dropdown>
                     <el-dropdown-menu>
@@ -199,9 +212,6 @@
             @apply="onNewRulesApply"
           />
 
-          <!-- 评分配置面板 -->
-          <ScoringConfigPanel v-if="activeTab === 'all'" />
-
           <!-- 置顶开关 + 清洗表开关 -->
           <div class="variant-filter-bar">
             <span class="filter-label">选中置顶</span>
@@ -212,7 +222,7 @@
               :inactive-action-icon="Bottom"
             />
             <el-tooltip
-              v-if="activeTab !== 'zheng'"
+              v-if="activeTab !== 'zheng' && !isShopProductsScene"
               placement="top"
               content="开启后只显示父群组代表行（去变体污染）；关闭后展示原始所有变体"
             >
@@ -221,32 +231,78 @@
               </span>
             </el-tooltip>
             <el-switch
-              v-if="activeTab !== 'zheng'"
+              v-if="activeTab !== 'zheng' && !isShopProductsScene"
               v-model="useCleanTable"
               size="small"
               @change="onUseCleanTableChange"
             />
           </div>
 
+          <!-- 卡片缩放：等比例缩小卡片本身，而不是只改变每页请求数量。 -->
+          <div class="card-display-settings">
+            <div class="card-display-settings__copy">
+              <span class="card-display-settings__title">卡片大小</span>
+              <span class="card-display-settings__hint">缩小后同一行自动显示更多卡片</span>
+            </div>
+            <div class="card-display-settings__controls" role="group" aria-label="卡片大小">
+              <el-button
+                size="small"
+                aria-label="缩小卡片"
+                :disabled="cardScale <= CARD_SCALE_MIN"
+                @click="adjustCardScale(-CARD_SCALE_STEP)"
+              >
+                −
+              </el-button>
+              <span class="card-display-settings__count">{{ cardScalePercent }}%</span>
+              <el-button
+                size="small"
+                type="primary"
+                aria-label="放大卡片"
+                :disabled="cardScale >= CARD_SCALE_MAX"
+                @click="adjustCardScale(CARD_SCALE_STEP)"
+              >
+                +
+              </el-button>
+            </div>
+          </div>
+
           <template v-if="loading && !hasLoaded">
             <SkeletonWrapper variant="card-grid" :count="12" />
           </template>
-          <div v-else v-loading="refreshing" class="products-grid">
-            <UniversalCard
+          <div
+            v-else
+            v-loading="refreshing"
+            class="products-grid"
+            :style="productGridStyle"
+          >
+            <div
               v-for="product in sortedProductList"
               :key="product.id"
-              :product="product"
-              :selected="selectedIds.includes(product.asin)"
-              :is-selected-by-me="mySelections.has(product.asin)"
-              :selected-by-users="selectionUsersMap[product.asin] || []"
-              mode="selection"
-              @click="handleCardClick"
-              @select="handleSelect"
-              @toggle-select="handleToggleSelect"
-              @view="handleView"
-              @delete="handleDelete"
-              @image-search="handleImageSearch"
-            />
+              class="product-card-scale-wrapper"
+              :style="cardWrapperStyle(product)"
+            >
+              <div
+                :ref="(element) => setCardScaleCanvasRef(productCardKey(product), element)"
+                class="product-card-scale-canvas"
+                :data-card-key="productCardKey(product)"
+              >
+                <UniversalCard
+                  :product="product"
+                  :selected="selectedIds.includes(product.asin)"
+                  :is-selected-by-me="mySelections.has(product.asin)"
+                  :selected-by-users="selectionUsersMap[product.asin] || []"
+                  :selectable="cardSelectionEnabled"
+                  :show-delete="!isShopProductsScene"
+                  mode="selection"
+                  @click="handleCardClick"
+                  @select="handleSelect"
+                  @toggle-select="handleToggleSelect"
+                  @view="handleView"
+                  @delete="handleDelete"
+                  @image-search="handleImageSearch"
+                />
+              </div>
+            </div>
 
             <el-empty
               v-if="!loading && productList.length === 0"
@@ -291,12 +347,16 @@
                   </el-tag>
                 </div>
                 <div class="method-card__desc">
-                  clean 表去变体污染后，按价格带、重量、上架天数、销量分段或 BSR
-                  代理筛出新品候选。
+                  {{
+                    isShopProductsScene
+                      ? "在店铺商品数据中，按价格带、重量、上架天数、销量分段或 BSR 代理筛出新品候选。"
+                      : "clean 表去变体污染后，按价格带、重量、上架天数、销量分段或 BSR 代理筛出新品候选。"
+                  }}
                 </div>
                 <div class="method-card__meta">
                   <span>适合：新品榜快筛</span>
                   <span>站点：UK / DE / US</span>
+                  <span v-if="isShopProductsScene">数据源：shop_products</span>
                   <span>输出：候选 + 命中原因</span>
                 </div>
               </div>
@@ -323,10 +383,10 @@
               </div>
             </div>
 
-            <div class="method-card method-card--m02">
+            <div v-if="!isShopProductsScene" class="method-card method-card--m02">
               <div class="method-card__body">
                 <div class="method-card__head">
-                  <div class="method-card__name">M02 郑总同行品线跟随法</div>
+                  <div class="method-card__name">M02 非标同行品线跟随法</div>
                   <el-tag
                     v-if="activeMethodCard?.id === 'M02'"
                     type="success"
@@ -337,7 +397,7 @@
                   </el-tag>
                 </div>
                 <div class="method-card__desc">
-                  用郑总同行店铺最新批次作为基准盘子，筛选同行已经验证过的候选商品。
+                  用非标同行店铺最新批次作为基准盘子，筛选同行已经验证过的候选商品。
                 </div>
                 <div class="method-card__meta">
                   <span>适合：同行跟随 / 选品优先级</span>
@@ -382,12 +442,16 @@
                   </el-tag>
                 </div>
                 <div class="method-card__desc">
-                  clean 表里过滤 fulfillment=FBM，用 90 天单一销量门槛快速找 FBM
-                  自发货候选。
+                  {{
+                    isShopProductsScene
+                      ? "在店铺商品数据中固定过滤 fulfillment=FBM，用 90 天单一销量门槛快速找自发货候选。"
+                      : "clean 表里过滤 fulfillment=FBM，用 90 天单一销量门槛快速找 FBM 自发货候选。"
+                  }}
                 </div>
                 <div class="method-card__meta">
                   <span>适合：FBM 自发货打法</span>
                   <span>站点：UK≥5 / DE≥10 / US≥20</span>
+                  <span v-if="isShopProductsScene">数据源：shop_products</span>
                   <span>输出：候选 + 命中原因</span>
                 </div>
               </div>
@@ -445,7 +509,6 @@
                 clearable
                 style="width: 150px"
               >
-                <el-option label="评分" value="score" />
                 <el-option label="销量" value="salesVolume" />
                 <el-option label="BSR" value="bsr" />
                 <el-option label="价格" value="price" />
@@ -472,7 +535,7 @@
               :country="activeFilters.country || 'UK'"
               :source="currentSource"
               :snapshot-kind="currentSnapshotKind"
-              :auto-select-latest-week="!activeMethodCard"
+              :auto-select-latest-week="!activeMethodCard && !isShopProductsScene"
               embedded
             />
           </div>
@@ -625,8 +688,11 @@
           data-source="selection"
           :show-edit-button="false"
           :show-delete-button="true"
+          :show-developer-library-actions="isManualLibrarySourceScene"
+          :developer-library-loading="libraryAddingBucket || ''"
           @delete="handleDeleteProduct"
           @select-product="handleSelectProduct"
+          @add-to-developer-library="handleAddSingleToDeveloperLibrary"
         />
 
         <!-- 添加选品对话框 -->
@@ -974,6 +1040,9 @@
     <MethodDetailDrawer
       v-model="methodDetailVisible"
       :method-id="methodDetailId"
+      :shop-products-source="isShopProductsScene"
+      :marketplace="activeFilters.country || 'UK'"
+      @rule-saved="onM01RuleSaved"
     />
   </div>
 </template>
@@ -985,8 +1054,9 @@ import {
   reactive,
   onMounted,
   onUnmounted,
+  onActivated,
+  onDeactivated,
   computed,
-  watch,
   nextTick,
 } from "vue";
 import { useRouter, useRoute } from "vue-router";
@@ -1006,7 +1076,6 @@ import {
   Collection,
   TrendCharts,
   Shop,
-  Star,
   Trophy,
   Top,
   Bottom,
@@ -1031,13 +1100,13 @@ import {
   defaultQueryParams,
   type SelectionQueryParams,
 } from "@/components/SelectionQueryForm/types";
-import ScoringConfigPanel from "./ScoringConfigPanel.vue";
 import FilterPresetSelector from "@/components/FilterPresetSelector/index.vue";
 import QualifyRuleFilter from "@/components/QualifyRuleFilter/index.vue";
 import RangeFilterPanel from "@/components/RangeFilterPanel/index.vue";
 import FilterDrawer from "@/components/FilterDrawer/index.vue";
 import { selectionApi } from "@/api/selection";
 import { competitorApi } from "@/api/competitor";
+import shopCollectionApi from "@/api/shopCollection";
 import type { QualifyRule } from "@/api/competitor";
 import {
   buildSelectionFilterIntent,
@@ -1047,6 +1116,7 @@ import {
   type SelectionQueryPlan,
 } from "./composables/queryPlan";
 import { resolveSelectionQueryPlan } from "./composables/queryRuntime";
+import { downloadAllResultsCsv } from "./composables/selectionCsv";
 import { emptyRange, useSelectionFilterState } from "./composables/filterState";
 import MethodDetailDrawer from "@/components/MethodDetailDrawer/index.vue";
 import {
@@ -1055,12 +1125,18 @@ import {
   trackClick,
 } from "@/api/clickLog";
 import { useUserStore } from "@/stores/user";
+import {
+  developerSelectionLibraryApi,
+  type DeveloperLibraryBucket,
+  type DeveloperSelectionSnapshot,
+} from "@/api/developerSelectionLibrary";
 
 const router = useRouter();
 const route = useRoute();
-// 竞品店铺（reference-products）复用本视图，仅在该路由下提示已降级为历史竞品商品池。
-const isReferenceProductsRoute = computed(() =>
-  String(route.name || "").endsWith("ReferenceProducts"),
+/** 店铺选品与新品榜共用页面外壳，只在查询计划中替换为 shop_products 数据源。 */
+const isShopProductsScene = computed(() => route.path === "/reference-products");
+const isManualLibrarySourceScene = computed(() =>
+  ["/new-products", "/reference-products"].includes(route.path),
 );
 const queryParamsState = ref<SelectionQueryParams>({ ...defaultQueryParams });
 
@@ -1103,6 +1179,25 @@ const methodDetailId = ref<"M01" | "M02" | "M03" | null>(null);
 const openMethodDetail = (id: "M01" | "M02" | "M03") => {
   methodDetailId.value = id;
   methodDetailVisible.value = true;
+};
+
+// M01 阈值保存成功后：若当前正在看 M01 候选，立即用新口径重查列表
+const onM01RuleSaved = async (marketplace: "UK" | "DE" | "US") => {
+  if (activeMethodCard.value?.id !== "M01") return;
+  const currentMarketplace = normalizeM01Marketplace(activeFilters.value.country);
+  if (marketplace !== currentMarketplace) {
+    ElMessage.info(`${marketplace} 站阈值已保存；当前页面是 ${currentMarketplace} 站，列表未重查`);
+    return;
+  }
+
+  const beforeTotal = pagination.total;
+  await loadProducts();
+  const afterTotal = pagination.total;
+  if (beforeTotal === afterTotal) {
+    ElMessage.info(`M01 已按新阈值刷新，当前命中 ${afterTotal} 条；首页排序可能保持不变`);
+  } else {
+    ElMessage.success(`M01 命中总数已更新：${beforeTotal} → ${afterTotal}`);
+  }
 };
 
 // 应用新品榜规则并重新加载
@@ -1164,8 +1259,8 @@ const getSectionTitle = (): string => {
   const titles = {
     all: "全部选品",
     new: "新品榜",
-    reference: "竞品店铺",
-    zheng: "郑总店铺上新",
+    reference: "店铺选品",
+    zheng: "非标店铺上新",
     fbm: "FBM 自发货",
   };
   return titles[activeTab.value as keyof typeof titles] || "选品管理";
@@ -1173,6 +1268,12 @@ const getSectionTitle = (): string => {
 
 const productList = ref([]);
 const selectedIds = ref([]);
+const libraryAddingBucket = ref<DeveloperLibraryBucket | null>(null);
+const DEFAULT_ADMIN_LIBRARY_DEVELOPER_NAME = "刘淼";
+const selectionMode = ref(false);
+const cardSelectionEnabled = computed(
+  () => !isManualLibrarySourceScene.value || selectionMode.value,
+);
 const pinSelected = ref(false);
 /**
  * 是否查询清洗表（按父 ASIN 去重后的代表行）。
@@ -1188,13 +1289,15 @@ const onUseCleanTableChange = () => {
 const currentSource = computed(() => {
   const m: Record<string, string> = {
     new: "新品榜",
-    reference: "竞品店铺",
-    zheng: "郑总店铺",
+    reference: "店铺商品",
+    zheng: "非标店铺",
     all: "",
   };
   return m[effectiveScene.value] || "";
 });
 const effectiveScene = computed(() => {
+  // /reference-products 始终维持店铺语义；M01/M03 仅作为叠加规则，不能切回新品榜。
+  if (isShopProductsScene.value) return "reference";
   if (activeMethodCard.value?.id === "M01") return "new";
   if (activeMethodCard.value?.id === "M02") return "zheng";
   if (activeMethodCard.value?.id === "M03") return "fbm";
@@ -1210,11 +1313,13 @@ const effectiveScene = computed(() => {
   return "all";
 });
 const currentSnapshotKind = computed<
-  "competitor_created_week" | "deng_zong_batch"
+  "competitor_created_week" | "deng_zong_batch" | "shop_batch"
 >(() =>
-  effectiveScene.value === "zheng"
-    ? "deng_zong_batch"
-    : "competitor_created_week",
+  effectiveScene.value === "reference"
+    ? "shop_batch"
+    : effectiveScene.value === "zheng"
+      ? "deng_zong_batch"
+      : "competitor_created_week",
 );
 const mySelections = ref<Set<string>>(new Set());
 const selectionUsersMap = ref<
@@ -1247,7 +1352,7 @@ const importDialogVisible = ref(false);
 const searchByImageDialogVisible = ref(false);
 const importing = ref(false);
 const searching = ref(false);
-const exporting = ref(false);
+const exportingAllResults = ref(false);
 
 /** 首屏是否已完成首次加载（用于骨架屏/loading切换） */
 const hasLoaded = ref(false);
@@ -1258,7 +1363,6 @@ const sellerDialogVisible = ref(false);
 const sellerList = ref<any[]>([]);
 const sellerFilterMarketplace = ref("");
 const adding = ref(false);
-const scoringCurrentWeek = ref(false);
 const uploadRef = ref(null);
 const imageUploadRef = ref(null);
 const importFile = ref(null);
@@ -1336,6 +1440,84 @@ const tagOptions = [
   "办公",
 ];
 
+const CARD_SCALE_STORAGE_KEY = "sjzm:all-selection:card-scale";
+const CARD_SCALE_MIN = 0.4;
+const CARD_SCALE_MAX = 1;
+const CARD_SCALE_STEP = 0.1;
+const DEFAULT_CARD_SCALE = 0.5;
+const BASE_CARD_WIDTH = 280;
+const BASE_CARD_HEIGHT = 560;
+const BASE_CARD_GAP = 16;
+
+const normalizeCardScale = (value: number): number => {
+  const rounded = Math.round(value / CARD_SCALE_STEP) * CARD_SCALE_STEP;
+  return Math.min(
+    CARD_SCALE_MAX,
+    Math.max(CARD_SCALE_MIN, Number(rounded.toFixed(1))),
+  );
+};
+
+const readCardScale = (): number => {
+  try {
+    const stored = Number(window.localStorage.getItem(CARD_SCALE_STORAGE_KEY));
+    return Number.isFinite(stored)
+      ? normalizeCardScale(stored)
+      : DEFAULT_CARD_SCALE;
+  } catch {
+    return DEFAULT_CARD_SCALE;
+  }
+};
+
+const cardScale = ref(readCardScale());
+const cardScalePercent = computed(() => Math.round(cardScale.value * 100));
+const productGridStyle = computed(() => ({
+  "--selection-card-scale": String(cardScale.value),
+  "--selection-card-min-width":
+    Math.round(BASE_CARD_WIDTH * cardScale.value) + "px",
+  "--selection-card-fallback-height":
+    Math.round(BASE_CARD_HEIGHT * cardScale.value) + "px",
+  "--selection-card-gap":
+    Math.max(8, Math.round(BASE_CARD_GAP * cardScale.value)) + "px",
+}));
+
+const cardBaseHeights = ref<Record<string, number>>({});
+const cardScaleCanvases = new Map<string, HTMLElement>();
+let cardHeightObserver: ResizeObserver | null = null;
+
+const productCardKey = (product: Record<string, unknown>): string =>
+  String(product.id ?? product.asin ?? "");
+
+const updateCardBaseHeight = (key: string, canvas: HTMLElement) => {
+  const height = canvas.offsetHeight;
+  if (height > 0 && cardBaseHeights.value[key] !== height) {
+    cardBaseHeights.value = {
+      ...cardBaseHeights.value,
+      [key]: height,
+    };
+  }
+};
+
+const setCardScaleCanvasRef = (key: string, element: unknown) => {
+  const previous = cardScaleCanvases.get(key);
+  if (previous && previous !== element) {
+    cardHeightObserver?.unobserve(previous);
+    cardScaleCanvases.delete(key);
+  }
+
+  if (!(element instanceof HTMLElement)) return;
+
+  cardScaleCanvases.set(key, element);
+  cardHeightObserver?.observe(element);
+  nextTick(() => updateCardBaseHeight(key, element));
+};
+
+const cardWrapperStyle = (product: Record<string, unknown>) => {
+  const baseHeight = cardBaseHeights.value[productCardKey(product)];
+  return baseHeight
+    ? { height: Math.ceil(baseHeight * cardScale.value) + "px" }
+    : undefined;
+};
+
 const pagination = reactive({
   page: 1,
   size: 60,
@@ -1346,13 +1528,19 @@ const loadCategories = async () => {
   // 根据当前标签页获取分类来源
   const sourceMap: Record<string, string> = {
     new: "新品榜",
-    reference: "竞品店铺",
-    zheng: "郑总店铺",
+    reference: "店铺商品",
+    zheng: "非标店铺",
     all: "",
   };
   const source = sourceMap[effectiveScene.value] || "";
 
   try {
+    if (isShopProductsScene.value) {
+      categories.value = await shopCollectionApi.selectionCategories(
+        activeFilters.value.country || "UK",
+      );
+      return;
+    }
     const response = await selectionApi.getCategories(source || undefined);
     categories.value = response.data || [];
     console.log("加载分类列表成功:", categories.value, "来源:", source);
@@ -1420,7 +1608,7 @@ const createMethodFilterState = (country: string): FilterState => ({
   country,
   sellerSelect: "",
   category: [],
-  sortField: "score",
+  sortField: isShopProductsScene.value ? "salesVolume" : "createdAt",
   sortOrder: "desc",
   range: emptyRange(),
 });
@@ -1444,7 +1632,7 @@ const resetFiltersForMethodCard = () => {
 
 const applyM01Method = () => {
   activeMethodCard.value = { id: "M01", name: "新品榜加速法" };
-  activeTab.value = "new";
+  activeTab.value = isShopProductsScene.value ? "reference" : "new";
   resetFiltersForMethodCard();
   filterDrawerVisible.value = false;
   pagination.page = 1;
@@ -1453,7 +1641,11 @@ const applyM01Method = () => {
 };
 
 const applyM02Method = () => {
-  activeMethodCard.value = { id: "M02", name: "郑总同行品线跟随法" };
+  if (isShopProductsScene.value) {
+    ElMessage.info("店铺选品暂不支持 M02，请选择 M01 或 M03");
+    return;
+  }
+  activeMethodCard.value = { id: "M02", name: "非标同行品线跟随法" };
   activeTab.value = "zheng";
   resetFiltersForMethodCard();
   filterDrawerVisible.value = false;
@@ -1465,7 +1657,7 @@ const applyM02Method = () => {
 // M03 FBM 自发货简单道 - 独立 handler, 不共用 M01/new 视角逻辑
 const applyM03Method = () => {
   activeMethodCard.value = { id: "M03", name: "FBM 自发货简单道" };
-  activeTab.value = "fbm";
+  activeTab.value = isShopProductsScene.value ? "reference" : "fbm";
   resetFiltersForMethodCard();
   filterDrawerVisible.value = false;
   pagination.page = 1;
@@ -1605,7 +1797,7 @@ const handleToggleSelect = async (asin: string, selected: boolean) => {
         source:
           product?.source ||
           (
-            { zheng: "郑总店铺", new: "新品榜", reference: "竞品" } as Record<
+            { zheng: "非标店铺", new: "新品榜", reference: "店铺选品" } as Record<
               string,
               string
             >
@@ -1648,41 +1840,6 @@ const handleToggleSelect = async (asin: string, selected: boolean) => {
   }
 };
 
-// 根据路由自动设置产品类型
-// 注：不设 immediate，首次加载由 onMounted 处理（此时 queryFormRef 可用）
-watch(
-  () => route.path,
-  (newPath) => {
-    const pathMap: Record<
-      string,
-      { tab: string; productType: "" | "new" | "reference" | "zheng" }
-    > = {
-      "/zheng-products": { tab: "zheng", productType: "zheng" },
-      "/new-products": { tab: "new", productType: "new" },
-      "/reference-products": { tab: "reference", productType: "reference" },
-      "/all-selection": { tab: "all", productType: "" },
-    };
-
-    const config = pathMap[newPath];
-    if (config) {
-      activeTab.value = config.tab;
-      activeMethodCard.value =
-        config.tab === "new" || config.tab === "reference"
-          ? { id: "M01", name: "新品榜加速法" }
-          : null;
-      const defaults = config.tab === "new" ? { country: "UK" } : {};
-      applyQueryParams({
-        productType: config.productType,
-        ...defaults,
-      });
-      loadCategories();
-    }
-
-    pagination.page = 1;
-    loadProducts();
-  },
-);
-
 const onQueryFormChange = (params: SelectionQueryParams) => {
   queryParamsState.value = { ...params };
 };
@@ -1696,6 +1853,19 @@ const handleSearch = (params: SelectionQueryParams) => {
 const loadDrawerSellers = async (marketplace?: string) => {
   drawerSellerLoading.value = true;
   try {
+    if (isShopProductsScene.value) {
+      const rows = await shopCollectionApi.selectionShops({
+        marketplace: marketplace || activeFilters.value.country || "UK",
+        limit: 1000,
+      });
+      drawerSellerOptions.value = rows.map((row, index) => ({
+        id: index + 1,
+        marketplace: row.marketplace,
+        sellerName: row.sellerName,
+        storeUrl: "",
+      }));
+      return;
+    }
     const res = await competitorApi.getDengZongShopSellers(
       marketplace ? { marketplace } : undefined,
     );
@@ -1822,12 +1992,9 @@ const handleSyncSeller = async (row: any) => {
       sellerName: row.sellerName,
       marketplace: row.marketplace,
     });
-    const data = res.data;
-    ElMessage.success(
-      `同步完成：共 ${data.total} 条，入库 ${data.inserted} 条`,
-    );
-    // 同步后刷新产品列表
-    loadProducts();
+    const task = res?.data || res;
+    ElMessage.success('请求任务已创建，正在跳转请求中心');
+    await router.push({ name: 'module-sellersprite-request-center-SellerspriteRequestCenter', query: { runId: task.runId } });
   } catch (e: any) {
     ElMessage.error("同步失败：" + (e.message || "未知错误"));
   } finally {
@@ -1918,7 +2085,9 @@ const handleAddCancel = () => {
 
 const handleSelect = (id, selected) => {
   if (selected) {
-    selectedIds.value.push(id);
+    if (!selectedIds.value.includes(id)) {
+      selectedIds.value.push(id);
+    }
   } else {
     const index = selectedIds.value.indexOf(id);
     if (index > -1) {
@@ -1927,7 +2096,18 @@ const handleSelect = (id, selected) => {
   }
 };
 
+const toggleSelectionMode = () => {
+  selectionMode.value = !selectionMode.value;
+  if (!selectionMode.value) {
+    selectedIds.value = [];
+  }
+};
+
 const handleCardClick = (product) => {
+  if (isManualLibrarySourceScene.value && selectionMode.value) {
+    handleSelect(product.asin, !selectedIds.value.includes(product.asin));
+    return;
+  }
   selectedProduct.value = product;
   detailDialogVisible.value = true;
 };
@@ -2231,100 +2411,164 @@ const handleClearAll = async () => {
   }
 };
 
-const handleExportAsins = async () => {
-  if (selectedIds.value.length === 0) {
-    ElMessage.warning("请先选择要导出的商品");
+const handleExportAllResultsCsv = async () => {
+  if (pagination.total === 0) {
+    ElMessage.warning("当前筛选没有可导出的商品");
     return;
   }
 
+  exportingAllResults.value = true;
   try {
-    exporting.value = true;
-
-    // 显示导出进度提示
-    const loadingMessage = ElMessage({
-      message: `正在导出 ${selectedIds.value.length} 个商品的ASIN...`,
-      type: "info",
-      duration: 0,
-      showClose: false,
+    const marketplace =
+      activeFilters.value.country || productList.value[0]?.marketplace || "UK";
+    const result = await downloadAllResultsCsv({
+      plan: lastQueryPlan.value,
+      total: pagination.total,
+      marketplace,
     });
-
-    try {
-      // 调用导出API
-      const blob = await selectionApi.exportSelectedAsins(selectedIds.value);
-
-      // 关闭加载提示
-      loadingMessage.close();
-
-      // 生成文件名（包含时间戳）
-      const timestamp = new Date()
-        .toISOString()
-        .replace(/[:.]/g, "-")
-        .slice(0, -5);
-      const filename = `selected_asins_${timestamp}.txt`;
-
-      // 下载文件
-      downloadFile(blob, filename);
-
-      // 显示成功提示
-      ElMessage.success(`成功导出 ${selectedIds.value.length} 个商品的ASIN`);
-
-      console.log("导出ASIN成功:", {
-        count: selectedIds.value.length,
-        filename: filename,
-      });
-    } catch (apiError) {
-      // 关闭加载提示
-      loadingMessage.close();
-      throw apiError;
-    }
-  } catch (error) {
-    console.error("导出ASIN失败:", error);
-
-    // 检查是否是网络错误
-    if (
-      error?.message?.includes("Network Error") ||
-      error?.message?.includes("网络")
-    ) {
-      ElMessageBox.confirm("网络异常，导出失败。是否重试？", "导出失败", {
-        confirmButtonText: "重试",
-        cancelButtonText: "取消",
-        type: "error",
-      })
-        .then(() => {
-          // 用户选择重试
-          handleExportAsins();
-        })
-        .catch(() => {
-          // 用户取消
-          ElMessage.info("已取消导出");
-        });
-    } else {
-      // 其他错误
-      ElMessage.error(error?.message || "导出ASIN失败，请稍后重试");
-    }
+    ElMessage.success(`已导出全部 ${result.count} 条商品完整字段`);
+  } catch (error: any) {
+    console.error("导出全部筛选结果 CSV 失败:", error);
+    ElMessage.error(error?.message || "导出全部 CSV 失败，请稍后重试");
   } finally {
-    exporting.value = false;
+    exportingAllResults.value = false;
   }
 };
 
-const handleScoreCurrentWeek = async () => {
-  scoringCurrentWeek.value = true;
+const optionalNumber = (value: unknown): number | undefined => {
+  if (value === null || value === undefined || value === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const toDeveloperSelectionSnapshot = (
+  product: Record<string, any>,
+): DeveloperSelectionSnapshot => ({
+  asin: String(product.asin || "").trim().toUpperCase(),
+  marketplace: String(
+    product.marketplace || product.country || activeFilters.value.country || "UK",
+  ).toUpperCase(),
+  originScene:
+    route.path === "/reference-products"
+      ? "REFERENCE_PRODUCTS"
+      : "NEW_PRODUCTS",
+  originSource: product.source || currentSource.value || undefined,
+  snapshotKey: String(product.snapshotKey || product.id || "") || undefined,
+  title: product.productTitle || product.title || undefined,
+  brand: product.brand || product.brandName || undefined,
+  imageUrl:
+    product.imageUrl || product.image || product.referenceImage || undefined,
+  price: optionalNumber(product.price),
+  units: optionalNumber(product.units ?? product.salesVolume),
+  bsr: optionalNumber(product.bsr ?? product.mainCategoryBsr),
+  ratings: optionalNumber(
+    product.ratings ?? product.reviewCount ?? product.ratingsCount,
+  ),
+  rating: optionalNumber(product.rating ?? product.starRating),
+  listingDays: optionalNumber(product.listingDays),
+  weightG: optionalNumber(product.weightG ?? product.weight_g),
+  sellerName: product.sellerName || product.storeName || undefined,
+  nodeLabelPath:
+    product.nodeLabelPath || product.node_label_path || product.category || undefined,
+  productUrl: product.productUrl || product.productLink || undefined,
+  snapshot: { ...product },
+});
+
+const resolveDeveloperLibraryName = (): string => {
+  const userStore = useUserStore();
+  if (userStore.isAdmin) return DEFAULT_ADMIN_LIBRARY_DEVELOPER_NAME;
+  const user = userStore.userInfo;
+  return (
+    user?.realName ||
+    user?.name ||
+    user?.nickname ||
+    user?.username ||
+    "当前开发"
+  );
+};
+
+const handleAddToDeveloperLibrary = async (
+  bucket: DeveloperLibraryBucket,
+) => {
+  const selectedSet = new Set(selectedIds.value.map((value) => String(value)));
+  const selectedProducts = productList.value.filter((product: any) =>
+    selectedSet.has(String(product.asin)),
+  );
+  if (!selectedProducts.length) {
+    ElMessage.warning("请先选择当前页面中的商品");
+    return;
+  }
+
+  const developerName = resolveDeveloperLibraryName();
+
+  libraryAddingBucket.value = bucket;
   try {
-    const res = await selectionApi.scoreCurrentWeek();
-    if (res.code === 200 && res.data) {
-      ElMessage.success(`评级完成，共评 ${res.data.totalScored} 个商品`);
-      loadProducts();
-    } else {
-      ElMessage.error(res.message || "评级失败");
-    }
-  } catch (e) {
-    ElMessage.error("一键计算评级失败");
+    const result = await developerSelectionLibraryApi.add({
+      bucket,
+      developerName,
+      items: selectedProducts.map(toDeveloperSelectionSnapshot),
+    });
+    const libraryName = bucket === "GOOD" ? "选品库" : "差品库";
+    const omitted = selectedIds.value.length - selectedProducts.length;
+    ElMessage.success(
+      `已加入${libraryName} ${result.total} 个${
+        omitted > 0 ? `；另有 ${omitted} 个不在当前页，未加入` : ""
+      }`,
+    );
+    selectedIds.value = [];
+  } catch (error: any) {
+    console.error("加入人工选品库失败:", error);
+    ElMessage.error(error?.message || "加入人工选品库失败");
   } finally {
-    scoringCurrentWeek.value = false;
+    libraryAddingBucket.value = null;
   }
 };
 
-const handleSizeChange = (size) => {
+const handleAddSingleToDeveloperLibrary = async (
+  product: Record<string, any>,
+  bucket: DeveloperLibraryBucket,
+) => {
+  if (!product?.asin) {
+    ElMessage.warning("该商品缺少 ASIN，无法加入人工选品库");
+    return;
+  }
+
+  const developerName = resolveDeveloperLibraryName();
+
+  libraryAddingBucket.value = bucket;
+  try {
+    await developerSelectionLibraryApi.add({
+      bucket,
+      developerName,
+      items: [toDeveloperSelectionSnapshot(product)],
+    });
+    ElMessage.success(
+      bucket === "GOOD" ? "已加入选品库" : "已加入差品库",
+    );
+  } catch (error: any) {
+    console.error("详情页加入人工选品库失败:", error);
+    ElMessage.error(error?.message || "加入人工选品库失败");
+  } finally {
+    libraryAddingBucket.value = null;
+  }
+};
+
+const setCardScale = (value: number) => {
+  const scale = normalizeCardScale(value);
+  if (cardScale.value === scale) return;
+  cardScale.value = scale;
+  try {
+    window.localStorage.setItem(CARD_SCALE_STORAGE_KEY, String(scale));
+  } catch {
+    // 本地存储不可用时仍让当前会话的设置生效。
+  }
+};
+
+const adjustCardScale = (delta: number) => {
+  setCardScale(cardScale.value + delta);
+};
+
+const handleSizeChange = (size: number) => {
   pagination.size = size;
   pagination.page = 1;
   loadProducts();
@@ -2337,6 +2581,17 @@ const handlePageChange = (page) => {
 };
 
 onMounted(() => {
+  cardHeightObserver = new ResizeObserver((entries) => {
+    entries.forEach((entry) => {
+      const key = (entry.target as HTMLElement).dataset.cardKey;
+      if (key) updateCardBaseHeight(key, entry.target as HTMLElement);
+    });
+  });
+  cardScaleCanvases.forEach((canvas, key) => {
+    cardHeightObserver?.observe(canvas);
+    updateCardBaseHeight(key, canvas);
+  });
+
   // 根据当前路由初始化 tab 和默认筛选（route watch 不设 immediate，由这里处理首次加载）
   const pathTabMap: Record<string, string> = {
     "/zheng-products": "zheng",
@@ -2349,11 +2604,10 @@ onMounted(() => {
 
   // 自动应用方法卡的路由白名单 (只有以下两个入口自动绑 M01):
   //   /new-products       → M01 (新品榜加速法)
-  //   /reference-products → M01 (竞品店铺也走新品榜加速法)
   //
   // 明确不自动应用 (进页面默认全量视图, 用户点方法卡才应用):
   //   /all-selection  → 全量选品视图, 不自动应用任何方法卡
-  //   /zheng-products → 用户手动点 M02 才应用, 默认郑总店铺全量
+  //   /zheng-products → 用户手动点 M02 才应用, 默认非标店铺全量
   if (tab === "new" || tab === "reference") {
     activeMethodCard.value = { id: "M01", name: "新品榜加速法" };
   }
@@ -2383,15 +2637,31 @@ onMounted(() => {
   }
   window.scrollTo(0, 0);
 
-  // 启动选中用户实时轮询（5 秒间隔）
-  selectionPollTimer = setInterval(refreshSelectionUsers, 5000);
+  startSelectionPolling();
 });
 
-onUnmounted(() => {
+const startSelectionPolling = () => {
+  if (!selectionPollTimer) {
+    selectionPollTimer = setInterval(refreshSelectionUsers, 5000);
+  }
+};
+
+const stopSelectionPolling = () => {
   if (selectionPollTimer) {
     clearInterval(selectionPollTimer);
     selectionPollTimer = null;
   }
+};
+
+// KeepAlive 恢复页面时只恢复交互，不重新拉取列表数据。
+onActivated(startSelectionPolling);
+onDeactivated(stopSelectionPolling);
+
+onUnmounted(() => {
+  cardHeightObserver?.disconnect();
+  cardHeightObserver = null;
+  cardScaleCanvases.clear();
+  stopSelectionPolling();
   // 清理校准定时器
   Object.values(calibrateTimers.value).forEach((t) => clearTimeout(t));
   calibrateTimers.value = {};
@@ -2566,14 +2836,77 @@ onUnmounted(() => {
 
   .products-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(
+      auto-fill,
+      minmax(var(--selection-card-min-width, 280px), 1fr)
+    );
+    gap: var(--selection-card-gap, 16px);
     margin-bottom: 0;
     min-height: 400px;
     flex: 1;
+    align-items: start;
     overflow-y: auto;
     max-height: calc(100% - 130px);
     padding-bottom: 50px;
+  }
+
+  .product-card-scale-wrapper {
+    position: relative;
+    min-width: 0;
+    min-height: var(--selection-card-fallback-height, 560px);
+  }
+
+  .product-card-scale-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: calc(100% / var(--selection-card-scale, 1));
+    transform: scale(var(--selection-card-scale, 1));
+    transform-origin: top left;
+  }
+
+  .card-display-settings {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    background: linear-gradient(90deg, #f0f9ff 0%, #f8fbff 100%);
+    border: 1px solid #d9ecff;
+    border-radius: 8px;
+
+    &__copy {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    &__title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #303133;
+    }
+
+    &__hint {
+      font-size: 12px;
+      color: #909399;
+    }
+
+    &__controls {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    &__count {
+      min-width: 64px;
+      color: #303133;
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
   }
 
   .card-header {

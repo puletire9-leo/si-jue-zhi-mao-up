@@ -5,6 +5,8 @@ import com.sjzm.common.Result;
 import com.sjzm.product.entity.DengZongShop;
 import com.sjzm.product.entity.DengZongShopSeller;
 import com.sjzm.product.service.DengZongShopService;
+import com.sjzm.product.modules.requestcenter.entity.SellerspriteRequestRun;
+import com.sjzm.product.modules.requestcenter.service.SellerspriteRequestCenterService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +26,7 @@ public class DengZongShopController {
 
     // FIXED: MED-6 — Controller 不再直接注入 Mapper，改用 Service 委托
     private final DengZongShopService dengZongShopService;
+    private final SellerspriteRequestCenterService requestCenterService;
 
     @GetMapping("/products")
     @Operation(summary = "查询邓总店铺产品（按父ASIN去重）")
@@ -195,7 +198,7 @@ public class DengZongShopController {
     // ========== 同步 ==========
 
     @PostMapping("/sync")
-    @Operation(summary = "按店铺名同步卖家精灵数据到 deng_zong_shop 表")
+    @Operation(summary = "创建邓总店铺同步任务", description = "异步返回请求中心 runId，不在 HTTP 请求线程调用卖家精灵")
     public Result<Map<String, Object>> sync(@RequestBody Map<String, String> body) {
         String sellerName = body.get("sellerName");
         String marketplace = body.get("marketplace");
@@ -205,8 +208,11 @@ public class DengZongShopController {
         if (marketplace == null || marketplace.isBlank()) {
             return Result.error("marketplace 不能为空");
         }
-        Map<String, Object> result = dengZongShopService.syncBySellerName(sellerName.trim(), marketplace.trim());
-        return Result.success("同步完成", result);
+        SellerspriteRequestRun run = requestCenterService.createTask("DENG_ZONG_SHOP_SYNC", marketplace.trim(),
+                "MANUAL", null, "邓总店铺同步",
+                List.of(new SellerspriteRequestCenterService.RequestItemInput(marketplace.trim(), sellerName.trim(), null)),
+                "DENG_ZONG_API");
+        return Result.success(Map.of("runId", run.getRunId(), "status", run.getStatus()));
     }
 
     private Map<String, Object> toResponse(DengZongShop d) {

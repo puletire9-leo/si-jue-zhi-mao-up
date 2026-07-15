@@ -129,6 +129,8 @@ com.sjzm.gateway/
 | GradeThreshold | GradeThresholdMapper | 评分等级阈值 |
 | ApiConfig | ApiConfigMapper | 卖家精灵 API 配置 |
 | UserFilterPreset | UserFilterPresetMapper | 用户筛选预设 |
+| DeveloperSelectionLibraryItem | DeveloperSelectionLibraryMapper | 开发个人好品/差品人工选品库 |
+| DeveloperSelectionBatch | DeveloperSelectionBatchMapper | 开发个人好品/差品独立人工批次 |
 
 ## Controller → API 路由
 
@@ -141,6 +143,9 @@ com.sjzm.gateway/
 | AsinImportController | `/api/v1/asin-import` | sjzm-product |
 | FilterConfigController | `/api/v1/filter-config` | sjzm-product |
 | UserFilterPresetController | `/api/v1/filter-presets` | sjzm-product |
+| DeveloperSelectionLibraryController | `/api/v1/modules/developer-selection-library` | sjzm-product |
+
+人工选品库管理员未显式指定目标开发人时，后端按有效用户记录匹配“刘淼”作为默认真实 owner；普通开发仍只能写入自己的 `user_id`。
 
 ## 网关路由映射
 

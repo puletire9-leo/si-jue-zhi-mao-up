@@ -1,5 +1,6 @@
 import type { CompetitorListParams, QualifyRule } from "@/api/competitor";
 import type { MethodCardListParams } from "@/api/methodCards";
+import type { ShopProductSelectionParams } from "@/api/shopCollection";
 import type { RangeFilterValue } from "@/components/RangeFilterPanel/index.vue";
 import type { SelectionQueryParams } from "@/components/SelectionQueryForm/types";
 
@@ -7,11 +8,20 @@ export type SelectionScene = "all" | "new" | "reference" | "zheng" | "fbm";
 export type SelectionMethodId = "M01" | "M02" | "M03";
 export type SelectionDataView = "clean" | "raw";
 export type SelectionLensId = "default" | SelectionMethodId;
-export type SelectionExecutor = "competitor" | "deng_zong" | "method_card";
+export type SelectionExecutor =
+  | "competitor"
+  | "deng_zong"
+  | "shop_products"
+  | "method_card";
 export type SelectionSnapshotKind =
-  "competitor_created_week" | "deng_zong_batch";
+  | "competitor_created_week"
+  | "deng_zong_batch"
+  | "shop_batch";
 export type SelectionTargetSource =
-  "competitor_clean" | "competitor_raw" | "deng_zong";
+  | "competitor_clean"
+  | "competitor_raw"
+  | "deng_zong"
+  | "shop_products";
 export type SelectionSemanticFilterKey =
   | "asin"
   | "title"
@@ -56,6 +66,8 @@ export interface SelectionFilterIntent {
   };
   search: {
     asin: string[];
+    /** 多项精准 ASIN 搜索：只保留站点/业务数据源，不与普通筛选条件求交集。 */
+    exactAsin: boolean;
     title?: string;
     sellerName?: string;
     brand?: string;
@@ -125,6 +137,12 @@ export interface DengZongQueryPlan extends SelectionQueryPlanBase {
   params: Record<string, any>;
 }
 
+export interface ShopProductsQueryPlan extends SelectionQueryPlanBase {
+  executor: "shop_products";
+  targetSource: "shop_products";
+  params: ShopProductSelectionParams;
+}
+
 export interface MethodCardQueryPlan extends SelectionQueryPlanBase {
   executor: "method_card";
   targetSource: "competitor_clean" | "deng_zong";
@@ -132,7 +150,10 @@ export interface MethodCardQueryPlan extends SelectionQueryPlanBase {
 }
 
 export type SelectionQueryPlan =
-  CompetitorQueryPlan | DengZongQueryPlan | MethodCardQueryPlan;
+  | CompetitorQueryPlan
+  | DengZongQueryPlan
+  | ShopProductsQueryPlan
+  | MethodCardQueryPlan;
 
 interface SelectionMethodLensDefinition {
   lensId: SelectionMethodId;
@@ -142,7 +163,7 @@ interface SelectionMethodLensDefinition {
   forcedFilters: string[];
   lockedScene?: SelectionScene;
   lockedDataView?: SelectionDataView;
-  snapshotParam?: "createdWeek" | "batchDate";
+  snapshotParam?: "createdWeek" | "createdWeeks" | "batchDate";
   snapshotSupport: SelectionFilterSupportMode;
   supports: Record<SelectionSemanticFilterKey, SelectionFilterSupportMode>;
 }
@@ -214,6 +235,17 @@ export const SOURCE_CAPABILITIES: Record<
       qualifyRules: "unsupported",
     }),
   },
+  shop_products: {
+    targetSource: "shop_products",
+    executor: "shop_products",
+    snapshotKind: "shop_batch",
+    supports: createSupportMap({
+      filterMode: "unsupported",
+      weekTag: "unsupported",
+      createdAtRange: "unsupported",
+      qualifyRules: "unsupported",
+    }),
+  },
 };
 
 export const METHOD_LENS_DEFINITIONS: Record<
@@ -228,10 +260,10 @@ export const METHOD_LENS_DEFINITIONS: Record<
     forcedFilters: ["scene=new", "dataView=clean", "method=M01"],
     lockedScene: "new",
     lockedDataView: "clean",
-    snapshotParam: "createdWeek",
-    snapshotSupport: "single",
+    snapshotParam: "createdWeeks",
+    snapshotSupport: "supported",
     supports: createSupportMap({
-      snapshotKeys: "single",
+      snapshotKeys: "supported",
       asin: "unsupported",
       title: "unsupported",
       sellerName: "unsupported",
@@ -323,7 +355,7 @@ export function resolveSceneBusinessSource(
     all: undefined,
     new: "新品榜",
     reference: "竞品店铺",
-    zheng: "郑总店铺",
+    zheng: "非标店铺",
   };
   if (scene === "fbm") return undefined;
   return map[scene];
@@ -373,16 +405,6 @@ function normalizeCategories(
     return [...activeFilters.category];
   }
   return splitCsv(queryParams?.category);
-}
-
-function normalizeGrade(
-  queryParams?: SelectionQueryParams,
-  activeFilters?: SelectionFilterState,
-): string[] {
-  if (activeFilters?.range?.grade?.length) {
-    return [...activeFilters.range.grade];
-  }
-  return splitCsv(queryParams?.grade);
 }
 
 function resolveQualifyRules(input: {
@@ -460,6 +482,9 @@ function collectUnsupportedFilters(
 function resolveDefaultTargetSource(
   intent: SelectionFilterIntent,
 ): SelectionTargetSource {
+  if (intent.scene === "reference") {
+    return "shop_products";
+  }
   if (intent.scene === "zheng") {
     return "deng_zong";
   }
@@ -502,6 +527,12 @@ function buildMethodCardQueryPlan(input: {
   }
   if (lens.snapshotParam === "createdWeek" && snapshotValue) {
     params.createdWeek = snapshotValue;
+  }
+  if (
+    lens.snapshotParam === "createdWeeks" &&
+    intent.freshness.snapshotKeys.length > 0
+  ) {
+    params.createdWeeks = [...intent.freshness.snapshotKeys];
   }
   if (lens.snapshotParam === "batchDate" && snapshotValue) {
     params.batchDate = snapshotValue;
@@ -571,6 +602,68 @@ function buildDengZongQueryPlan(input: {
   };
 }
 
+function buildShopProductsQueryPlan(input: {
+  intent: SelectionFilterIntent;
+  page: number;
+  size: number;
+}): ShopProductsQueryPlan {
+  const { intent, page, size } = input;
+  const marketplace = intent.scope.marketplace || "UK";
+  const params: ShopProductSelectionParams = {
+    page,
+    size,
+    marketplace,
+    sortBy: intent.sort.field || "salesVolume",
+    sortOrder: intent.sort.order || "desc",
+  };
+  if (intent.methodId === "M01" || intent.methodId === "M03") {
+    params.methodId = intent.methodId;
+  }
+
+  if (intent.search.asin.length > 0) params.asins = [...intent.search.asin];
+  if (intent.search.title) params.title = intent.search.title;
+  if (intent.search.sellerName) params.sellerName = intent.search.sellerName;
+  if (intent.search.brand) params.brand = intent.search.brand;
+  if (intent.search.categories.length > 0) {
+    params.categories = [...intent.search.categories];
+  }
+  if (intent.freshness.snapshotKeys.length > 0) {
+    params.batchDates = [...intent.freshness.snapshotKeys];
+  }
+  if (intent.metrics.priceMin != null) params.priceMin = intent.metrics.priceMin;
+  if (intent.metrics.priceMax != null) params.priceMax = intent.metrics.priceMax;
+  if (intent.metrics.unitsMin != null) params.unitsMin = intent.metrics.unitsMin;
+  if (intent.metrics.unitsMax != null) params.unitsMax = intent.metrics.unitsMax;
+  if (intent.metrics.listingDaysMin != null) {
+    params.listingDaysMin = intent.metrics.listingDaysMin;
+  }
+  if (intent.metrics.listingDaysMax != null) {
+    params.listingDaysMax = intent.metrics.listingDaysMax;
+  }
+  if (intent.metrics.bsrMax != null) params.bsrMax = intent.metrics.bsrMax;
+  if (intent.metrics.weightMax != null) params.weightMax = intent.metrics.weightMax;
+  if (intent.metrics.variantCountMax != null) {
+    params.maxVariantCount = intent.metrics.variantCountMax;
+  }
+  if (intent.metrics.fulfillment.length > 0) {
+    params.fulfillment = [...intent.metrics.fulfillment];
+  }
+  if (intent.metrics.grade.length > 0) params.grade = [...intent.metrics.grade];
+
+  return {
+    executor: "shop_products",
+    lensId: intent.methodId || "default",
+    methodId: intent.methodId,
+    targetSource: "shop_products",
+    params,
+    unsupportedFilters: collectUnsupportedFilters(
+      intent,
+      SOURCE_CAPABILITIES.shop_products.supports,
+    ),
+    forcedFilters: [],
+  };
+}
+
 function buildCompetitorQueryPlan(input: {
   intent: SelectionFilterIntent;
   page: number;
@@ -587,7 +680,7 @@ function buildCompetitorQueryPlan(input: {
     source: intent.scope.businessSource,
     filterMode: intent.scope.filterMode,
     useCleanTable: targetSource === "competitor_clean",
-    sortBy: intent.sort.field || "score",
+    sortBy: intent.sort.field || "createdAt",
     sortOrder: intent.sort.order || "desc",
   };
 
@@ -660,6 +753,7 @@ function buildCompetitorQueryPlan(input: {
     unsupportedFilters: collectUnsupportedFilters(intent, capability.supports),
     forcedFilters: [],
     latestSnapshotFallback:
+      intent.search.exactAsin ||
       intent.freshness.snapshotKeys.length > 0 ||
       intent.freshness.weekTag ||
       intent.freshness.createdAtStart
@@ -702,6 +796,8 @@ export function buildSelectionFilterIntent(input: {
     qualifyRulesMode,
     overrides,
   } = input;
+  const asinValues = splitSearchValues(queryParams?.asin);
+  const exactAsinSearch = asinValues.length > 1;
   const sellerName =
     compactText(overrides?.sellerName) ||
     compactText(activeFilters.sellerSelect) ||
@@ -710,8 +806,9 @@ export function buildSelectionFilterIntent(input: {
 
   return {
     scene,
-    lensId: methodId || "default",
-    methodId,
+    // 多项精准搜索用于直接定位商品，不能继续套方法卡规则。
+    lensId: exactAsinSearch ? "default" : methodId || "default",
+    methodId: exactAsinSearch ? null : methodId,
     scope: {
       marketplace:
         compactText(overrides?.marketplace) ||
@@ -719,49 +816,71 @@ export function buildSelectionFilterIntent(input: {
         compactText(queryParams?.country),
       businessSource: resolveSceneBusinessSource(scene),
       dataView: useCleanTable ? "clean" : "raw",
-      filterMode: compactText(queryParams?.dataFilterMode),
-      bsrId: compactText(overrides?.bsrId),
-      nodeId: overrides?.nodeId,
-      groupByParent: overrides?.groupByParent,
+      // MODE1 / MODE2 / FAIL 是旧入库分级，现行查询不再使用。
+      filterMode: undefined,
+      bsrId: exactAsinSearch ? undefined : compactText(overrides?.bsrId),
+      nodeId: exactAsinSearch ? undefined : overrides?.nodeId,
+      groupByParent: exactAsinSearch ? undefined : overrides?.groupByParent,
     },
     search: {
-      asin: splitSearchValues(queryParams?.asin),
-      title:
-        compactText(overrides?.title) || compactText(queryParams?.productTitle),
-      sellerName,
-      brand: compactText(overrides?.brand),
-      keywords: compactText(overrides?.keywords),
-      categories: normalizeCategories(queryParams, activeFilters),
+      asin: asinValues,
+      exactAsin: exactAsinSearch,
+      title: exactAsinSearch
+        ? undefined
+        : compactText(overrides?.title) || compactText(queryParams?.productTitle),
+      sellerName: exactAsinSearch ? undefined : sellerName,
+      brand: exactAsinSearch ? undefined : compactText(overrides?.brand),
+      keywords: exactAsinSearch ? undefined : compactText(overrides?.keywords),
+      categories: exactAsinSearch
+        ? []
+        : normalizeCategories(queryParams, activeFilters),
     },
     freshness: {
-      snapshotKeys: [...(activeFilters.range.createdWeeks || [])],
-      weekTag: compactText(queryParams?.weekTag),
-      createdAtStart: compactText(queryParams?.listingDateStart),
-      createdAtEnd: compactText(queryParams?.listingDateEnd),
+      snapshotKeys: exactAsinSearch
+        ? []
+        : [...(activeFilters.range.createdWeeks || [])],
+      weekTag: exactAsinSearch ? undefined : compactText(queryParams?.weekTag),
+      createdAtStart: exactAsinSearch
+        ? undefined
+        : compactText(queryParams?.listingDateStart),
+      createdAtEnd: exactAsinSearch
+        ? undefined
+        : compactText(queryParams?.listingDateEnd),
     },
     metrics: {
-      priceMin: activeFilters.range.priceMin ?? undefined,
-      priceMax: activeFilters.range.priceMax ?? undefined,
-      unitsMin: activeFilters.range.unitsMin ?? undefined,
-      unitsMax: activeFilters.range.unitsMax ?? undefined,
-      listingDaysMin: activeFilters.range.listingDaysMin ?? undefined,
-      listingDaysMax: activeFilters.range.listingDaysMax ?? undefined,
-      bsrMax: activeFilters.range.bsrMax ?? undefined,
-      weightMax: activeFilters.range.weightMax ?? undefined,
-      variantCountMax: activeFilters.range.variantCountMax ?? undefined,
-      fulfillment: [...(activeFilters.range.fulfillment || [])],
-      grade: normalizeGrade(queryParams, activeFilters),
+      priceMin: exactAsinSearch ? undefined : activeFilters.range.priceMin ?? undefined,
+      priceMax: exactAsinSearch ? undefined : activeFilters.range.priceMax ?? undefined,
+      unitsMin: exactAsinSearch ? undefined : activeFilters.range.unitsMin ?? undefined,
+      unitsMax: exactAsinSearch ? undefined : activeFilters.range.unitsMax ?? undefined,
+      listingDaysMin: exactAsinSearch
+        ? undefined
+        : activeFilters.range.listingDaysMin ?? undefined,
+      listingDaysMax: exactAsinSearch
+        ? undefined
+        : activeFilters.range.listingDaysMax ?? undefined,
+      bsrMax: exactAsinSearch ? undefined : activeFilters.range.bsrMax ?? undefined,
+      weightMax: exactAsinSearch ? undefined : activeFilters.range.weightMax ?? undefined,
+      variantCountMax: exactAsinSearch
+        ? undefined
+        : activeFilters.range.variantCountMax ?? undefined,
+      fulfillment: exactAsinSearch
+        ? []
+        : [...(activeFilters.range.fulfillment || [])],
+      // S/A/B/C/D 是旧评分品级，现行查询不再使用。
+      grade: [],
     },
     sort: {
-      field: activeFilters.sortField || "score",
+      field: activeFilters.sortField || "createdAt",
       order: activeFilters.sortOrder || "desc",
     },
-    qualifyRules: resolveQualifyRules({
-      scene,
-      methodId,
-      qualifyRules,
-      qualifyRulesMode,
-    }),
+    qualifyRules: exactAsinSearch
+      ? []
+      : resolveQualifyRules({
+          scene,
+          methodId,
+          qualifyRules,
+          qualifyRulesMode,
+        }),
   };
 }
 
@@ -771,6 +890,15 @@ export function buildSelectionQueryPlan(input: {
   size: number;
 }): SelectionQueryPlan {
   const { intent, page, size } = input;
+
+  // 店铺选品的 M01/M03 是“规则 + 当前数据源”的组合：规则只筛 shop_products，
+  // 不能因为点了方法卡而回退到 competitor_products_clean。
+  if (
+    intent.scene === "reference" &&
+    (intent.methodId === "M01" || intent.methodId === "M03")
+  ) {
+    return buildShopProductsQueryPlan({ intent, page, size });
+  }
 
   if (intent.methodId) {
     return buildMethodCardQueryPlan({
@@ -784,6 +912,9 @@ export function buildSelectionQueryPlan(input: {
   const targetSource = resolveDefaultTargetSource(intent);
   if (targetSource === "deng_zong") {
     return buildDengZongQueryPlan({ intent, page, size });
+  }
+  if (targetSource === "shop_products") {
+    return buildShopProductsQueryPlan({ intent, page, size });
   }
 
   return buildCompetitorQueryPlan({

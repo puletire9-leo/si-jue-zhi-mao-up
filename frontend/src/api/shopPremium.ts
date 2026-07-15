@@ -17,6 +17,8 @@ export interface ShopPremiumPool {
   nextFetchDate: string | null
   refreshStatus: string
   lastErrorMessage: string | null
+  systemPauseReason: string | null
+  systemResumeAt: string | null
   status: string
   note: string | null
   createdAt: string | null
@@ -57,6 +59,9 @@ export interface SellerspriteRequestItem {
   marketplace: string
   sellerName: string
   triggerId: number | null
+  sourceTaskId: number | null
+  asinList: string | null
+  payloadJson: string | null
   status: string
   shopFetchRunId: string | null
   total: number | null
@@ -65,6 +70,12 @@ export interface SellerspriteRequestItem {
   failedCount: number | null
   apiCalls: number | null
   errorMessage: string | null
+  attemptCount: number
+  nextRetryAt: string | null
+  errorCode: string | null
+  errorSummary: string | null
+  requestDispatched: boolean
+  usageConfirmed: boolean
   startedAt: string | null
   finishedAt: string | null
 }
@@ -230,5 +241,17 @@ export const requestCenterApi = {
 
   retryItem(itemId: number): Promise<number> {
     return unwrap<number>(request({ url: `${RC_BASE}/items/${itemId}/retry`, method: 'post' }))
+  },
+
+  createFromStreaming(taskId: number, operator?: string, fetchReason?: string): Promise<SellerspriteRequestRun> {
+    const params: Record<string, string> = {}
+    if (operator) params.operator = operator
+    if (fetchReason) params.fetchReason = fetchReason
+    return unwrap<SellerspriteRequestRun>(
+      request({ url: `${RC_BASE}/tasks/from-streaming/${taskId}`, method: 'post', params })
+    )
+  },
+  health(): Promise<Record<string, unknown>> {
+    return unwrap<Record<string, unknown>>(request({ url: `${RC_BASE}/health`, method: 'get' }))
   }
 }

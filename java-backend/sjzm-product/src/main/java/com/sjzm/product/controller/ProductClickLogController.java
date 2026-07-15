@@ -1,6 +1,7 @@
 package com.sjzm.product.controller;
 
 import com.sjzm.common.Result;
+import com.sjzm.product.dto.SelectionUsersRequest;
 import com.sjzm.product.service.ClickLogRequest;
 import com.sjzm.product.service.ProductClickLogService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -56,5 +57,14 @@ public class ProductClickLogController {
             @RequestParam List<String> asins,
             @RequestParam(defaultValue = "UK") String marketplace) {
         return Result.success(clickLogService.getSelectionUsers(asins, marketplace));
+    }
+
+    @PostMapping("/selection-users")
+    @Operation(summary = "批量获取指定 ASIN 的选中用户列表")
+    public Result<Map<String, List<Map<String, Object>>>> selectionUsersByBody(
+            @Valid @RequestBody SelectionUsersRequest request) {
+        return Result.success(
+                clickLogService.getSelectionUsers(request.getAsins(), request.getMarketplace())
+        );
     }
 }

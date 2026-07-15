@@ -12,7 +12,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.WeekFields;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -38,11 +44,11 @@ public class MethodCardServiceImpl implements MethodCardService {
         int size = Math.max(1, Math.min(request.getSize() == null ? 60 : request.getSize(), 100));
         int offset = (page - 1) * size;
 
-        String effectiveWeekTag = resolveEffectiveWeekTag(request);
+        List<String> effectiveWeekTags = resolveEffectiveWeekTags(request, rule.marketplace());
         long total = methodCardMapper.countM01Products(
                 rule.marketplace(),
                 blankToNull(request.getMonth()),
-                effectiveWeekTag,
+                effectiveWeekTags,
                 blankToNull(request.getBsrId()),
                 request.getNodeId(),
                 rule.priceMin(),
@@ -61,7 +67,7 @@ public class MethodCardServiceImpl implements MethodCardService {
         List<MethodCardProductResponse> list = methodCardMapper.selectM01Products(
                 rule.marketplace(),
                 blankToNull(request.getMonth()),
-                effectiveWeekTag,
+                effectiveWeekTags,
                 blankToNull(request.getBsrId()),
                 request.getNodeId(),
                 rule.priceMin(),
@@ -76,7 +82,7 @@ public class MethodCardServiceImpl implements MethodCardService {
                 size
         );
 
-        Map<String, Object> snapshot = ruleSnapshot(rule, effectiveWeekTag);
+        Map<String, Object> snapshot = ruleSnapshot(rule, effectiveWeekTags);
         for (MethodCardProductResponse item : list) {
             item.setMethodId(METHOD_ID_M01);
             item.setMethodName(METHOD_NAME_M01);
@@ -206,15 +212,51 @@ public class MethodCardServiceImpl implements MethodCardService {
         return snapshot;
     }
 
-    private String resolveEffectiveWeekTag(MethodCardQueryRequest request) {
+    List<String> resolveEffectiveWeekTags(MethodCardQueryRequest request, String marketplace) {
+        List<String> requestedWeeks = normalizeCreatedWeeks(request.getCreatedWeeks());
+        if (!requestedWeeks.isEmpty()) return requestedWeeks;
         if (StringUtils.hasText(request.getCreatedWeek())) {
-            return request.getCreatedWeek().trim();
+            return List.of(normalizeCreatedWeekValue(request.getCreatedWeek()));
         }
         if (StringUtils.hasText(request.getMonth())) {
-            return null;
+            return List.of();
         }
-        return methodCardMapper.selectLatestM01EffectiveWeek(
-                M01Rule.forMarketplace(request.getMarketplace()).marketplace());
+        String latestWeek = methodCardMapper.selectLatestM01EffectiveWeek(marketplace);
+        return StringUtils.hasText(latestWeek) ? List.of(latestWeek.trim()) : List.of();
+    }
+
+    private static List<String> normalizeCreatedWeeks(Collection<String> rawWeeks) {
+        if (rawWeeks == null || rawWeeks.isEmpty()) return List.of();
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        for (String rawWeek : rawWeeks) {
+            if (StringUtils.hasText(rawWeek)) {
+                normalized.add(normalizeCreatedWeekValue(rawWeek));
+            }
+        }
+        return List.copyOf(normalized);
+    }
+
+    /** 兼容旧前端/旧预设保存的 yyyyMMdd 或 yyyy-MM-dd，统一转为 ISO 周标签。 */
+    static String normalizeCreatedWeekValue(String rawValue) {
+        String value = rawValue.trim();
+        LocalDate date = null;
+        try {
+            if (value.matches("\\d{8}")) {
+                date = LocalDate.parse(value, DateTimeFormatter.BASIC_ISO_DATE);
+            } else if (value.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                date = LocalDate.parse(value, DateTimeFormatter.ISO_LOCAL_DATE);
+            }
+        } catch (DateTimeParseException ignored) {
+            // 非法旧日期保持原值，让查询安全地返回空结果，而不是退回全量。
+        }
+        if (date == null) return value.toUpperCase(Locale.ROOT);
+        WeekFields iso = WeekFields.ISO;
+        return String.format(
+                Locale.ROOT,
+                "%04d-W%02d",
+                date.get(iso.weekBasedYear()),
+                date.get(iso.weekOfWeekBasedYear())
+        );
     }
 
     private static List<String> hitReasons(MethodCardProductResponse item, M01Rule rule) {
@@ -234,7 +276,7 @@ public class MethodCardServiceImpl implements MethodCardService {
         return reasons;
     }
 
-    private static Map<String, Object> ruleSnapshot(M01Rule rule, String effectiveWeekTag) {
+    private static Map<String, Object> ruleSnapshot(M01Rule rule, List<String> effectiveWeekTags) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("methodId", METHOD_ID_M01);
         snapshot.put("methodName", METHOD_NAME_M01);
@@ -247,7 +289,8 @@ public class MethodCardServiceImpl implements MethodCardService {
         snapshot.put("sales60", rule.sales60());
         snapshot.put("sales90", rule.sales90());
         snapshot.put("bsrMax", rule.bsrMax());
-        snapshot.put("effectiveWeekTag", effectiveWeekTag);
+        snapshot.put("effectiveWeekTags", effectiveWeekTags);
+        snapshot.put("effectiveWeekTag", effectiveWeekTags.size() == 1 ? effectiveWeekTags.get(0) : null);
         return snapshot;
     }
 

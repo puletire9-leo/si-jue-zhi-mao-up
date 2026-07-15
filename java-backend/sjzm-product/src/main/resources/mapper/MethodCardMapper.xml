@@ -12,8 +12,11 @@
         <if test="month != null and month != ''">
             AND cp.month = #{month}
         </if>
-        <if test="effectiveWeekTag != null and effectiveWeekTag != ''">
-            AND cp.effective_week_tag = #{effectiveWeekTag}
+        <if test="effectiveWeekTags != null and !effectiveWeekTags.isEmpty()">
+            AND cp.effective_week_tag IN
+            <foreach collection="effectiveWeekTags" item="weekTag" open="(" separator="," close=")">
+                #{weekTag}
+            </foreach>
         </if>
         <if test="bsrId != null and bsrId != ''">
             AND cp.bsr_id = #{bsrId}

@@ -119,7 +119,7 @@ describe("buildSelectionQueryPlan", () => {
     expect(plan.params.createdWeeks).toEqual(["2026-W26"]);
     expect(plan.params.qualifyRules).toEqual(qualifyRules);
     expect(plan.params.title).toBe("desk lamp");
-    expect(plan.params.filterMode).toBe("MODE1");
+    expect(plan.params.filterMode).toBeUndefined();
     expect(plan.params.sortBy).toBe("createdAt");
     expect(plan.params.sortOrder).toBe("asc");
   });
@@ -186,7 +186,7 @@ describe("buildSelectionQueryPlan", () => {
     expect(plan.unsupportedFilters).not.toContain("snapshotKeys");
   });
 
-  it("passes a single selected created week into M01 plans", () => {
+  it("passes all selected created weeks into M01 plans", () => {
     const intent = buildSelectionFilterIntent({
       scene: "all",
       methodId: "M01",
@@ -194,7 +194,7 @@ describe("buildSelectionQueryPlan", () => {
       activeFilters: createFilterState({
         range: {
           ...createRange(),
-          createdWeeks: ["2026-W26"],
+          createdWeeks: ["2026-W29", "2026-W28"],
         },
       }),
       useCleanTable: true,
@@ -211,9 +211,33 @@ describe("buildSelectionQueryPlan", () => {
       throw new Error("expected method card plan");
     }
 
-    expect(plan.params.createdWeek).toBe("2026-W26");
+    expect(plan.params.createdWeeks).toEqual(["2026-W29", "2026-W28"]);
+    expect(plan.params.createdWeek).toBeUndefined();
     expect(plan.unsupportedFilters).not.toContain("snapshotKeys");
   });
+
+  it.each(["M01", "M03"] as const)(
+    "keeps %s on shop_products in the reference scene",
+    (methodId) => {
+      const intent = buildSelectionFilterIntent({
+        scene: "reference",
+        methodId,
+        queryParams: createQueryParams(),
+        activeFilters: createFilterState(),
+        useCleanTable: true,
+      });
+
+      const plan = buildSelectionQueryPlan({ intent, page: 2, size: 60 });
+
+      expect(plan.executor).toBe("shop_products");
+      if (plan.executor !== "shop_products") {
+        throw new Error("expected shop-products plan");
+      }
+      expect(plan.targetSource).toBe("shop_products");
+      expect(plan.methodId).toBe(methodId);
+      expect(plan.params.methodId).toBe(methodId);
+    },
+  );
 
   it("keeps M03 independent from stale snapshots and product-line scope", () => {
     const intent = buildSelectionFilterIntent({
@@ -419,13 +443,67 @@ describe("buildSelectionQueryPlan", () => {
       size: 60,
     });
 
-    // 核心断言: 数组输入没有触发 raw.split is not a function 崩溃
-    // 并且 category 数组被正确消化成逗号串 (asin 在 new 场景下会被 method
-    // 声明为 unsupported, 因此不再检查具体值)
+    // 核心断言: 数组输入没有触发 raw.split is not a function 崩溃。
+    // 多 ASIN 会进入精准搜索模式，因此其他普通筛选应被忽略。
     expect(plan.executor).toBe("competitor");
     if (plan.executor !== "competitor") {
       throw new Error("expected competitor plan");
     }
-    expect(plan.params.category).toBe("Home & Kitchen,Toys");
+    expect(plan.params.asin).toEqual(["B01", "B02"]);
+    expect(plan.params.category).toBeUndefined();
+  });
+
+  it("passes every ASIN from multiline precise search without intersecting normal filters", () => {
+    const qualifyRules: QualifyRule[] = [
+      {
+        conditions: [
+          { field: "listingDays", op: "le", value: 30 },
+          { field: "units", op: "gt", value: 30 },
+        ],
+      },
+    ];
+    const intent = buildSelectionFilterIntent({
+      scene: "new",
+      methodId: "M01",
+      queryParams: createQueryParams({
+        asin: "B0H1C5W6KV\nB0H3YW76MV\r\nB0H6PDFPSD",
+        dataFilterMode: "MODE1",
+      }),
+      activeFilters: createFilterState({
+        category: ["Toys & Games"],
+        range: {
+          ...createRange(),
+          unitsMin: 30,
+          listingDaysMax: 30,
+          createdWeeks: ["2026-W29"],
+        },
+      }),
+      useCleanTable: true,
+      qualifyRules,
+    });
+
+    const plan = buildSelectionQueryPlan({
+      intent,
+      page: 1,
+      size: 60,
+    });
+
+    expect(plan.executor).toBe("competitor");
+    if (plan.executor !== "competitor") {
+      throw new Error("expected competitor plan");
+    }
+    expect(plan.params.asin).toEqual([
+      "B0H1C5W6KV",
+      "B0H3YW76MV",
+      "B0H6PDFPSD",
+    ]);
+    expect(plan.methodId).toBeNull();
+    expect(plan.params.filterMode).toBeUndefined();
+    expect(plan.params.category).toBeUndefined();
+    expect(plan.params.unitsMin).toBeUndefined();
+    expect(plan.params.listingDaysMax).toBeUndefined();
+    expect(plan.params.createdWeeks).toBeUndefined();
+    expect(plan.params.qualifyRules).toBeUndefined();
+    expect(plan.latestSnapshotFallback).toBeUndefined();
   });
 });
