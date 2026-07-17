@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.modules.shopcollection.mapper.ShopScreeningMapper">
+
+    <sql id="m01Condition">
+        price BETWEEN #{priceMin} AND #{priceMax}
+        AND weight_g IS NOT NULL AND weight_g &lt; #{weightMax}
+        AND listing_days IS NOT NULL AND listing_days &lt; #{listingDaysMax}
+        AND (
+            (listing_days &lt;= 30 AND units IS NOT NULL AND units &gt;= #{sales30})
+            OR (listing_days &lt;= 60 AND units IS NOT NULL AND units &gt;= #{sales60})
+            OR (listing_days &lt;= 90 AND units IS NOT NULL AND units &gt;= #{sales90})
+            <if test="bsrMax != null">
+                OR (bsr IS NOT NULL AND bsr &gt; 0 AND bsr &lt; #{bsrMax})
+            </if>
+        )
+    </sql>
+
+    <sql id="passedCondition">
+        1 = 1
+        <if test="q.priceMin != null">AND price &gt;= #{q.priceMin}</if>
+        <if test="q.priceMax != null">AND price &lt;= #{q.priceMax}</if>
+        <if test="q.unitsMin != null">AND units &gt;= #{q.unitsMin}</if>
+        <if test="q.unitsMax != null">AND units &lt;= #{q.unitsMax}</if>
+        <if test="q.listingDaysMin != null">AND listing_days &gt;= #{q.listingDaysMin}</if>
+        <if test="q.listingDaysMax != null">AND listing_days &lt;= #{q.listingDaysMax}</if>
+        <if test="q.bsrMax != null">AND bsr &lt;= #{q.bsrMax}</if>
+        <if test="q.weightMax != null">AND weight_g IS NOT NULL AND weight_g &lt;= #{q.weightMax}</if>
+        <if test="q.maxVariantCount != null">AND variations &lt;= #{q.maxVariantCount}</if>
+        <if test="q.fulfillment != null and q.fulfillment.size > 0">
+            AND UPPER(fulfillment) IN
+            <foreach collection="q.fulfillment" item="method" open="(" separator="," close=")">#{method}</foreach>
+        </if>
+        <if test="q.categories != null and q.categories.size > 0">
+            AND (
+            <foreach collection="q.categories" item="category" separator=" OR ">
+                node_label_path LIKE CONCAT('%', #{category}, '%')
+            </foreach>
+            )
+        </if>
+        <if test="q.m01Only != null and q.m01Only">
+            AND (<include refid="m01Condition"/>)
+        </if>
+    </sql>
+
+    <select id="screen" resultType="com.sjzm.product.modules.shopcollection.dto.ShopScreeningRow">
+        WITH watchlist_ranked AS (
+            SELECT sw.*, ROW_NUMBER() OVER (
+                PARTITION BY sw.marketplace, sw.seller_name ORDER BY sw.updated_at DESC, sw.id DESC
+            ) AS rn
+            FROM shop_watchlist sw
+            WHERE sw.marketplace = #{q.marketplace}
+              AND LOWER(TRIM(sw.seller_name)) != 'amazon'
+            <if test="q.watchlistStatus != null and q.watchlistStatus != ''">AND sw.status = #{q.watchlistStatus}</if>
+            <if test="q.sourceType != null and q.sourceType != ''">AND sw.source_type = #{q.sourceType}</if>
+            <if test="q.sellerNames != null and q.sellerNames.size > 0">
+                AND sw.seller_name IN
+                <foreach collection="q.sellerNames" item="seller" open="(" separator="," close=")">#{seller}</foreach>
+            </if>
+            <if test="q.sellerKeyword != null and q.sellerKeyword != ''">
+                AND sw.seller_name LIKE CONCAT('%', #{q.sellerKeyword}, '%')
+            </if>
+        ), watchlist_latest AS (
+            SELECT * FROM watchlist_ranked WHERE rn = 1
+        ), ranked_products AS (
+            SELECT ds.*,
+                COALESCE(NULLIF(ds.parent_asin, ''), ds.asin) AS product_key,
+                CASE
+                    WHEN ds.units IS NULL THEN 'UNKNOWN'
+                    WHEN ds.units &gt;= 100 THEN 'A'
+                    WHEN ds.units &gt;= 50 THEN 'B'
+                    WHEN ds.units &gt;= 15 THEN 'C'
+                    ELSE 'D'
+                END AS sales_tier_calc,
+                COALESCE(NULLIF(TRIM(SUBSTRING_INDEX(ds.node_label_path, ':', -1)), ''), 'UNKNOWN') AS category_leaf,
+                ROW_NUMBER() OVER (
+                    PARTITION BY ds.marketplace, ds.seller_name, COALESCE(NULLIF(ds.parent_asin, ''), ds.asin)
+                    ORDER BY ds.batch_code DESC, ds.updated_at DESC, ds.id DESC
+                ) AS rn
+            FROM shop_products ds
+            WHERE ds.marketplace = #{q.marketplace}
+              AND ds.seller_name IS NOT NULL AND ds.seller_name != ''
+              AND LOWER(TRIM(ds.seller_name)) != 'amazon'
+              AND ds.asin IS NOT NULL AND ds.asin != ''
+            <if test="q.batchCodes != null and q.batchCodes.size > 0">
+                AND ds.batch_code IN
+                <foreach collection="q.batchCodes" item="batch" open="(" separator="," close=")">#{batch}</foreach>
+            </if>
+            <if test="q.sellerNames != null and q.sellerNames.size > 0">
+                AND ds.seller_name IN
+                <foreach collection="q.sellerNames" item="seller" open="(" separator="," close=")">#{seller}</foreach>
+            </if>
+            <if test="q.sellerKeyword != null and q.sellerKeyword != ''">
+                AND ds.seller_name LIKE CONCAT('%', #{q.sellerKeyword}, '%')
+            </if>
+        ), base AS (
+            SELECT * FROM ranked_products WHERE rn = 1
+        ), enriched AS (
+            SELECT base.*,
+                CASE WHEN <include refid="passedCondition"/> THEN 1 ELSE 0 END AS pass_hit,
+                CASE WHEN <include refid="m01Condition"/> THEN 1 ELSE 0 END AS m01_hit
+            FROM base
+        ), shop_agg AS (
+            SELECT marketplace, seller_name AS sellerName, MAX(seller_id) AS sellerId,
+                COUNT(*) AS productCount,
+                SUM(pass_hit) AS passedProductCount,
+                SUM(m01_hit) AS m01HitCount,
+                ROUND(SUM(m01_hit) / NULLIF(COUNT(*), 0), 4) AS m01HitRatio,
+                ROUND(AVG(listing_days), 2) AS avgListingDays,
+                ROUND(AVG(units), 2) AS avgUnits,
+                SUM(CASE WHEN listing_days IS NOT NULL AND listing_days &lt;= 30 THEN 1 ELSE 0 END) AS new30Count,
+                SUM(CASE WHEN listing_days IS NOT NULL AND listing_days &lt;= 90 THEN 1 ELSE 0 END) AS new90Count,
+                SUM(CASE WHEN sales_tier_calc = 'A' THEN 1 ELSE 0 END) AS aCount,
+                SUM(CASE WHEN sales_tier_calc = 'B' THEN 1 ELSE 0 END) AS bCount,
+                SUM(CASE WHEN sales_tier_calc = 'C' THEN 1 ELSE 0 END) AS cCount,
+                SUM(CASE WHEN sales_tier_calc = 'D' THEN 1 ELSE 0 END) AS dCount,
+                SUM(CASE WHEN sales_tier_calc IN ('A','B','C') THEN 1 ELSE 0 END) AS abcCount,
+                ROUND(SUM(CASE WHEN sales_tier_calc IN ('A','B','C') THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 4) AS abcRatio,
+                SUBSTRING_INDEX(GROUP_CONCAT(CASE WHEN pass_hit = 1 THEN category_leaf END ORDER BY units DESC SEPARATOR '||'), '||', 1) AS topCategory,
+                MAX(batch_code) AS latestBatchCode
+            FROM enriched
+            GROUP BY marketplace, seller_name
+        ), candidates AS (
+            <choose>
+                <when test="q.scope == 'WATCHLIST'">
+                    SELECT wl.marketplace, wl.seller_name AS sellerName, COALESCE(sa.sellerId, wl.seller_id) AS sellerId,
+                        COALESCE(sa.productCount, 0) AS productCount,
+                        COALESCE(sa.passedProductCount, 0) AS passedProductCount,
+                        COALESCE(sa.m01HitCount, 0) AS m01HitCount,
+                        COALESCE(sa.m01HitRatio, 0) AS m01HitRatio,
+                        sa.avgListingDays, sa.avgUnits,
+                        COALESCE(sa.new30Count, 0) AS new30Count, COALESCE(sa.new90Count, 0) AS new90Count,
+                        COALESCE(sa.aCount, 0) AS aCount, COALESCE(sa.bCount, 0) AS bCount,
+                        COALESCE(sa.cCount, 0) AS cCount, COALESCE(sa.dCount, 0) AS dCount,
+                        COALESCE(sa.abcCount, 0) AS abcCount, COALESCE(sa.abcRatio, 0) AS abcRatio,
+                        sa.topCategory, sa.latestBatchCode,
+                        wl.id AS watchlistId, wl.status AS watchlistStatus, wl.source_type AS sourceType,
+                        wl.source_code AS sourceCode, wl.reason, wl.hit_count AS sourceHitCount
+                    FROM watchlist_latest wl
+                    LEFT JOIN shop_agg sa
+                      ON sa.marketplace COLLATE utf8mb4_unicode_ci = wl.marketplace
+                     AND sa.sellerName COLLATE utf8mb4_unicode_ci = wl.seller_name
+                </when>
+                <otherwise>
+                    SELECT sa.*,
+                        wl.id AS watchlistId, wl.status AS watchlistStatus, wl.source_type AS sourceType,
+                        wl.source_code AS sourceCode, wl.reason, wl.hit_count AS sourceHitCount
+                    FROM shop_agg sa
+                    LEFT JOIN watchlist_latest wl
+                      ON wl.marketplace = sa.marketplace COLLATE utf8mb4_unicode_ci
+                     AND wl.seller_name = sa.sellerName COLLATE utf8mb4_unicode_ci
+                </otherwise>
+            </choose>
+        ), filtered AS (
+            SELECT * FROM candidates
+            WHERE 1 = 1
+            <if test="q.scope != 'WATCHLIST' or q.productFilterActive">AND passedProductCount &gt; 0</if>
+            <if test="q.minProductCount != null">AND productCount &gt;= #{q.minProductCount}</if>
+            <if test="q.minPassedProductCount != null">AND passedProductCount &gt;= #{q.minPassedProductCount}</if>
+            <if test="q.minM01HitCount != null">AND m01HitCount &gt;= #{q.minM01HitCount}</if>
+            <if test="q.avgListingDaysMax != null">AND avgListingDays &lt;= #{q.avgListingDaysMax}</if>
+        )
+        SELECT filtered.*,
+            COUNT(*) OVER() AS totalRows,
+            SUM(productCount) OVER() AS totalProductCount,
+            SUM(passedProductCount) OVER() AS totalPassedProductCount,
+            SUM(m01HitCount) OVER() AS totalM01HitCount
+        FROM filtered
+        ORDER BY
+        <choose>
+            <when test="q.sortBy == 'productCount'">productCount</when>
+            <when test="q.sortBy == 'm01HitCount'">m01HitCount</when>
+            <when test="q.sortBy == 'avgListingDays'">avgListingDays</when>
+            <when test="q.sortBy == 'new90Count'">new90Count</when>
+            <otherwise>passedProductCount</otherwise>
+        </choose>
+        <choose><when test="q.sortOrder == 'ASC'">ASC</when><otherwise>DESC</otherwise></choose>,
+        sellerName ASC
+        LIMIT #{q.offset}, #{q.size}
+    </select>
+
+    <select id="selectBatchOptions" resultType="map">
+        SELECT batch_code AS batchCode,
+            COUNT(DISTINCT seller_name) AS shopCount,
+            COUNT(DISTINCT CONCAT(seller_name, CHAR(1), COALESCE(NULLIF(parent_asin, ''), asin))) AS productCount
+        FROM shop_products
+        WHERE marketplace = #{marketplace} AND batch_code IS NOT NULL AND batch_code != ''
+        GROUP BY batch_code
+        ORDER BY batch_code DESC
+    </select>
+</mapper>

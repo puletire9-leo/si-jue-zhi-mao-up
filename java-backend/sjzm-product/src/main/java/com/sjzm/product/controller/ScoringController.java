@@ -1,6 +1,7 @@
 package com.sjzm.product.controller;
 
 import com.sjzm.common.Result;
+import com.sjzm.product.config.DatabaseWorkloadGate;
 import com.sjzm.product.dto.ScoringConfigUpdateRequest;
 import com.sjzm.product.entity.GradeThreshold;
 import com.sjzm.product.entity.ScoringConfig;
@@ -21,6 +22,7 @@ import java.util.Map;
 public class ScoringController {
 
     private final ScoringService scoringService;
+    private final DatabaseWorkloadGate workloadGate;
 
     @GetMapping("/config")
     @Operation(summary = "获取评分配置")
@@ -67,7 +69,7 @@ public class ScoringController {
     @PostMapping("/score-current-week")
     @Operation(summary = "一键计算本周评级")
     public Result<Map<String, Object>> scoreCurrentWeek() {
-        Map<String, Object> result = scoringService.scoreCurrentWeek();
+        Map<String, Object> result = workloadGate.runHeavyWrite(scoringService::scoreCurrentWeek);
         return Result.success("评分完成", result);
     }
 
@@ -75,7 +77,7 @@ public class ScoringController {
     @Operation(summary = "重新评分")
     public Result<Map<String, Object>> recalculate(@RequestBody(required = false) Map<String, String> body) {
         String scope = body != null ? body.getOrDefault("scope", "all") : "all";
-        Map<String, Object> result = scoringService.recalculateScores(scope);
+        Map<String, Object> result = workloadGate.runHeavyWrite(() -> scoringService.recalculateScores(scope));
         return Result.success("重新评分完成", result);
     }
 

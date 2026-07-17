@@ -1938,8 +1938,12 @@ async def update_final_draft(
 
         if draft_update.sku:
             # 检查SKU是否已被其他定稿使用
-            check_sku_query = "SELECT id FROM final_drafts WHERE sku = %s AND sku != %s"
-            sku_draft = await mysql_repo.execute_query(check_sku_query, (draft_update.sku, sku), fetch_one=True)
+            check_sku_query = "SELECT id FROM final_drafts WHERE sku = %s AND id != %s"
+            sku_draft = await mysql_repo.execute_query(
+                check_sku_query,
+                (draft_update.sku, old_draft["id"]),
+                fetch_one=True
+            )
             if sku_draft:
                 raise HTTPException(status_code=400, detail="该SKU已被其他定稿使用")
 
@@ -2107,16 +2111,16 @@ async def update_final_draft(
                     # 图片删除失败不影响主流程，继续处理其他图片
         
         # 执行更新
-        params.append(sku)  # 添加WHERE条件参数
-        update_query = f"UPDATE final_drafts SET {', '.join(update_fields)} WHERE sku = %s"
+        params.append(old_draft["id"])  # 使用稳定主键，SKU本身允许被清理或修改
+        update_query = f"UPDATE final_drafts SET {', '.join(update_fields)} WHERE id = %s"
         logger.debug(f"执行定稿更新 - SQL: {update_query}, 参数: {tuple(params)}")
         await mysql_repo.execute_update(update_query, tuple(params))
         logger.info(f"定稿更新成功 - SKU: {sku}")
 
         # 获取更新后的数据
         updated_draft = await mysql_repo.execute_query(
-            "SELECT * FROM final_drafts WHERE sku = %s",
-            (draft_update.sku or sku,),
+            "SELECT * FROM final_drafts WHERE id = %s",
+            (old_draft["id"],),
             fetch_one=True
         )
 

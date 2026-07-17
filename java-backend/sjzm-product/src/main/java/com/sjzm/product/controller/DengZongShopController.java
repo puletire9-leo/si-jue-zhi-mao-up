@@ -36,14 +36,20 @@ public class DengZongShopController {
             @RequestParam(required = false) String brand,
             @RequestParam(required = false) String sellerName,
             @RequestParam(required = false) String title,
+            @RequestParam(required = false) List<String> asins,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String bsrId,
             @RequestParam(required = false) Long nodeId,
             @RequestParam(required = false) java.math.BigDecimal priceMin,
             @RequestParam(required = false) java.math.BigDecimal priceMax,
+            @RequestParam(required = false) Integer unitsMin,
+            @RequestParam(required = false) Integer unitsMax,
+            @RequestParam(required = false) Integer listingDaysMin,
+            @RequestParam(required = false) Integer listingDaysMax,
             @RequestParam(required = false) Integer bsrMax,
             @RequestParam(required = false) java.math.BigDecimal ratingMin,
-            @RequestParam(required = false) String weightMax,
+            @RequestParam(required = false) java.math.BigDecimal weightMax,
+            @RequestParam(required = false) List<String> fulfillment,
             @RequestParam(required = false) Integer maxVariantCount,
             @RequestParam(required = false) String batchDate,
             @RequestParam(required = false) String sortBy,
@@ -55,9 +61,15 @@ public class DengZongShopController {
         int offset = (safePage - 1) * size;
         // 验证 sortOrder 防止 SQL 注入
         String safeSortOrder = "asc".equalsIgnoreCase(sortOrder) ? "ASC" : "DESC";
-        long total = dengZongShopService.countGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId, priceMin, priceMax, bsrMax, ratingMin, weightMax, maxVariantCount, batchDate);
+        long total = dengZongShopService.countGroupedByParent(
+                marketplace, month, brand, sellerName, title, asins, category, bsrId, nodeId,
+                priceMin, priceMax, unitsMin, unitsMax, listingDaysMin, listingDaysMax,
+                bsrMax, ratingMin, weightMax, fulfillment, maxVariantCount, batchDate);
         List<DengZongShop> list = dengZongShopService.selectGroupedByParent(
-                marketplace, month, brand, sellerName, title, category, bsrId, nodeId, priceMin, priceMax, bsrMax, ratingMin, weightMax, maxVariantCount, batchDate, sortBy, safeSortOrder, offset, size);
+                marketplace, month, brand, sellerName, title, asins, category, bsrId, nodeId,
+                priceMin, priceMax, unitsMin, unitsMax, listingDaysMin, listingDaysMax,
+                bsrMax, ratingMin, weightMax, fulfillment, maxVariantCount, batchDate,
+                sortBy, safeSortOrder, offset, size);
 
         List<Map<String, Object>> items = list.stream().map(this::toResponse).collect(Collectors.toList());
 
@@ -258,6 +270,11 @@ public class DengZongShopController {
         m.put("variations", d.getVariations());
         m.put("weight", d.getWeight());
         m.put("dimension", d.getDimension());
+        m.put("dimensionsType", d.getDimensionsType());
+        m.put("pkgDimensions", d.getPkgDimensions());
+        m.put("pkgDimensionType", d.getPkgDimensionType());
+        m.put("pkgWeight", d.getPkgWeight());
+        m.put("lqs", d.getLqs());
         m.put("bestSeller", d.getBestSeller());
         m.put("amazonChoice", d.getAmazonChoice());
         m.put("newRelease", d.getNewRelease());

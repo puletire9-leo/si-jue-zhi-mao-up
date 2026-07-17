@@ -3,8 +3,12 @@ package com.sjzm.product.modules.bazhuayu.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sjzm.product.mapper.BazhuayuWeeklyRawMapper;
+import com.sjzm.product.config.DatabaseWorkloadGate;
 import com.sjzm.product.modules.bazhuayu.config.BazhuayuConfig;
+import com.sjzm.product.modules.bazhuayu.entity.BazhuayuTaskMapping;
 import com.sjzm.product.modules.bazhuayu.entity.BazhuayuWeeklyRaw;
+import com.sjzm.product.modules.bazhuayu.entity.PremiumProduct;
+import com.sjzm.product.modules.bazhuayu.mapper.PremiumProductMapper;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuRunStateService.Phase;
 import com.sjzm.product.service.AsinImportService;
 import com.sjzm.product.service.ScoringService;
@@ -15,8 +19,9 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,7 +29,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Bazhuayu scheduling and console orchestration.
@@ -46,28 +50,34 @@ public class BazhuayuScheduledService {
     private final BazhuayuConfigService configService;
     private final BazhuayuConfig config;
     private final BazhuayuWeeklyRawMapper rawMapper;
+    private final PremiumProductMapper premiumProductMapper;
     private final AsinImportService asinImportService;
     private final ScoringService scoringService;
     private final BazhuayuRunStateService runState;
     private final ThreadPoolTaskExecutor executor;
+    private final DatabaseWorkloadGate workloadGate;
     private final Set<String> activeDrainMarketplaces = ConcurrentHashMap.newKeySet();
 
     public BazhuayuScheduledService(BazhuayuClient client,
                                     BazhuayuConfigService configService,
                                     BazhuayuConfig config,
                                     BazhuayuWeeklyRawMapper rawMapper,
+                                    PremiumProductMapper premiumProductMapper,
                                     AsinImportService asinImportService,
                                     ScoringService scoringService,
                                     BazhuayuRunStateService runState,
-                                    @Qualifier("bazhuayuExecutor") ThreadPoolTaskExecutor executor) {
+                                    @Qualifier("bazhuayuExecutor") ThreadPoolTaskExecutor executor,
+                                    DatabaseWorkloadGate workloadGate) {
         this.client = client;
         this.configService = configService;
         this.config = config;
         this.rawMapper = rawMapper;
+        this.premiumProductMapper = premiumProductMapper;
         this.asinImportService = asinImportService;
         this.scoringService = scoringService;
         this.runState = runState;
         this.executor = executor;
+        this.workloadGate = workloadGate;
     }
 
     // ============================================================
@@ -95,6 +105,30 @@ public class BazhuayuScheduledService {
         });
     }
 
+    /** 手动按配置行的 taskId 导入，避免同站点多任务时误用主任务。 */
+    public void triggerTaskAsync(String function, String marketplace, String taskId) {
+        triggerTaskAsync(function, marketplace, taskId, null);
+    }
+
+    /** 手动导入页面当前显示的云采集批次；提交异步任务前先同步校验，避免误点旧批次。 */
+    public void triggerTaskAsync(String function, String marketplace, String taskId,
+                                 BazhuayuBatchSnapshot expectedBatch) {
+        if (!BazhuayuConfigService.FUNC_BANGDAN.equals(function)) {
+            throw new IllegalArgumentException("当前仅榜单任务支持导入 DB");
+        }
+        if (expectedBatch != null) {
+            validateLatestBatch(taskId, expectedBatch, null);
+        }
+        executor.execute(() -> {
+            try {
+                String weekTag = scoringService.getCurrentWeekTag();
+                collectConfiguredTask(function, marketplace, taskId, weekTag, null, expectedBatch);
+            } catch (Exception e) {
+                log.error("Bazhuayu task {}:{} direct drain failed: {}", marketplace, taskId, e.getMessage(), e);
+            }
+        });
+    }
+
     /**
      * Drain bangdan cloud increments and run the initial filter. One marketplace failure does not block others.
      */
@@ -107,19 +141,27 @@ public class BazhuayuScheduledService {
             log.info("Cleaned {} stale Bazhuayu raw rows outside week {}", deleted, weekTag);
         }
 
-        Map<String, String> taskMap = configService.getMarketplaceTaskMap();
-        List<String> marketplaces = resolveMarketplaces(marketplace, taskMap);
-        if (marketplaces.isEmpty()) {
+        List<BazhuayuTaskMapping> entries = configService.listTaskEntries().stream()
+                .filter(entry -> BazhuayuConfigService.FUNC_BANGDAN.equals(entry.getFunctionKey()))
+                .filter(entry -> marketplace == null || marketplace.isBlank()
+                        || marketplace.equalsIgnoreCase(entry.getMarketplace()))
+                .toList();
+        if (entries.isEmpty()) {
             log.warn("No Bazhuayu marketplaces configured; check api_config.bazhuayu_taskgroup_mapping");
             return Map.of("weekTag", weekTag, "results", List.of());
         }
 
         List<Map<String, Object>> results = new ArrayList<>();
-        for (String mp : marketplaces) {
+        for (BazhuayuTaskMapping entry : entries) {
+            String mp = entry.getMarketplace();
             Map<String, Object> r = new LinkedHashMap<>();
             r.put("marketplace", mp);
+            r.put("taskName", entry.getTaskName());
+            r.put("taskCategory", entry.getTaskCategory());
+            r.put("initialFilter", entry.getInitialFilter());
             try {
-                r.putAll(collectAndScreen(mp, taskMap.get(mp), weekTag, null));
+                r.putAll(collectConfiguredTask(BazhuayuConfigService.FUNC_BANGDAN,
+                        mp, entry.getTaskId(), weekTag, null, null));
             } catch (Exception e) {
                 log.error("Bazhuayu marketplace {} drain failed: {}", mp, e.getMessage(), e);
                 r.put("status", "ERROR");
@@ -178,6 +220,17 @@ public class BazhuayuScheduledService {
         return Map.of("function", function, "accepted", accepted, "skipped", skipped, "missing", missing);
     }
 
+    /** 手动按配置行启动指定 taskId；同功能同站点仍只允许一条同时运行。 */
+    public Map<String, Object> startCloudCollectTask(String function, String marketplace, String taskId) {
+        if (runState.tryBegin(function, marketplace, taskId)) {
+            executor.execute(() -> runOneDragon(function, marketplace, taskId));
+            return Map.of("function", function, "accepted", List.of(marketplace),
+                    "skipped", List.of(), "missing", List.of());
+        }
+        return Map.of("function", function, "accepted", List.of(),
+                "skipped", List.of(marketplace), "missing", List.of());
+    }
+
     private void runOneDragon(String function, String mp, String taskId) {
         boolean isBangdan = BazhuayuConfigService.FUNC_BANGDAN.equals(function);
         try {
@@ -217,8 +270,9 @@ public class BazhuayuScheduledService {
 
             runState.setPhase(function, mp, Phase.DRAINING);
             String weekTag = scoringService.getCurrentWeekTag();
-            Map<String, Object> r = collectAndScreen(mp, taskId, weekTag,
-                    () -> runState.isCancelled(function, mp));
+            BazhuayuBatchSnapshot latestBatch = client.getLatestBatchSnapshot(taskId).withLotNo(lotNo);
+            Map<String, Object> r = collectConfiguredTask(function, mp, taskId, weekTag,
+                    () -> runState.isCancelled(function, mp), latestBatch);
             int rawCount = ((Number) r.getOrDefault("rawCount", 0)).intValue();
             if (runState.isCancelled(function, mp)) {
                 runState.fail(function, mp, Phase.STOPPED,
@@ -242,7 +296,17 @@ public class BazhuayuScheduledService {
         if (taskId == null || taskId.isBlank()) {
             throw new IllegalArgumentException("Bazhuayu task " + function + ":" + marketplace + " is not configured");
         }
-        runState.requestCancel(function, marketplace);
+        return stopTask(function, marketplace, taskId);
+    }
+
+    public Map<String, Object> stopTask(String function, String marketplace, String taskId) {
+        if (taskId == null || taskId.isBlank()) {
+            throw new IllegalArgumentException("Bazhuayu taskId is not configured");
+        }
+        BazhuayuRunStateService.RunState current = runState.get(function, marketplace);
+        if (current != null && taskId.equals(current.getTaskId())) {
+            runState.requestCancel(function, marketplace);
+        }
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("function", function);
         r.put("marketplace", marketplace);
@@ -258,8 +322,124 @@ public class BazhuayuScheduledService {
         return r;
     }
 
-    private Map<String, Object> collectAndScreen(String mp, String taskId, String weekTag,
-                                                 java.util.function.BooleanSupplier cancelled) {
+    private Map<String, Object> collectConfiguredTask(
+            String function,
+            String marketplace,
+            String taskId,
+            String weekTag,
+            java.util.function.BooleanSupplier cancelled,
+            BazhuayuBatchSnapshot expectedBatch) {
+        return workloadGate.runHeavyWrite(() -> doCollectConfiguredTask(
+                function, marketplace, taskId, weekTag, cancelled, expectedBatch));
+    }
+
+    private Map<String, Object> doCollectConfiguredTask(
+            String function,
+            String marketplace,
+            String taskId,
+            String weekTag,
+            java.util.function.BooleanSupplier cancelled,
+            BazhuayuBatchSnapshot expectedBatch) {
+        BazhuayuTaskMapping entry = configService.findTaskEntry(function, marketplace, taskId);
+        if (entry == null) {
+            throw new IllegalArgumentException("八爪鱼命名任务不存在: " + function + ":" + marketplace + ":" + taskId);
+        }
+        boolean initialFilter = entry == null || !BazhuayuConfigService.FUNC_BANGDAN.equals(function)
+                || !Boolean.FALSE.equals(entry.getInitialFilter());
+        BazhuayuBatchSnapshot batch = expectedBatch == null
+                ? null : validateLatestBatch(taskId, expectedBatch, expectedBatch.lotNo());
+        if (initialFilter) {
+            return collectAndScreen(entry, weekTag, cancelled, batch);
+        }
+        return collectPremium(entry, weekTag, cancelled, batch);
+    }
+
+    private BazhuayuBatchSnapshot validateLatestBatch(
+            String taskId,
+            BazhuayuBatchSnapshot expected,
+            String knownLotNo) {
+        BazhuayuBatchSnapshot actual = client.getLatestBatchSnapshot(taskId);
+        actual.assertSameBatch(expected);
+        return knownLotNo == null || knownLotNo.isBlank() ? actual : actual.withLotNo(knownLotNo);
+    }
+
+    /** 未启用初筛的榜单任务：全部 ASIN 作为 PASS 生成可见任务，等待人工点击请求。 */
+    private Map<String, Object> collectPremium(
+            BazhuayuTaskMapping entry,
+            String weekTag,
+            java.util.function.BooleanSupplier cancelled,
+            BazhuayuBatchSnapshot batch) {
+        String mp = entry.getMarketplace();
+        if (!activeDrainMarketplaces.add(mp)) {
+            return Map.of("status", "SKIPPED", "reason", "DRAIN_ALREADY_RUNNING", "rawCount", 0);
+        }
+
+        String month = YearMonth.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
+        AsinImportService.StreamingFilterContext ctx = asinImportService.createStreamingTask(
+                mp, IMPORT_TYPE, entry.getId(), entry.getTaskId(), entry.getTaskName(),
+                entry.getTaskCategory(), false, "premium_products");
+        try {
+            // 精品“导入DB”是人工确认的全量快照导入，必须读取任务当前全部结果。
+            // /data/notexported 受八爪鱼“已导出”游标影响：云端明明有上千条时也可能返回 0，
+            // 因此这里只用 /data/all 流式分页；精铺初筛仍保留 notexported 增量语义。
+            java.util.function.Consumer<List<JsonNode>> pageHandler = page -> {
+                List<PremiumProduct> shells = new ArrayList<>(page.size());
+                List<Map<String, String>> shapedRows = new ArrayList<>(page.size());
+                Set<String> pageSeen = new HashSet<>();
+                LocalDateTime now = LocalDateTime.now();
+                for (JsonNode raw : page) {
+                    String asin = BazhuayuRowMapper.extractAsin(raw);
+                    if (asin == null || !pageSeen.add(asin)) continue;
+                    String price = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.PRICE_KEYS);
+                    String reviews = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.REVIEW_KEYS);
+                    String title = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.TITLE_KEYS);
+
+                    PremiumProduct product = new PremiumProduct();
+                    product.setMarketplace(mp);
+                    product.setAsin(asin);
+                    product.setMonth(month);
+                    product.setTitle(title);
+                    product.setSource("精品榜-八爪鱼");
+                    product.setWeekTag(weekTag);
+                    product.setIsCurrent(1);
+                    product.setBazhuayuMappingId(entry.getId());
+                    product.setBazhuayuTaskId(entry.getTaskId());
+                    product.setBazhuayuTaskName(entry.getTaskName());
+                    product.setBazhuayuRawJson(raw.toString());
+                    product.setDeleted(0);
+                    product.setCreatedAt(now);
+                    product.setUpdatedAt(now);
+                    shells.add(product);
+                    shapedRows.add(BazhuayuRowMapper.shapeRow(asin, price, reviews, title));
+                }
+                if (!shells.isEmpty()) premiumProductMapper.upsertRawBatch(shells);
+                asinImportService.appendPageWithoutInitialFilter(ctx, shapedRows);
+            };
+            int totalRaw = batch == null
+                    ? client.fetchAllDataStreaming(entry.getTaskId(), pageHandler)
+                    : client.fetchBatchDataStreaming(entry.getTaskId(), batch, pageHandler);
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("rawCount", totalRaw);
+            result.put("batchNo", batch == null ? null : batch.batchNo());
+            result.put("status", "READY");
+            result.putAll(asinImportService.finishStreamingTask(ctx));
+            log.info("[精品榜:{}] 已导入任务 {}，跳过初筛，等待人工请求卖家精灵",
+                    mp, ctx.getTaskId());
+            return result;
+        } catch (RuntimeException e) {
+            asinImportService.failStreamingTask(ctx, e.getMessage());
+            throw e;
+        } finally {
+            activeDrainMarketplaces.remove(mp);
+        }
+    }
+
+    private Map<String, Object> collectAndScreen(BazhuayuTaskMapping entry, String weekTag,
+                                                 java.util.function.BooleanSupplier cancelled,
+                                                 BazhuayuBatchSnapshot batch) {
+        String mp = entry.getMarketplace();
+        String taskId = entry.getTaskId();
         if (!activeDrainMarketplaces.add(mp)) {
             log.warn("marketplace {} drain is already running; skip duplicate trigger", mp);
             Map<String, Object> skipped = new LinkedHashMap<>();
@@ -272,15 +452,16 @@ public class BazhuayuScheduledService {
         log.info("Starting Bazhuayu increment drain for marketplace {}, task {}", mp, taskId);
 
         AtomicBoolean initialized = new AtomicBoolean(false);
-        AtomicReference<AsinImportService.StreamingFilterContext> ctxRef = new AtomicReference<>();
+        AsinImportService.StreamingFilterContext ctx = asinImportService.createStreamingTask(
+                mp, IMPORT_TYPE, entry.getId(), entry.getTaskId(), entry.getTaskName(),
+                entry.getTaskCategory(), true, "competitor_products");
 
         try {
-            int totalRaw = client.drainNotExported(taskId, page -> {
+            java.util.function.Consumer<List<JsonNode>> pageHandler = page -> {
                 if (initialized.compareAndSet(false, true)) {
                     rawMapper.delete(new LambdaQueryWrapper<BazhuayuWeeklyRaw>()
                             .eq(BazhuayuWeeklyRaw::getMarketplace, mp)
                             .eq(BazhuayuWeeklyRaw::getWeekTag, weekTag));
-                    ctxRef.set(asinImportService.createStreamingTask(mp, IMPORT_TYPE));
                 }
 
                 List<BazhuayuWeeklyRaw> pageEntities = new ArrayList<>(page.size());
@@ -313,32 +494,25 @@ public class BazhuayuScheduledService {
                 if (!pageEntities.isEmpty()) {
                     rawMapper.insertBatchIgnoreDup(pageEntities);
                 }
-                asinImportService.filterPageAndAppend(ctxRef.get(), shapedRows);
-            }, config.getDrainMaxRows(), cancelled);
+                asinImportService.filterPageAndAppend(ctx, shapedRows);
+            };
+            int totalRaw = batch == null
+                    ? client.drainNotExported(taskId, pageHandler, config.getDrainMaxRows(), cancelled)
+                    : client.fetchBatchDataStreaming(taskId, batch, pageHandler);
 
             Map<String, Object> r = new LinkedHashMap<>();
             r.put("status", "READY");
             r.put("rawCount", totalRaw);
+            r.put("batchNo", batch == null ? null : batch.batchNo());
             if (!initialized.get()) {
                 log.info("marketplace {} has no not-exported increment; skip drain", mp);
-                r.put("totalCount", 0);
-                r.put("passCount", 0);
-                r.put("priceFailCount", 0);
-                r.put("reviewFailCount", 0);
-                r.put("duplicateCount", 0);
-                r.put("skipCount", 0);
-                r.put("skipMainCount", 0);
-                r.put("skipBlacklistCount", 0);
-                r.put("batchTotal", 0);
-                r.put("discardedAsins", 0);
-                return r;
             }
 
-            Map<String, Object> preview = asinImportService.finishStreamingTask(ctxRef.get());
+            Map<String, Object> preview = asinImportService.finishStreamingTask(ctx);
             r.putAll(preview);
             return r;
         } catch (RuntimeException e) {
-            asinImportService.failStreamingTask(ctxRef.get(), e.getMessage());
+            asinImportService.failStreamingTask(ctx, e.getMessage());
             throw e;
         } finally {
             activeDrainMarketplaces.remove(mp);

@@ -51,6 +51,7 @@ public class MethodCardServiceImpl implements MethodCardService {
                 effectiveWeekTags,
                 blankToNull(request.getBsrId()),
                 request.getNodeId(),
+                normalizeCategories(request.getCategories()),
                 rule.priceMin(),
                 rule.priceMax(),
                 rule.weightMax(),
@@ -58,6 +59,7 @@ public class MethodCardServiceImpl implements MethodCardService {
                 rule.sales30(),
                 rule.sales60(),
                 rule.sales90(),
+                rule.salesMax(),
                 rule.bsrMax()
         );
         if (total == 0) {
@@ -70,6 +72,7 @@ public class MethodCardServiceImpl implements MethodCardService {
                 effectiveWeekTags,
                 blankToNull(request.getBsrId()),
                 request.getNodeId(),
+                normalizeCategories(request.getCategories()),
                 rule.priceMin(),
                 rule.priceMax(),
                 rule.weightMax(),
@@ -77,6 +80,7 @@ public class MethodCardServiceImpl implements MethodCardService {
                 rule.sales30(),
                 rule.sales60(),
                 rule.sales90(),
+                rule.salesMax(),
                 rule.bsrMax(),
                 offset,
                 size
@@ -90,6 +94,29 @@ public class MethodCardServiceImpl implements MethodCardService {
             item.setRuleSnapshot(snapshot);
         }
         return PageResult.of(list, total, (long) page, (long) size);
+    }
+
+    @Override
+    public List<Map<String, Object>> queryM01Categories(MethodCardQueryRequest request) {
+        M01Rule rule = M01Rule.forMarketplace(request.getMarketplace());
+        List<String> effectiveWeekTags = resolveEffectiveWeekTags(request, rule.marketplace());
+        return methodCardMapper.selectM01Categories(
+                rule.marketplace(),
+                blankToNull(request.getMonth()),
+                effectiveWeekTags,
+                blankToNull(request.getBsrId()),
+                request.getNodeId(),
+                List.of(),
+                rule.priceMin(),
+                rule.priceMax(),
+                rule.weightMax(),
+                rule.listingDaysMax(),
+                rule.sales30(),
+                rule.sales60(),
+                rule.sales90(),
+                rule.salesMax(),
+                rule.bsrMax()
+        );
     }
 
     @Override
@@ -288,6 +315,7 @@ public class MethodCardServiceImpl implements MethodCardService {
         snapshot.put("sales30", rule.sales30());
         snapshot.put("sales60", rule.sales60());
         snapshot.put("sales90", rule.sales90());
+        snapshot.put("salesMax", rule.salesMax());
         snapshot.put("bsrMax", rule.bsrMax());
         snapshot.put("effectiveWeekTags", effectiveWeekTags);
         snapshot.put("effectiveWeekTag", effectiveWeekTags.size() == 1 ? effectiveWeekTags.get(0) : null);
@@ -336,5 +364,14 @@ public class MethodCardServiceImpl implements MethodCardService {
 
     private static String blankToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private static List<String> normalizeCategories(Collection<String> rawCategories) {
+        if (rawCategories == null || rawCategories.isEmpty()) return List.of();
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (String item : rawCategories) {
+            if (StringUtils.hasText(item)) values.add(item.trim());
+        }
+        return List.copyOf(values);
     }
 }

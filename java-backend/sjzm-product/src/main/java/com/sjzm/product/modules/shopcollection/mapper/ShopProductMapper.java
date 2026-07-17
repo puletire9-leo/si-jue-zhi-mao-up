@@ -1,16 +1,31 @@
 package com.sjzm.product.modules.shopcollection.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.toolkit.Constants;
 import com.sjzm.product.modules.shopcollection.entity.ShopProduct;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface ShopProductMapper extends BaseMapper<ShopProduct> {
 
     @Select("SELECT MAX(batch_date) FROM shop_products WHERE marketplace = #{marketplace}")
     String selectMaxBatchDate(String marketplace);
+
+    /** 与统一店铺商品分页共用筛选 wrapper 的类目聚合。 */
+    @Select("SELECT TRIM(node_label_path) AS category, COUNT(1) AS count " +
+            "FROM shop_products ${ew.customSqlSegment} " +
+            "AND node_label_path IS NOT NULL AND TRIM(node_label_path) != '' " +
+            "AND LOWER(TRIM(node_label_path)) != 'null' " +
+            "GROUP BY TRIM(node_label_path) ORDER BY count DESC, category ASC")
+    List<Map<String, Object>> selectSelectionCategories(
+            @Param(Constants.WRAPPER) Wrapper<ShopProduct> wrapper);
 
     /** 该店铺是否有成功快照（任意 batch_date 有商品入库）。精品池入池前置校验用。 */
     @Select("SELECT COUNT(1) FROM shop_products WHERE marketplace = #{marketplace} AND seller_name = #{sellerName} LIMIT 1")

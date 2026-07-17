@@ -32,10 +32,11 @@ class MySQLRepository:
         user: str = "root",
         password: str = "",
         database: str = "image_db",
-        pool_size: int = 30,
+        min_size: int = 3,
+        pool_size: int = 10,
         pool_recycle: int = 3600,
-        pool_timeout: int = 30,
-        max_overflow: int = 20,
+        pool_timeout: int = 5,
+        max_overflow: int = 5,
         echo: bool = False
     ):
         """
@@ -47,6 +48,7 @@ class MySQLRepository:
             user: 数据库用户名
             password: 数据库密码
             database: 数据库名称
+            min_size: 最小空闲连接数
             pool_size: 连接池大小
             pool_recycle: 连接回收时间（秒）
             pool_timeout: 连接池超时时间（秒）
@@ -58,6 +60,7 @@ class MySQLRepository:
         self.user = user
         self.password = password
         self.database = database
+        self.min_size = min_size
         self.pool_size = pool_size
         self.pool_recycle = pool_recycle
         self.pool_timeout = pool_timeout
@@ -102,7 +105,7 @@ class MySQLRepository:
                     user=self.user,
                     password=self.password,
                     db=self.database,
-                    minsize=5,  # 优化：增加最小连接数
+                    minsize=self.min_size,
                     maxsize=self.pool_size + self.max_overflow,  # 考虑溢出连接
                     pool_recycle=self.pool_recycle,
                     echo=self.echo,
@@ -110,7 +113,10 @@ class MySQLRepository:
                     autocommit=False,
                     connect_timeout=10
                 )
-                logger.info(f"[OK] MySQL连接池创建成功 | 数据库: {self.database}, 连接池大小: {self.pool_size}, 最大溢出: {self.max_overflow}")
+                logger.info(
+                    f"[OK] MySQL连接池创建成功 | 数据库: {self.database}, "
+                    f"最小连接: {self.min_size}, 基础池: {self.pool_size}, 最大溢出: {self.max_overflow}"
+                )
                 break
             except Exception as e:
                 last_error = e
@@ -388,11 +394,19 @@ class MySQLRepository:
         if not self.pool:
             raise RuntimeError("数据库连接池未初始化")
         
-        async with self.pool.acquire() as conn:
+        try:
+            conn = await asyncio.wait_for(self.pool.acquire(), timeout=self.pool_timeout)
+        except asyncio.TimeoutError as exc:
+            raise asyncio.TimeoutError(
+                f"数据库连接池繁忙，{self.pool_timeout}秒内未取得连接"
+            ) from exc
+        try:
             # 设置事务隔离级别为READ COMMITTED，确保能读取到最新提交的数据
             async with conn.cursor() as cursor:
                 await cursor.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED")
             yield conn
+        finally:
+            self.pool.release(conn)
     
     async def execute_query(
         self,
@@ -588,7 +602,7 @@ class MySQLRepository:
         Returns:
             数据库连接对象
         """
-        conn = await self.pool.acquire()
+        conn = await asyncio.wait_for(self.pool.acquire(), timeout=self.pool_timeout)
         try:
             await conn.begin()
         except Exception:
@@ -1182,6 +1196,7 @@ async def get_mysql_repo() -> MySQLRepository:
             user=settings.MYSQL_USER,
             password=settings.MYSQL_PASSWORD,
             database=settings.MYSQL_DATABASE,
+            min_size=getattr(settings, 'MYSQL_POOL_MIN_SIZE', 3),
             pool_size=settings.MYSQL_POOL_SIZE,
             pool_recycle=settings.MYSQL_POOL_RECYCLE,
             pool_timeout=getattr(settings, 'MYSQL_POOL_TIMEOUT', 30),

@@ -25,6 +25,7 @@ public record M01Rule(String marketplace,
                       Integer sales30,
                       Integer sales60,
                       Integer sales90,
+                      Integer salesMax,
                       Integer bsrMax) {
 
     /**
@@ -50,11 +51,11 @@ public record M01Rule(String marketplace,
     public static M01Rule baseline(String marketplace) {
         return switch (normalizeMarketplace(marketplace)) {
             case "DE" -> new M01Rule("DE", new BigDecimal("5.99"), new BigDecimal("18.99"),
-                    new BigDecimal("300"), 90, 4, 20, 50, 25000);
+                    new BigDecimal("300"), 90, 4, 20, 50, 200, 25000);
             case "UK" -> new M01Rule("UK", new BigDecimal("4.99"), new BigDecimal("17.99"),
-                    new BigDecimal("300"), 90, 2, 10, 30, 20000);
+                    new BigDecimal("300"), 90, 2, 10, 30, 200, 20000);
             case "US" -> new M01Rule("US", new BigDecimal("6.99"), new BigDecimal("25.99"),
-                    new BigDecimal("300"), 90, 50, 120, 200, null);
+                    new BigDecimal("300"), 90, 50, 120, 200, 500, null);
             default -> throw new IllegalArgumentException("M01 暂只支持 UK / DE / US");
         };
     }
@@ -85,6 +86,8 @@ public record M01Rule(String marketplace,
         if (weightG == null || weightG.compareTo(weightMax) >= 0) return false;
         // 上架天数上限
         if (listingDays == null || listingDays >= listingDaysMax) return false;
+        // 已知销量不得超过上限；销量为空时仍允许走 BSR 兜底判定
+        if (units != null && units > salesMax) return false;
         // 分档销量：上架≤30/60/90 各对应门槛，满足任一即可；或 BSR 达标
         boolean pass = false;
         if (units != null) {

@@ -52,12 +52,16 @@ class Settings(BaseSettings):
     MYSQL_USER: str = "sijue"
     MYSQL_PASSWORD: str = os.getenv("MYSQL_PASSWORD", "")
     MYSQL_DATABASE: str = "sijuelishi"
-    MYSQL_POOL_SIZE: int = 30
-    MYSQL_MAX_OVERFLOW: int = 20
+    MYSQL_POOL_MIN_SIZE: int = 3
+    MYSQL_POOL_SIZE: int = 10
+    MYSQL_MAX_OVERFLOW: int = 5
     MYSQL_POOL_RECYCLE: int = 14400
-    MYSQL_POOL_TIMEOUT: int = 30
+    MYSQL_POOL_TIMEOUT: int = 5
     MYSQL_POOL_PRE_PING: bool = True
     MYSQL_ECHO: bool = False
+    MYSQL_WORKER_POOL_MIN_SIZE: int = 1
+    MYSQL_WORKER_POOL_SIZE: int = 2
+    MYSQL_WORKER_MAX_OVERFLOW: int = 0
 
     # ========================================
     # Redis

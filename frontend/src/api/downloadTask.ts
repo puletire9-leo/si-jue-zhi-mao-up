@@ -70,99 +70,21 @@ export const getDownloadTaskDetail = async (taskId: string): Promise<DownloadTas
  * @param fileName 文件名
  */
 export const downloadTaskFile = async (taskId: string, fileName: string): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    console.log('开始下载任务文件:', taskId, fileName)
-    
-    // 获取认证token
-    const token = localStorage.getItem('token')
-    console.log('Token:', token ? '存在' : '不存在')
-    
-    // 构建完整URL
-    const apiUrl = `/api/v1/download-tasks/${taskId}/download`
-    console.log('请求URL:', apiUrl)
-    
-    // 使用XMLHttpRequest代替fetch，更稳定
-    const xhr = new XMLHttpRequest()
-    xhr.open('GET', apiUrl, true)
-    xhr.responseType = 'blob'
-    
-    // 设置请求头
-    xhr.setRequestHeader('Accept', 'application/zip, application/octet-stream')
-    if (token) {
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`)
-    }
-    
-    // 进度回调
-    xhr.onprogress = (event) => {
-      if (event.lengthComputable) {
-        const percentComplete = (event.loaded / event.total) * 100
-        console.log(`下载进度: ${percentComplete.toFixed(2)}%`)
-      }
-    }
-    
-    // 加载完成回调
-    xhr.onload = function() {
-      console.log('XHR状态:', xhr.status, xhr.statusText)
-      
-      if (xhr.status === 200) {
-        const blob = xhr.response
-        console.log('Blob大小:', blob.size, 'bytes')
-        console.log('Blob类型:', blob.type)
-        
-        if (blob.size === 0) {
-          reject(new Error('下载的文件为空'))
-          return
-        }
-        
-        // 创建下载链接
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.setAttribute('download', fileName)
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url)
-        
-        console.log('下载完成:', fileName)
-        resolve()
-      } else {
-        // 尝试解析错误信息
-        let errorMessage = `HTTP error! status: ${xhr.status}`
-        try {
-          const reader = new FileReader()
-          reader.onload = function() {
-            try {
-              const errorData = JSON.parse(reader.result as string)
-              errorMessage = errorData.detail || errorData.message || errorMessage
-            } catch {
-              // 无法解析JSON
-            }
-            reject(new Error(errorMessage))
-          }
-          reader.readAsText(xhr.response)
-        } catch {
-          reject(new Error(errorMessage))
-        }
-      }
-    }
-    
-    // 错误回调
-    xhr.onerror = function() {
-      console.error('XHR请求失败')
-      reject(new Error('网络请求失败，请检查网络连接'))
-    }
-    
-    // 超时回调
-    xhr.ontimeout = function() {
-      console.error('XHR请求超时')
-      reject(new Error('请求超时，请稍后重试'))
-    }
-    
-    // 发送请求
-    console.log('发送XHR请求...')
-    xhr.send()
-  })
+  const response = await request.post(`/api/v1/download-tasks/${taskId}/download-session`)
+  const result = response?.data || response
+  if (result?.success === false) {
+    throw new Error(result.message || '无法创建下载会话')
+  }
+
+  // The authenticated request above sets a short-lived HttpOnly cookie. Let the
+  // browser handle the actual response so large ZIP files never become JS Blobs.
+  const link = document.createElement('a')
+  link.href = `/api/v1/download-tasks/${taskId}/download`
+  link.download = fileName
+  link.style.display = 'none'
+  document.body.appendChild(link)
+  link.click()
+  window.setTimeout(() => link.remove(), 0)
 }
 
 /**

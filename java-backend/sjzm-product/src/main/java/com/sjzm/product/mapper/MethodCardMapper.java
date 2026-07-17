@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface MethodCardMapper {
@@ -17,6 +18,7 @@ public interface MethodCardMapper {
                           @Param("effectiveWeekTags") List<String> effectiveWeekTags,
                           @Param("bsrId") String bsrId,
                           @Param("nodeId") Long nodeId,
+                          @Param("categories") List<String> categories,
                           @Param("priceMin") BigDecimal priceMin,
                           @Param("priceMax") BigDecimal priceMax,
                           @Param("weightMax") BigDecimal weightMax,
@@ -24,6 +26,7 @@ public interface MethodCardMapper {
                           @Param("sales30") Integer sales30,
                           @Param("sales60") Integer sales60,
                           @Param("sales90") Integer sales90,
+                          @Param("salesMax") Integer salesMax,
                           @Param("bsrMax") Integer bsrMax);
 
     List<MethodCardProductResponse> selectM01Products(@Param("marketplace") String marketplace,
@@ -31,6 +34,7 @@ public interface MethodCardMapper {
                                                       @Param("effectiveWeekTags") List<String> effectiveWeekTags,
                                                       @Param("bsrId") String bsrId,
                                                       @Param("nodeId") Long nodeId,
+                                                      @Param("categories") List<String> categories,
                                                       @Param("priceMin") BigDecimal priceMin,
                                                       @Param("priceMax") BigDecimal priceMax,
                                                       @Param("weightMax") BigDecimal weightMax,
@@ -38,9 +42,26 @@ public interface MethodCardMapper {
                                                       @Param("sales30") Integer sales30,
                                                       @Param("sales60") Integer sales60,
                                                       @Param("sales90") Integer sales90,
+                                                      @Param("salesMax") Integer salesMax,
                                                       @Param("bsrMax") Integer bsrMax,
                                                       @Param("offset") Integer offset,
                                                       @Param("size") Integer size);
+
+    List<Map<String, Object>> selectM01Categories(@Param("marketplace") String marketplace,
+                                                   @Param("month") String month,
+                                                   @Param("effectiveWeekTags") List<String> effectiveWeekTags,
+                                                   @Param("bsrId") String bsrId,
+                                                   @Param("nodeId") Long nodeId,
+                                                   @Param("categories") List<String> categories,
+                                                   @Param("priceMin") BigDecimal priceMin,
+                                                   @Param("priceMax") BigDecimal priceMax,
+                                                   @Param("weightMax") BigDecimal weightMax,
+                                                   @Param("listingDaysMax") Integer listingDaysMax,
+                                                   @Param("sales30") Integer sales30,
+                                                   @Param("sales60") Integer sales60,
+                                                   @Param("sales90") Integer sales90,
+                                                   @Param("salesMax") Integer salesMax,
+                                                   @Param("bsrMax") Integer bsrMax);
 
     String selectLatestM02BatchDate(@Param("marketplace") String marketplace);
 

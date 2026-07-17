@@ -4,6 +4,8 @@ import type { ApiResponse } from "@/types/api";
 export interface CompetitorProductRaw {
   // 基础字段
   id?: number | string;
+  /** 精品记录是否已收到卖家精灵响应并完成补全。 */
+  enriched?: boolean;
   marketplace?: string;
   asin: string;
   month?: string;
@@ -53,8 +55,15 @@ export interface CompetitorProductRaw {
   // 配送
   fulfillment?: string;
   variations?: number;
+  variantCount?: number;
   weight?: string;
+  weightG?: number;
   dimension?: string;
+  dimensionsType?: string;
+  pkgDimensions?: string;
+  pkgDimensionType?: string;
+  pkgWeight?: string;
+  lqs?: number;
 
   // 状态
   bestSeller?: string;
@@ -73,12 +82,19 @@ export interface CompetitorProductRaw {
   filterMode?: string;
   filterReasons?: string;
   listingDays?: number;
-  weightG?: number;
   productUrl?: string;
   similarUrl?: string;
   source?: string;
   shopLink?: string;
   availableDate?: string;
+  createdAt?: string;
+  updatedAt?: string;
+
+  // 精品八爪鱼任务元数据
+  bazhuayuMappingId?: number | string;
+  bazhuayuTaskId?: string;
+  bazhuayuTaskName?: string;
+  sourceRunId?: string;
 
   // 子类目
   subcategories?: Array<{
@@ -90,9 +106,6 @@ export interface CompetitorProductRaw {
   // 批次日期
   batchDate?: string;
 
-  /** 该父群组下的变体行数（清洗表代表行场景下回填，原表场景为单行计数） */
-  variantCount?: number;
-
   /** 销量等级 A/B/C/D/UNKNOWN，来自 competitor_products.sales_tier */
   salesTier?: string;
   sales_tier?: string;
@@ -100,6 +113,7 @@ export interface CompetitorProductRaw {
 
 export interface CompetitorListParams {
   marketplace?: string;
+  methodId?: "M01" | "M03";
   month?: string;
   asin?: string[];
   source?: string;
@@ -181,7 +195,8 @@ export type SelectionCsvSource =
   | "competitor_clean"
   | "competitor_raw"
   | "deng_zong"
-  | "shop_products";
+  | "shop_products"
+  | "premium_products";
 
 export interface SelectionCsvRowRef {
   id?: string;
@@ -276,6 +291,50 @@ export const competitorApi = {
         res.data.list = res.data.list.map(normalizeProduct);
       }
       return res;
+    });
+  },
+
+  getPremiumList(
+    params: CompetitorListParams,
+  ): Promise<ApiResponse<CompetitorListResponse>> {
+    return request({
+      url: "/api/v1/competitor/premium-products",
+      method: "post",
+      data: { ...params, useCleanTable: false },
+    }).then((res: any) => {
+      if (res.data?.list) {
+        res.data.list = res.data.list.map(normalizeProduct);
+      }
+      return res;
+    });
+  },
+
+  getPremiumVariants(
+    marketplace: string,
+    parentAsin: string,
+  ): Promise<ApiResponse<any[]>> {
+    return request({
+      url: "/api/v1/competitor/premium-variants",
+      method: "get",
+      params: { marketplace, parentAsin },
+    });
+  },
+
+  getPremiumCategories(
+    marketplace: string,
+  ): Promise<ApiResponse<Array<{ category: string; count: number }>>> {
+    return request({
+      url: "/api/v1/competitor/premium-categories",
+      method: "get",
+      params: { marketplace },
+    });
+  },
+
+  getPremiumSellers(marketplace: string): Promise<ApiResponse<any[]>> {
+    return request({
+      url: "/api/v1/competitor/premium-sellers",
+      method: "get",
+      params: { marketplace },
     });
   },
 
@@ -476,4 +535,12 @@ export function getCreatedWeeks(
   if (source) params.source = source;
   if (filterMode) params.filterMode = filterMode;
   return request.get("/api/v1/competitor/created-weeks", { params });
+}
+
+export function getPremiumCreatedWeeks(
+  marketplace: string,
+): Promise<ApiResponse<BatchWeek[]>> {
+  return request.get("/api/v1/competitor/premium-created-weeks", {
+    params: { marketplace },
+  });
 }

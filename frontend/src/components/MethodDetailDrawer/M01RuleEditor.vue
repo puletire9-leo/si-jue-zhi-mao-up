@@ -45,6 +45,9 @@
         <el-form-item label="90天销量门槛">
           <el-input-number v-model="form.sales90" :min="0" :precision="0" :step="1" controls-position="right" />
         </el-form-item>
+        <el-form-item label="销量上限">
+          <el-input-number v-model="form.salesMax" :min="0" :precision="0" :step="10" controls-position="right" />
+        </el-form-item>
         <el-form-item label="BSR 上限">
           <div class="bsr-row">
             <el-switch v-model="bsrEnabled" active-text="启用" inactive-text="不判定" inline-prompt />
@@ -63,7 +66,7 @@
 
       <p class="m01-editor__logic">
         达标逻辑：价格在区间内 + 重量低于上限 + 上架 &lt; {{ form.listingDaysMax }} 天，
-        且（分档销量满足任一：≤30天≥{{ form.sales30 }} / ≤60天≥{{ form.sales60 }} / ≤90天≥{{ form.sales90 }}<template v-if="bsrEnabled">，或 BSR &lt; {{ form.bsrMax }}</template>）。
+        且已知销量 ≤ {{ form.salesMax }}，并且（分档销量满足任一：≤30天≥{{ form.sales30 }} / ≤60天≥{{ form.sales60 }} / ≤90天≥{{ form.sales90 }}<template v-if="bsrEnabled">，或 BSR &lt; {{ form.bsrMax }}</template>）。
       </p>
     </div>
 
@@ -110,6 +113,7 @@ const form = reactive<M01RuleEditable>({
   sales30: 0,
   sales60: 0,
   sales90: 0,
+  salesMax: 0,
   bsrMax: null,
 });
 
@@ -121,6 +125,7 @@ function applyRule(rule: M01Rule) {
   form.sales30 = rule.sales30;
   form.sales60 = rule.sales60;
   form.sales90 = rule.sales90;
+  form.salesMax = rule.salesMax;
   bsrEnabled.value = rule.bsrMax != null;
   form.bsrMax = rule.bsrMax;
 }
@@ -147,6 +152,10 @@ async function save() {
     ElMessage.warning("价格下限不能大于上限");
     return;
   }
+  if (form.salesMax < Math.max(form.sales30, form.sales60, form.sales90)) {
+    ElMessage.warning("销量上限不能低于 30/60/90 天销量门槛");
+    return;
+  }
   saving.value = true;
   try {
     const body: Partial<M01RuleEditable> = {
@@ -157,6 +166,7 @@ async function save() {
       sales30: form.sales30,
       sales60: form.sales60,
       sales90: form.sales90,
+      salesMax: form.salesMax,
       bsrMax: bsrEnabled.value ? form.bsrMax : null,
     };
     await methodCardsApi.updateM01Rule(marketplace.value, body);

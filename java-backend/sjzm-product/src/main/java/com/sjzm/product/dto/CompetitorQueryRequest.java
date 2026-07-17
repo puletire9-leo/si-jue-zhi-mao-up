@@ -13,6 +13,9 @@ public class CompetitorQueryRequest {
 
     private String marketplace;
 
+    /** 当前数据源内叠加的方法卡规则；精品页仅允许 M01 / M03。 */
+    private String methodId;
+
     @Deprecated
     private String asins;
 

@@ -178,6 +178,20 @@
         @row-click="openDetail"
       >
         <el-table-column prop="marketplace" label="站点" width="80" />
+        <el-table-column label="任务" min-width="170">
+          <template #default="{ row }">
+            <div>{{ (row as BazhuayuTaskMapItem).taskName || "历史任务" }}</div>
+            <span class="muted">{{ (row as BazhuayuTaskMapItem).taskCategory || "未分类" }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="初筛" width="85" align="center">
+          <template #default="{ row }">
+            <el-tag
+              :type="(row as BazhuayuTaskMapItem).initialFilter ? 'success' : 'warning'"
+              size="small"
+            >{{ (row as BazhuayuTaskMapItem).initialFilter ? "是" : "否" }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
             <el-tag
@@ -218,14 +232,9 @@
             >
           </template>
         </el-table-column>
-        <el-table-column label="API" width="130">
+        <el-table-column label="请求次数" width="100" align="center">
           <template #default="{ row }">
-            <span>{{ displayApiSuccess(row as BazhuayuTaskMapItem) }}</span>
-            <span
-              class="sep"
-              :class="{ danger: displayApiFail(row as BazhuayuTaskMapItem) }"
-              >/ {{ displayApiFail(row as BazhuayuTaskMapItem) }}</span
-            >
+            {{ displayRequestCount(row as BazhuayuTaskMapItem) }}
           </template>
         </el-table-column>
         <el-table-column label="批次" width="90">
@@ -254,7 +263,7 @@
               size="small"
               :loading="executingIds.has((row as BazhuayuTaskMapItem).id)"
               @click.stop="executeTask(row as BazhuayuTaskMapItem)"
-              >执行卖家精灵</el-button
+              >请求卖家精灵</el-button
             >
             <span v-else class="muted">—</span>
           </template>
@@ -275,7 +284,7 @@
     -->
     <el-drawer
       v-model="mappingDrawerVisible"
-      size="960px"
+      size="1180px"
       title="八爪鱼任务映射配置"
       @open="loadMappingPanel"
     >
@@ -294,7 +303,7 @@
               :loading="cloudRefreshing"
               @click="refreshAllCloudStats"
             >
-              刷新所有云端行数
+              刷新最新云采集批次
             </el-button>
             <el-button size="small" @click="startNewMappingRow">
               新增映射
@@ -309,7 +318,20 @@
           v-loading="mappingLoading"
           row-key="key"
         >
-          <el-table-column label="功能" width="120">
+          <el-table-column label="任务名称" width="170">
+            <template #default="{ row }">
+              <el-input
+                v-if="row._editing"
+                v-model="row.taskName"
+                size="small"
+                maxlength="60"
+                show-word-limit
+                placeholder="任务名称"
+              />
+              <span v-else>{{ row.taskName }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="功能类型" width="120">
             <template #default="{ row }">
               <el-select
                 v-if="row._editing"
@@ -340,6 +362,33 @@
               <span v-else>{{ row.marketplace }}</span>
             </template>
           </el-table-column>
+          <el-table-column label="分类" width="130">
+            <template #default="{ row }">
+              <el-input
+                v-if="row._editing"
+                v-model="row.taskCategory"
+                size="small"
+                maxlength="32"
+                placeholder="如：精铺/精品"
+              />
+              <el-tag v-else size="small">{{ row.taskCategory }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="初筛" width="110" align="center">
+            <template #default="{ row }">
+              <el-switch
+                v-if="row._editing && row.function === 'bangdan'"
+                v-model="row.initialFilter"
+                size="small"
+                inline-prompt
+                active-text="是"
+                inactive-text="否"
+              />
+              <el-tag v-else-if="row.function !== 'bangdan'" type="info" size="small">不适用</el-tag>
+              <el-tag v-else-if="row.initialFilter" type="success" size="small">初筛</el-tag>
+              <el-tag v-else type="warning" size="small">直入精品</el-tag>
+            </template>
+          </el-table-column>
           <el-table-column label="taskId" min-width="290">
             <template #default="{ row }">
               <el-input
@@ -351,20 +400,30 @@
               <code v-else class="task-id">{{ row.taskId }}</code>
             </template>
           </el-table-column>
-          <el-table-column label="云端行数" width="130">
+          <el-table-column label="最新云采集批次" width="300">
             <template #default="{ row }">
               <span v-if="row._isNew" class="muted">—</span>
-              <span v-else-if="row.cloudStat">
-                <strong>{{
-                  (row.cloudStat.cloudCount ?? 0).toLocaleString()
-                }}</strong>
-                <span
-                  v-if="row.cloudStat.cloudStatus"
-                  class="sep"
-                  :class="cloudStatusTone(row.cloudStat.cloudStatus)"
-                  >{{ row.cloudStat.cloudStatus }}</span
-                >
-              </span>
+              <div v-else-if="row.cloudStat?.latestBatchNo" class="latest-batch">
+                <div class="latest-batch__head">
+                  <el-tag type="warning" effect="dark" size="small">
+                    {{ row.cloudStat.latestBatchNo }}
+                  </el-tag>
+                  <strong>{{
+                    (row.cloudStat.latestBatchCount ?? 0).toLocaleString()
+                  }} 条</strong>
+                  <span
+                    v-if="row.cloudStat.cloudStatus"
+                    :class="cloudStatusTone(row.cloudStat.cloudStatus)"
+                    >{{ row.cloudStat.cloudStatus }}</span
+                  >
+                </div>
+                <div class="latest-batch__time">
+                  {{ formatTs(row.cloudStat.latestBatchStartTime) }}
+                  <span>→</span>
+                  {{ formatBatchEnd(row.cloudStat.latestBatchEndTime) }}
+                </div>
+              </div>
+              <span v-else-if="row.cloudStat" class="muted">尚无云采集历史</span>
               <span v-else class="muted">未同步</span>
             </template>
           </el-table-column>
@@ -386,7 +445,7 @@
               </el-tooltip>
             </template>
           </el-table-column>
-          <el-table-column label="配置" width="200">
+          <el-table-column label="配置" width="150" fixed="right">
             <template #default="{ row }">
               <template v-if="row._editing">
                 <el-button
@@ -438,6 +497,7 @@
                   type="primary"
                   size="small"
                   :loading="row._importing"
+                  :disabled="!canImportBatch(row as MappingRow)"
                   @click="importToDb(row as MappingRow)"
                   >导入DB</el-button
                 >
@@ -476,13 +536,25 @@
           <span>站点</span><strong>{{ detailRow.marketplace }}</strong>
         </div>
         <div>
+          <span>任务</span><strong>{{ detailRow.taskName || `#${detailRow.id}` }}</strong>
+        </div>
+        <div>
+          <span>分类</span><strong>{{ detailRow.taskCategory || "未分类" }}</strong>
+        </div>
+        <div>
+          <span>是否初筛</span><strong>{{ detailRow.initialFilter ? "是" : "否" }}</strong>
+        </div>
+        <div>
+          <span>结果库</span><strong>{{ detailRow.targetTable === "premium_products" ? "精品独立表" : "新品榜表" }}</strong>
+        </div>
+        <div>
           <span>状态</span><strong>{{ displayStatusText(detailRow) }}</strong>
         </div>
         <div>
           <span>总数</span><strong>{{ detailRow.totalCount || 0 }}</strong>
         </div>
         <div>
-          <span>通过（进入卖家精灵）</span
+          <span>通过（等待人工请求）</span
           ><strong class="ok">{{ detailRow.passCount || 0 }}</strong>
         </div>
         <div class="section">未通过原因（合计 {{ detailRejectSum }}）</div>
@@ -514,8 +586,8 @@
           }}</strong>
         </div>
         <div>
-          <span>已消耗请求</span
-          ><strong>{{ detailRow.apiRequestsUsed || 0 }}</strong>
+          <span>请求次数</span
+          ><strong>{{ displayRequestCount(detailRow) }}</strong>
         </div>
         <div>
           <span>批次进度</span
@@ -549,6 +621,7 @@ import {
   type BazhuayuOverviewResp,
   type BazhuayuPhase,
   type BazhuayuRunState,
+  type BazhuayuTaskEntry,
   type BazhuayuTaskMapItem,
 } from "@/api/bazhuayu";
 import { requestCenterApi } from "@/api/shopPremium";
@@ -577,16 +650,27 @@ const cloudRefreshing = ref(false);
 interface MappingRow {
   /** 表格 row-key: function:marketplace，新建时是 __new__:index */
   key: string;
+  id: number | null;
   function: string;
   marketplace: string;
   taskId: string;
+  taskName: string;
+  taskCategory: string;
+  initialFilter: boolean;
   cloudStat: BazhuayuCloudStat | null;
   /** 是否编辑态；新增行默认 true */
   _editing: boolean;
   /** 是否新增行（用于把 function+marketplace 变成不可改） */
   _isNew: boolean;
   /** 编辑前的原值，取消时还原 */
-  _snapshot?: { function: string; marketplace: string; taskId: string };
+  _snapshot?: {
+    function: string;
+    marketplace: string;
+    taskId: string;
+    taskName: string;
+    taskCategory: string;
+    initialFilter: boolean;
+  };
   _saving?: boolean;
   _deleting?: boolean;
   _refreshing?: boolean;
@@ -829,6 +913,10 @@ function displayApiFail(row: BazhuayuTaskMapItem) {
   return sellerSpriteRun(row)?.failedCount ?? row.apiFail ?? 0;
 }
 
+function displayRequestCount(row: BazhuayuTaskMapItem) {
+  return sellerSpriteRun(row)?.apiCalls ?? row.apiRequestsUsed ?? 0;
+}
+
 function displayBatchCurrent(row: BazhuayuTaskMapItem) {
   const run = sellerSpriteRun(row);
   if (!run) return row.batchCurrent || 0;
@@ -907,7 +995,7 @@ async function executeTask(row: BazhuayuTaskMapItem) {
   const dbLabel = db ? `${db.database} @ ${db.host}:${db.port}` : "当前数据库";
   try {
     await ElMessageBox.confirm(
-      `即将为任务 #${row.id}（${row.marketplace}）创建请求中心 ASIN 查询任务，写入到 ${dbLabel}。是否继续？`,
+      `任务：${row.taskName || `#${row.id}`}\n分类：${row.taskCategory || "未分类"}\n初筛：${row.initialFilter ? "是" : "否（全部 ASIN）"}\n预计批次：${row.batchTotal || 0}\n结果写入：${row.targetTable === "premium_products" ? "精品独立表" : "新品榜表"}\n数据库：${dbLabel}\n\n只有确认后才会调用卖家精灵，是否继续？`,
       "确认执行",
       { type: "warning", confirmButtonText: "执行", cancelButtonText: "取消" },
     );
@@ -1014,6 +1102,20 @@ function formatTs(iso: string | null) {
   return iso.replace("T", " ").slice(0, 16);
 }
 
+function formatBatchEnd(iso: string | null) {
+  if (!iso) return "进行中";
+  return iso.replace("T", " ").slice(11, 16);
+}
+
+function canImportBatch(row: MappingRow) {
+  const stat = row.cloudStat;
+  return Boolean(
+    stat?.latestBatchNo &&
+      stat.latestBatchStartTime &&
+      stat.cloudStatus === "Finished",
+  );
+}
+
 /**
  * 抽屉打开时加载：映射 + 云端行数快照。
  * 快照未命中的行 cloudStat 就是 null（面板会展示"未同步"提示用户手动刷）。
@@ -1021,25 +1123,29 @@ function formatTs(iso: string | null) {
 async function loadMappingPanel() {
   mappingLoading.value = true;
   try {
-    const [mappingResp, statsResp] = await Promise.all([
+    const [mappingResp, refreshResp] = await Promise.all([
       bazhuayuApi.getMapping(),
-      bazhuayuApi.cloudStats(),
+      bazhuayuApi.refreshCloudStats().catch(() => null),
     ]);
+    // 打开配置页即自动读取最新云采集批次；云端限流/已有刷新时回退进程内缓存。
+    const statsResp = refreshResp?.snapshot ?? (await bazhuayuApi.cloudStats());
     mappingFromDb.value = mappingResp.fromDb;
-    const rows: MappingRow[] = [];
-    for (const [fn, sites] of Object.entries(mappingResp.mapping)) {
-      for (const [mp, taskId] of Object.entries(sites)) {
-        rows.push({
-          key: `${fn}:${mp}`,
-          function: fn,
-          marketplace: mp,
-          taskId,
-          cloudStat: statsResp[`${fn}:${mp}`] ?? null,
-          _editing: false,
-          _isNew: false,
-        });
-      }
-    }
+    const entries: BazhuayuTaskEntry[] = Array.isArray(mappingResp.entries)
+      ? mappingResp.entries
+      : [];
+    const rows: MappingRow[] = entries.map((entry) => ({
+      key: String(entry.id),
+      id: entry.id,
+      function: entry.functionKey,
+      marketplace: entry.marketplace,
+      taskId: entry.taskId,
+      taskName: entry.taskName,
+      taskCategory: entry.taskCategory || "默认",
+      initialFilter: entry.initialFilter !== false,
+      cloudStat: statsResp[entry.taskId] ?? null,
+      _editing: false,
+      _isNew: false,
+    }));
     mappingRows.value = rows;
   } catch (e: any) {
     ElMessage.error(e?.message || "加载映射失败");
@@ -1052,9 +1158,13 @@ async function loadMappingPanel() {
 function startNewMappingRow() {
   mappingRows.value.unshift({
     key: `__new__:${Date.now()}`,
+    id: null,
     function: "bangdan",
     marketplace: "US",
     taskId: "",
+    taskName: "榜单采集",
+    taskCategory: "精铺",
+    initialFilter: true,
     cloudStat: null,
     _editing: true,
     _isNew: true,
@@ -1066,6 +1176,9 @@ function editMappingRow(row: MappingRow) {
     function: row.function,
     marketplace: row.marketplace,
     taskId: row.taskId,
+    taskName: row.taskName,
+    taskCategory: row.taskCategory,
+    initialFilter: row.initialFilter,
   };
   row._editing = true;
 }
@@ -1079,6 +1192,9 @@ function cancelMappingRow(row: MappingRow) {
     row.function = row._snapshot.function;
     row.marketplace = row._snapshot.marketplace;
     row.taskId = row._snapshot.taskId;
+    row.taskName = row._snapshot.taskName;
+    row.taskCategory = row._snapshot.taskCategory;
+    row.initialFilter = row._snapshot.initialFilter;
   }
   row._editing = false;
   row._snapshot = undefined;
@@ -1086,22 +1202,38 @@ function cancelMappingRow(row: MappingRow) {
 
 /** 保存：调 POST /config/mapping/entry（upsert 语义） */
 async function saveMappingRow(row: MappingRow) {
-  if (!row.function || !row.marketplace || !row.taskId?.trim()) {
-    ElMessage.warning("功能/站点/taskId 都必填");
+  if (!row.taskName?.trim() || !row.taskCategory?.trim() || !row.function || !row.marketplace || !row.taskId?.trim()) {
+    ElMessage.warning("任务名称/分类/功能/站点/taskId 都必填");
     return;
   }
   row._saving = true;
   try {
-    await bazhuayuApi.upsertMappingEntry(
-      row.function,
-      row.marketplace,
-      row.taskId.trim(),
-    );
+    const saved = row._isNew
+      ? await bazhuayuApi.createTaskEntry({
+          function: row.function,
+          marketplace: row.marketplace,
+          taskId: row.taskId.trim(),
+          taskName: row.taskName.trim(),
+          taskCategory: row.taskCategory.trim(),
+          initialFilter: row.initialFilter,
+        })
+      : await bazhuayuApi.updateTaskEntry(row.id!, {
+          taskId: row.taskId.trim(),
+          taskName: row.taskName.trim(),
+          taskCategory: row.taskCategory.trim(),
+          initialFilter: row.initialFilter,
+        });
     ElMessage.success("已保存");
+    row.taskId = row.taskId.trim();
+    row.taskName = row.taskName.trim();
+    row.taskCategory = row.taskCategory.trim();
+    row.id = saved.id;
+    row.initialFilter = saved.initialFilter !== false;
+    mappingFromDb.value = true;
     row._editing = false;
     row._isNew = false;
     row._snapshot = undefined;
-    row.key = `${row.function}:${row.marketplace}`;
+    row.key = String(saved.id);
     // 保存后单条刷云端行数，让面板立即显示新 taskId 的云端量
     await refreshOneCloudStat(row, { silent: true });
   } catch (e: any) {
@@ -1114,7 +1246,7 @@ async function saveMappingRow(row: MappingRow) {
 async function deleteMappingRow(row: MappingRow) {
   try {
     await ElMessageBox.confirm(
-      `删除 ${functionLabel(row.function)} · ${row.marketplace} 的映射?若删空则代码回退到 dev.env`,
+      `删除 ${row.taskName} · ${row.marketplace} 的任务映射？`,
       "确认删除",
       { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" },
     );
@@ -1123,7 +1255,7 @@ async function deleteMappingRow(row: MappingRow) {
   }
   row._deleting = true;
   try {
-    await bazhuayuApi.deleteMappingEntry(row.function, row.marketplace);
+    await bazhuayuApi.deleteTaskEntry(row.id!);
     mappingRows.value = mappingRows.value.filter((r) => r.key !== row.key);
     ElMessage.success("已删除");
   } catch (e: any) {
@@ -1143,9 +1275,13 @@ async function refreshOneCloudStat(
     const resp = await bazhuayuApi.refreshCloudStats(
       row.function,
       row.marketplace,
+      row.taskId,
     );
     if (resp.stat) row.cloudStat = resp.stat;
-    if (!opts.silent) ElMessage.success("云端已刷");
+    if (!opts.silent) {
+      if (resp.refreshed > 0) ElMessage.success("云端已刷");
+      else ElMessage.warning(resp.stat?.lastError || "云端正在限流或刷新中，已保留上次数据");
+    }
   } catch (e: any) {
     if (!opts.silent) ElMessage.error(e?.message || "刷新失败");
   } finally {
@@ -1161,10 +1297,11 @@ async function refreshAllCloudStats() {
       // 把最新云端快照映射回每一行
       for (const row of mappingRows.value) {
         row.cloudStat =
-          resp.snapshot[`${row.function}:${row.marketplace}`] ?? row.cloudStat;
+          resp.snapshot[row.taskId] ?? row.cloudStat;
       }
     }
-    ElMessage.success(`已刷 ${resp.refreshed} 条`);
+    if (resp.refreshed > 0) ElMessage.success(`已刷 ${resp.refreshed} 条`);
+    else ElMessage.warning("云端正在限流或已有刷新任务，已保留上次数据，请稍后再试");
   } catch (e: any) {
     ElMessage.error(e?.message || "刷新失败");
   } finally {
@@ -1180,10 +1317,22 @@ async function refreshAllCloudStats() {
  * 用户看进度靠"当前运行"段（内存态）+ 主页面刷新。
  */
 async function importToDb(row: MappingRow) {
+  const batch = row.cloudStat;
+  if (!batch?.latestBatchNo || !batch.latestBatchStartTime) {
+    ElMessage.warning("请先刷新最新云采集批次");
+    return;
+  }
+  if (batch.cloudStatus !== "Finished") {
+    ElMessage.warning(`批次 ${batch.latestBatchNo} 尚未完成，暂不能导入`);
+    return;
+  }
   try {
+    const batchSummary = `最新批次：${batch.latestBatchNo}\n时间：${formatTs(batch.latestBatchStartTime)} → ${formatTs(batch.latestBatchEndTime)}\n本批次数量：${(batch.latestBatchCount || 0).toLocaleString()} 条`;
     await ElMessageBox.confirm(
-      `将 ${functionLabel(row.function)} · ${row.marketplace} 的云端已采数据 drain 到本地 DB（异步任务）。是否继续？`,
-      "确认导入",
+      row.initialFilter
+        ? `任务：${row.taskName}\n${batchSummary}\n\n只导入上面显示的批次，并执行现有初筛。是否继续？`
+        : `任务：${row.taskName}\n${batchSummary}\n\n只导入上面显示的批次；全部合法唯一 ASIN 生成待请求任务，不初筛、不自动调用卖家精灵。是否继续？`,
+      `确认导入批次 ${batch.latestBatchNo}`,
       {
         type: "warning",
         confirmButtonText: "开始导入",
@@ -1195,9 +1344,14 @@ async function importToDb(row: MappingRow) {
   }
   row._importing = true;
   try {
-    const resp = await bazhuayuApi.trigger(row.marketplace);
+    const resp = await bazhuayuApi.trigger(
+      row.marketplace,
+      row.taskId,
+      row.function,
+      batch,
+    );
     ElMessage.success(
-      `已触发 ${resp.marketplace} 导入任务，稍后到主页面看进度`,
+      `已触发 ${resp.marketplace} 批次 ${resp.batchNo} 导入，稍后到主页面看进度`,
     );
     // 主页面 overview 会显示 currentPhase=DRAINING / weekTasks 新增
     await loadOverview();
@@ -1212,7 +1366,9 @@ async function importToDb(row: MappingRow) {
 async function startCloudCollect(row: MappingRow) {
   try {
     await ElMessageBox.confirm(
-      `将启动八爪鱼云端「${row.marketplace}」采集，云端跑完后自动 drain 到本地 DB。全流程可能耗时数十分钟。是否继续？`,
+      row.initialFilter
+        ? `将启动「${row.taskName}」云端采集，完成后自动导入并初筛。全流程可能耗时数十分钟。是否继续？`
+        : `将启动「${row.taskName}」云端采集，完成后跳过初筛，只生成待请求任务，不会自动调用卖家精灵。是否继续？`,
       "确认启动云端",
       {
         type: "warning",
@@ -1225,7 +1381,11 @@ async function startCloudCollect(row: MappingRow) {
   }
   row._starting = true;
   try {
-    const resp = await bazhuayuApi.startCollect(row.function, row.marketplace);
+    const resp = await bazhuayuApi.startCollect(
+      row.function,
+      row.marketplace,
+      row.taskId,
+    );
     if (resp.skipped?.length) {
       ElMessage.warning(
         `${resp.skipped.join(",")} 已在运行，跳过；已启动 ${resp.accepted?.length || 0} 站`,
@@ -1261,7 +1421,11 @@ async function stopCloudCollect(row: MappingRow) {
   }
   row._stopping = true;
   try {
-    const resp = await bazhuayuApi.stopCollect(row.function, row.marketplace);
+    const resp = await bazhuayuApi.stopCollect(
+      row.function,
+      row.marketplace,
+      row.taskId,
+    );
     if (resp.stopped) {
       ElMessage.success(`已请求停止 ${resp.marketplace}`);
     } else {
@@ -1399,6 +1563,31 @@ onUnmounted(() => {
 
 .muted {
   color: var(--el-text-color-secondary);
+}
+
+.latest-batch {
+  line-height: 1.45;
+}
+
+.latest-batch__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  strong {
+    color: var(--el-color-primary);
+    font-size: 14px;
+  }
+}
+
+.latest-batch__time {
+  margin-top: 5px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+
+  span {
+    margin: 0 4px;
+  }
 }
 
 /** 未通过原因芯片，密集展示 4 类值 */

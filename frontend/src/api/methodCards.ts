@@ -13,6 +13,7 @@ export interface MethodCardListParams {
   batchDate?: string;
   bsrId?: string;
   nodeId?: number | string;
+  categories?: string[];
   page?: number;
   size?: number;
 }
@@ -22,15 +23,24 @@ export const methodCardsApi = {
     params: MethodCardListParams,
   ): Promise<ApiResponse<CompetitorListResponse>> {
     return request({
-      url: "/api/v1/method-cards/M01/products",
-      method: "get",
-      params,
-      paramsSerializer: { indexes: null },
+      url: "/api/v1/method-cards/M01/products/query",
+      method: "post",
+      data: params,
     }).then((res: any) => {
       if (res.data?.list) {
         res.data.list = res.data.list.map(normalizeProduct);
       }
       return res;
+    });
+  },
+
+  getM01Categories(
+    params: MethodCardListParams,
+  ): Promise<ApiResponse<Array<{ category: string; count: number }>>> {
+    return request({
+      url: "/api/v1/method-cards/M01/categories/query",
+      method: "post",
+      data: { ...params, categories: undefined, page: undefined, size: undefined },
     });
   },
 
@@ -100,6 +110,7 @@ export interface M01Rule {
   sales30: number;
   sales60: number;
   sales90: number;
+  salesMax: number;
   bsrMax: number | null;
 }
 

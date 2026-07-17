@@ -1,0 +1,33 @@
+{
+  "react": {
+    "createRoot": 2,
+    "react.dev/errors": 2,
+    "useSyncExternalStore": 8
+  },
+  "zustand": {
+    "zustand persist middleware": 1,
+    "onRehydrateStorage": 2
+  },
+  "lucide": {
+    "lucide-": 2,
+    "iconNode": 2
+  },
+  "tailwind": {
+    "--tw-": 1016,
+    "tailwind": 4
+  },
+  "local_storage": {
+    "localStorage": 43
+  },
+  "liquid_glass": {
+    "backdrop-filter": 51,
+    "color-mix": 35,
+    "feDisplacementMap": 2
+  },
+  "pointer_interactions": {
+    "pointerdown": 110,
+    "requestAnimationFrame": 9,
+    "ResizeObserver": 3
+  },
+  "react_version": "19.2.3"
+}

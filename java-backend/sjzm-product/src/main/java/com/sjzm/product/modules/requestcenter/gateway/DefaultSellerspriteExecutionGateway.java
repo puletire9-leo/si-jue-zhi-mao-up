@@ -11,6 +11,7 @@ import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutio
 import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutionRequest;
 import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutionResult;
 import com.sjzm.product.modules.requestcenter.model.SellerspriteExecutionErrorCode;
+import com.sjzm.product.modules.requestcenter.model.SellerspriteSellerNamePolicy;
 import com.sjzm.product.service.SellerspriteConfigService;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
@@ -123,6 +124,11 @@ public class DefaultSellerspriteExecutionGateway implements SellerspriteExecutio
         boolean circuitPermissionAcquired = false;
 
         try {
+            if (SellerspriteSellerNamePolicy.isBlocked(request.getSellerName())) {
+                throw failure(SellerspriteExecutionErrorCode.INVALID_REQUEST,
+                        SellerspriteSellerNamePolicy.BLOCKED_AMAZON_REASON,
+                        false, false, null, null);
+            }
             executionGate.acquire(request.getAsins() == null ? 0 : request.getAsins().size());
             String requestBody = objectMapper.writeValueAsString(request);
             log.info("卖家精灵请求: runId={}, itemId={}, type={}, scope={}",

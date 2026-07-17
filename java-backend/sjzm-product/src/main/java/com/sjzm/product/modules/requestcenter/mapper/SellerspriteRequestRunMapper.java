@@ -8,6 +8,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
+import java.time.LocalDateTime;
 
 @Mapper
 public interface SellerspriteRequestRunMapper extends BaseMapper<SellerspriteRequestRun> {
@@ -37,6 +38,10 @@ public interface SellerspriteRequestRunMapper extends BaseMapper<SellerspriteReq
     @Update("UPDATE sellersprite_request_run SET api_calls=api_calls+#{apiCalls}, updated_at=NOW() WHERE run_id=#{runId}")
     int addApiCalls(@Param("runId") String runId, @Param("apiCalls") int apiCalls);
 
+    @Select("SELECT COALESCE(SUM(api_calls), 0) FROM sellersprite_request_run " +
+            "WHERE created_at >= #{start} AND created_at < #{end}")
+    Long sumApiCallsByCreatedAt(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
     @Select("SELECT run_id FROM sellersprite_request_run WHERE status IN ('PENDING','RUNNING') ORDER BY created_at ASC")
     List<String> selectRunnableRunIds();
 
@@ -45,7 +50,8 @@ public interface SellerspriteRequestRunMapper extends BaseMapper<SellerspriteReq
 
     /** 查找同一初筛任务尚未结束的 ASIN 批量查询，供创建接口做幂等保护。 */
     @Select("SELECT * FROM sellersprite_request_run WHERE source_task_id=#{taskId} " +
-            "AND request_type='ASIN_BATCH_LOOKUP' AND status IN ('PENDING','RUNNING','PAUSED','PAUSED_SYSTEM') " +
+            "AND request_type IN ('ASIN_BATCH_LOOKUP','PREMIUM_ASIN_LOOKUP') " +
+            "AND status IN ('PENDING','RUNNING','PAUSED','PAUSED_SYSTEM') " +
             "ORDER BY created_at DESC LIMIT 1")
     SellerspriteRequestRun selectActiveAsinRunBySourceTaskId(@Param("taskId") Long taskId);
 
@@ -57,7 +63,7 @@ public interface SellerspriteRequestRunMapper extends BaseMapper<SellerspriteReq
             <script>
             SELECT r.*
             FROM sellersprite_request_run r
-            WHERE r.request_type = 'ASIN_BATCH_LOOKUP'
+            WHERE r.request_type IN ('ASIN_BATCH_LOOKUP','PREMIUM_ASIN_LOOKUP')
               AND r.source_task_id IN
               <foreach collection='taskIds' item='taskId' open='(' separator=',' close=')'>
                 #{taskId}
@@ -66,7 +72,7 @@ public interface SellerspriteRequestRunMapper extends BaseMapper<SellerspriteReq
                 SELECT r2.run_id
                 FROM sellersprite_request_run r2
                 WHERE r2.source_task_id = r.source_task_id
-                  AND r2.request_type = 'ASIN_BATCH_LOOKUP'
+                  AND r2.request_type IN ('ASIN_BATCH_LOOKUP','PREMIUM_ASIN_LOOKUP')
                 ORDER BY r2.created_at DESC, r2.run_id DESC
                 LIMIT 1
               )

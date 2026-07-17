@@ -1,11 +1,11 @@
 package com.sjzm.product.service.impl;
 
 import com.sjzm.product.mapper.CompetitorProductsCleanMapper;
+import com.sjzm.product.config.DatabaseWorkloadGate;
 import com.sjzm.product.service.CleanLayerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -17,10 +17,14 @@ import java.util.Map;
 public class CleanLayerServiceImpl implements CleanLayerService {
 
     private final CompetitorProductsCleanMapper cleanMapper;
+    private final DatabaseWorkloadGate workloadGate;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> cleanWeekBatch(String marketplace, String weekTag) {
+        return workloadGate.runHeavyWrite(() -> doCleanWeekBatch(marketplace, weekTag));
+    }
+
+    private Map<String, Object> doCleanWeekBatch(String marketplace, String weekTag) {
         String mp = requireText(marketplace, "marketplace 不能为空").toUpperCase(Locale.ROOT);
         String wt = requireText(weekTag, "weekTag 不能为空");
 
@@ -40,8 +44,11 @@ public class CleanLayerServiceImpl implements CleanLayerService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> cleanByEffectiveWeekTag(String marketplace, String effectiveWeekTag) {
+        return workloadGate.runHeavyWrite(() -> doCleanByEffectiveWeekTag(marketplace, effectiveWeekTag));
+    }
+
+    private Map<String, Object> doCleanByEffectiveWeekTag(String marketplace, String effectiveWeekTag) {
         String mp = requireText(marketplace, "marketplace 不能为空").toUpperCase(Locale.ROOT);
         String etk = requireText(effectiveWeekTag, "effectiveWeekTag 不能为空");
 

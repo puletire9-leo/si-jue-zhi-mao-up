@@ -13,9 +13,14 @@ import com.sjzm.product.mapper.CompetitorProductMapper;
 import com.sjzm.product.mapper.CompetitorSubcategoryMapper;
 import com.sjzm.product.mapper.SkipAsinMapper;
 import com.sjzm.product.mapper.ShopMapper;
+import com.sjzm.product.methodrule.M01Rule;
+import com.sjzm.product.methodrule.M03Rule;
+import com.sjzm.product.modules.bazhuayu.entity.PremiumProduct;
+import com.sjzm.product.modules.bazhuayu.mapper.PremiumProductMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -38,6 +43,7 @@ public class CompetitorService {
     private final CompetitorFilterService filterService;
     private final SkipAsinMapper skipAsinMapper;
     private final ShopMapper shopMapper;
+    private final PremiumProductMapper premiumProductMapper;
 
     private static final int BATCH_SIZE = 40;
 
@@ -216,6 +222,127 @@ public class CompetitorService {
     }
 
     /**
+     * 精品榜专用卖家精灵入库。复用同一份响应字段映射，但只写 premium_products，
+     * 不执行新品榜初筛、不写 skip_asins，也不刷新 competitor_products_clean。
+     */
+    public Map<String, Object> doPremiumLookupAndSave(
+            CompetitorLookupRequest request,
+            String month,
+            LocalDateTime batchTime,
+            Long mappingId,
+            String bazhuayuTaskId,
+            String taskName,
+            String weekTag,
+            String sourceRunId,
+            Function<CompetitorLookupRequest, JsonNode> lookupExecutor) {
+        log.info("精品榜 API 请求: marketplace={}, asins={}个, mappingId={}, weekTag={}",
+                request.getMarketplace(), request.getAsins() != null ? request.getAsins().size() : 0,
+                mappingId, weekTag);
+
+        Set<String> requestedAsins = request.getAsins() == null
+                ? Set.of()
+                : request.getAsins().stream()
+                        .filter(StringUtils::hasText)
+                        .map(value -> value.trim().toUpperCase(Locale.ROOT))
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> returnedAsins = new LinkedHashSet<>();
+        Set<String> writtenAsins = new LinkedHashSet<>();
+        int page = 1;
+        int apiCalls = 0;
+        int responseTotal = 0;
+        while (true) {
+            request.setPage(page);
+            JsonNode data = lookupExecutor.apply(request);
+            apiCalls++;
+            if (page == 1) responseTotal = data.path("total").asInt(0);
+            JsonNode items = data.path("items");
+            int itemCount = items.isArray() ? items.size() : 0;
+
+            for (JsonNode item : items) {
+                try {
+                    String asin = item.path("asin").asText("").trim().toUpperCase(Locale.ROOT);
+                    if (!StringUtils.hasText(asin) || !requestedAsins.contains(asin)) {
+                        log.warn("精品榜忽略非本批请求 ASIN: marketplace={}, asin={}",
+                                request.getMarketplace(), asin);
+                        continue;
+                    }
+                    returnedAsins.add(asin);
+                    CompetitorProduct mapped = mapToEntity(item, request.getMarketplace(), asin, month);
+                    PremiumProduct premium = new PremiumProduct();
+                    BeanUtils.copyProperties(mapped, premium);
+                    premium.setSource("精品榜");
+                    premium.setWeekTag(weekTag);
+                    premium.setIsCurrent(1);
+                    premium.setBazhuayuMappingId(mappingId);
+                    premium.setBazhuayuTaskId(bazhuayuTaskId);
+                    premium.setBazhuayuTaskName(taskName);
+                    premium.setSourceRunId(sourceRunId);
+                    premium.setSellerspriteRawJson(item.toString());
+                    premium.setDeleted(0);
+                    premium.setCreatedAt(batchTime);
+                    premium.setUpdatedAt(batchTime);
+                    premiumProductMapper.insertOnDuplicateKeyUpdate(premium);
+                    writtenAsins.add(asin);
+                } catch (Exception e) {
+                    log.warn("精品榜单条商品入库失败 (asin={}): {}", item.path("asin").asText(), e.getMessage());
+                }
+            }
+
+            if (returnedAsins.size() >= responseTotal || itemCount < request.getSize()) break;
+            if (page >= 2) {
+                log.info("精品榜已达翻页上限2页，停止 (已返回{}条/total={})",
+                        returnedAsins.size(), responseTotal);
+                break;
+            }
+            page++;
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        List<String> missingAsins = requestedAsins.stream()
+                .filter(asin -> !writtenAsins.contains(asin))
+                .toList();
+        summary.put("total", requestedAsins.size());
+        summary.put("fetchedCount", returnedAsins.size());
+        summary.put("writtenCount", writtenAsins.size());
+        summary.put("failedCount", missingAsins.size());
+        summary.put("missingAsins", missingAsins);
+        summary.put("warning", missingAsins.isEmpty()
+                ? null
+                : "卖家精灵未返回 " + missingAsins.size() + " 个 ASIN，保留为待补全");
+        summary.put("apiCalls", apiCalls);
+        return summary;
+    }
+
+    /**
+     * 查询同站点已经成功收到卖家精灵响应的精品 ASIN。
+     * 分块查询避免大批次 IN 参数过长；不同站点不互相去重。
+     */
+    public Set<String> findEnrichedPremiumAsins(String marketplace, Collection<String> asins) {
+        if (!StringUtils.hasText(marketplace) || asins == null || asins.isEmpty()) {
+            return Set.of();
+        }
+        List<String> normalized = asins.stream()
+                .filter(StringUtils::hasText)
+                .map(value -> value.trim().toUpperCase(Locale.ROOT))
+                .distinct()
+                .toList();
+        Set<String> found = new LinkedHashSet<>();
+        final int chunkSize = 500;
+        for (int from = 0; from < normalized.size(); from += chunkSize) {
+            int to = Math.min(from + chunkSize, normalized.size());
+            found.addAll(premiumProductMapper.selectEnrichedAsins(
+                    marketplace.trim().toUpperCase(Locale.ROOT), normalized.subList(from, to)));
+        }
+        return found;
+    }
+
+    /**
      * 将 ASIN 列表按每批 40 个分块，丢弃不足 40 的尾块
      */
     private List<List<String>> partition(List<String> asins, int batchSize) {
@@ -354,10 +481,27 @@ public class CompetitorService {
 
 
     public PageResult<CompetitorProductResponse> queryFromDb(CompetitorQueryRequest request) {
+        return queryFromDb(request, false);
+    }
+
+    /** 精品页统一选品查询：沿用同一套筛选字段，但固定读取 premium_products 原始表。 */
+    public PageResult<CompetitorProductResponse> queryPremiumFromDb(CompetitorQueryRequest request) {
+        return queryFromDb(request, true);
+    }
+
+    private PageResult<CompetitorProductResponse> queryFromDb(
+            CompetitorQueryRequest request,
+            boolean premiumSource) {
 
         LambdaQueryWrapper<CompetitorProduct> wrapper = new LambdaQueryWrapper<>();
         // 排除空壳追踪记录
         wrapper.isNotNull(CompetitorProduct::getTitle);
+        if (premiumSource) {
+            // 八爪鱼原始 ASIN 只是请求中心的待处理暂存，不属于精品页面可展示商品。
+            // 只有卖家精灵真实返回并落过原始响应的记录才进入列表、筛选和导出。
+            wrapper.apply("deleted = 0")
+                    .apply("sellersprite_raw_json IS NOT NULL AND TRIM(sellersprite_raw_json) != ''");
+        }
         if (StringUtils.hasText(request.getMarketplace())) {
             wrapper.eq(CompetitorProduct::getMarketplace, request.getMarketplace());
         }
@@ -478,11 +622,16 @@ public class CompetitorService {
         // ── 灵活合格规则（规则间 OR：满足任一即合格，取代写死的 MODE1 过滤）──
         applyQualifyRules(wrapper, request.getQualifyRules());
 
-        // 动态排序（白名单列名）
+        if (premiumSource) {
+            applyPremiumMethodRule(wrapper, request.getMethodId(), request.getMarketplace());
+        }
+
+        // 动态排序（白名单列名）。listingDate 需要“空值置后”的复合 ORDER BY，
+        // 在分页 tail 中统一拼接，避免 MySQL 升序时把 NULL 放到页面最前面。
         applySort(wrapper, request.getSortBy(), request.getSortOrder());
 
         // 数据源切换：默认查清洗表（按父 ASIN 去重的代表行）；false 走原始表。
-        boolean useClean = !Boolean.FALSE.equals(request.getUseCleanTable());
+        boolean useClean = !premiumSource && !Boolean.FALSE.equals(request.getUseCleanTable());
 
         // maxVariantCount 变体数上限筛选：两种场景分别处理
         if (request.getMaxVariantCount() != null) {
@@ -492,11 +641,13 @@ public class CompetitorService {
                 wrapper.apply("(variations <= {0} OR variations IS NULL)", request.getMaxVariantCount());
             } else if (StringUtils.hasText(request.getMarketplace())) {
                 // 原始表场景：用 dedup_key 子查询限定父群组的变体行数 ≤ 阈值
+                String sourceTable = premiumSource ? "premium_products" : "competitor_products";
+                String sourceGuard = premiumSource ? " AND deleted = 0" : "";
                 wrapper.apply(
                     "COALESCE(NULLIF(parent_asin,''), asin) IN ("
                     + "SELECT t.k FROM ("
                     + "  SELECT COALESCE(NULLIF(parent_asin,''), asin) AS k, COUNT(*) AS c"
-                    + "  FROM competitor_products WHERE marketplace = {0} AND title IS NOT NULL"
+                    + "  FROM " + sourceTable + " WHERE marketplace = {0} AND title IS NOT NULL" + sourceGuard
                     + "  GROUP BY COALESCE(NULLIF(parent_asin,''), asin)"
                     + "  HAVING c <= {1}"
                     + ") t)",
@@ -508,14 +659,18 @@ public class CompetitorService {
         long total;
         int offset = (request.getPage() - 1) * request.getSize();
         int size = Math.max(1, Math.min(request.getSize(), 100)); // 限制最大100
-        List<CompetitorProduct> records;
-        if (useClean) {
+        List<? extends CompetitorProduct> records;
+        if (premiumSource) {
+            total = premiumProductMapper.selectCountForSelection(wrapper);
+            applyPagination(wrapper, request.getSortBy(), request.getSortOrder(), offset, size);
+            records = premiumProductMapper.selectListForSelection(wrapper);
+        } else if (useClean) {
             total = productMapper.selectCountFromClean(wrapper);
-            wrapper.last("LIMIT " + offset + "," + size);
+            applyPagination(wrapper, request.getSortBy(), request.getSortOrder(), offset, size);
             records = productMapper.selectListFromClean(wrapper);
         } else {
             total = productMapper.selectCount(wrapper);
-            wrapper.last("LIMIT " + offset + "," + size);
+            applyPagination(wrapper, request.getSortBy(), request.getSortOrder(), offset, size);
             records = productMapper.selectList(wrapper);
         }
 
@@ -529,9 +684,10 @@ public class CompetitorService {
                     })
                     .distinct()
                     .collect(Collectors.toList());
-            Map<String, Long> variantCountMap = productMapper.selectVariantCountsByDedupKeys(
-                            request.getMarketplace(), dedupKeys)
-                    .stream()
+            List<Map<String, Object>> variantRows = premiumSource
+                    ? premiumProductMapper.selectVariantCountsByDedupKeys(request.getMarketplace(), dedupKeys)
+                    : productMapper.selectVariantCountsByDedupKeys(request.getMarketplace(), dedupKeys);
+            Map<String, Long> variantCountMap = variantRows.stream()
                     .collect(Collectors.toMap(
                             row -> String.valueOf(row.get("dedupKey")),
                             row -> ((Number) row.get("variantCount")).longValue()));
@@ -545,7 +701,7 @@ public class CompetitorService {
 
         // 批量查子类目，避免 N+1
         List<Long> productIds = records.stream().map(CompetitorProduct::getId).collect(Collectors.toList());
-        Map<Long, List<CompetitorSubcategory>> subMap = productIds.isEmpty()
+        Map<Long, List<CompetitorSubcategory>> subMap = premiumSource || productIds.isEmpty()
                 ? Map.of()
                 : subcategoryMapper.selectByProductIds(productIds).stream()
                         .collect(Collectors.groupingBy(CompetitorSubcategory::getProductId));
@@ -575,6 +731,20 @@ public class CompetitorService {
         return list.stream().map(p -> toResponse(p, Collections.emptyList())).collect(Collectors.toList());
     }
 
+    public List<CompetitorProductResponse> getPremiumVariants(String marketplace, String parentAsin) {
+        LambdaQueryWrapper<CompetitorProduct> wrapper = new LambdaQueryWrapper<CompetitorProduct>()
+                .eq(CompetitorProduct::getMarketplace, marketplace)
+                .and(w -> w.eq(CompetitorProduct::getParentAsin, parentAsin)
+                        .or().eq(CompetitorProduct::getAsin, parentAsin))
+                .isNotNull(CompetitorProduct::getTitle)
+                .apply("deleted = 0")
+                .apply("sellersprite_raw_json IS NOT NULL AND TRIM(sellersprite_raw_json) != ''")
+                .orderByAsc(CompetitorProduct::getBsr);
+        return premiumProductMapper.selectListForSelection(wrapper).stream()
+                .map(p -> toResponse(p, Collections.emptyList()))
+                .collect(Collectors.toList());
+    }
+
     public List<CompetitorProductResponse> getHistory(String marketplace, String asin) {
         List<CompetitorProduct> list = productMapper.selectList(
                 new LambdaQueryWrapper<CompetitorProduct>()
@@ -585,8 +755,9 @@ public class CompetitorService {
     }
 
     private CompetitorProductResponse toResponse(CompetitorProduct p, List<CompetitorProductResponse.SubcategoryDto> subs) {
-        return CompetitorProductResponse.builder()
+        CompetitorProductResponse.CompetitorProductResponseBuilder builder = CompetitorProductResponse.builder()
                 .id(p.getId())
+                .enriched(p.getEnriched())
                 .marketplace(p.getMarketplace()).asin(p.getAsin()).month(p.getMonth())
                 .title(p.getTitle()).brand(p.getBrand()).brandUrl(p.getBrandUrl())
                 .imageUrl(p.getImageUrl()).parentAsin(p.getParentAsin()).sku(p.getSku())
@@ -601,6 +772,11 @@ public class CompetitorService {
                 .sellerName(p.getSellerName()).sellerNation(p.getSellerNation()).sellers(p.getSellers())
                 .fulfillment(p.getFulfillment()).variations(p.getVariations())
                 .weight(p.getWeight()).dimension(p.getDimension())
+                .dimensionsType(p.getDimensionsType())
+                .pkgDimensions(p.getPkgDimensions())
+                .pkgDimensionType(p.getPkgDimensionType())
+                .pkgWeight(p.getPkgWeight())
+                .lqs(p.getLqs())
                 .availableDate(p.getAvailableDate() != null ? new java.text.SimpleDateFormat("yyyy-MM-dd").format(new java.util.Date(p.getAvailableDate())) : null)
                 .bestSeller(p.getBestSeller()).amazonChoice(p.getAmazonChoice())
                 .newRelease(p.getNewRelease()).ebc(p.getEbc()).video(p.getVideo())
@@ -618,10 +794,17 @@ public class CompetitorService {
                 .isCurrent(p.getIsCurrent())
                 .sellerId(p.getSellerId())
                 .createdAt(p.getCreatedAt() != null ? p.getCreatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : null)
+                .updatedAt(p.getUpdatedAt() != null ? p.getUpdatedAt().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : null)
                 .shopLink(buildShopLink(p.getSellerId(), p.getMarketplace()))
                 .variantCount(p.getVariantCount())
-                .subcategories(subs)
-                .build();
+                .subcategories(subs);
+        if (p instanceof PremiumProduct premium) {
+            builder.bazhuayuMappingId(premium.getBazhuayuMappingId())
+                    .bazhuayuTaskId(premium.getBazhuayuTaskId())
+                    .bazhuayuTaskName(premium.getBazhuayuTaskName())
+                    .sourceRunId(premium.getSourceRunId());
+        }
+        return builder.build();
     }
 
     // 合格规则字段/运算符白名单（防注入：列名与运算符只能取这些值）
@@ -691,12 +874,62 @@ public class CompetitorService {
         });
     }
 
+    /** 方法卡只收窄精品表，不允许切换到新品榜或店铺商品表。 */
+    private void applyPremiumMethodRule(
+            LambdaQueryWrapper<CompetitorProduct> wrapper,
+            String methodId,
+            String marketplace) {
+        if (!StringUtils.hasText(methodId)) {
+            return;
+        }
+        String normalized = methodId.trim().toUpperCase(Locale.ROOT);
+        if ("M01".equals(normalized)) {
+            M01Rule rule = M01Rule.forMarketplace(marketplace);
+            wrapper.ge(CompetitorProduct::getPrice, rule.priceMin())
+                    .le(CompetitorProduct::getPrice, rule.priceMax())
+                    .lt(CompetitorProduct::getWeightG, rule.weightMax())
+                    .lt(CompetitorProduct::getListingDays, rule.listingDaysMax())
+                    .and(units -> units.isNull(CompetitorProduct::getUnits)
+                            .or()
+                            .le(CompetitorProduct::getUnits, rule.salesMax()))
+                    .and(group -> {
+                        group.and(days30 -> days30
+                                        .le(CompetitorProduct::getListingDays, 30)
+                                        .ge(CompetitorProduct::getUnits, rule.sales30()))
+                                .or(days60 -> days60
+                                        .gt(CompetitorProduct::getListingDays, 30)
+                                        .le(CompetitorProduct::getListingDays, 60)
+                                        .ge(CompetitorProduct::getUnits, rule.sales60()))
+                                .or(days90 -> days90
+                                        .gt(CompetitorProduct::getListingDays, 60)
+                                        .lt(CompetitorProduct::getListingDays, rule.listingDaysMax())
+                                        .ge(CompetitorProduct::getUnits, rule.sales90()));
+                        if (rule.bsrMax() != null) {
+                            group.or(bsr -> bsr
+                                    .gt(CompetitorProduct::getBsr, 0)
+                                    .lt(CompetitorProduct::getBsr, rule.bsrMax()));
+                        }
+                    });
+            return;
+        }
+        if ("M03".equals(normalized)) {
+            M03Rule rule = M03Rule.forMarketplace(marketplace);
+            wrapper.apply("UPPER(fulfillment) = {0}", "FBM")
+                    .lt(CompetitorProduct::getListingDays, rule.listingDaysMax())
+                    .ge(CompetitorProduct::getUnits, rule.sales90());
+            return;
+        }
+        throw new IllegalArgumentException("精品选品仅支持 M01 或 M03 方法卡");
+    }
+
     private void applySort(LambdaQueryWrapper<CompetitorProduct> wrapper, String sortBy, String sortOrder) {
         boolean asc = "asc".equalsIgnoreCase(sortOrder);
         switch (sortBy != null ? sortBy : "units") {
             case "price" -> wrapper.orderBy(true, asc, CompetitorProduct::getPrice);
             case "bsr" -> wrapper.orderBy(true, asc, CompetitorProduct::getBsr);
             case "listingDays" -> wrapper.orderBy(true, asc, CompetitorProduct::getListingDays);
+            // listingDate / availableDate 由 applyPagination 生成复合 ORDER BY：空值置后 + ASIN 稳定次序。
+            case "listingDate", "availableDate" -> { }
             case "createdAt" -> wrapper.orderBy(true, asc, CompetitorProduct::getCreatedAt);
             case "ratings" -> wrapper.orderBy(true, asc, CompetitorProduct::getRatings);
             case "rating" -> wrapper.orderBy(true, asc, CompetitorProduct::getRating);
@@ -717,6 +950,18 @@ public class CompetitorService {
      */
     public List<Map<String, Object>> getCreatedWeeks(String marketplace, String source, String filterMode) {
         return productMapper.selectCreatedWeeksWithCount(marketplace, source, filterMode);
+    }
+
+    public List<Map<String, Object>> getPremiumCreatedWeeks(String marketplace) {
+        return premiumProductMapper.selectCreatedWeeksWithCount(marketplace);
+    }
+
+    public List<Map<String, Object>> getPremiumCategories(String marketplace) {
+        return premiumProductMapper.selectCategoriesWithCount(marketplace);
+    }
+
+    public List<Map<String, Object>> getPremiumSellers(String marketplace) {
+        return premiumProductMapper.selectSellers(marketplace);
     }
 
     private String buildShopLink(String sellerId, String marketplace) {
@@ -752,6 +997,21 @@ public class CompetitorService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private void applyPagination(
+            LambdaQueryWrapper<CompetitorProduct> wrapper,
+            String sortBy,
+            String sortOrder,
+            int offset,
+            int size) {
+        if ("listingDate".equals(sortBy) || "availableDate".equals(sortBy)) {
+            String direction = "asc".equalsIgnoreCase(sortOrder) ? "ASC" : "DESC";
+            wrapper.last("ORDER BY available_date IS NULL ASC, available_date " + direction
+                    + ", asin ASC LIMIT " + offset + "," + size);
+            return;
+        }
+        wrapper.last("LIMIT " + offset + "," + size);
     }
 
     private List<String> splitCsv(String raw) {

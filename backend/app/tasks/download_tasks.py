@@ -51,6 +51,10 @@ async def _execute_async(self, task_id: str, files: List[Dict[str, Any]]):
         user=settings.MYSQL_USER,
         password=settings.MYSQL_PASSWORD,
         database=settings.MYSQL_DATABASE,
+        min_size=settings.MYSQL_WORKER_POOL_MIN_SIZE,
+        pool_size=settings.MYSQL_WORKER_POOL_SIZE,
+        max_overflow=settings.MYSQL_WORKER_MAX_OVERFLOW,
+        pool_timeout=settings.MYSQL_POOL_TIMEOUT,
     )
 
     await mysql.connect()

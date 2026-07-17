@@ -14,6 +14,7 @@
 
     <div class="card-image-wrapper">
       <el-image
+        v-if="imageUrl"
         :src="imageUrl"
         :preview="false"
         fit="cover"
@@ -27,6 +28,12 @@
           </div>
         </template>
       </el-image>
+      <div v-else class="card-image card-image-empty">
+        <el-icon><Picture /></el-icon>
+        <span v-if="props.incompleteDataLabel" class="incomplete-data-label">
+          {{ props.incompleteDataLabel }}
+        </span>
+      </div>
 
       <div
         v-if="showTypeBadge && productType"
@@ -99,9 +106,9 @@
       </div>
 
       <div v-if="showMeta" class="card-meta">
-        <div v-if="price" class="meta-item">
+        <div v-if="price !== null && price !== undefined" class="meta-item">
           <el-icon class="meta-icon"><Money /></el-icon>
-          <span class="meta-value">¥{{ price }}</span>
+          <span class="meta-value">{{ formattedPrice }}</span>
         </div>
         <div v-if="product.bsr != null" class="meta-item">
           <span class="meta-value meta-bsr">#{{ product.bsr.toLocaleString() }}</span>
@@ -204,6 +211,7 @@ import {
 } from "@element-plus/icons-vue";
 import { trackClick } from "@/api/clickLog";
 import { getProductType } from "@/api/competitor";
+import { formatDetailMoney } from "@/components/ProductDetailDialog/productDetail";
 
 interface Props {
   product: Record<string, any>;
@@ -219,6 +227,8 @@ interface Props {
   showImageSearch?: boolean;
   /** 是否显示 S/A/B/C/D 品级徽章（老品级系统，默认关闭，不干扰视线） */
   showGrade?: boolean;
+  /** 数据源只有原始空壳时显示的明确状态，避免把缺图误解为图片加载失败。 */
+  incompleteDataLabel?: string;
 }
 
 interface Emits {
@@ -239,6 +249,7 @@ const props = withDefaults(defineProps<Props>(), {
   showDelete: true,
   showImageSearch: true,
   showGrade: false,
+  incompleteDataLabel: "",
 });
 
 const emit = defineEmits<Emits>();
@@ -299,6 +310,13 @@ const titleText = computed(() => {
 });
 const showMeta = computed(() => modeConfig.value.showMeta);
 const price = computed(() => props.product.price);
+const formattedPrice = computed(() =>
+  formatDetailMoney(
+    price.value,
+    props.product.marketplace || props.product.country,
+    props.product.symbol,
+  ),
+);
 const storeName = computed(
   () => props.product.storeName || props.product.sellerName || "",
 );
@@ -332,14 +350,16 @@ const createTime = computed(
 const showViewButton = computed(() => modeConfig.value.showViewButton);
 const showSalesVolume = computed(() => modeConfig.value.showSalesVolume);
 const salesVolume = computed(
-  () => props.product.salesVolume || props.product.units || 0,
+  () => props.product.salesVolume ?? props.product.units ?? 0,
 );
 const productLink = computed(() => {
   const raw = props.product.productLink || props.product.productUrl || "";
   if (raw) return raw;
   // 从 ASIN + 站点生成 Amazon 链接
   const asin = props.product.asin;
-  const mkp = props.product.marketplace;
+  const mkp = String(
+    props.product.marketplace || props.product.country || "",
+  ).toUpperCase();
   if (asin && mkp) {
     const domains: Record<string, string> = {
       US: "www.amazon.com",
@@ -466,7 +486,7 @@ const imageUrl = computed((): string => {
   if (props.product.image) {
     return props.product.image;
   }
-  return "/images/default.png";
+  return "";
 });
 
 const formatCreateTime = (dateString: string): string => {
@@ -642,6 +662,32 @@ const handleImageSearch = (): void => {
     height: 100%;
     object-fit: contain;
     transition: transform 0.3s ease;
+  }
+
+  .card-image-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: #94a3b8;
+
+    .el-icon {
+      font-size: 42px;
+    }
+
+    .incomplete-data-label {
+      max-width: 80%;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(245, 158, 11, 0.12);
+      color: #b45309;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: center;
+    }
   }
 
   &:hover .card-image {

@@ -78,6 +78,10 @@ backend/
 ENVIRONMENT, MYSQL_*, REDIS_*, QDRANT_*, COS_*, SECRET_KEY, ...
 ```
 
+生产 Python API 的 MySQL 池默认 min 3、基础池 10、overflow 5，获取连接超时 5 秒；Celery 单任务池默认 min 1/max 2。禁止在异步任务中使用 API 默认大池，避免多 worker 将连接数成倍放大。
+
+下载中心的大文件必须通过 `/api/v1/download-tasks/{taskId}/download-session` 先签发短时 HttpOnly Cookie，再由 `/download` 使用 `FileResponse` 交给浏览器原生下载；禁止重新改成在 Python 或前端内存中聚合整个 ZIP。下载响应必须保留 `X-Accel-Buffering: no`。
+
 ## Agent 修改规则
 
 1. 新增路由放在 `api/v1/` 下，注册到 `api/v1/__init__.py` 的 `api_router`

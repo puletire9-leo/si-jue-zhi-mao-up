@@ -160,8 +160,12 @@ async def detailed_health_check(
         if hasattr(repo, 'pool') and repo.pool:
             detailed_status["components"]["database"]["connection_pool"] = {
                 "status": "healthy",
+                "min_size": getattr(repo, 'min_size', 0),
                 "pool_size": repo.pool_size,
-                "max_overflow": getattr(repo, 'max_overflow', 0)
+                "max_overflow": getattr(repo, 'max_overflow', 0),
+                "max_size": repo.pool_size + getattr(repo, 'max_overflow', 0),
+                "current_size": repo.pool.size,
+                "free_size": repo.pool.freesize
             }
         
         # 计算详细检查的总响应时间

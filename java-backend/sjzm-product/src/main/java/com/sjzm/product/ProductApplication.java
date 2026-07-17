@@ -25,6 +25,7 @@ import java.util.concurrent.ThreadPoolExecutor;
         "com.sjzm.product.modules.analysisbaseline.methodevidence.mapper",
         "com.sjzm.product.modules.shopcollection.mapper",
         "com.sjzm.product.modules.shopcandidate.mapper",
+        "com.sjzm.product.modules.bazhuayu.mapper",
         "com.sjzm.product.modules.requestcenter.mapper",
         "com.sjzm.product.modules.shoppremium.mapper",
         "com.sjzm.product.modules.developerselection.mapper"

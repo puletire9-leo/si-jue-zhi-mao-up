@@ -11,6 +11,8 @@ import java.util.List;
 public class CompetitorProductResponse {
 
     private Long id;
+    /** 精品记录是否已由卖家精灵成功返回并补全。 */
+    private Boolean enriched;
     private String marketplace;
     private String asin;
     private String month;
@@ -58,6 +60,11 @@ public class CompetitorProductResponse {
     private Integer variations;
     private String weight;
     private String dimension;
+    private String dimensionsType;
+    private String pkgDimensions;
+    private String pkgDimensionType;
+    private String pkgWeight;
+    private BigDecimal lqs;
     private String availableDate;
 
     private String bestSeller;
@@ -89,6 +96,14 @@ public class CompetitorProductResponse {
 
     /** 入库时间（yyyy-MM-dd HH:mm:ss） */
     private String createdAt;
+    /** 更新时间（yyyy-MM-dd HH:mm:ss） */
+    private String updatedAt;
+
+    /** 精品数据的八爪鱼任务元数据；普通竞品为空。 */
+    private Long bazhuayuMappingId;
+    private String bazhuayuTaskId;
+    private String bazhuayuTaskName;
+    private String sourceRunId;
 
     private List<SubcategoryDto> subcategories;
 

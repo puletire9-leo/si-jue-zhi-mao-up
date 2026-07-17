@@ -24,11 +24,18 @@
         <if test="nodeId != null">
             AND cp.node_id = #{nodeId}
         </if>
+        <if test="categories != null and !categories.isEmpty()">
+            AND TRIM(SUBSTRING_INDEX(cp.node_label_path, ':', 1)) IN
+            <foreach collection="categories" item="category" open="(" separator="," close=")">
+                #{category}
+            </foreach>
+        </if>
         AND cp.price BETWEEN #{priceMin} AND #{priceMax}
         AND cp.weight_g IS NOT NULL
         AND cp.weight_g &lt; #{weightMax}
         AND cp.listing_days IS NOT NULL
         AND cp.listing_days &lt; #{listingDaysMax}
+        AND (cp.units IS NULL OR cp.units &lt;= #{salesMax})
         AND (
             (cp.listing_days &lt;= 30 AND cp.units IS NOT NULL AND cp.units &gt;= #{sales30})
             OR (cp.listing_days &lt;= 60 AND cp.units IS NOT NULL AND cp.units &gt;= #{sales60})
@@ -97,6 +104,21 @@
             cp.units DESC,
             cp.asin ASC
         LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="selectM01Categories" resultType="java.util.Map">
+        SELECT
+            TRIM(SUBSTRING_INDEX(cp.node_label_path, ':', 1)) AS category,
+            COUNT(1) AS count
+        FROM competitor_products_clean cp
+        WHERE <include refid="M01Where" />
+          AND cp.node_label_path IS NOT NULL
+          AND TRIM(cp.node_label_path) != ''
+          AND LOWER(TRIM(cp.node_label_path)) != 'null'
+          AND TRIM(SUBSTRING_INDEX(cp.node_label_path, ':', 1)) != ''
+          AND LOWER(TRIM(SUBSTRING_INDEX(cp.node_label_path, ':', 1))) != 'null'
+        GROUP BY TRIM(SUBSTRING_INDEX(cp.node_label_path, ':', 1))
+        ORDER BY count DESC, category ASC
     </select>
 
     <sql id="M02Where">

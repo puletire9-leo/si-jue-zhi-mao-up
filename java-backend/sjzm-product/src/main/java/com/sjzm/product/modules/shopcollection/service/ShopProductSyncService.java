@@ -6,6 +6,7 @@ import com.sjzm.product.dto.CompetitorLookupRequest;
 import com.sjzm.product.modules.requestcenter.gateway.SellerspriteExecutionGateway;
 import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutionContext;
 import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutionRequest;
+import com.sjzm.product.modules.requestcenter.model.SellerspriteShopFetchPolicy;
 import com.sjzm.product.modules.shopcollection.entity.ShopProduct;
 import com.sjzm.product.modules.shopcollection.mapper.ShopProductMapper;
 import com.sjzm.product.service.ProductFeatureProcessor;
@@ -82,11 +83,19 @@ public class ShopProductSyncService {
         int apiCalls = 0;
         int page = 1;
         int pageSize = 100;
+        boolean truncated = false;
 
         while (true) {
             if (!mayRequestNextPage.getAsBoolean()) {
                 log.info("店铺抓取控制已生效，当前页后不再发起请求: sellerName={}, marketplace={}, page={}",
                         sellerName, marketplace, page);
+                break;
+            }
+            if (SellerspriteShopFetchPolicy.reachedRequestLimit(apiCalls)) {
+                truncated = true;
+                log.info("店铺抓取达到单店请求上限，停止剩余分页并继续下一店: sellerName={}, marketplace={}, "
+                                + "apiCalls={}, fetched={}, total={}",
+                        sellerName, marketplace, apiCalls, fetched, total);
                 break;
             }
             log.info("抓取店铺全集: sellerName={}, marketplace={}, page={}", sellerName, marketplace, page);
@@ -135,6 +144,9 @@ public class ShopProductSyncService {
         result.put("writtenCount", written);
         result.put("failedCount", Math.max(0, fetched - written));
         result.put("apiCalls", apiCalls);
+        result.put("truncated", truncated);
+        result.put("truncationReason", truncated ? SellerspriteShopFetchPolicy.LIMIT_REASON : null);
+        result.put("remainingCount", truncated && total > fetched ? total - fetched : 0);
         result.put("runId", effectiveRunId);
         result.put("batchCode", effectiveBatchCode);
         result.put("batchDate", batchDate);

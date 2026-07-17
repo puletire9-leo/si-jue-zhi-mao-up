@@ -7,7 +7,9 @@ import com.sjzm.product.entity.AsinImportTask;
 import com.sjzm.product.mapper.AsinImportTaskMapper;
 import com.sjzm.product.mapper.BazhuayuWeeklyRawMapper;
 import com.sjzm.product.modules.bazhuayu.entity.BazhuayuWeeklyRaw;
+import com.sjzm.product.modules.bazhuayu.entity.BazhuayuTaskMapping;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuClient;
+import com.sjzm.product.modules.bazhuayu.service.BazhuayuBatchSnapshot;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuCloudStatsService;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuConfigService;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuImageSearchService;
@@ -61,28 +63,56 @@ public class BazhuayuController {
     private String activeProfile;
 
     @PostMapping("/trigger")
-    @Operation(summary = "读取已采数据：手动触发一次 drain 增量入库+初筛（异步，不启动云端）")
+    @Operation(summary = "导入页面确认的最新云采集批次（异步，不启动云端）")
     public Result<Map<String, Object>> trigger(
-            @RequestParam(required = false) String marketplace) {
-        scheduledService.triggerAsync(marketplace);
+            @RequestParam(defaultValue = "bangdan") String function,
+            @RequestParam(required = false) String marketplace,
+            @RequestParam(required = false) String taskId,
+            @RequestParam(required = false) String batchNo,
+            @RequestParam(required = false) String batchStartTime,
+            @RequestParam(required = false) String batchEndTime,
+            @RequestParam(defaultValue = "0") int batchCount) {
+        if (taskId != null && !taskId.isBlank() && marketplace != null && !marketplace.isBlank()) {
+            // 兼容部署前已打开的旧前端：旧页面不会携带批次参数，后端自动锁定当前最新 Finished 批次。
+            // 新前端仍携带页面显示的批次元数据，继续执行严格的“所见即所导”校验。
+            BazhuayuBatchSnapshot expected;
+            if (batchNo == null || batchNo.isBlank() || batchStartTime == null || batchStartTime.isBlank()) {
+                expected = client.getLatestBatchSnapshot(taskId);
+                expected.assertSameBatch(expected);
+            } else {
+                expected = BazhuayuBatchSnapshot.expected(
+                        batchNo, batchStartTime, batchEndTime, batchCount);
+            }
+            scheduledService.triggerTaskAsync(function, marketplace, taskId, expected);
+            batchNo = expected.batchNo();
+        } else {
+            scheduledService.triggerAsync(marketplace);
+        }
         return Result.success(Map.of("status", "TRIGGERED",
-                "marketplace", marketplace == null ? "ALL" : marketplace));
+                "marketplace", marketplace == null ? "ALL" : marketplace,
+                "batchNo", batchNo == null ? "" : batchNo));
     }
 
     @PostMapping("/start-collect")
     @Operation(summary = "启动云端采集一条龙（启动→等待采完→榜单则drain入库初筛，全异步）")
     public Result<Map<String, Object>> startCollect(
             @RequestParam(defaultValue = "bangdan") String function,
-            @RequestParam(required = false) String marketplace) {
-        return Result.success(scheduledService.startCloudCollect(function, marketplace));
+            @RequestParam(required = false) String marketplace,
+            @RequestParam(required = false) String taskId) {
+        return Result.success(taskId != null && !taskId.isBlank() && marketplace != null
+                ? scheduledService.startCloudCollectTask(function, marketplace, taskId)
+                : scheduledService.startCloudCollect(function, marketplace));
     }
 
     @PostMapping("/stop-collect")
     @Operation(summary = "停止采集：协作式取消 + 调云端 stopExtraction（需团队版权限）")
     public Result<Map<String, Object>> stopCollect(
             @RequestParam(defaultValue = "bangdan") String function,
-            @RequestParam String marketplace) {
-        return Result.success(scheduledService.stopTask(function, marketplace));
+            @RequestParam String marketplace,
+            @RequestParam(required = false) String taskId) {
+        return Result.success(taskId != null && !taskId.isBlank()
+                ? scheduledService.stopTask(function, marketplace, taskId)
+                : scheduledService.stopTask(function, marketplace));
     }
 
     @GetMapping("/run-state")
@@ -323,6 +353,8 @@ public class BazhuayuController {
     public Result<Map<String, Object>> getMapping() {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("mapping", configService.getMapping());
+        data.put("taskNames", configService.getTaskNames());
+        data.put("entries", configService.listTaskEntries());
         data.put("fromDb", configService.isMappingFromDb());
         return Result.success(data);
     }
@@ -338,13 +370,15 @@ public class BazhuayuController {
     @Operation(summary = "立刻刷新云端行数（不带参数=全刷；带 function+marketplace=单条刷）")
     public Result<Map<String, Object>> refreshCloudStats(
             @RequestParam(required = false) String function,
-            @RequestParam(required = false) String marketplace) {
+            @RequestParam(required = false) String marketplace,
+            @RequestParam(required = false) String taskId) {
         Map<String, Object> data = new LinkedHashMap<>();
         if (function != null && !function.isBlank() && marketplace != null && !marketplace.isBlank()) {
-            String taskId = configService.getTaskId(function, marketplace);
-            boolean ok = cloudStatsService.refreshOne(function, marketplace, taskId);
+            String effectiveTaskId = taskId != null && !taskId.isBlank()
+                    ? taskId : configService.getTaskId(function, marketplace);
+            boolean ok = cloudStatsService.refreshOne(function, marketplace, effectiveTaskId);
             data.put("refreshed", ok ? 1 : 0);
-            data.put("stat", cloudStatsService.get(function, marketplace));
+            data.put("stat", cloudStatsService.getByTaskId(effectiveTaskId));
         } else {
             data.put("refreshed", cloudStatsService.refreshAll());
             data.put("snapshot", cloudStatsService.snapshot());
@@ -359,7 +393,39 @@ public class BazhuayuController {
         String function = body.get("function");
         String marketplace = body.get("marketplace");
         String taskId = body.get("taskId");
-        return Result.success(configService.upsertMappingEntry(function, marketplace, taskId));
+        String taskName = body.get("taskName");
+        return Result.success(configService.upsertMappingEntry(function, marketplace, taskId, taskName));
+    }
+
+    @PostMapping("/config/task-entry")
+    @Operation(summary = "新增八爪鱼命名任务，同功能同站点可多条")
+    public Result<BazhuayuTaskMapping> createTaskEntry(@RequestBody Map<String, Object> body) {
+        return Result.success(configService.createTaskEntry(
+                String.valueOf(body.get("function")),
+                String.valueOf(body.get("marketplace")),
+                String.valueOf(body.get("taskId")),
+                String.valueOf(body.get("taskName")),
+                body.get("taskCategory") == null ? "默认" : String.valueOf(body.get("taskCategory")),
+                !Boolean.FALSE.equals(body.get("initialFilter"))));
+    }
+
+    @PutMapping("/config/task-entry/{id}")
+    @Operation(summary = "更新八爪鱼命名任务")
+    public Result<BazhuayuTaskMapping> updateTaskEntry(
+            @PathVariable Long id, @RequestBody Map<String, Object> body) {
+        return Result.success(configService.updateTaskEntry(
+                id,
+                String.valueOf(body.get("taskId")),
+                String.valueOf(body.get("taskName")),
+                body.get("taskCategory") == null ? "默认" : String.valueOf(body.get("taskCategory")),
+                !Boolean.FALSE.equals(body.get("initialFilter"))));
+    }
+
+    @DeleteMapping("/config/task-entry/{id}")
+    @Operation(summary = "删除八爪鱼命名任务")
+    public Result<Void> deleteTaskEntry(@PathVariable Long id) {
+        configService.deleteTaskEntry(id);
+        return Result.success();
     }
 
     @DeleteMapping("/config/mapping/entry")
@@ -423,6 +489,12 @@ public class BazhuayuController {
         item.put("id", task.getId());
         item.put("marketplace", task.getMarketplace());
         item.put("importType", task.getImportType());
+        item.put("bazhuayuMappingId", task.getBazhuayuMappingId());
+        item.put("bazhuayuTaskId", task.getBazhuayuTaskId());
+        item.put("taskName", task.getTaskName());
+        item.put("taskCategory", task.getTaskCategory());
+        item.put("initialFilter", !Boolean.FALSE.equals(task.getInitialFilter()));
+        item.put("targetTable", task.getTargetTable());
         // 流式初筛（入库+初筛）处理中的任务在 DB 里是 RUNNING 且 batchTotal 尚未定，
         // 派生为 DRAINING 展示态，与"一条龙" run-state 的 DRAINING 语义对齐；
         // RUNNING + batchTotal>0 属卖家精灵 API 执行阶段，保持 RUNNING。

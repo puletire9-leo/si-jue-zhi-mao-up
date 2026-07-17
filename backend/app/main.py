@@ -70,8 +70,11 @@ async def lifespan(app: FastAPI):
                 user=settings.MYSQL_USER,
                 password=settings.MYSQL_PASSWORD,
                 database=settings.MYSQL_DATABASE,
+                min_size=settings.MYSQL_POOL_MIN_SIZE,
                 pool_size=settings.MYSQL_POOL_SIZE,
                 pool_recycle=settings.MYSQL_POOL_RECYCLE,
+                pool_timeout=settings.MYSQL_POOL_TIMEOUT,
+                max_overflow=settings.MYSQL_MAX_OVERFLOW,
                 echo=settings.MYSQL_ECHO
             )
             await app.state.mysql.connect()
