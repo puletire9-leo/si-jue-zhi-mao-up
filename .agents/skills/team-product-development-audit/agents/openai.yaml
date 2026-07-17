@@ -1,0 +1,4 @@
+interface:
+  display_name: "团队开品第一层AI审核"
+  short_description: "基于团队历史开品证据审核候选商品、风险与下一步优先级"
+  default_prompt: "Use $team-product-development-audit to audit this product dataset and explain which candidates deserve the next review."

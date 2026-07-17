@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
+import { redactSensitiveData } from './redactSensitiveData'
 
 // 端点特定的配置
 const endpointConfigs = {
@@ -247,7 +248,7 @@ request.interceptors.response.use(
     // 将错误信息发送到后端日志接口
     try {
       const fullUrl = config ? `${config.baseURL || ''}${config.url || ''}` : 'unknown'
-      const errorLog = {
+      const errorLog = redactSensitiveData({
         timestamp: new Date().toISOString(),
         url: fullUrl,
         method: config?.method || '',
@@ -272,7 +273,7 @@ request.interceptors.response.use(
         userAgent: navigator.userAgent,
         ip: '127.0.0.1', // 前端无法获取真实IP，使用127.0.0.1代替
         processingTime: config?._startTime ? `${Date.now() - config._startTime}ms` : null
-      }
+      })
       
       // 发送错误日志到后端
       fetch('/api/v1/logs/frontend', {

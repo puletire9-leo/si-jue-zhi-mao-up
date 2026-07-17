@@ -101,6 +101,8 @@ rbac:
   route-permissions:
     "/api/v1/users/**": "user:manage"
     "/api/v1/competitor/lookup": "data:import"
+    "/api/v1/modules/lingxing/credentials": "lingxing:credentials:manage"
+    "/api/v1/modules/lingxing/baseline-maintenance/**": "lingxing:baseline:manage"
 
 gateway:
   auth:

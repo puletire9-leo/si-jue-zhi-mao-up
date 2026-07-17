@@ -184,12 +184,6 @@ const routes: RouteRecordRaw[] = [
         component: () => import("@/views/Settings/index.vue"),
         meta: { title: "系统设置", icon: "Setting" },
       },
-      {
-        path: "lingxing/import",
-        name: "LingxingImport",
-        component: () => import("@/views/Lingxing/Import/index.vue"),
-        meta: { title: "导入领星", icon: "Upload" },
-      },
       // 模块化路由（从 modules/*/manifest.ts 自动收集）
       ...moduleRoutes,
     ],

@@ -9,7 +9,7 @@ services:
     container_name: dev-mysql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     ports:
-      - "3410:3306"
+      - "${MYSQL_PORT_EXTERNAL:-13338}:3306"
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       MYSQL_USER: sijue
@@ -162,7 +162,7 @@ services:
       sh -c "cd sjzm-product &&
       mvn spring-boot:run -DskipTests
       -Dspring-boot.run.jvmArguments='-Xms256m -Xmx1024m'
-      -Dspring-boot.run.arguments='--server.port=8002'"
+      -Dspring-boot.run.arguments='--server.port=8002 --schema-guard.fail-fast=false'"
     env_file:
       - ./config/public/dev.env
       - ./config/secrets/dev.env

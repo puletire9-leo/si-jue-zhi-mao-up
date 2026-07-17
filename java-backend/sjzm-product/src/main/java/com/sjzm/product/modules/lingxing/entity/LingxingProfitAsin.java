@@ -12,14 +12,10 @@ import java.time.LocalDateTime;
 /**
  * 领星利润统计-ASIN（profit/statistics/open/asin/list 落库）。
  *
- * 双写（张总蓝本 §一.1）：少量结构化关键列 + {@link #rawJson} 整包留底。
- * 利润报表 200+ 费用项（销售额/退款/平台费/仓储费/广告/税/成本利润…），
- * 结构化列只映射最常用的，其余全部走 raw_json，避免平台演进丢数据。
+ * 只保留常用结构化列。raw_json 已删除（2026-07 数据库整理）。
  *
- * 幂等（张总蓝本 §一.2）：返回按 dataDate 逐日拆行，
+ * 幂等：返回按 dataDate 逐日拆行，
  * {@link #bizKey} = asin | sid | dataDate | currency，逐日唯一，反复同步可重跑。
- *
- * 见 java-backend/sql/create_lingxing_profit_asin.sql
  */
 @Data
 @TableName("lingxing_profit_asin")
@@ -58,7 +54,7 @@ public class LingxingProfitAsin {
     /** 币种 */
     private String currencyCode;
 
-    // ---- 常用指标（其余 200+ 费用项见 raw_json）----
+    // ---- 结构化指标 ----
 
     /** 销量 */
     private Integer totalSalesQuantity;
@@ -83,9 +79,6 @@ public class LingxingProfitAsin {
 
     /** 毛利率 */
     private BigDecimal grossRate;
-
-    /** 领星原始行 JSON 整包留底 */
-    private String rawJson;
 
     /** 本地同步入库时间 */
     private LocalDateTime syncedAt;

@@ -19,7 +19,7 @@ MONTH = BATCH_DATE[:6]           # 202607，对应"这周/本月"批次
 SOURCE = "sellersprite"
 
 DB_HOST = os.environ.get("DB_HOST", "localhost")
-DB_PORT = int(os.environ.get("DB_PORT", "3410"))
+DB_PORT = int(os.environ.get("DB_PORT", "13306"))
 DB_NAME = os.environ.get("DB_NAME", "sijuelishi_dev")
 DB_USER = os.environ.get("DB_USER", "root")
 DB_PASSWORD = os.environ.get("DB_PASSWORD")

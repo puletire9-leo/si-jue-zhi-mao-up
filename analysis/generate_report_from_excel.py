@@ -1,433 +1,343 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-从Excel文件生成SKU月度汇总报告
+"""按首次 FBA 可售月生成团队 SKU 总览和开发人报告。
 
-生成两个维度的报告：
-1. 时间维度：sku_summary_from_excel.xlsx（汇总 + 各月份明细）
-2. 开发人维度：每个开发人一个独立的Excel文件
+保留早期报告的阅读形式：总览工作簿是“汇总 + 每月明细”，每位开发人
+各有一个“汇总 + 每月明细”工作簿。与旧版不同的是：
 
-合并规则（多文件时）：
-- 累计字段（销量、销售额、结算毛利润、结算销售额）: 跨文件相加
-- 快照字段（可用库存、listing标签）: 取最新窗口的值
-- 结算毛利率: Σ结算毛利润 / Σ结算销售额（重算，不直接加/平均）
+* 上架批次只认 ``首次FBA可售观察月``，不再使用本地产品创建时间；
+* 一行代表一个团队 SKU，不再按 ASIN 重复归并；
+* 标签状态是截至 2026-06 的当前状态，不能倒灌为历史月份状态；
+* GBP、EUR 分列，不换汇、不相加。
 """
 
-import pandas as pd
-import polars as pl
-import os
+from __future__ import annotations
+
+import csv
 import re
-
-
-def _parse_win_end(filename):
-    """从文件名中解析窗口结束日期，如 '2026-07-09'"""
-    m = re.search(r'(\d{4}-\d{2}-\d{2})~(\d{4}-\d{2}-\d{2})', filename)
-    return m.group(2) if m else '1970-01-01'
-
-
-def _compute_settle_sales(df: pl.DataFrame) -> pl.DataFrame:
-    """
-    为数据框添加 结算销售额 列。
-
-    结算毛利率 = 结算毛利润 / 结算销售额 → 结算销售额 = 结算毛利润 / 率
-
-    当结算毛利率 <= 0 或不可解析时（通常为亏损SKU），用订单销售额兜底。
-    """
-    rate = (
-        pl.col('结算毛利率')
-        .str.replace('%', '', literal=True)
-        .cast(pl.Float64, strict=False)
-        .fill_nan(0)
-        .fill_null(0)
-        / 100.0
-    )
-    profit = pl.col('结算毛利润').cast(pl.Float64, strict=False).fill_null(0)
-    order_sales = pl.col('销售额').cast(pl.Float64, strict=False).fill_null(0)
-
-    settle_sales = pl.when(rate > 0).then(profit / rate).otherwise(order_sales)
-    return df.with_columns(settle_sales.alias('结算销售额'))
-
-
-def generate_developer_report(
-    df: pl.DataFrame,
-    developer: str,
-    output_dir: str,
-    month_list: list
-):
-    """为单个开发人生成报告"""
-    print(f"\n  生成 {developer} 的报告...")
-
-    dev_data = df.filter(pl.col('开发人') == developer)
-
-    if dev_data.is_empty():
-        print(f"    {developer} 没有数据，跳过")
-        return
-
-    asin_summary_by_month = {}
-    summary_results = []
-
-    for month in month_list:
-        month_data = dev_data.filter(pl.col('创建月份') == month)
-
-        if month_data.is_empty():
-            continue
-
-        agg_exprs = [
-            pl.col('SKU').last().alias('SKU'),
-            pl.col('店铺').last().alias('店铺'),
-            pl.col('销量').cast(pl.Float64, strict=False).fill_null(0).sum().alias('总销量'),
-            pl.col('销售额').cast(pl.Float64, strict=False).fill_null(0).sum().alias('总销售额'),
-            pl.col('结算毛利润').cast(pl.Float64, strict=False).fill_null(0).sum().alias('总结算利润'),
-            pl.col('结算销售额').cast(pl.Float64, strict=False).fill_null(0).sum().alias('总结算销售额'),
-            pl.col('可用库存').sort_by('_win_end', descending=True).first().alias('总可用库存'),
-            pl.col('listing标签').sort_by('_win_end', descending=True).first().alias('最新标签'),
-        ]
-
-        asin_summary = month_data.group_by('ASIN').agg(agg_exprs)
-        asin_summary_by_month[month] = asin_summary
-
-        total_count = len(asin_summary)
-        total_sales_qty = asin_summary['总销量'].sum()
-        total_sales_amount = asin_summary['总销售额'].sum()
-        total_profit = asin_summary['总结算利润'].sum()
-        total_settle_sales = asin_summary['总结算销售额'].sum()
-        total_available_stock = asin_summary['总可用库存'].sum()
-        total_profit_rate = (total_profit / total_settle_sales * 100) if total_settle_sales > 0 else 0
-
-        active_df = asin_summary.filter(
-            (pl.col('最新标签').str.contains('欧洲精铺2025')) &
-            (~pl.col('最新标签').str.contains('淘汰'))
-        )
-        active_count = len(active_df)
-        active_sales_qty = active_df['总销量'].sum()
-        active_sales_amount = active_df['总销售额'].sum()
-        active_profit = active_df['总结算利润'].sum()
-        active_settle_sales = active_df['总结算销售额'].sum()
-        active_profit_rate = (active_profit / active_settle_sales * 100) if active_settle_sales > 0 else 0
-
-        inactive_df = asin_summary.filter(
-            pl.col('最新标签').str.contains('淘汰')
-        )
-        inactive_count = len(inactive_df)
-        inactive_sales_qty = inactive_df['总销量'].sum()
-        inactive_sales_amount = inactive_df['总销售额'].sum()
-        inactive_profit = inactive_df['总结算利润'].sum()
-        inactive_settle_sales = inactive_df['总结算销售额'].sum()
-        inactive_rate = (inactive_count / total_count * 100) if total_count > 0 else 0
-        inactive_profit_rate = (inactive_profit / inactive_settle_sales * 100) if inactive_settle_sales > 0 else 0
-
-        survival_rate = (active_count / total_count * 100) if total_count > 0 else 0
-
-        summary_results.append({
-            '时间': month,
-            'SKU总数': total_count,
-            '总销售量': int(total_sales_qty),
-            '总销售额': round(total_sales_amount, 2),
-            '总结算利润': round(total_profit, 2),
-            '总结算销售额': round(total_settle_sales, 2),
-            '总利润率': f"{total_profit_rate:.2f}%",
-            '总可用库存': int(total_available_stock),
-            '存活率': f"{survival_rate:.2f}%",
-            '存活sku销售量': int(active_sales_qty),
-            '存活sku销售额': round(active_sales_amount, 2),
-            '存活SKU数': active_count,
-            '留存SKU总利润': round(active_profit, 2),
-            '留存SKU利润率': f"{active_profit_rate:.2f}%",
-            '淘汰SKU销售量': int(inactive_sales_qty),
-            '淘汰SKU销售额': round(inactive_sales_amount, 2),
-            '淘汰SKU总数': inactive_count,
-            '淘汰率': f"{inactive_rate:.2f}%",
-            '淘汰SKU总利润': round(inactive_profit, 2),
-            '淘汰SKU利润率': f"{inactive_profit_rate:.2f}%"
-        })
-
-    output_path = os.path.join(output_dir, f"{developer}_sku_report.xlsx")
-
-    with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
-        summary_df = pl.DataFrame(summary_results)
-        summary_df.to_pandas().to_excel(writer, sheet_name='汇总', index=False)
-
-        for month, result_df in asin_summary_by_month.items():
-            sheet_name = month.replace('2025-', '25年').replace('2026-', '26年') + '月'
-            result_df.to_pandas().to_excel(writer, sheet_name=sheet_name, index=False)
-
-    print(f"    保存成功: {output_path}")
-    print(f"    包含 {len(asin_summary_by_month) + 1} 个sheet")
-
-
-def generate_report_from_excel(
-    excel_path: str = None,
-    input_dir: str = r'e:\项目\si-jue-zhi-mao-up\analysis\读取文件',
-    time_output_dir: str = r'e:\项目\si-jue-zhi-mao-up\analysis\时间维度',
-    developer_output_dir: str = r'e:\项目\si-jue-zhi-mao-up\analysis\开发人维度',
-    start_month: str = "2025-04"
-):
-    """从Excel文件生成月度汇总报告"""
-    print("=" * 80)
-    print("从Excel生成SKU月度汇总报告")
-    print("=" * 80)
-
-    os.makedirs(time_output_dir, exist_ok=True)
-    os.makedirs(developer_output_dir, exist_ok=True)
-
-    # ---- 1. 读取Excel数据 ----
-    print("\n[1/4] 读取Excel数据...")
-
-    if excel_path and os.path.exists(excel_path):
-        df = pd.read_excel(excel_path)
-        df['_win_end'] = _parse_win_end(os.path.basename(excel_path))
-        print(f"  读取单个文件: {os.path.basename(excel_path)}")
-    else:
-        import glob
-        excel_files = glob.glob(os.path.join(input_dir, '*.xlsx'))
-        excel_files = [f for f in excel_files if not os.path.basename(f).startswith('~$')]
-
-        if not excel_files:
-            raise FileNotFoundError(f"在 {input_dir} 目录下未找到Excel文件")
-
-        print(f"  发现 {len(excel_files)} 个Excel文件:")
-        for f in excel_files:
-            print(f"    - {os.path.basename(f)}")
-
-        dfs = []
-        for file_path in excel_files:
-            try:
-                temp_df = pd.read_excel(file_path)
-                temp_df['_win_end'] = _parse_win_end(os.path.basename(file_path))
-                dfs.append(temp_df)
-                print(f"  读取成功: {os.path.basename(file_path)} ({len(temp_df)} 行)")
-            except Exception as e:
-                print(f"  读取失败: {os.path.basename(file_path)} - {e}")
-
-        if not dfs:
-            raise ValueError("没有成功读取任何Excel文件")
-
-        df = pd.concat(dfs, ignore_index=True)
-        print(f"\n  合并完成: 共 {len(df):,} 行")
-
-    print(f"  列名: {df.columns.tolist()}")
-
-    # 转换为polars
-    df = pl.from_pandas(df)
-
-    # ---- 2. 处理数据 ----
-    print(f"\n[2/4] 处理数据...")
-
-    # 提取创建月份
-    df = df.with_columns([
-        pl.col('创建时间').str.slice(0, 7).alias('创建月份')
-    ])
-
-    # 计算每行的结算销售额
-    df = _compute_settle_sales(df)
-
-    # 筛选从start_month开始的数据
-    df = df.filter(pl.col('创建月份') >= start_month)
-    print(f"  筛选后: {len(df):,} 行")
-
-    months = df.select('创建月份').unique().sort('创建月份')
-    month_list = months['创建月份'].to_list()
-    print(f"  发现 {len(month_list)} 个月份: {', '.join(month_list)}")
-
-    developers = df.select('开发人').unique().sort('开发人')
-    developer_list = [d for d in developers['开发人'].to_list() if d is not None]
-    print(f"  发现 {len(developer_list)} 个开发人: {', '.join(developer_list)}")
-
-    # ---- 3. 生成时间维度报告 ----
-    print("\n[3/4] 生成时间维度报告...")
-
-    summary_results = []
-    month_results = {}
-
-    for month in month_list:
-        month_data = df.filter(pl.col('创建月份') == month)
-
-        agg_exprs = [
-            pl.col('SKU').last().alias('SKU'),
-            pl.col('店铺').last().alias('店铺'),
-            pl.col('开发人').last().alias('开发人'),
-            pl.col('负责人').last().alias('负责人'),
-            pl.col('销量').cast(pl.Float64, strict=False).fill_null(0).sum().alias('总销量'),
-            pl.col('销售额').cast(pl.Float64, strict=False).fill_null(0).sum().alias('总销售额'),
-            pl.col('结算毛利润').cast(pl.Float64, strict=False).fill_null(0).sum().alias('总结算利润'),
-            pl.col('结算销售额').cast(pl.Float64, strict=False).fill_null(0).sum().alias('总结算销售额'),
-            pl.col('可用库存').sort_by('_win_end', descending=True).first().alias('总可用库存'),
-            pl.col('listing标签').sort_by('_win_end', descending=True).first().alias('最新标签'),
-        ]
-
-        asin_summary = month_data.group_by('ASIN').agg(agg_exprs)
-        month_results[month] = asin_summary
-
-        total_count = len(asin_summary)
-        total_sales_qty = asin_summary['总销量'].sum()
-        total_sales_amount = asin_summary['总销售额'].sum()
-        total_profit = asin_summary['总结算利润'].sum()
-        total_settle_sales = asin_summary['总结算销售额'].sum()
-        total_available_stock = asin_summary['总可用库存'].sum()
-        total_profit_rate = (total_profit / total_settle_sales * 100) if total_settle_sales > 0 else 0
-
-        # 存活/留存SKU
-        active_df = asin_summary.filter(
-            (pl.col('最新标签').str.contains('欧洲精铺2025')) &
-            (~pl.col('最新标签').str.contains('淘汰'))
-        )
-        active_count = len(active_df)
-        active_sales_qty = active_df['总销量'].sum()
-        active_sales_amount = active_df['总销售额'].sum()
-        active_profit = active_df['总结算利润'].sum()
-        active_settle_sales = active_df['总结算销售额'].sum()
-        active_profit_rate = (active_profit / active_settle_sales * 100) if active_settle_sales > 0 else 0
-
-        # 淘汰SKU
-        inactive_df = asin_summary.filter(
-            pl.col('最新标签').str.contains('淘汰')
-        )
-        inactive_count = len(inactive_df)
-        inactive_sales_qty = inactive_df['总销量'].sum()
-        inactive_sales_amount = inactive_df['总销售额'].sum()
-        inactive_profit = inactive_df['总结算利润'].sum()
-        inactive_settle_sales = inactive_df['总结算销售额'].sum()
-        inactive_rate = (inactive_count / total_count * 100) if total_count > 0 else 0
-        inactive_profit_rate = (inactive_profit / inactive_settle_sales * 100) if inactive_settle_sales > 0 else 0
-
-        survival_rate = (active_count / total_count * 100) if total_count > 0 else 0
-
-        summary_results.append({
-            '时间': month,
-            'SKU总数': total_count,
-            '总销售量': int(total_sales_qty),
-            '总销售额': round(total_sales_amount, 2),
-            '总结算利润': round(total_profit, 2),
-            '总结算销售额': round(total_settle_sales, 2),
-            '总利润率': f"{total_profit_rate:.2f}%",
-            '总可用库存': int(total_available_stock),
-            '存活率': f"{survival_rate:.2f}%",
-            '存活sku销售量': int(active_sales_qty),
-            '存活sku销售额': round(active_sales_amount, 2),
-            '存活SKU数': active_count,
-            '留存SKU总利润': round(active_profit, 2),
-            '留存SKU利润率': f"{active_profit_rate:.2f}%",
-            '淘汰SKU销售量': int(inactive_sales_qty),
-            '淘汰SKU销售额': round(inactive_sales_amount, 2),
-            '淘汰SKU总数': inactive_count,
-            '淘汰率': f"{inactive_rate:.2f}%",
-            '淘汰SKU总利润': round(inactive_profit, 2),
-            '淘汰SKU利润率': f"{inactive_profit_rate:.2f}%"
-        })
-
-        print(f"  {month}: SKU数 {total_count}, 销量 {total_sales_qty:,}, "
-              f"总利润率 {total_profit_rate:.2f}%")
-
-    # ---- 构建「求和/平均」行 ----
-    sum_columns = {
-        'SKU总数', '总销售量', '总销售额', '总结算利润', '总结算销售额', '总可用库存',
-        '存活sku销售量', '存活sku销售额', '存活SKU数', '留存SKU总利润',
-        '淘汰SKU销售量', '淘汰SKU销售额', '淘汰SKU总数', '淘汰SKU总利润'
-    }
-    avg_columns = {
-        '存活率', '淘汰率'
-    }
-    # 利润率：不平均各月率，而是 Σ总利润 / Σ总结算销售额
-    rate_from_totals = {
-        '总利润率', '留存SKU利润率', '淘汰SKU利润率'
-    }
-
-    summary_row = {'时间': '求和/平均'}
-
-    for col in summary_results[0].keys():
-        if col == '时间':
-            continue
-
-        values = [item[col] for item in summary_results]
-
-        if col in sum_columns:
-            summary_row[col] = sum(values)
-        elif col in avg_columns:
-            rate_values = [float(str(v).replace('%', '')) for v in values]
-            avg_rate = sum(rate_values) / len(rate_values) if rate_values else 0
-            summary_row[col] = f"{avg_rate:.2f}%"
-        elif col in rate_from_totals:
-            continue  # 下面统一计算
-        else:
-            summary_row[col] = sum(values)
-
-    # ---- 利润率：Σ总利润 / Σ总结算销售额 ----
-    # 总利润率
-    total_profit_all = sum(item['总结算利润'] for item in summary_results)
-    total_settle_all = sum(item['总结算销售额'] for item in summary_results)
-    summary_row['总利润率'] = f"{(total_profit_all / total_settle_all * 100):.2f}%" if total_settle_all > 0 else "0.00%"
-
-    # 留存/淘汰SKU利润率：重跑月度明细汇总
-    ta_profit = 0.0
-    ta_settle = 0.0
-    ti_profit = 0.0
-    ti_settle = 0.0
-    for month in month_list:
-        asin_summary = month_results[month]
-        active_df = asin_summary.filter(
-            (pl.col('最新标签').str.contains('欧洲精铺2025')) &
-            (~pl.col('最新标签').str.contains('淘汰'))
-        )
-        inactive_df = asin_summary.filter(
-            pl.col('最新标签').str.contains('淘汰')
-        )
-        if len(active_df):
-            ta_profit += active_df['总结算利润'].sum()
-            ta_settle += active_df['总结算销售额'].sum()
-        if len(inactive_df):
-            ti_profit += inactive_df['总结算利润'].sum()
-            ti_settle += inactive_df['总结算销售额'].sum()
-
-    summary_row['留存SKU利润率'] = f"{(ta_profit / ta_settle * 100):.2f}%" if ta_settle > 0 else "0.00%"
-    summary_row['淘汰SKU利润率'] = f"{(ti_profit / ti_settle * 100):.2f}%" if ti_settle > 0 else "0.00%"
-
-    summary_results.append(summary_row)
-
-    # ---- 保存时间维度报告 ----
-    time_output_path = os.path.join(time_output_dir, "sku_summary_from_excel.xlsx")
-
-    with pd.ExcelWriter(time_output_path, engine='openpyxl') as writer:
-        summary_df = pl.DataFrame(summary_results)
-        summary_df.to_pandas().to_excel(writer, sheet_name='汇总', index=False)
-
-        for month, result_df in month_results.items():
-            sheet_name = month.replace('2025-', '25年').replace('2026-', '26年') + '月'
-            result_df.to_pandas().to_excel(writer, sheet_name=sheet_name, index=False)
-
-    print(f"\n  时间维度报告保存: {time_output_path}")
-    print(f"  包含 {len(month_results) + 1} 个sheet: 汇总 + {len(month_results)} 个月份明细")
-
-    # ---- 4. 生成开发人维度报告 ----
-    print("\n[4/4] 生成开发人维度报告...")
-
-    for developer in developer_list:
-        generate_developer_report(df, developer, developer_output_dir, month_list)
-
-    print(f"\n  开发人维度报告保存到: {developer_output_dir}")
-    print(f"  共生成 {len(developer_list)} 个开发人报告")
-
-    print("\n" + "=" * 80)
-    print("时间维度汇总统计")
-    print("=" * 80)
-    print(summary_df.to_pandas().to_string(index=False))
-
-    return summary_df
-
-
-def main():
-    """主函数"""
+from collections import defaultdict
+from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
+from pathlib import Path
+
+from openpyxl import Workbook, load_workbook as openpyxl_load_workbook
+from openpyxl.formatting.rule import CellIsRule
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
+
+
+ROOT = Path(__file__).resolve().parents[1]
+DATA_ROOT = ROOT / "产品数据" / "领星数据api" / "领星25年到26年6月所有数据，以每月数据" / "历史SKU上架基础数据_2025-04至2026-06"
+LIFECYCLE_FILE = DATA_ROOT / "03_团队开发SKU生命周期" / "团队SKU_生命周期判定_数据截止2026-06.csv"
+FINANCE_DIR = DATA_ROOT / "05_财务利润周度回补"
+TIME_OUTPUT_DIR = ROOT / "analysis" / "时间维度"
+DEVELOPER_OUTPUT_DIR = ROOT / "analysis" / "开发人维度"
+DATA_START = "2025-04"
+DATA_CUTOFF = "2026-06"
+CURRENCIES = ("GBP", "EUR")
+MONTH_FILE = re.compile(r"(20\d{2})年(\d{2})月团队SKU财务利润明细\.csv")
+PERFORMANCE_WINDOW = re.compile(r"（(20\d{2}-\d{2})-\d{2}~")
+
+HEADER_FILL = PatternFill("solid", fgColor="0F6B78")
+NOTE_FILL = PatternFill("solid", fgColor="FFF2CC")
+WHITE_FONT = Font(color="FFFFFF", bold=True)
+THIN_GRAY = Side(style="thin", color="D9E2F3")
+NEGATIVE_FILL = PatternFill("solid", fgColor="F4CCCC")
+POSITIVE_FILL = PatternFill("solid", fgColor="D9EAD3")
+
+
+def decimal(value: object | None) -> Decimal:
     try:
-        generate_report_from_excel()
-        print("\n" + "=" * 80)
-        print("处理完成!")
-        print("=" * 80)
-        return 0
-    except Exception as e:
-        print(f"\n错误: {e}")
-        import traceback
-        traceback.print_exc()
-        return 1
+        return Decimal(str(value or "").strip() or "0")
+    except InvalidOperation:
+        return Decimal(0)
+
+
+def month_index(month: str) -> int:
+    year, value = map(int, month.split("-"))
+    return year * 12 + value - 1
+
+
+def month_range(start: str, end: str) -> list[str]:
+    return [f"{value // 12:04d}-{value % 12 + 1:02d}" for value in range(month_index(start), month_index(end) + 1)]
+
+
+def read_csv(path: Path) -> list[dict[str, str]]:
+    with path.open(encoding="utf-8-sig", newline="") as source:
+        return list(csv.DictReader(source))
+
+
+def load_product_performance(records: dict[str, "SkuRecord"]) -> None:
+    """Add cumulative product-performance sales and the June available-stock snapshot."""
+    try:
+        from python_calamine import load_workbook as calamine_load_workbook
+
+        def sheet_rows(path: Path):
+            return calamine_load_workbook(path).get_sheet_by_index(0).iter_rows()
+    except ImportError:
+        def sheet_rows(path: Path):
+            workbook = openpyxl_load_workbook(path, read_only=True, data_only=True)
+            return workbook.worksheets[0].iter_rows(values_only=True)
+
+    fields = ("SKU", "国家", "销量", "销售额", "FBA-可售", "可用库存")
+    for path in sorted((DATA_ROOT.parent).glob("*.xlsx")):
+        match = PERFORMANCE_WINDOW.search(path.name)
+        if not match:
+            continue
+        month = match.group(1)
+        rows = sheet_rows(path)
+        headers = [str(value or "") for value in next(rows)]
+        positions = {field: headers.index(field) for field in fields}
+        for row in rows:
+            sku = str(row[positions["SKU"]] or "").strip()
+            record = records.get(sku)
+            if not record or month < record.fba_month:
+                continue
+            currency = "GBP" if str(row[positions["国家"]] or "").strip() == "英国" else "EUR"
+            if decimal(row[positions["FBA-可售"]]) > 0:
+                record.currency_fba_month.setdefault(currency, month)
+            if currency not in record.currency_fba_month:
+                continue
+            record.performance_quantity[currency] += decimal(row[positions["销量"]])
+            record.performance_sales[currency] += decimal(row[positions["销售额"]])
+            if month == DATA_CUTOFF:
+                record.available_stock[currency] += decimal(row[positions["可用库存"]])
+
+
+@dataclass
+class SkuRecord:
+    developer: str
+    sku: str
+    fba_month: str
+    product_name: str
+    fba_stores: str
+    fba_store_sku_count: int
+    business_status: str
+    latest_label: str
+    latest_observed_month: str
+    finance_months: set[str] = field(default_factory=set)
+    sales_months: set[str] = field(default_factory=set)
+    sales_quantity: Decimal = Decimal(0)
+    currency_sales: dict[str, Decimal] = field(default_factory=lambda: defaultdict(Decimal))
+    currency_profit: dict[str, Decimal] = field(default_factory=lambda: defaultdict(Decimal))
+    currency_fba_month: dict[str, str] = field(default_factory=dict)
+    performance_quantity: dict[str, Decimal] = field(default_factory=lambda: defaultdict(Decimal))
+    performance_sales: dict[str, Decimal] = field(default_factory=lambda: defaultdict(Decimal))
+    available_stock: dict[str, Decimal] = field(default_factory=lambda: defaultdict(Decimal))
+    currency_payback_month: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def sales_retention_rate(self) -> Decimal | None:
+        if not self.sales_months:
+            return None
+        observable = month_index(DATA_CUTOFF) - month_index(min(self.sales_months)) + 1
+        return Decimal(len(self.sales_months)) / observable
+
+
+def load_records() -> tuple[list[SkuRecord], int]:
+    lifecycle_rows = read_csv(LIFECYCLE_FILE)
+    records: dict[str, SkuRecord] = {}
+    for row in lifecycle_rows:
+        fba_month = row["首次FBA可售观察月"]
+        if not fba_month or not (DATA_START <= fba_month <= DATA_CUTOFF):
+            continue
+        records[row["SKU"]] = SkuRecord(
+            developer=row["开发人"], sku=row["SKU"], fba_month=fba_month, product_name=row["品名"].strip(),
+            fba_stores=row["FBA匹配店铺"], fba_store_sku_count=int(decimal(row["FBA匹配店铺SKU数"])),
+            business_status=row["领星业务状态"], latest_label=row["最近Listing标签"],
+            latest_observed_month=row["最近领星前端观察月"],
+        )
+
+    monthly_points: dict[tuple[str, str], dict[str, dict[str, Decimal]]] = defaultdict(dict)
+    for path in FINANCE_DIR.glob("*团队SKU财务利润明细.csv"):
+        match = MONTH_FILE.fullmatch(path.name)
+        if not match:
+            continue
+        month = f"{match.group(1)}-{match.group(2)}"
+        for row in read_csv(path):
+            sku, currency = row["SKU"], row["币种"]
+            if sku not in records or currency not in CURRENCIES:
+                continue
+            monthly_points[(sku, currency)][month] = {
+                "quantity": decimal(row["销量"]),
+                "sales": decimal(row["销售额"]),
+                "profit": decimal(row["毛利润"]),
+            }
+
+    for (sku, currency), points in monthly_points.items():
+        record = records[sku]
+        running_profit = Decimal(0)
+        for month in month_range(DATA_START, DATA_CUTOFF):
+            point = points.get(month)
+            if not point:
+                continue
+            record.finance_months.add(month)
+            record.sales_quantity += point["quantity"]
+            record.currency_sales[currency] += point["sales"]
+            record.currency_profit[currency] += point["profit"]
+            running_profit += point["profit"]
+            if point["quantity"] > 0:
+                record.sales_months.add(month)
+            if running_profit > 0 and currency not in record.currency_payback_month:
+                record.currency_payback_month[currency] = month
+    load_product_performance(records)
+    return sorted(records.values(), key=lambda row: (row.fba_month, row.developer, row.sku)), len(lifecycle_rows)
+
+
+def detail_row(record: SkuRecord, currency: str) -> list[object]:
+    return [
+        record.sku, record.developer, record.currency_fba_month[currency], record.fba_stores, record.performance_quantity[currency],
+        record.performance_sales[currency], record.currency_sales[currency], record.currency_profit[currency],
+        record.available_stock[currency], record.business_status,
+    ]
+
+
+def summary_rows(records: list[SkuRecord], months: list[str], currency: str) -> list[list[object]]:
+    grouped: dict[str, list[SkuRecord]] = defaultdict(list)
+    for record in records:
+        grouped[record.currency_fba_month[currency]].append(record)
+    rows = []
+    for month in months:
+        batch = grouped.get(month, [])
+        statuses = defaultdict(list)
+        for record in batch:
+            statuses[record.business_status].append(record)
+        active = statuses["上架在售"]
+        eliminated = statuses["淘汰"]
+        performance_sales = sum((record.performance_sales[currency] for record in batch), Decimal(0))
+        settlement_sales = sum((record.currency_sales[currency] for record in batch), Decimal(0))
+        settlement_profit = sum((record.currency_profit[currency] for record in batch), Decimal(0))
+        active_performance_sales = sum((record.performance_sales[currency] for record in active), Decimal(0))
+        active_settlement_profit = sum((record.currency_profit[currency] for record in active), Decimal(0))
+        active_settlement_sales = sum((record.currency_sales[currency] for record in active), Decimal(0))
+        eliminated_performance_sales = sum((record.performance_sales[currency] for record in eliminated), Decimal(0))
+        eliminated_settlement_profit = sum((record.currency_profit[currency] for record in eliminated), Decimal(0))
+        eliminated_settlement_sales = sum((record.currency_sales[currency] for record in eliminated), Decimal(0))
+        rows.append([
+            month, len(batch), sum((record.performance_quantity[currency] for record in batch), Decimal(0)), performance_sales,
+            settlement_profit, settlement_sales, settlement_profit / settlement_sales if settlement_sales else None,
+            sum((record.available_stock[currency] for record in batch), Decimal(0)), Decimal(len(active)) / len(batch) if batch else None,
+            sum((record.performance_quantity[currency] for record in active), Decimal(0)), active_performance_sales, len(active),
+            active_settlement_profit, active_settlement_profit / active_settlement_sales if active_settlement_sales else None,
+            sum((record.performance_quantity[currency] for record in eliminated), Decimal(0)), eliminated_performance_sales, len(eliminated),
+            Decimal(len(eliminated)) / len(batch) if batch else None, eliminated_settlement_profit,
+            eliminated_settlement_profit / eliminated_settlement_sales if eliminated_settlement_sales else None,
+        ])
+    return rows
+
+
+def style_sheet(sheet, title: str, headers: list[str], rows: list[list[object]]) -> None:
+    sheet.append([title])
+    sheet["A1"].font = Font(bold=True, size=14, color="0B3D47")
+    sheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+    sheet.append(headers)
+    for cell in sheet[2]:
+        cell.fill = HEADER_FILL
+        cell.font = WHITE_FONT
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = Border(bottom=THIN_GRAY)
+    for row in rows:
+        sheet.append([float(value) if isinstance(value, Decimal) else value for value in row])
+    sheet.sheet_view.showGridLines = False
+    sheet.freeze_panes = "A3"
+    sheet.auto_filter.ref = f"A2:{get_column_letter(len(headers))}{max(2, sheet.max_row)}"
+    sheet.row_dimensions[1].height = 24
+    sheet.row_dimensions[2].height = 34
+    for column, header in enumerate(headers, start=1):
+        letter = get_column_letter(column)
+        sheet.column_dimensions[letter].width = min(max(len(header) + 4, 13), 28)
+        if header in {"品名", "FBA匹配店铺", "截至截止月最新Listing标签"}:
+            sheet.column_dimensions[letter].width = 38
+        if any(name in header for name in ("销售额", "结算毛利润", "总结算利润")):
+            for cell in sheet[letter][2:]:
+                cell.number_format = '#,##0.00;[Red]-#,##0.00'
+        if "率" in header:
+            for cell in sheet[letter][2:]:
+                cell.number_format = '0.00%;[Red]-0.00%'
+        if "毛利润" in header or "总结算利润" in header:
+            area = f"{letter}3:{letter}{sheet.max_row}"
+            sheet.conditional_formatting.add(area, CellIsRule(operator="lessThan", formula=["0"], fill=NEGATIVE_FILL))
+            sheet.conditional_formatting.add(area, CellIsRule(operator="greaterThan", formula=["0"], fill=POSITIVE_FILL))
+
+
+def append_method_sheet(workbook: Workbook, lifecycle_total: int, fba_total: int) -> None:
+    sheet = workbook.create_sheet("口径说明")
+    sheet.sheet_view.showGridLines = False
+    sheet["A1"] = "报告口径"
+    sheet["A1"].font = Font(bold=True, size=16, color="0B3D47")
+    sheet.merge_cells("A1:B1")
+    rows = [
+        ("上架批次", "按该币种站点首次观察到 FBA 可售的月份归类，不使用本地产品创建时间。"),
+        ("分析对象", f"团队本地 SKU 共 {lifecycle_total:,} 个；其中 {fba_total:,} 个在 2025-04 至 2026-06 的月度数据中首次观察到 FBA 可售，纳入本报告。"),
+        ("标签状态", "业务状态和 Listing 标签均为截至 2026-06 的最新观察结果，仅用于当前状态，不代表历史每个月状态。"),
+        ("币种范围", "本文件仅包含该文件夹对应币种的站点数据，所有金额均为同一币种的数值。"),
+        ("销售和结算", "总销售额来自月度产品表现；总结算销售额和总结算利润来自领星财务事实。"),
+        ("库存", "总可用库存取 2026-06 月度产品表现的月末快照；不是 15 个月库存累计。"),
+        ("存活和淘汰", "存活 = 截至 2026-06 的领星业务状态为“上架在售”；淘汰 = 当前标签含“欧洲精铺2025淘汰”。"),
+    ]
+    for index, (label, value) in enumerate(rows, start=3):
+        sheet.cell(index, 1, label).fill = NOTE_FILL
+        sheet.cell(index, 1).font = Font(bold=True)
+        sheet.cell(index, 2, value).alignment = Alignment(wrap_text=True, vertical="top")
+    sheet.column_dimensions["A"].width = 20
+    sheet.column_dimensions["B"].width = 115
+
+
+SUMMARY_HEADERS = [
+    "时间", "SKU总数", "总销售量", "总销售额", "总结算利润", "总结算销售额", "总利润率", "总可用库存", "存活率",
+    "存活sku销售量", "存活sku销售额", "存活SKU数", "留存SKU总利润", "留存SKU利润率",
+    "淘汰SKU销售量", "淘汰SKU销售额", "淘汰SKU总数", "淘汰率", "淘汰SKU总利润", "淘汰SKU利润率",
+]
+DETAIL_HEADERS = ["SKU", "开发人", "首次FBA可售月", "FBA匹配店铺", "累计销售量", "总销售额", "总结算销售额", "总结算利润", "总可用库存", "当前状态"]
+
+
+def write_report(path: Path, title: str, records: list[SkuRecord], lifecycle_total: int, include_developer: bool, currency: str) -> None:
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+    months = sorted({record.currency_fba_month[currency] for record in records})
+    style_sheet(workbook.create_sheet("汇总"), title, SUMMARY_HEADERS, summary_rows(records, months, currency))
+    for month in months:
+        detail = [detail_row(record, currency) for record in records if record.currency_fba_month[currency] == month]
+        headers = DETAIL_HEADERS if include_developer else [header for index, header in enumerate(DETAIL_HEADERS) if index != 1]
+        if not include_developer:
+            detail = [[value for index, value in enumerate(row) if index != 1] for row in detail]
+        style_sheet(workbook.create_sheet(month.replace("2025-", "25年").replace("2026-", "26年") + "月"), f"首次 FBA 可售于 {month} 的 SKU 明细", headers, detail)
+    append_method_sheet(workbook, lifecycle_total, len(records))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    workbook.save(path)
+
+
+def generate_report_from_excel() -> None:
+    """保留旧函数名，数据源已更新为生命周期和财务事实层。"""
+    records, lifecycle_total = load_records()
+    developers = sorted({record.developer for record in records})
+    for currency in CURRENCIES:
+        currency_records = [record for record in records if currency in record.currency_fba_month]
+        write_report(
+            TIME_OUTPUT_DIR / currency / "sku_summary_from_excel.xlsx",
+            f"团队 SKU {currency} 站点首次 FBA 可售月份总览（截至 2026-06）",
+            currency_records, lifecycle_total, include_developer=True, currency=currency,
+        )
+        for developer in sorted({record.developer for record in currency_records}):
+            developer_records = [record for record in currency_records if record.developer == developer]
+            write_report(
+                DEVELOPER_OUTPUT_DIR / currency / f"{developer}_sku_report.xlsx",
+                f"{developer} {currency} 站点首次 FBA 可售月份总览（截至 2026-06）",
+                developer_records, lifecycle_total, include_developer=False, currency=currency,
+            )
+    # These reports were generated by the previous mixed-currency version of this script.
+    # Keep the currency folders as the only current team-report entry points.
+    mixed_reports = [TIME_OUTPUT_DIR / "sku_summary_from_excel.xlsx"]
+    mixed_reports.extend(DEVELOPER_OUTPUT_DIR / f"{developer}_sku_report.xlsx" for developer in developers)
+    for path in mixed_reports:
+        try:
+            path.unlink(missing_ok=True)
+        except PermissionError:
+            print(f"mixed_report_in_use={path}")
+    print(f"source_lifecycle_skus={lifecycle_total} fba_available_skus={len(records)} developers={len(developers)}")
+    print(f"time_reports={TIME_OUTPUT_DIR}")
+    print(f"developer_reports={DEVELOPER_OUTPUT_DIR}")
 
 
 if __name__ == "__main__":
-    exit(main())
+    generate_report_from_excel()

@@ -140,7 +140,6 @@ public class LingxingProfitAsinSyncService {
         e.setGrossProfit(asDecimal(row, "grossProfit"));
         e.setGrossRate(asDecimal(row, "grossRate"));
 
-        e.setRawJson(row.toString());
         e.setSyncedAt(LocalDateTime.now());
 
         // 业务幂等键：asin|sid|dataDate|currency（逐日唯一）

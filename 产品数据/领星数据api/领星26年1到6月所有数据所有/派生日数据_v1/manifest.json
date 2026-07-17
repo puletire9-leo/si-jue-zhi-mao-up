@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "sourceRoot": "F:\\项目\\si-jue-zhi-mao-up\\产品数据\\领星数据api\\领星26年1到6月所有数据所有",
+  "sourceFiles": [
+    "产品表现ASIN（2026-01-01~2026-02-28，全部广告）-933784804964253696\\产品表现ASIN（2026-01-01~2026-02-28，全部广告）-933784804964253696.xlsx",
+    "产品表现ASIN（2026-02-01~2026-05-01，全部广告）-933784667200651264\\[0-500000]产品表现ASIN（2026-02-01~2026-05-01，全部广告）-933784667200651264.xlsx",
+    "产品表现ASIN（2026-02-01~2026-05-01，全部广告）-933784667200651264\\[500000-587160]产品表现ASIN（2026-02-01~2026-05-01，全部广告）-933784667200651264.xlsx",
+    "产品表现ASIN（2026-05-01~2026-06-30，全部广告）-933784524385730560\\产品表现ASIN（2026-05-01~2026-06-30，全部广告）-933784524385730560.xlsx"
+  ],
+  "canonicalDatePriority": {
+    "2026-01-01_to_2026-01-31": 1,
+    "2026-02-01_to_2026-04-30": 2,
+    "2026-05-01_to_2026-06-30": 3
+  },
+  "businessKey": "data_date|country|store_name|sku|msku|asin (SHA-256)",
+  "modelFiles": {
+    "2026-01": "fast_test/lingxing_daily_model_2026-01.csv",
+    "2026-04": "fast_test/lingxing_daily_model_2026-04.csv",
+    "2026-03": "fast_test/lingxing_daily_model_2026-03.csv",
+    "2026-02": "fast_test/lingxing_daily_model_2026-02.csv",
+    "2026-06": "fast_test/lingxing_daily_model_2026-06.csv",
+    "2026-05": "fast_test/lingxing_daily_model_2026-05.csv"
+  },
+  "importFiles": {
+    "2026-01": "db_import/lingxing_daily_import_2026-01.csv",
+    "2026-04": "db_import/lingxing_daily_import_2026-04.csv",
+    "2026-03": "db_import/lingxing_daily_import_2026-03.csv",
+    "2026-02": "db_import/lingxing_daily_import_2026-02.csv",
+    "2026-06": "db_import/lingxing_daily_import_2026-06.csv",
+    "2026-05": "db_import/lingxing_daily_import_2026-05.csv"
+  },
+  "keptRowsByMonth": {
+    "2026-01": 202244,
+    "2026-02": 182672,
+    "2026-03": 202244,
+    "2026-04": 195720,
+    "2026-05": 202244,
+    "2026-06": 195720
+  },
+  "sourceRows": {
+    "产品表现ASIN（2026-01-01~2026-02-28，全部广告）-933784804964253696\\产品表现ASIN（2026-01-01~2026-02-28，全部广告）-933784804964253696.xlsx": 384916,
+    "产品表现ASIN（2026-02-01~2026-05-01，全部广告）-933784667200651264\\[0-500000]产品表现ASIN（2026-02-01~2026-05-01，全部广告）-933784667200651264.xlsx": 500000,
+    "产品表现ASIN（2026-02-01~2026-05-01，全部广告）-933784667200651264\\[500000-587160]产品表现ASIN（2026-02-01~2026-05-01，全部广告）-933784667200651264.xlsx": 87160,
+    "产品表现ASIN（2026-05-01~2026-06-30，全部广告）-933784524385730560\\产品表现ASIN（2026-05-01~2026-06-30，全部广告）-933784524385730560.xlsx": 397964
+  },
+  "skippedRows": {
+    "overlap_superseded": 189196
+  },
+  "totalCanonicalRows": 1180844,
+  "importHeaders": [
+    "biz_key",
+    "data_date",
+    "marketplace",
+    "country",
+    "store_name",
+    "sku",
+    "msku",
+    "asin",
+    "parent_asin",
+    "listing_tags",
+    "price",
+    "volume",
+    "fba_available",
+    "gross_profit",
+    "ad_spend",
+    "sales_amount",
+    "net_sales_amount",
+    "ad_sales_amount",
+    "refund_quantity",
+    "return_quantity",
+    "source_file",
+    "source_row",
+    "source_priority",
+    "raw_json"
+  ]
+}

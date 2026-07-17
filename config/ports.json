@@ -1,6 +1,6 @@
 {
   "base": {
-    "mysql": 3410,
+    "mysql": 13338,
     "redis": 6379
   },
   "dev": {

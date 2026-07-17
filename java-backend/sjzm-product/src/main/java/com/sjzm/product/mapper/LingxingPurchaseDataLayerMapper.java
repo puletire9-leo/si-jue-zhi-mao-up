@@ -246,6 +246,133 @@ public interface LingxingPurchaseDataLayerMapper {
             """)
     List<Map<String, Object>> stats();
 
+    /** Picks one concrete store + SKU; store rows are never merged here. */
+    @Select("""
+            <script>
+            SELECT
+              p.marketplace AS marketplace,
+              p.sku AS sku,
+              p.sid AS sid,
+              p.store_name AS storeName,
+              p.asin AS asin,
+              MIN(CASE WHEN COALESCE(
+                    p.afn_fulfillable_quantity,
+                    JSON_VALUE(p.raw_json, '$.available_inventory.afn_fulfillable_quantity'
+                        RETURNING SIGNED NULL ON EMPTY NULL ON ERROR)) &gt; 0
+                       THEN p.week_start END) AS firstActiveWeek,
+              MIN(CASE WHEN p.volume &gt; 0 THEN p.week_start END) AS firstSaleWeek
+            FROM lingxing_sku_weekly_performance p
+            WHERE p.marketplace = #{marketplace}
+              AND p.sid IS NOT NULL
+              AND p.week_start &gt;= #{observationStart}
+              AND p.week_start &lt; DATE_ADD(#{observationEnd}, INTERVAL 1 DAY)
+              AND EXISTS (
+                SELECT 1
+                FROM lingxing_target_sku_pool t
+                WHERE t.snapshot_week = COALESCE(
+                    #{snapshotWeek},
+                    (SELECT MAX(snapshot_week) FROM lingxing_target_sku_pool))
+                  AND t.is_active = 1
+                  AND t.marketplace = p.marketplace
+                  AND t.sid = p.sid
+                  AND t.sku = p.sku
+              )
+            GROUP BY p.marketplace, p.sku, p.sid, p.store_name, p.asin
+            HAVING firstActiveWeek &gt;= #{firstActiveStart}
+               AND firstActiveWeek &lt; DATE_ADD(#{firstActiveEnd}, INTERVAL 1 DAY)
+            ORDER BY firstActiveWeek, p.sid, p.sku
+            LIMIT 1
+            </script>
+            """)
+    Map<String, Object> selectFirstActiveStoreSku(@Param("marketplace") String marketplace,
+                                                   @Param("snapshotWeek") String snapshotWeek,
+                                                   @Param("observationStart") String observationStart,
+                                                   @Param("observationEnd") String observationEnd,
+                                                   @Param("firstActiveStart") String firstActiveStart,
+                                                   @Param("firstActiveEnd") String firstActiveEnd);
+
+    /** Reads completed purchase batches for the selected store/SKU. */
+    @Select("""
+            <script>
+            SELECT
+              i.sku AS sku,
+              i.order_sn AS orderSn,
+              i.item_id AS itemId,
+              COALESCE(o.order_time, o.create_time) AS orderTime,
+              i.sid AS sid,
+              i.wid AS wid,
+              i.quantity_real AS quantityReal,
+              i.quantity_entry AS quantityEntry,
+              i.quantity_receive AS quantityReceive,
+              o.status AS status,
+              o.status_shipped AS statusShipped
+            FROM lingxing_purchase_order_item i
+            JOIN lingxing_purchase_order o ON o.order_sn = i.order_sn
+            WHERE (i.is_delete IS NULL OR i.is_delete = 0)
+              AND i.sku = #{sku}
+              AND i.quantity_real &gt; 0
+              AND o.status = 9
+              AND o.status_shipped = 3
+              AND COALESCE(o.order_time, o.create_time) &lt; DATE_ADD(#{endDate}, INTERVAL 1 DAY)
+              <if test="purchaseStartDate != null and purchaseStartDate != ''">
+                AND COALESCE(o.order_time, o.create_time) &gt;= #{purchaseStartDate}
+              </if>
+              AND EXISTS (
+                SELECT 1
+                FROM lingxing_target_sku_pool t
+                WHERE t.snapshot_week = COALESCE(
+                    #{snapshotWeek},
+                    (SELECT MAX(snapshot_week) FROM lingxing_target_sku_pool))
+                  AND t.is_active = 1
+                  AND t.marketplace = #{marketplace}
+                  AND t.sid = #{sid}
+                  AND t.sku = i.sku
+                  AND (i.sid IS NULL OR i.sid = 0 OR i.sid = t.sid)
+              )
+            ORDER BY COALESCE(o.order_time, o.create_time), i.order_sn, i.item_id
+            </script>
+            """)
+    List<Map<String, Object>> selectCompletedPurchaseFactsForStoreSku(
+            @Param("marketplace") String marketplace,
+            @Param("sku") String sku,
+            @Param("sid") Long sid,
+            @Param("snapshotWeek") String snapshotWeek,
+            @Param("purchaseStartDate") String purchaseStartDate,
+            @Param("endDate") String endDate);
+
+    /** Reads only one store's weekly performance rows. */
+    @Select("""
+            SELECT
+              marketplace AS marketplace,
+              sku AS sku,
+              week_start AS weekStart,
+              week_end AS weekEnd,
+              volume AS volume,
+              gross_profit AS grossProfit,
+              COALESCE(
+                  afn_fulfillable_quantity,
+                  JSON_VALUE(raw_json, '$.available_inventory.afn_fulfillable_quantity'
+                      RETURNING SIGNED NULL ON EMPTY NULL ON ERROR)) AS afnFulfillableQuantity,
+              COALESCE(
+                  available_days,
+                  JSON_VALUE(raw_json, '$.available_days'
+                      RETURNING SIGNED NULL ON EMPTY NULL ON ERROR)) AS availableDays,
+              sid AS sid,
+              tags AS tags
+            FROM lingxing_sku_weekly_performance
+            WHERE marketplace = #{marketplace}
+              AND sku = #{sku}
+              AND sid = #{sid}
+              AND week_start < DATE_ADD(#{endDate}, INTERVAL 1 DAY)
+              AND week_end >= #{startDate}
+            ORDER BY week_start, id
+            """)
+    List<Map<String, Object>> selectWeeklyFactsForStoreSku(@Param("marketplace") String marketplace,
+                                                            @Param("sku") String sku,
+                                                            @Param("sid") Long sid,
+                                                            @Param("startDate") String startDate,
+                                                            @Param("endDate") String endDate);
+
     /** Returns completed, non-deleted purchase batches for the active target SKU pool. */
     @Select("""
             <script>

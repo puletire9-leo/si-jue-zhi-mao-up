@@ -6,26 +6,27 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sjzm.common.Result;
+import com.sjzm.product.mapper.LingxingAsinBaselineMapper;
 import com.sjzm.product.mapper.LingxingLocalProductMapper;
-import com.sjzm.product.mapper.LingxingProductPerformanceMapper;
 import com.sjzm.product.mapper.LingxingProfitAsinMapper;
 import com.sjzm.product.mapper.LingxingSellerMapper;
+import com.sjzm.product.mapper.LingxingSkuDataLayerMapper;
+import com.sjzm.product.modules.lingxing.entity.LingxingAsinBaseline;
 import com.sjzm.product.modules.lingxing.entity.LingxingLocalProduct;
-import com.sjzm.product.modules.lingxing.entity.LingxingProductPerformance;
 import com.sjzm.product.modules.lingxing.entity.LingxingProfitAsin;
 import com.sjzm.product.modules.lingxing.entity.LingxingSeller;
+import com.sjzm.product.modules.lingxing.dto.LingxingBaselineUpdateRequest;
+import com.sjzm.product.modules.lingxing.dto.LingxingCredentialsRequest;
 import com.sjzm.product.modules.lingxing.service.LingxingClient;
 import com.sjzm.product.modules.lingxing.service.LingxingConfigService;
 import com.sjzm.product.modules.lingxing.service.LingxingLocalProductSyncService;
-import com.sjzm.product.modules.lingxing.service.LingxingProductPerformanceSyncService;
+import com.sjzm.product.modules.lingxing.service.LingxingOverviewService;
 import com.sjzm.product.modules.lingxing.service.LingxingProfitAsinSyncService;
 import com.sjzm.product.modules.lingxing.service.LingxingPurchaseDataLayerService;
-import com.sjzm.product.modules.lingxing.service.LingxingSamplingModelService;
 import com.sjzm.product.modules.lingxing.service.LingxingSellerSyncService;
-import com.sjzm.product.modules.lingxing.service.LingxingSkuDataLayerService;
-import com.sjzm.product.modules.lingxing.service.LingxingSkuPoolService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
@@ -37,8 +38,10 @@ import java.util.Map;
 
 /**
  * 领星数据对接模块。
- * 前缀 /api/v1/modules/lingxing（网关 + nginx 已覆盖 /modules/**）。
- * 本期仅打通调用能力（token + 签名 + 业务接口验证），具体数据对接待方案确定后扩展。
+ * 前缀 /api/v1/modules/lingxing。
+ *
+ * <p>2026-07 清理后的端点集合：只保留和当前 10 张 lingxing_* 表匹配的端点，
+ * 废弃的 product-performance/sku-pool/sampling-model 端点已全部删除。</p>
  */
 @RestController
 @RequestMapping("/api/v1/modules/lingxing")
@@ -52,14 +55,12 @@ public class LingxingController {
     private final LingxingLocalProductMapper localProductMapper;
     private final LingxingSellerSyncService sellerSyncService;
     private final LingxingSellerMapper sellerMapper;
-    private final LingxingProductPerformanceSyncService performanceSyncService;
-    private final LingxingProductPerformanceMapper performanceMapper;
     private final LingxingProfitAsinSyncService profitSyncService;
     private final LingxingProfitAsinMapper profitMapper;
     private final LingxingPurchaseDataLayerService purchaseDataLayerService;
-    private final LingxingSamplingModelService samplingModelService;
-    private final LingxingSkuPoolService skuPoolService;
-    private final LingxingSkuDataLayerService skuDataLayerService;
+    private final LingxingAsinBaselineMapper baselineMapper;
+    private final LingxingSkuDataLayerMapper syncRunMapper;
+    private final LingxingOverviewService overviewService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @PostMapping("/ping")
@@ -81,22 +82,19 @@ public class LingxingController {
 
     @PostMapping("/credentials")
     @Operation(summary = "更新领星凭证（写 api_config，覆盖环境变量）")
-    public Result<Void> updateCredentials(@RequestParam String appId,
-                                          @RequestParam String appSecret) {
-        configService.updateCredentials(appId, appSecret);
+    public Result<Void> updateCredentials(@Valid @RequestBody LingxingCredentialsRequest request) {
+        configService.updateCredentials(request.appId().trim(), request.appSecret());
         return Result.success();
     }
 
-    /**
-     * 通用业务接口透传：调试期用，定方案后由具体 Service 取代。
-     * @param path 领星 API 路径（如 /bd/productPerformance/openApi/asinList）
-     * @param body 业务请求体
-     */
     @PostMapping("/call")
     @Operation(summary = "通用业务接口透传（调试用：传 path + body）")
-    public Result<JsonNode> call(@RequestParam String path, @RequestBody(required = false) Map<String, Object> body) {
+    public Result<Object> call(@RequestParam String path, @RequestBody(required = false) Map<String, Object> body) {
         JsonNode node = body == null ? objectMapper.createObjectNode() : objectMapper.valueToTree(body);
-        return Result.success(client.post(path, node));
+        JsonNode resp = client.post(path, node);
+        // 转成 Map/List 结构避免 Jackson 序列化 JsonNode 的 bean introspection
+        Object result = objectMapper.convertValue(resp, Object.class);
+        return Result.success(result);
     }
 
     @PostMapping("/local-products/sync")
@@ -149,124 +147,6 @@ public class LingxingController {
     }
 
     // ============================================================
-    // 产品表现
-    // ============================================================
-
-    @PostMapping("/product-performance/sync")
-    @Operation(summary = "按店铺+时间窗(≤92天)同步产品表现（双写 + 维度组合键幂等）。可选 searchField/searchValues 按 SKU 筛选（searchValues 上限 50）")
-    public Result<Map<String, Object>> syncProductPerformance(@RequestBody Map<String, Object> req) {
-        List<Long> sids = readLongList(req, "sids");
-        String startDate = readStr(req, "startDate");
-        String endDate = readStr(req, "endDate");
-        String summaryField = readStr(req, "summaryField");
-        String currencyCode = readStr(req, "currencyCode");
-        String searchField = readStr(req, "searchField");
-        List<String> searchValues = readStrList(req, "searchValues");
-        Boolean isRecentlyEnum = readBool(req, "isRecentlyEnum");
-        return Result.success(performanceSyncService.sync(sids, startDate, endDate, summaryField, currencyCode,
-                searchField, searchValues, isRecentlyEnum));
-    }
-
-    // ============================================================
-    // 6 标签 SKU 池（全自动）
-    // ============================================================
-
-    @PostMapping("/sku-pool/rebuild")
-    @Operation(summary = "从已落库产品表现 raw_json.tag_set 自动重建 UK/DE 6 标签 SKU 池")
-    public Result<Map<String, Object>> rebuildSkuPool(@RequestBody(required = false) Map<String, Object> req) {
-        String snapshotWeek = req == null ? null : readStr(req, "snapshotWeek");
-        return Result.success(skuPoolService.rebuildFromExistingPerformance(snapshotWeek));
-    }
-
-    @PostMapping("/sku-pool/sync-uk-de-and-rebuild")
-    @Operation(summary = "串行同步 UK/DE 全量 SKU 产品表现后，自动重建 6 标签 SKU 池")
-    public Result<Map<String, Object>> syncUkDeSkuAndRebuild(@RequestBody Map<String, Object> req) {
-        String startDate = readStr(req, "startDate");
-        String endDate = readStr(req, "endDate");
-        String currencyCode = readStr(req, "currencyCode");
-        String snapshotWeek = readStr(req, "snapshotWeek");
-        return Result.success(skuPoolService.syncUkDeSkuPerformanceAndRebuild(
-                startDate, endDate, currencyCode, snapshotWeek));
-    }
-
-    @GetMapping("/sku-pool/stats")
-    @Operation(summary = "查看 UK/DE 6 标签 SKU 池统计")
-    public Result<Map<String, Object>> skuPoolStats(@RequestParam(required = false) String snapshotWeek) {
-        return Result.success(skuPoolService.stats(snapshotWeek));
-    }
-
-    @GetMapping("/sku-pool")
-    @Operation(summary = "分页查看 UK/DE 6 标签 SKU 池")
-    public Result<Map<String, Object>> listSkuPool(
-            @RequestParam(required = false) String snapshotWeek,
-            @RequestParam(required = false) String marketplace,
-            @RequestParam(required = false) String sku,
-            @RequestParam(defaultValue = "1") int current,
-            @RequestParam(defaultValue = "50") int size) {
-        return Result.success(skuPoolService.list(snapshotWeek, marketplace, sku, current, size));
-    }
-
-    @PostMapping("/sku-data-layer/backfill-existing")
-    @Operation(summary = "从现有真实领星表回填规范 SKU 数据层（全量快照/目标池/可选周月表）")
-    public Result<Map<String, Object>> backfillSkuDataLayer(@RequestBody(required = false) Map<String, Object> req) {
-        Map<String, Object> body = req == null ? Map.of() : req;
-        String snapshotWeek = readStr(body, "snapshotWeek");
-        String snapshotDate = readStr(body, "snapshotDate");
-        String startDate = readStr(body, "startDate");
-        String endDate = readStr(body, "endDate");
-        String yearMonth = readStr(body, "yearMonth");
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("snapshotAndTargetPool",
-                skuDataLayerService.rebuildSkuSnapshotAndTargetPoolFromExisting(snapshotWeek, snapshotDate));
-        if (StringUtils.hasText(startDate) && StringUtils.hasText(endDate)) {
-            result.put("weekly",
-                    skuDataLayerService.upsertWeeklyFromExistingPerformance(startDate, endDate, snapshotWeek, null));
-        }
-        if (StringUtils.hasText(yearMonth)) {
-            result.put("monthly", skuDataLayerService.rebuildMonthly(yearMonth));
-        }
-        return Result.success(result);
-    }
-
-    @PostMapping("/sku-data-layer/weekly/backfill-existing")
-    @Operation(summary = "从现有产品表现表回填 SKU 周数据规范表")
-    public Result<Map<String, Object>> backfillSkuWeekly(@RequestBody Map<String, Object> req) {
-        return Result.success(skuDataLayerService.upsertWeeklyFromExistingPerformance(
-                readStr(req, "startDate"),
-                readStr(req, "endDate"),
-                readStr(req, "snapshotWeek"),
-                null));
-    }
-
-    @PostMapping("/sku-data-layer/weekly/sync-target-pool")
-    @Operation(summary = "按规范目标 SKU 池反查有用店铺，按店铺同步一周 SKU 产品表现，并写入 SKU 周表")
-    public Result<Map<String, Object>> syncWeeklyFromTargetPool(@RequestBody Map<String, Object> req) {
-        return Result.success(skuDataLayerService.syncWeeklyFromTargetPool(
-                readStr(req, "snapshotWeek"),
-                readStr(req, "startDate"),
-                readStr(req, "endDate"),
-                readStr(req, "currencyCode"),
-                readStr(req, "marketplace"),
-                readLong(req, "sid"),
-                readInt(req, "limitRows"),
-                readInt(req, "batchSize")));
-    }
-
-    @PostMapping("/sku-data-layer/monthly/rebuild")
-    @Operation(summary = "从 SKU 周数据规范表聚合生成 SKU 月数据规范表")
-    public Result<Map<String, Object>> rebuildSkuMonthly(@RequestBody Map<String, Object> req) {
-        return Result.success(skuDataLayerService.rebuildMonthly(readStr(req, "yearMonth")));
-    }
-
-    @GetMapping("/sku-data-layer/stats")
-    @Operation(summary = "查看领星 SKU 规范数据层统计")
-    public Result<Map<String, Object>> skuDataLayerStats(@RequestParam(required = false) String snapshotWeek,
-                                                         @RequestParam(required = false) String yearMonth) {
-        return Result.success(skuDataLayerService.stats(snapshotWeek, yearMonth));
-    }
-
-    // ============================================================
     // 采购事实层（Q1/Q2 精确备货量来源）
     // ============================================================
 
@@ -300,18 +180,6 @@ public class LingxingController {
         return Result.success(purchaseDataLayerService.stats());
     }
 
-    @GetMapping("/product-performance")
-    @Operation(summary = "分页查询已落库的产品表现（可按 ASIN 模糊）")
-    public Result<Page<LingxingProductPerformance>> listProductPerformance(
-            @RequestParam(defaultValue = "1") long current,
-            @RequestParam(defaultValue = "20") long size,
-            @RequestParam(required = false) String asin) {
-        LambdaQueryWrapper<LingxingProductPerformance> qw = new LambdaQueryWrapper<LingxingProductPerformance>()
-                .like(StringUtils.hasText(asin), LingxingProductPerformance::getAsin, asin)
-                .orderByDesc(LingxingProductPerformance::getSyncedAt);
-        return Result.success(performanceMapper.selectPage(new Page<>(current, size), qw));
-    }
-
     // ============================================================
     // 利润统计-ASIN
     // ============================================================
@@ -339,23 +207,93 @@ public class LingxingController {
     }
 
     // ============================================================
-    // 精铺测品模型
+    // ASIN 基准表 baseline（模型一/模型二 起点，6945 团队 ASIN）
     // ============================================================
 
-    @PostMapping("/sampling-model/analyze")
-    @Operation(summary = "精铺测品模型分析：基于已落库领星数据计算 cohort R1/R2 和盈亏平衡试算")
-    public Result<Map<String, Object>> analyzeSamplingModel(@RequestBody(required = false) Map<String, Object> req) {
-        return Result.success(samplingModelService.analyze(req));
+    @GetMapping("/baseline")
+    @Operation(summary = "分页查询 ASIN 基准表（支持按 ASIN/开发人/币种/起算月/状态筛选）")
+    public Result<Page<LingxingAsinBaseline>> listBaseline(
+            @RequestParam(defaultValue = "1") long current,
+            @RequestParam(defaultValue = "20") long size,
+            @RequestParam(required = false) String asin,
+            @RequestParam(required = false) String developer,
+            @RequestParam(required = false) String currency,
+            @RequestParam(required = false) String modelStartMonth,
+            @RequestParam(required = false) String analysisStatus,
+            @RequestParam(required = false) String keyword) {
+        LambdaQueryWrapper<LingxingAsinBaseline> qw = new LambdaQueryWrapper<LingxingAsinBaseline>()
+                .like(StringUtils.hasText(asin), LingxingAsinBaseline::getAsin, asin)
+                .eq(StringUtils.hasText(developer), LingxingAsinBaseline::getDeveloper, developer)
+                .eq(StringUtils.hasText(modelStartMonth), LingxingAsinBaseline::getModelStartMonth, modelStartMonth)
+                .orderByDesc(LingxingAsinBaseline::getModelStartMonth)
+                .orderByAsc(LingxingAsinBaseline::getAsin);
+
+        if ("未标注".equals(analysisStatus)) {
+            qw.and(w -> w.isNull(LingxingAsinBaseline::getAnalysisStatus)
+                    .or().eq(LingxingAsinBaseline::getAnalysisStatus, "")
+                    .or().eq(LingxingAsinBaseline::getAnalysisStatus, "未标注"));
+        } else if (StringUtils.hasText(analysisStatus)) {
+            qw.eq(LingxingAsinBaseline::getAnalysisStatus, analysisStatus);
+        }
+
+        if ("GBP".equalsIgnoreCase(currency)) {
+            qw.in(LingxingAsinBaseline::getAvailableFirstCountry, "英国", "UK");
+        } else if ("EUR".equalsIgnoreCase(currency)) {
+            qw.in(LingxingAsinBaseline::getAvailableFirstCountry,
+                    "德国", "法国", "意大利", "西班牙", "荷兰", "DE", "FR", "IT", "ES", "NL");
+        }
+
+        if (StringUtils.hasText(keyword)) {
+            qw.and(w -> w.like(LingxingAsinBaseline::getAsin, keyword)
+                    .or().like(LingxingAsinBaseline::getBaseSku, keyword)
+                    .or().like(LingxingAsinBaseline::getListingTags, keyword)
+                    .or().like(LingxingAsinBaseline::getDeveloper, keyword));
+        }
+
+        return Result.success(baselineMapper.selectPage(new Page<>(current, size), qw));
     }
 
-    @PostMapping("/sampling-model/batch-analyze")
-    @Operation(summary = "精铺测品第一版批次模型：按 Q1/Q2 采购批次关联周表现并试算")
-    public Result<Map<String, Object>> analyzeSamplingBatchModel(
-            @RequestBody(required = false) Map<String, Object> req) {
-        return Result.success(samplingModelService.analyzeBatch(req));
+    @GetMapping("/baseline/{asin}")
+    @Operation(summary = "查询单个 ASIN 的基准档案")
+    public Result<LingxingAsinBaseline> getBaseline(@PathVariable String asin) {
+        return Result.success(baselineMapper.selectById(asin));
     }
 
-    /** 从请求体解析 Long 数组（如 sids）。缺失/非数组返回空列表。 */
+    @PostMapping("/baseline-maintenance/{asin}")
+    @Operation(summary = "更新单个 ASIN 的基准档案（标签/开发人/起算月等可编辑字段）")
+    public Result<LingxingAsinBaseline> updateBaseline(@PathVariable String asin,
+                                                       @Valid @RequestBody LingxingBaselineUpdateRequest request) {
+        LingxingAsinBaseline update = new LingxingAsinBaseline();
+        update.setAsin(asin);
+        update.setDeveloper(request.developer());
+        update.setListingTags(request.listingTags());
+        update.setModelStartMonth(request.modelStartMonth());
+        update.setModelStartBasis(request.modelStartBasis());
+        update.setAnalysisStatus(request.analysisStatus());
+        baselineMapper.updateById(update);
+        return Result.success(baselineMapper.selectById(asin));
+    }
+
+    // ============================================================
+    // 工作台总览
+    // ============================================================
+
+    @GetMapping("/overview")
+    @Operation(summary = "领星工作台总览：10 张表行数 + baseline 团队分布 + 覆盖窗口 + 最近同步记录")
+    public Result<Map<String, Object>> overview() {
+        return Result.success(overviewService.workspaceOverview());
+    }
+
+    @GetMapping("/sync-runs")
+    @Operation(summary = "最近 N 条同步运行记录（工作台同步中心 Tab 用）")
+    public Result<List<Map<String, Object>>> recentSyncRuns(
+            @RequestParam(defaultValue = "50") int limit) {
+        int safe = Math.max(1, Math.min(limit, 500));
+        return Result.success(syncRunMapper.listRecentRuns(safe));
+    }
+
+    // ─── helpers ────────────────────────────────────────────────
+
     private List<Long> readLongList(Map<String, Object> req, String field) {
         List<Long> out = new ArrayList<>();
         Object v = req.get(field);
@@ -369,7 +307,6 @@ public class LingxingController {
                         try {
                             out.add(Long.parseLong(s));
                         } catch (NumberFormatException ignored) {
-                            // 跳过非法值
                         }
                     }
                 }
@@ -407,22 +344,12 @@ public class LingxingController {
                         try {
                             out.add(Integer.parseInt(s));
                         } catch (NumberFormatException ignored) {
-                            // 跳过非法值
                         }
                     }
                 }
             }
         }
         return out;
-    }
-
-    private Boolean readBool(Map<String, Object> req, String field) {
-        Object v = req.get(field);
-        if (v instanceof Boolean b) return b;
-        if (v == null) return null;
-        String s = String.valueOf(v).trim();
-        if (s.isEmpty()) return null;
-        return Boolean.parseBoolean(s);
     }
 
     private Integer readInt(Map<String, Object> req, String field) {
@@ -433,19 +360,6 @@ public class LingxingController {
         if (s.isEmpty()) return null;
         try {
             return Integer.parseInt(s);
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
-    }
-
-    private Long readLong(Map<String, Object> req, String field) {
-        Object v = req.get(field);
-        if (v instanceof Number n) return n.longValue();
-        if (v == null) return null;
-        String s = String.valueOf(v).trim();
-        if (s.isEmpty()) return null;
-        try {
-            return Long.parseLong(s);
         } catch (NumberFormatException ignored) {
             return null;
         }

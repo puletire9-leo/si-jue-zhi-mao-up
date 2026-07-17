@@ -7,6 +7,7 @@ import com.sjzm.product.modules.lingxing.config.LingxingConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 领星凭证配置服务。
@@ -34,6 +35,7 @@ public class LingxingConfigService {
         return (db != null && !db.isBlank()) ? db : config.getAppSecret();
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void updateCredentials(String appId, String appSecret) {
         if (appId != null && !appId.isBlank()) saveConfig(KEY_APP_ID, appId, "领星开放平台 AppId");
         if (appSecret != null && !appSecret.isBlank()) saveConfig(KEY_APP_SECRET, appSecret, "领星开放平台 AppSecret");
@@ -52,21 +54,21 @@ public class LingxingConfigService {
     }
 
     private void saveConfig(String key, String value, String desc) {
-        try {
-            ApiConfig existing = apiConfigMapper.selectOne(
-                    new LambdaQueryWrapper<ApiConfig>().eq(ApiConfig::getConfigKey, key));
-            if (existing != null) {
-                existing.setConfigValue(value);
-                apiConfigMapper.updateById(existing);
-            } else {
-                ApiConfig c = new ApiConfig();
-                c.setConfigKey(key);
-                c.setConfigValue(value);
-                c.setDescription(desc);
-                apiConfigMapper.insert(c);
-            }
-        } catch (Exception e) {
-            log.warn("持久化配置 {} 失败: {}", key, e.getMessage());
+        ApiConfig existing = apiConfigMapper.selectOne(
+                new LambdaQueryWrapper<ApiConfig>().eq(ApiConfig::getConfigKey, key));
+        int affectedRows;
+        if (existing != null) {
+            existing.setConfigValue(value);
+            affectedRows = apiConfigMapper.updateById(existing);
+        } else {
+            ApiConfig created = new ApiConfig();
+            created.setConfigKey(key);
+            created.setConfigValue(value);
+            created.setDescription(desc);
+            affectedRows = apiConfigMapper.insert(created);
+        }
+        if (affectedRows != 1) {
+            throw new IllegalStateException("持久化配置 " + key + " 失败，影响行数=" + affectedRows);
         }
     }
 }

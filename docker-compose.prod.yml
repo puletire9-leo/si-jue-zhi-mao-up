@@ -150,7 +150,8 @@ services:
     image: prod-java
     container_name: prod-java-product
     ports:
-      - "8025:8002"
+      # 仅保留宿主机本地运维入口；外部流量必须经 gateway 执行 JWT/RBAC。
+      - "127.0.0.1:8025:8002"
     env_file:
       - ./config/public/prod.env
       - ./config/secrets/prod.env
