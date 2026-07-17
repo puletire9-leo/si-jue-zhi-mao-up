@@ -14,6 +14,13 @@ import java.util.Set;
 @Mapper
 public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
 
+    String WEIGHT_NUMBER_SQL = "CAST(REGEXP_SUBSTR(ds.weight, '[0-9]+[.]?[0-9]*') AS DECIMAL(12,3))";
+    String WEIGHT_GRAMS_SQL = "(CASE " +
+            "WHEN LOWER(ds.weight) LIKE '%kilogram%' OR LOWER(ds.weight) REGEXP '(^|[^a-z])kg([^a-z]|$)' THEN " + WEIGHT_NUMBER_SQL + " * 1000 " +
+            "WHEN LOWER(ds.weight) LIKE '%pound%' OR LOWER(ds.weight) REGEXP '(^|[^a-z])lb([^a-z]|$)' THEN " + WEIGHT_NUMBER_SQL + " * 453.59237 " +
+            "WHEN LOWER(ds.weight) LIKE '%ounce%' OR LOWER(ds.weight) REGEXP '(^|[^a-z])oz([^a-z]|$)' THEN " + WEIGHT_NUMBER_SQL + " * 28.349523125 " +
+            "ELSE " + WEIGHT_NUMBER_SQL + " END)";
+
     @Select("<script>" +
         "SELECT t.* FROM (" +
         "  SELECT ds.*, " +
@@ -26,14 +33,24 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "  <if test='brand != null'> AND ds.brand LIKE CONCAT('%',#{brand},'%')</if>" +
         "  <if test='sellerName != null'> AND ds.seller_name LIKE CONCAT('%',#{sellerName},'%')</if>" +
         "  <if test='title != null'> AND ds.title LIKE CONCAT('%',#{title},'%')</if>" +
+        "  <if test='asins != null and asins.size > 0'> AND UPPER(ds.asin) IN " +
+        "    <foreach collection='asins' item='asin' open='(' separator=',' close=')'>UPPER(#{asin})</foreach>" +
+        "  </if>" +
         "  <if test='category != null'> AND FIND_IN_SET(TRIM(SUBSTRING_INDEX(ds.node_label_path, ':', 1)), #{category}) &gt; 0</if>" +
         "  <if test='bsrId != null'> AND ds.bsr_id = #{bsrId}</if>" +
         "  <if test='nodeId != null'> AND ds.node_id = #{nodeId}</if>" +
         "  <if test='priceMin != null'> AND ds.price &gt;= #{priceMin}</if>" +
         "  <if test='priceMax != null'> AND ds.price &lt;= #{priceMax}</if>" +
+        "  <if test='unitsMin != null'> AND ds.units &gt;= #{unitsMin}</if>" +
+        "  <if test='unitsMax != null'> AND ds.units &lt;= #{unitsMax}</if>" +
+        "  <if test='listingDaysMin != null'> AND ds.available_date IS NOT NULL AND ds.available_date &gt; 0 AND TIMESTAMPDIFF(DAY, FROM_UNIXTIME(ds.available_date / 1000), NOW()) &gt;= #{listingDaysMin}</if>" +
+        "  <if test='listingDaysMax != null'> AND ds.available_date IS NOT NULL AND ds.available_date &gt; 0 AND TIMESTAMPDIFF(DAY, FROM_UNIXTIME(ds.available_date / 1000), NOW()) &lt;= #{listingDaysMax}</if>" +
         "  <if test='bsrMax != null'> AND ds.bsr &lt;= #{bsrMax}</if>" +
         "  <if test='ratingMin != null'> AND ds.rating &gt;= #{ratingMin}</if>" +
-        "  <if test='weightMax != null'> AND ds.weight &lt;= #{weightMax}</if>" +
+        "  <if test='weightMax != null'> AND " + WEIGHT_GRAMS_SQL + " &lt;= #{weightMax}</if>" +
+        "  <if test='fulfillment != null and fulfillment.size > 0'> AND UPPER(ds.fulfillment) IN " +
+        "    <foreach collection='fulfillment' item='method' open='(' separator=',' close=')'>UPPER(#{method})</foreach>" +
+        "  </if>" +
         "  <if test='batchDate != null'> AND (FIND_IN_SET(ds.batch_date, #{batchDate}) &gt; 0 OR ds.batch_date IS NULL)</if>" +
         ") t WHERE t.rn = 1" +
         "  <if test='maxVariantCount != null'> AND t.variantCount &lt;= #{maxVariantCount}</if>" +
@@ -41,8 +58,10 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "  ORDER BY " +
         "  <choose>" +
         "    <when test='sortBy == \"bsr\"'>t.bsr</when>" +
-        "    <when test='sortBy == \"units\"'>t.units</when>" +
+        "    <when test='sortBy == \"units\" or sortBy == \"salesVolume\"'>t.units</when>" +
         "    <when test='sortBy == \"price\"'>t.price</when>" +
+        "    <when test='sortBy == \"listingDate\" or sortBy == \"availableDate\"'>t.available_date</when>" +
+        "    <when test='sortBy == \"createdAt\"'>t.created_at</when>" +
         "    <otherwise>t.bsr</otherwise>" +
         "  </choose>" +
         "  <choose>" + // FIXED: CRIT-3 SQL注入白名单
@@ -60,14 +79,20 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
             @Param("brand") String brand,
             @Param("sellerName") String sellerName,
             @Param("title") String title,
+            @Param("asins") List<String> asins,
             @Param("category") String category,
             @Param("bsrId") String bsrId,
             @Param("nodeId") Long nodeId,
             @Param("priceMin") java.math.BigDecimal priceMin,
             @Param("priceMax") java.math.BigDecimal priceMax,
+            @Param("unitsMin") Integer unitsMin,
+            @Param("unitsMax") Integer unitsMax,
+            @Param("listingDaysMin") Integer listingDaysMin,
+            @Param("listingDaysMax") Integer listingDaysMax,
             @Param("bsrMax") Integer bsrMax,
             @Param("ratingMin") java.math.BigDecimal ratingMin,
-            @Param("weightMax") String weightMax,
+            @Param("weightMax") java.math.BigDecimal weightMax,
+            @Param("fulfillment") List<String> fulfillment,
             @Param("maxVariantCount") Integer maxVariantCount,
             @Param("batchDate") String batchDate,
             @Param("sortBy") String sortBy,
@@ -84,14 +109,24 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "  <if test='brand != null'> AND ds.brand LIKE CONCAT('%',#{brand},'%')</if>" +
         "  <if test='sellerName != null'> AND ds.seller_name LIKE CONCAT('%',#{sellerName},'%')</if>" +
         "  <if test='title != null'> AND ds.title LIKE CONCAT('%',#{title},'%')</if>" +
+        "  <if test='asins != null and asins.size > 0'> AND UPPER(ds.asin) IN " +
+        "    <foreach collection='asins' item='asin' open='(' separator=',' close=')'>UPPER(#{asin})</foreach>" +
+        "  </if>" +
         "  <if test='category != null'> AND FIND_IN_SET(TRIM(SUBSTRING_INDEX(ds.node_label_path, ':', 1)), #{category}) &gt; 0</if>" +
         "  <if test='bsrId != null'> AND ds.bsr_id = #{bsrId}</if>" +
         "  <if test='nodeId != null'> AND ds.node_id = #{nodeId}</if>" +
         "  <if test='priceMin != null'> AND ds.price &gt;= #{priceMin}</if>" +
         "  <if test='priceMax != null'> AND ds.price &lt;= #{priceMax}</if>" +
+        "  <if test='unitsMin != null'> AND ds.units &gt;= #{unitsMin}</if>" +
+        "  <if test='unitsMax != null'> AND ds.units &lt;= #{unitsMax}</if>" +
+        "  <if test='listingDaysMin != null'> AND ds.available_date IS NOT NULL AND ds.available_date &gt; 0 AND TIMESTAMPDIFF(DAY, FROM_UNIXTIME(ds.available_date / 1000), NOW()) &gt;= #{listingDaysMin}</if>" +
+        "  <if test='listingDaysMax != null'> AND ds.available_date IS NOT NULL AND ds.available_date &gt; 0 AND TIMESTAMPDIFF(DAY, FROM_UNIXTIME(ds.available_date / 1000), NOW()) &lt;= #{listingDaysMax}</if>" +
         "  <if test='bsrMax != null'> AND ds.bsr &lt;= #{bsrMax}</if>" +
         "  <if test='ratingMin != null'> AND ds.rating &gt;= #{ratingMin}</if>" +
-        "  <if test='weightMax != null'> AND ds.weight &lt;= #{weightMax}</if>" +
+        "  <if test='weightMax != null'> AND " + WEIGHT_GRAMS_SQL + " &lt;= #{weightMax}</if>" +
+        "  <if test='fulfillment != null and fulfillment.size > 0'> AND UPPER(ds.fulfillment) IN " +
+        "    <foreach collection='fulfillment' item='method' open='(' separator=',' close=')'>UPPER(#{method})</foreach>" +
+        "  </if>" +
         "  <if test='batchDate != null'> AND (FIND_IN_SET(ds.batch_date, #{batchDate}) &gt; 0 OR ds.batch_date IS NULL)</if>" +
         "  GROUP BY COALESCE(NULLIF(ds.parent_asin,''), ds.asin)" +
         ") g" +
@@ -103,14 +138,20 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
             @Param("brand") String brand,
             @Param("sellerName") String sellerName,
             @Param("title") String title,
+            @Param("asins") List<String> asins,
             @Param("category") String category,
             @Param("bsrId") String bsrId,
             @Param("nodeId") Long nodeId,
             @Param("priceMin") java.math.BigDecimal priceMin,
             @Param("priceMax") java.math.BigDecimal priceMax,
+            @Param("unitsMin") Integer unitsMin,
+            @Param("unitsMax") Integer unitsMax,
+            @Param("listingDaysMin") Integer listingDaysMin,
+            @Param("listingDaysMax") Integer listingDaysMax,
             @Param("bsrMax") Integer bsrMax,
             @Param("ratingMin") java.math.BigDecimal ratingMin,
-            @Param("weightMax") String weightMax,
+            @Param("weightMax") java.math.BigDecimal weightMax,
+            @Param("fulfillment") List<String> fulfillment,
             @Param("maxVariantCount") Integer maxVariantCount,
             @Param("batchDate") String batchDate);
 

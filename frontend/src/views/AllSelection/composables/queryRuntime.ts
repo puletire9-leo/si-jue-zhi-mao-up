@@ -4,6 +4,7 @@ import shopCollectionApi, { type ShopProductRow } from "@/api/shopCollection";
 import type {
   SelectionQueryPlan,
   CompetitorQueryPlan,
+  PremiumProductsQueryPlan,
   DengZongQueryPlan,
   ShopProductsQueryPlan,
   MethodCardQueryPlan,
@@ -40,6 +41,20 @@ async function resolveDengZongPlan(
 ): Promise<ResolvedQueryResponse> {
   const res: ApiResponse<CompetitorListResponse> =
     await competitorApi.getDengZongShopList(plan.params);
+  return {
+    plan,
+    result: {
+      list: res.data?.list ?? [],
+      total: res.data?.total ?? 0,
+    },
+  };
+}
+
+async function resolvePremiumProductsPlan(
+  plan: PremiumProductsQueryPlan,
+): Promise<ResolvedQueryResponse> {
+  const res: ApiResponse<CompetitorListResponse> =
+    await competitorApi.getPremiumList(plan.params);
   return {
     plan,
     result: {
@@ -123,6 +138,8 @@ export async function resolveSelectionQueryPlan(
   switch (plan.executor) {
     case "competitor":
       return resolveCompetitorPlan(plan);
+    case "premium_products":
+      return resolvePremiumProductsPlan(plan);
     case "deng_zong":
       return resolveDengZongPlan(plan);
     case "shop_products":

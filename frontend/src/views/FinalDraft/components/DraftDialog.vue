@@ -653,6 +653,8 @@ const handleSubmit = async (): Promise<void> => {
   if (!formRef.value) return;
 
   try {
+    formData.sku = formData.sku.trim();
+
     // 手动验证必填字段
     const requiredFields = [{ name: "sku", value: formData.sku, label: "SKU" }];
 
@@ -719,7 +721,7 @@ const handleSubmit = async (): Promise<void> => {
     let response;
     if (props.draft) {
       // 编辑模式
-      response = await finalDraftApi.update(props.draft.sku, apiData);
+      response = await finalDraftApi.update(props.draft.id, apiData);
     } else {
       // 新增模式
       response = await finalDraftApi.create(apiData);

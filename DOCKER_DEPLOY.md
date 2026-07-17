@@ -30,3 +30,34 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 ```bash
 docker compose -f docker-compose.prod.yml ps
 ```
+
+## 生产 MySQL 资源保护
+
+`docker-compose.prod.yml` 默认将 InnoDB Buffer Pool 设置为 `1G`，并把 MySQL
+容器内存上限设置为 `2g`。需要按宿主机资源调整时使用环境变量覆盖：
+
+```powershell
+$env:MYSQL_INNODB_BUFFER_POOL_SIZE = "1G"
+$env:MYSQL_MEMORY_LIMIT = "2g"
+docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate mysql
+```
+
+MySQL 健康检查执行真实的 `SELECT 1`，连接超时 1 秒、健康检查总超时 2 秒。
+不要改回 `mysqladmin ping`：该命令在 InnoDB 查询线程阻塞时仍可能返回存活。
+
+生产连接与重负载默认预算：
+
+| 项目 | 默认值 |
+|------|--------|
+| MySQL `max_connections` | 60 |
+| Java product Hikari | min 3 / max 15 |
+| Java user Hikari | min 2 / max 5 |
+| Python API aiomysql | min 3 / 基础 10 / overflow 5 |
+| Celery 单任务 aiomysql | min 1 / max 2 |
+| 数据库连接获取超时 | 5 秒 |
+| 大型聚合查询 | 最多 2 个 |
+| 全量 CSV 导出 | 最多 1 个，且占用大型查询槽 |
+| 导入/评分/clean 批量写入 | 最多 1 个，公平排队 |
+
+普通分页、详情、登录和小型 CRUD 不进入重负载门禁。八爪鱼云端等待仍可并行，
+但进入“导入DB”阶段后必须通过单写入队列；卖家精灵请求中心继续使用现有单线程执行器。

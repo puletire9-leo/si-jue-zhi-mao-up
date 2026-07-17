@@ -49,6 +49,13 @@ public class CompetitorController {
         return Result.success(competitorService.queryFromDb(request));
     }
 
+    @PostMapping("/premium-products")
+    @Operation(summary = "查询精品独立表", description = "复用统一选品筛选能力，固定读取 premium_products 原始数据")
+    public Result<PageResult<CompetitorProductResponse>> queryPremiumProducts(
+            @RequestBody CompetitorQueryRequest request) {
+        return Result.success(competitorService.queryPremiumFromDb(request));
+    }
+
     @GetMapping("/{asin}/history")
     @Operation(summary = "查询某ASIN的历史趋势")
     public Result<List<CompetitorProductResponse>> history(
@@ -71,6 +78,14 @@ public class CompetitorController {
         return Result.success(competitorService.getVariants(marketplace, parentAsin));
     }
 
+    @GetMapping("/premium-variants")
+    @Operation(summary = "查询精品父 ASIN 下的所有变体")
+    public Result<List<CompetitorProductResponse>> premiumVariants(
+            @RequestParam String marketplace,
+            @RequestParam String parentAsin) {
+        return Result.success(competitorService.getPremiumVariants(marketplace, parentAsin));
+    }
+
     @GetMapping("/created-weeks")
     @Operation(summary = "获取入库批次列表（按 created_at 实时计算 ISO 周 + 每周条数，第一条为最新批次）")
     public Result<List<Map<String, Object>>> createdWeeks(
@@ -78,6 +93,27 @@ public class CompetitorController {
             @RequestParam(required = false) String source,
             @RequestParam(required = false) String filterMode) {
         return Result.success(competitorService.getCreatedWeeks(marketplace, source, filterMode));
+    }
+
+    @GetMapping("/premium-created-weeks")
+    @Operation(summary = "获取精品入库周批次")
+    public Result<List<Map<String, Object>>> premiumCreatedWeeks(
+            @RequestParam(defaultValue = "UK") String marketplace) {
+        return Result.success(competitorService.getPremiumCreatedWeeks(marketplace));
+    }
+
+    @GetMapping("/premium-categories")
+    @Operation(summary = "获取精品大类及商品数量")
+    public Result<List<Map<String, Object>>> premiumCategories(
+            @RequestParam(defaultValue = "UK") String marketplace) {
+        return Result.success(competitorService.getPremiumCategories(marketplace));
+    }
+
+    @GetMapping("/premium-sellers")
+    @Operation(summary = "获取精品卖家列表")
+    public Result<List<Map<String, Object>>> premiumSellers(
+            @RequestParam(defaultValue = "UK") String marketplace) {
+        return Result.success(competitorService.getPremiumSellers(marketplace));
     }
 
     @GetMapping("/stats")

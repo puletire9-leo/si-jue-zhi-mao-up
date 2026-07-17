@@ -29,6 +29,14 @@ public class AsinImportTask {
     private Integer variantAsinCount;
     private String dataMonth;
 
+    /** 八爪鱼命名任务来源，用于任务列表展示及卖家精灵结果分流。 */
+    private Long bazhuayuMappingId;
+    private String bazhuayuTaskId;
+    private String taskName;
+    private String taskCategory;
+    private Boolean initialFilter;
+    private String targetTable;
+
     private String errorMessage;
     private String progressLog;
 

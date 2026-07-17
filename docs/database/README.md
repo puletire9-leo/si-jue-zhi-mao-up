@@ -31,6 +31,8 @@
 | file_links | 文件链接 | - | file_link.py |
 | system_logs | 系统日志 | - | system_log.py |
 | backup_records | 备份记录 | - | - |
+| bazhuayu_task_mapping | 八爪鱼平级命名任务，同功能同站点允许多个任务，并保存分类/初筛开关 | BazhuayuTaskMapping.java | - |
+| premium_products | 精品榜独立商品数据；复制卖家精灵商品字段，不进入新品榜初筛与 clean 层 | PremiumProduct.java | - |
 
 ## 通用字段
 
@@ -75,6 +77,8 @@ Java product 已启用启动期 `SchemaGuard`：
 | `create_line_one_baselines.sql` | ①线大类/小类基线表 |
 | `create_subcategory_alias_layer.sql` | 小类别名对齐层 + 小类基线 canonical 升级 |
 | `create_bazhuayu_weekly_raw.sql` | 八爪鱼每周原始采集表 |
+| `create_bazhuayu_task_mapping.sql` | 八爪鱼多任务映射表 |
+| `create_premium_products.sql` | 精品榜独立卖家精灵商品表 |
 | `create_bazhuayu_image_search_result.sql` | 八爪鱼以图识图缓存结果表 |
 | `create_product_line_guidance.sql` | 品线指导记录表 |
 | `create_analysis_baseline_tables.sql` | analysis-baseline 画像/方法证据/商品家族表 |
@@ -97,6 +101,17 @@ Java product 已启用启动期 `SchemaGuard`：
 |------|------|
 | `add_batch_code_to_shop_products.sql` | 店铺全集增加 ISO 周批次 |
 | `add_competitor_lookup_log_pages_total.sql` | 竞品查询日志补齐 `pages` / `total` |
+| `add_bazhuayu_task_initial_filter.sql` | 八爪鱼命名任务增加是否初筛开关；历史精品任务默认关闭 |
+| `add_bazhuayu_task_category_and_import_metadata.sql` | 八爪鱼任务增加分类；导入任务记录来源、初筛和目标表 |
+
+### 八爪鱼榜单任务分流
+
+- 所有八爪鱼命名任务平级，不存在主任务/附加任务；`task_category` 由用户维护，例如精铺、精品。
+- `initial_filter=1`：保持精铺现有流程，八爪鱼原始数据进入 `bazhuayu_weekly_raw`，生成初筛任务。
+- `initial_filter=0`：不做价格、评论、主表或黑名单筛选，全部合法唯一 ASIN 作为 PASS 生成可见导入任务。
+- “导入DB”只生成 `READY` 任务，绝不自动调用卖家精灵。用户在任务列表点击“请求卖家精灵”后，才创建请求中心任务。
+- 手动请求时按任务的 `target_table` 分流：精铺使用 `ASIN_BATCH_LOOKUP → competitor_products`，精品使用 `PREMIUM_ASIN_LOOKUP → premium_products`。
+- 精品链路不写 `competitor_products`、不写 `skip_asins`、不刷新 `competitor_products_clean`，因此不会污染新品榜或影响后续精铺去重。
 
 ## 选品关键表补充
 

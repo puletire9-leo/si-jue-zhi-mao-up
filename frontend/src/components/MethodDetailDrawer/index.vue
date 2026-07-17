@@ -222,6 +222,8 @@ interface Props {
   methodId: "M01" | "M02" | "M03" | null;
   /** 当前页面是否将方法规则叠加在店铺全集 shop_products 上。 */
   shopProductsSource?: boolean;
+  /** 当前页面固定的数据源；方法卡仅叠加规则，不切换数据表。 */
+  fixedSource?: "shop_products" | "premium_products";
   /** 当前选品页站点，用于让 M01 编辑器默认打开正确国家。 */
   marketplace?: string;
 }
@@ -241,21 +243,28 @@ const visible = computed({
 const detail = computed<MethodCardInfo | null>(() => {
   if (!props.methodId) return null;
   const base = METHOD_CARD_INFO[props.methodId];
-  if (!props.shopProductsSource || base.id === "M02") return base;
+  const fixedSource =
+    props.fixedSource || (props.shopProductsSource ? "shop_products" : undefined);
+  if (!fixedSource || base.id === "M02") return base;
+  const isPremium = fixedSource === "premium_products";
+  const sourceName = isPremium ? "精品原始数据" : "店铺商品数据";
+  const sourceDescription = isPremium
+    ? "premium_products 表（精品独立原始表）"
+    : "shop_products 表（独立店铺商品全集）";
 
   return {
     ...base,
     tagline:
       base.id === "M01"
-        ? "将 M01 的可编辑新品规则叠加到当前店铺商品数据中，不切换至新品榜数据源"
-        : "将 M03 的 FBM 新品规则叠加到当前店铺商品数据中，不切换至新品榜数据源",
+        ? `将 M01 的可编辑新品规则叠加到当前${sourceName}中，不切换数据源`
+        : `将 M03 的 FBM 新品规则叠加到当前${sourceName}中，不切换数据源`,
     forcedFilters: [
-      "targetSource = shop_products (店铺商品全集)",
+      `targetSource = ${fixedSource}`,
       `method = ${base.id}`,
       ...(base.id === "M03" ? ["fulfillment = FBM"] : []),
     ],
-    dataSource: "shop_products 表（独立店铺商品全集）",
-    output: `${base.id} 规则命中的店铺商品候选清单`,
+    dataSource: sourceDescription,
+    output: `${base.id} 规则命中的${isPremium ? "精品" : "店铺商品"}候选清单`,
   };
 });
 
@@ -291,7 +300,7 @@ function ruleLine(mp: string, r: M01Rule): string {
   const c = CURRENCY[mp] ?? "";
   const bsrPart = r.bsrMax != null ? `，或 BSR<${r.bsrMax}` : "";
   return `${FLAG[mp] ?? ""} ${mp}：价格 ${c}${r.priceMin}-${c}${r.priceMax}，`
-    + `30天≥${r.sales30} / 60天≥${r.sales60} / 90天≥${r.sales90} 单${bsrPart}`;
+    + `销量≤${r.salesMax}，且 30天≥${r.sales30} / 60天≥${r.sales60} / 90天≥${r.sales90} 单${bsrPart}`;
 }
 
 // M01 有实时配置则动态生成达标逻辑，否则回退静态 passLogic

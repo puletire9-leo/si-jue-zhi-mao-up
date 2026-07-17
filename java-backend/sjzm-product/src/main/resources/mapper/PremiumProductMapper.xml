@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.modules.bazhuayu.mapper.PremiumProductMapper">
+
+    <insert id="insertOnDuplicateKeyUpdate" parameterType="com.sjzm.product.modules.bazhuayu.entity.PremiumProduct" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO premium_products (
+            marketplace, asin, month, title, brand, brand_url, image_url, parent_asin, sku,
+            node_id, node_id_path, node_label_path, symbol,
+            units, units_gr, amz_unit, amz_sales, amz_unit_date, revenue,
+            bsr_id, bsr, bsr_cr, bsr_cv,
+            ratings, rating, ratings_rate, ratings_cv, rating_delta,
+            price, prime_price, profit, fba, delivery_price,
+            seller_name, seller_id, seller_nation, sellers,
+            fulfillment, variations, weight, dimension, dimensions_type,
+            pkg_dimensions, pkg_dimension_type, pkg_weight,
+            lqs, available_date,
+            best_seller, amazon_choice, new_release, ebc, video,
+            source, week_tag, is_current,
+            bazhuayu_mapping_id, bazhuayu_task_id, bazhuayu_task_name, source_run_id,
+            bazhuayu_raw_json, sellersprite_raw_json, created_at, updated_at
+        ) VALUES (
+            #{marketplace}, #{asin}, #{month}, #{title}, #{brand}, #{brandUrl}, #{imageUrl}, #{parentAsin}, #{sku},
+            #{nodeId}, #{nodeIdPath}, #{nodeLabelPath}, #{symbol},
+            #{units}, #{unitsGr}, #{amzUnit}, #{amzSales}, #{amzUnitDate}, #{revenue},
+            #{bsrId}, #{bsr}, #{bsrCr}, #{bsrCv},
+            #{ratings}, #{rating}, #{ratingsRate}, #{ratingsCv}, #{ratingDelta},
+            #{price}, #{primePrice}, #{profit}, #{fba}, #{deliveryPrice},
+            #{sellerName}, #{sellerId}, #{sellerNation}, #{sellers},
+            #{fulfillment}, #{variations}, #{weight}, #{dimension}, #{dimensionsType},
+            #{pkgDimensions}, #{pkgDimensionType}, #{pkgWeight},
+            #{lqs}, #{availableDate},
+            #{bestSeller}, #{amazonChoice}, #{newRelease}, #{ebc}, #{video},
+            #{source}, #{weekTag}, #{isCurrent},
+            #{bazhuayuMappingId}, #{bazhuayuTaskId}, #{bazhuayuTaskName}, #{sourceRunId},
+            #{bazhuayuRawJson}, #{sellerspriteRawJson}, #{createdAt}, #{updatedAt}
+        ) ON DUPLICATE KEY UPDATE
+            title = VALUES(title), brand = VALUES(brand), brand_url = VALUES(brand_url),
+            image_url = VALUES(image_url), parent_asin = VALUES(parent_asin), sku = VALUES(sku),
+            node_id = VALUES(node_id), node_id_path = VALUES(node_id_path),
+            node_label_path = VALUES(node_label_path), symbol = VALUES(symbol),
+            units = VALUES(units), units_gr = VALUES(units_gr), amz_unit = VALUES(amz_unit),
+            amz_sales = VALUES(amz_sales), amz_unit_date = VALUES(amz_unit_date), revenue = VALUES(revenue),
+            bsr_id = VALUES(bsr_id), bsr = VALUES(bsr), bsr_cr = VALUES(bsr_cr), bsr_cv = VALUES(bsr_cv),
+            ratings = VALUES(ratings), rating = VALUES(rating), ratings_rate = VALUES(ratings_rate),
+            ratings_cv = VALUES(ratings_cv), rating_delta = VALUES(rating_delta),
+            price = VALUES(price), prime_price = VALUES(prime_price), profit = VALUES(profit),
+            fba = VALUES(fba), delivery_price = VALUES(delivery_price),
+            seller_name = VALUES(seller_name), seller_id = VALUES(seller_id),
+            seller_nation = VALUES(seller_nation), sellers = VALUES(sellers),
+            fulfillment = VALUES(fulfillment), variations = VALUES(variations),
+            weight = VALUES(weight), dimension = VALUES(dimension), dimensions_type = VALUES(dimensions_type),
+            pkg_dimensions = VALUES(pkg_dimensions), pkg_dimension_type = VALUES(pkg_dimension_type),
+            pkg_weight = VALUES(pkg_weight), lqs = VALUES(lqs), available_date = VALUES(available_date),
+            best_seller = VALUES(best_seller), amazon_choice = VALUES(amazon_choice),
+            new_release = VALUES(new_release), ebc = VALUES(ebc), video = VALUES(video),
+            source = VALUES(source), week_tag = VALUES(week_tag), is_current = VALUES(is_current),
+            bazhuayu_mapping_id = VALUES(bazhuayu_mapping_id),
+            bazhuayu_task_id = VALUES(bazhuayu_task_id),
+            bazhuayu_task_name = VALUES(bazhuayu_task_name),
+            source_run_id = VALUES(source_run_id),
+            bazhuayu_raw_json = COALESCE(VALUES(bazhuayu_raw_json), bazhuayu_raw_json),
+            sellersprite_raw_json = COALESCE(VALUES(sellersprite_raw_json), sellersprite_raw_json),
+            deleted = 0, updated_at = VALUES(updated_at)
+    </insert>
+
+    <insert id="upsertRawBatch" parameterType="list">
+        INSERT INTO premium_products (
+            marketplace, asin, month, title, source, week_tag, is_current,
+            bazhuayu_mapping_id, bazhuayu_task_id, bazhuayu_task_name,
+            bazhuayu_raw_json, created_at, updated_at
+        ) VALUES
+        <foreach collection="list" item="p" separator=",">
+            (#{p.marketplace}, #{p.asin}, #{p.month}, #{p.title}, #{p.source}, #{p.weekTag}, #{p.isCurrent},
+             #{p.bazhuayuMappingId}, #{p.bazhuayuTaskId}, #{p.bazhuayuTaskName},
+             #{p.bazhuayuRawJson}, #{p.createdAt}, #{p.updatedAt})
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            title = COALESCE(VALUES(title), title),
+            source = VALUES(source), week_tag = VALUES(week_tag), is_current = VALUES(is_current),
+            bazhuayu_mapping_id = VALUES(bazhuayu_mapping_id),
+            bazhuayu_task_id = VALUES(bazhuayu_task_id),
+            bazhuayu_task_name = VALUES(bazhuayu_task_name),
+            bazhuayu_raw_json = VALUES(bazhuayu_raw_json),
+            deleted = 0, updated_at = VALUES(updated_at)
+    </insert>
+
+    <select id="selectCountForSelection" resultType="long">
+        SELECT COUNT(*) FROM premium_products ${ew.customSqlSegment}
+    </select>
+
+    <select id="selectListForSelection" resultType="com.sjzm.product.modules.bazhuayu.entity.PremiumProduct">
+        SELECT p.*,
+               CASE
+                   WHEN p.sellersprite_raw_json IS NOT NULL
+                    AND TRIM(p.sellersprite_raw_json) != '' THEN TRUE
+                   ELSE FALSE
+               END AS enriched
+        FROM premium_products p ${ew.customSqlSegment}
+    </select>
+
+    <select id="selectVariantCountsByDedupKeys" resultType="java.util.Map">
+        SELECT COALESCE(NULLIF(parent_asin, ''), asin) AS dedupKey,
+               COUNT(*) AS variantCount
+        FROM premium_products
+        WHERE marketplace = #{marketplace}
+          AND deleted = 0
+          AND title IS NOT NULL
+          AND sellersprite_raw_json IS NOT NULL
+          AND TRIM(sellersprite_raw_json) != ''
+          AND COALESCE(NULLIF(parent_asin, ''), asin) IN
+        <foreach collection="keys" item="key" open="(" separator="," close=")">
+            #{key}
+        </foreach>
+        GROUP BY COALESCE(NULLIF(parent_asin, ''), asin)
+    </select>
+
+    <select id="selectCreatedWeeksWithCount" resultType="java.util.Map">
+        SELECT DATE_FORMAT(created_at, '%x-W%v') AS week,
+               COUNT(*) AS count,
+               MIN(DATE(created_at)) AS startDate,
+               MAX(DATE(created_at)) AS endDate
+        FROM premium_products
+        WHERE marketplace = #{marketplace}
+          AND deleted = 0
+          AND title IS NOT NULL
+          AND sellersprite_raw_json IS NOT NULL
+          AND TRIM(sellersprite_raw_json) != ''
+          AND created_at IS NOT NULL
+        GROUP BY week
+        ORDER BY week DESC
+    </select>
+
+    <select id="selectCategoriesWithCount" resultType="java.util.Map">
+        SELECT TRIM(SUBSTRING_INDEX(node_label_path, ':', 1)) AS category,
+               COUNT(*) AS count
+        FROM premium_products
+        WHERE marketplace = #{marketplace}
+          AND deleted = 0
+          AND title IS NOT NULL
+          AND sellersprite_raw_json IS NOT NULL
+          AND TRIM(sellersprite_raw_json) != ''
+          AND node_label_path IS NOT NULL
+          AND TRIM(SUBSTRING_INDEX(node_label_path, ':', 1)) != ''
+        GROUP BY category
+        ORDER BY count DESC, category ASC
+    </select>
+
+    <select id="selectSellers" resultType="java.util.Map">
+        SELECT MIN(id) AS id,
+               marketplace,
+               seller_name AS sellerName,
+               MIN(seller_id) AS sellerId,
+               COUNT(*) AS productCount
+        FROM premium_products
+        WHERE marketplace = #{marketplace}
+          AND deleted = 0
+          AND title IS NOT NULL
+          AND sellersprite_raw_json IS NOT NULL
+          AND TRIM(sellersprite_raw_json) != ''
+          AND seller_name IS NOT NULL
+          AND TRIM(seller_name) != ''
+        GROUP BY marketplace, seller_name
+        ORDER BY productCount DESC, seller_name ASC
+        LIMIT 1000
+    </select>
+
+    <select id="selectEnrichedAsins" resultType="java.lang.String">
+        SELECT asin
+        FROM premium_products
+        WHERE marketplace = #{marketplace}
+          AND deleted = 0
+          AND sellersprite_raw_json IS NOT NULL
+          AND TRIM(sellersprite_raw_json) != ''
+          AND asin IN
+        <foreach collection="asins" item="asin" open="(" separator="," close=")">
+            #{asin}
+        </foreach>
+    </select>
+
+</mapper>

@@ -2,6 +2,7 @@ package com.sjzm.product.service;
 
 import com.sjzm.product.dto.SelectionCsvRowRef;
 import com.sjzm.product.dto.SelectionPageCsvExportRequest;
+import com.sjzm.product.config.DatabaseWorkloadGate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -41,12 +42,19 @@ public class SelectionPageCsvExportService {
             "deng_zong", new SourceSpec(
                     "deng_zong_shop", List.of("batch_date")),
             "shop_products", new SourceSpec(
-                    "shop_products", List.of("batch_date", "batch_code", "week_tag"))
+                    "shop_products", List.of("batch_date", "batch_code", "week_tag")),
+            "premium_products", new SourceSpec(
+                    "premium_products", List.of("week_tag"))
     );
 
     private final JdbcTemplate jdbcTemplate;
+    private final DatabaseWorkloadGate workloadGate;
 
     public CsvExport exportCurrentPage(SelectionPageCsvExportRequest request) {
+        return workloadGate.runExport(() -> doExportCurrentPage(request));
+    }
+
+    private CsvExport doExportCurrentPage(SelectionPageCsvExportRequest request) {
         SourceSpec spec = SOURCE_SPECS.get(normalizeSource(request.getSource()));
         if (spec == null) {
             throw new IllegalArgumentException("不支持的选品数据源: " + request.getSource());
@@ -100,6 +108,7 @@ public class SelectionPageCsvExportService {
         String placeholders = String.join(",", java.util.Collections.nCopies(asins.size(), "?"));
         String sql = "SELECT * FROM " + tableName
                 + " WHERE marketplace = ? AND asin IN (" + placeholders + ")"
+                + ("premium_products".equals(tableName) ? " AND deleted = 0" : "")
                 + " ORDER BY created_at DESC, id DESC";
 
         return jdbcTemplate.query(sql, statement -> {

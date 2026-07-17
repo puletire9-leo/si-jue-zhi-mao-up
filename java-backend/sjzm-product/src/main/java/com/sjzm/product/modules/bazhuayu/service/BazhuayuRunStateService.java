@@ -142,6 +142,10 @@ public class BazhuayuRunStateService {
         return s != null && !isTerminal(s.getPhase());
     }
 
+    public RunState get(String function, String marketplace) {
+        return states.get(key(function, marketplace));
+    }
+
     /** 全部任务态快照（前端轮询用）。 */
     public Collection<RunState> all() {
         return new ArrayList<>(states.values());

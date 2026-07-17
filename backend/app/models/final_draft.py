@@ -19,6 +19,15 @@ class FinalDraftBase(BaseModel):
     images: List[str] = Field(default_factory=list, description="图片列表")
     reference_images: List[str] = Field(default_factory=list, description="参考图列表")
     status: str = Field("concept", description="状态", pattern="^(finalized|optimizing|concept)$")
+
+    @validator('sku', pre=True)
+    def normalize_sku(cls, v):
+        if v is None:
+            return v
+        normalized = str(v).strip()
+        if not normalized:
+            raise ValueError('SKU不能为空')
+        return normalized
     
     @validator('images', pre=True)
     def validate_images(cls, v):

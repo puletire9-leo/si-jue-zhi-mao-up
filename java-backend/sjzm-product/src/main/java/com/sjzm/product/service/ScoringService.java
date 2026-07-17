@@ -104,6 +104,10 @@ public class ScoringService {
      */
     @Transactional
     public Map<String, Object> scoreCurrentWeek() {
+        return doScoreCurrentWeek();
+    }
+
+    private Map<String, Object> doScoreCurrentWeek() {
         updateWeekTags();
 
         List<CompetitorProduct> products = productMapper.selectList(
@@ -124,6 +128,10 @@ public class ScoringService {
      */
     @Transactional
     public Map<String, Object> recalculateScores(String scope) {
+        return doRecalculateScores(scope);
+    }
+
+    private Map<String, Object> doRecalculateScores(String scope) {
         updateWeekTags();
 
         List<CompetitorProduct> products;

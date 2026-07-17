@@ -12,12 +12,14 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/method-cards")
@@ -32,6 +34,26 @@ public class MethodCardController {
     @Operation(summary = "M01 新品榜加速法候选", description = "从 competitor_products_clean 查询去变体污染后的 M01 候选商品")
     public Result<PageResult<MethodCardProductResponse>> getM01Products(@Valid MethodCardQueryRequest request) {
         return Result.success(methodCardService.queryM01Products(request));
+    }
+
+    @PostMapping("/M01/products/query")
+    @Operation(summary = "M01 新品榜加速法候选（POST）", description = "数组参数使用 JSON 传输，支持分类名自身包含逗号")
+    public Result<PageResult<MethodCardProductResponse>> queryM01Products(
+            @Valid @RequestBody MethodCardQueryRequest request) {
+        return Result.success(methodCardService.queryM01Products(request));
+    }
+
+    @GetMapping("/M01/categories")
+    @Operation(summary = "M01 新品榜一级分类统计", description = "与 M01 商品列表使用相同站点、周批次及规则口径")
+    public Result<List<Map<String, Object>>> getM01Categories(@Valid MethodCardQueryRequest request) {
+        return Result.success(methodCardService.queryM01Categories(request));
+    }
+
+    @PostMapping("/M01/categories/query")
+    @Operation(summary = "M01 新品榜一级分类统计（POST）", description = "与 M01 商品列表同口径，JSON 数组不会被逗号拆分")
+    public Result<List<Map<String, Object>>> queryM01Categories(
+            @Valid @RequestBody MethodCardQueryRequest request) {
+        return Result.success(methodCardService.queryM01Categories(request));
     }
 
     @GetMapping("/M02/products")
@@ -49,7 +71,7 @@ public class MethodCardController {
 
     @GetMapping("/M01/rule")
     @Operation(summary = "获取 M01 达标阈值（按站点）",
-            description = "价格区间/重量上限/上架天数上限/30-60-90天销量门槛/BSR上限；DB 未配置的字段返回硬编码默认")
+            description = "价格区间/重量上限/上架天数上限/30-60-90天销量门槛/销量上限/BSR上限；DB 未配置的字段返回硬编码默认")
     public Result<Map<String, Object>> getM01Rule(@RequestParam(defaultValue = "UK") String marketplace) {
         return Result.success(m01RuleConfigService.getConfig(marketplace));
     }

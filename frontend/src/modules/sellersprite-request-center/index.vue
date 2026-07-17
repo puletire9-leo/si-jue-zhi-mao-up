@@ -2,7 +2,17 @@
   <div class="request-center">
     <el-card shadow="never" class="header-card">
       <div class="toolbar">
-        <el-select v-model="requestTypeFilter" placeholder="任务类型" clearable style="width: 180px" @change="loadTasks">
+        <el-date-picker
+          v-model="monthFilter"
+          type="month"
+          value-format="YYYY-MM"
+          format="YYYY年MM月"
+          placeholder="创建月份"
+          clearable
+          style="width: 150px"
+          @change="handleFilterChange"
+        />
+        <el-select v-model="requestTypeFilter" placeholder="任务类型" clearable style="width: 180px" @change="handleFilterChange">
           <el-option label="店铺全集查询" value="SHOP_FULL_LOOKUP" />
           <el-option label="ASIN 批量查询" value="ASIN_BATCH_LOOKUP" />
           <el-option label="手动 ASIN 查询" value="MANUAL_ASIN_LOOKUP" />
@@ -12,7 +22,7 @@
           <el-option label="候选批量抓取" value="CANDIDATE_BATCH" />
           <el-option label="精品池复抓" value="PREMIUM_REFRESH" />
         </el-select>
-        <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 140px" @change="loadTasks">
+        <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 140px" @change="handleFilterChange">
           <el-option label="待处理 PENDING" value="PENDING" />
           <el-option label="运行中 RUNNING" value="RUNNING" />
           <el-option label="已暂停 PAUSED" value="PAUSED" />
@@ -24,6 +34,12 @@
         </el-select>
         <el-button type="primary" @click="loadTasks">刷新</el-button>
         <el-tag v-if="health?.circuitOpen" type="danger">卖家精灵熔断中：{{ health?.resumeAt || '待人工确认' }}</el-tag>
+        <div class="usage-summary">
+          <span>{{ usageSummaryLabel }}</span>
+          <strong>{{ monthlyUsage.totalApiCalls.toLocaleString() }}</strong>
+          <span>次</span>
+          <span class="usage-summary__tasks">{{ monthlyUsage.taskCount }} 个任务</span>
+        </div>
         <div class="spacer" />
         <span class="tip">任务创建后自动按卖家精灵限制执行；当前店铺请求完成后响应暂停/停止；页面每 3 秒刷新进度和使用次数</span>
       </div>
@@ -144,10 +160,16 @@ import { useRoute } from 'vue-router'
 import {
   requestCenterApi,
   type SellerspriteRequestRun,
-  type SellerspriteRequestItem
+  type SellerspriteRequestItem,
+  type SellerspriteMonthlyUsageSummary
 } from '@/api/shopPremium'
 
 const route = useRoute()
+const currentMonthValue = () => {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+const monthFilter = ref(currentMonthValue())
 const requestTypeFilter = ref('')
 const statusFilter = ref('')
 const rows = ref<SellerspriteRequestRun[]>([])
@@ -161,23 +183,44 @@ const currentRun = ref<SellerspriteRequestRun | null>(null)
 const items = ref<SellerspriteRequestItem[]>([])
 const detailLoading = ref(false)
 const health = ref<Record<string, any> | null>(null)
+const monthlyUsage = ref<SellerspriteMonthlyUsageSummary>({
+  month: currentMonthValue(),
+  taskCount: 0,
+  totalApiCalls: 0
+})
 let refreshTimer: number | null = null
 
 const detailTitle = computed(() => currentRun.value ? `任务 ${currentRun.value.runId}` : '任务详情')
+const usageSummaryLabel = computed(() => {
+  const [year, month] = monthlyUsage.value.month.split('-')
+  return `${year}年${Number(month)}月总请求次数`
+})
+
+function handleFilterChange() {
+  page.value = 1
+  loadTasks()
+}
 
 async function loadTasks(silentFlag: unknown = false) {
   const silent = silentFlag === true
   if (!silent) loading.value = true
   try {
-    const r = await requestCenterApi.listTasks({
-      requestType: requestTypeFilter.value || undefined,
-      status: statusFilter.value || undefined,
-      page: page.value,
-      size: size.value
-    })
+    const summaryMonth = monthFilter.value || currentMonthValue()
+    const [r, summary, healthStatus] = await Promise.all([
+      requestCenterApi.listTasks({
+        month: monthFilter.value || undefined,
+        requestType: requestTypeFilter.value || undefined,
+        status: statusFilter.value || undefined,
+        page: page.value,
+        size: size.value
+      }),
+      requestCenterApi.monthlyUsageSummary(summaryMonth),
+      requestCenterApi.health()
+    ])
     rows.value = r.list || []
     total.value = r.total || 0
-    health.value = await requestCenterApi.health()
+    monthlyUsage.value = summary
+    health.value = healthStatus
   } catch (e: any) {
     if (!silent) ElMessage.error(e?.message || '加载任务失败')
   } finally {
@@ -352,6 +395,27 @@ onUnmounted(() => {
   flex: 1;
 }
 .toolbar .tip {
+  color: #909399;
+  font-size: 12px;
+}
+.usage-summary {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 7px 12px;
+  color: #606266;
+  background: #f0f9eb;
+  border: 1px solid #d1edc4;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.usage-summary strong {
+  color: #67c23a;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.usage-summary__tasks {
+  margin-left: 4px;
   color: #909399;
   font-size: 12px;
 }

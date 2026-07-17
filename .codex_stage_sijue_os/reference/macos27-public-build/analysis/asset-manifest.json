@@ -1,0 +1,109 @@
+[
+  {
+    "url": "https://macos27.kimi.page/",
+    "status": 200,
+    "content_type": "text/html",
+    "bytes": 1652,
+    "sha256": "0ac4655eec2a1332bf51a4ea02f0b4f7df272b54de6bd16aeac0862d4ce34c2e",
+    "saved_as": "index.html",
+    "headers": {
+      "Date": "Fri, 17 Jul 2026 03:07:05 GMT",
+      "Content-Type": "text/html",
+      "Transfer-Encoding": "chunked",
+      "Connection": "close",
+      "Server": "cloudflare",
+      "vary": "Accept-Encoding",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-origin": "*",
+      "Cache-Control": "public,max-age=60,must-revalidate",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains",
+      "cf-cache-status": "DYNAMIC",
+      "CF-RAY": "a1c608cfadc1218e-NRT"
+    }
+  },
+  {
+    "url": "https://macos27.kimi.page/assets/index-BqrKPhU7.css",
+    "status": 200,
+    "content_type": "text/css",
+    "bytes": 83650,
+    "sha256": "7d746c8a7c64a26257a47d847145748019ae79ff1c6fe70706d743752a5546bf",
+    "saved_as": "assets/index-BqrKPhU7.css",
+    "headers": {
+      "Date": "Fri, 17 Jul 2026 03:07:06 GMT",
+      "Content-Type": "text/css",
+      "Transfer-Encoding": "chunked",
+      "Connection": "close",
+      "Server": "cloudflare",
+      "vary": "Accept-Encoding",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-origin": "*",
+      "Cache-Control": "public, max-age=14400",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains",
+      "Age": "11",
+      "expires": "Fri, 17 Jul 2026 07:07:06 GMT",
+      "cf-cache-status": "HIT",
+      "etag": "W/\"059a25425be5609770d2351d285a8e43\"",
+      "CF-RAY": "a1c608d34f74d5ca-NRT"
+    }
+  },
+  {
+    "url": "https://macos27.kimi.page/assets/index-Bfk0NWYJ.js",
+    "status": 200,
+    "content_type": "application/javascript",
+    "bytes": 2419416,
+    "sha256": "894c25442d5d48131b18a891ca45bf1d7b4ed4b17ed15d72430114a1d5944062",
+    "saved_as": "assets/index-Bfk0NWYJ.js",
+    "headers": {
+      "Date": "Fri, 17 Jul 2026 03:07:06 GMT",
+      "Content-Type": "application/javascript",
+      "Transfer-Encoding": "chunked",
+      "Connection": "close",
+      "Server": "cloudflare",
+      "vary": "Accept-Encoding",
+      "access-control-allow-headers": "Content-Type",
+      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-origin": "*",
+      "Cache-Control": "public, max-age=14400",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains",
+      "Age": "10",
+      "expires": "Fri, 17 Jul 2026 07:07:06 GMT",
+      "cf-cache-status": "HIT",
+      "etag": "W/\"f60a2646cd9b0a2ec2bb8bf4b6b18059\"",
+      "CF-RAY": "a1c608d45c5f51f3-NRT"
+    }
+  },
+  {
+    "url": "https://www.kimi.com/sdk-seed.js",
+    "status": 200,
+    "content_type": "text/javascript",
+    "bytes": 354,
+    "sha256": "6e103bb18432378b0d3a65c3ca945f7fd58e4098067ab2f346475fa40cfda653",
+    "saved_as": "external/www.kimi.com/sdk-seed.js",
+    "headers": {
+      "Server": "nginx",
+      "Date": "Fri, 17 Jul 2026 03:07:06 GMT",
+      "Content-Type": "text/javascript",
+      "Content-Length": "354",
+      "Connection": "close",
+      "x-internal-adhoc-canary": "2154150978",
+      "X-Powered-By": "Express",
+      "Last-Modified": "Thu, 16 Jul 2026 15:39:02 GMT",
+      "Vary": "Accept-Encoding",
+      "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+      "server-timing": "inner; dur=2"
+    }
+  },
+  {
+    "url": "https://macos27.kimi.page/${Ie.replace(/",
+    "error": "HTTP Error 404: Not Found"
+  },
+  {
+    "url": "https://macos27.kimi.page/${H.replace(/",
+    "error": "HTTP Error 404: Not Found"
+  }
+]

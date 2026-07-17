@@ -12,7 +12,7 @@ import java.util.List;
 @Data
 public class SelectionPageCsvExportRequest {
 
-    /** competitor_clean / competitor_raw / deng_zong / shop_products。 */
+    /** competitor_clean / competitor_raw / deng_zong / shop_products / premium_products。 */
     @NotBlank
     private String source;
 

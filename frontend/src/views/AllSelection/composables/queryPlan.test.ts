@@ -216,6 +216,32 @@ describe("buildSelectionQueryPlan", () => {
     expect(plan.unsupportedFilters).not.toContain("snapshotKeys");
   });
 
+  it("passes selected ranking categories into M01 product queries", () => {
+    const intent = buildSelectionFilterIntent({
+      scene: "new",
+      methodId: "M01",
+      queryParams: createQueryParams(),
+      activeFilters: createFilterState({
+        country: "US",
+        category: ["Home & Kitchen", "Arts, Crafts & Sewing"],
+      }),
+      useCleanTable: true,
+    });
+
+    const plan = buildSelectionQueryPlan({ intent, page: 1, size: 60 });
+
+    expect(plan.executor).toBe("method_card");
+    if (plan.executor !== "method_card") {
+      throw new Error("expected method card plan");
+    }
+    expect(plan.params.marketplace).toBe("US");
+    expect(plan.params.categories).toEqual([
+      "Home & Kitchen",
+      "Arts, Crafts & Sewing",
+    ]);
+    expect(plan.unsupportedFilters).not.toContain("category");
+  });
+
   it.each(["M01", "M03"] as const)(
     "keeps %s on shop_products in the reference scene",
     (methodId) => {
@@ -238,6 +264,42 @@ describe("buildSelectionQueryPlan", () => {
       expect(plan.params.methodId).toBe(methodId);
     },
   );
+
+  it("treats an empty active category array as an explicit clear", () => {
+    const intent = buildSelectionFilterIntent({
+      scene: "reference",
+      methodId: "M01",
+      queryParams: createQueryParams({ category: "Stale Category" }),
+      activeFilters: createFilterState({ category: [] }),
+      useCleanTable: false,
+    });
+
+    const plan = buildSelectionQueryPlan({ intent, page: 1, size: 60 });
+    expect(plan.executor).toBe("shop_products");
+    if (plan.executor !== "shop_products") {
+      throw new Error("expected shop-products plan");
+    }
+    expect(plan.params.categories).toBeUndefined();
+  });
+
+  it("preserves commas inside full shop category paths", () => {
+    const fullPath =
+      "Arts, Crafts & Sewing:Crafting:Patio, Lawn & Garden";
+    const intent = buildSelectionFilterIntent({
+      scene: "reference",
+      methodId: "M01",
+      queryParams: createQueryParams(),
+      activeFilters: createFilterState({ category: [fullPath] }),
+      useCleanTable: false,
+    });
+
+    const plan = buildSelectionQueryPlan({ intent, page: 1, size: 60 });
+    expect(plan.executor).toBe("shop_products");
+    if (plan.executor !== "shop_products") {
+      throw new Error("expected shop-products plan");
+    }
+    expect(plan.params.categories).toEqual([fullPath]);
+  });
 
   it("keeps M03 independent from stale snapshots and product-line scope", () => {
     const intent = buildSelectionFilterIntent({
@@ -505,5 +567,144 @@ describe("buildSelectionQueryPlan", () => {
     expect(plan.params.createdWeeks).toBeUndefined();
     expect(plan.params.qualifyRules).toBeUndefined();
     expect(plan.latestSnapshotFallback).toBeUndefined();
+  });
+
+  it("passes all visible zheng filters and listing-date sorting to the backend", () => {
+    const intent = buildSelectionFilterIntent({
+      scene: "zheng",
+      methodId: null,
+      queryParams: createQueryParams(),
+      activeFilters: createFilterState({
+        sortField: "listingDate",
+        sortOrder: "desc",
+        range: {
+          ...createRange(),
+          unitsMin: 10,
+          unitsMax: 200,
+          listingDaysMin: 5,
+          listingDaysMax: 90,
+          weightMax: 300,
+          fulfillment: ["FBA"],
+        },
+      }),
+      useCleanTable: true,
+    });
+
+    const plan = buildSelectionQueryPlan({ intent, page: 2, size: 60 });
+    expect(plan.executor).toBe("deng_zong");
+    if (plan.executor !== "deng_zong") throw new Error("expected zheng plan");
+
+    expect(plan.params.unitsMin).toBe(10);
+    expect(plan.params.unitsMax).toBe(200);
+    expect(plan.params.listingDaysMin).toBe(5);
+    expect(plan.params.listingDaysMax).toBe(90);
+    expect(plan.params.weightMax).toBe(300);
+    expect(plan.params.fulfillment).toEqual(["FBA"]);
+    expect(plan.params.sortBy).toBe("listingDate");
+    expect(plan.params.sortOrder).toBe("desc");
+    expect(plan.unsupportedFilters).toEqual([]);
+  });
+
+  it("passes precise ASIN searches to the zheng backend without normal filters", () => {
+    const intent = buildSelectionFilterIntent({
+      scene: "zheng",
+      methodId: null,
+      queryParams: createQueryParams({
+        asin: "B0H1C5W6KV\nB0H3YW76MV",
+      }),
+      activeFilters: createFilterState({
+        range: { ...createRange(), unitsMin: 10, listingDaysMax: 90 },
+      }),
+      useCleanTable: true,
+    });
+
+    const plan = buildSelectionQueryPlan({ intent, page: 1, size: 60 });
+    expect(plan.executor).toBe("deng_zong");
+    if (plan.executor !== "deng_zong") throw new Error("expected zheng plan");
+    expect(plan.params.asins).toEqual(["B0H1C5W6KV", "B0H3YW76MV"]);
+    expect(plan.params.unitsMin).toBeUndefined();
+    expect(plan.params.listingDaysMax).toBeUndefined();
+  });
+
+  it("shows premium raw data by default without applying a method card", () => {
+    const intent = buildSelectionFilterIntent({
+      scene: "premium",
+      methodId: null,
+      queryParams: createQueryParams(),
+      activeFilters: createFilterState(),
+      useCleanTable: true,
+    });
+
+    const plan = buildSelectionQueryPlan({ intent, page: 1, size: 60 });
+    expect(plan.executor).toBe("premium_products");
+    if (plan.executor !== "premium_products") {
+      throw new Error("expected premium plan");
+    }
+    expect(plan.targetSource).toBe("premium_products");
+    expect(plan.methodId).toBeNull();
+    expect(plan.params.methodId).toBeUndefined();
+    expect(plan.params.useCleanTable).toBe(false);
+    expect(plan.params.source).toBeUndefined();
+    expect(plan.latestSnapshotFallback?.kind).toBe("premium_created_week");
+  });
+
+  it("keeps M01 and visible filters on premium_products", () => {
+    const intent = buildSelectionFilterIntent({
+      scene: "premium",
+      methodId: "M01",
+      queryParams: createQueryParams({ productTitle: "lamp" }),
+      activeFilters: createFilterState({
+        category: ["Home"],
+        range: {
+          ...createRange(),
+          priceMin: 5,
+          unitsMin: 10,
+          listingDaysMax: 90,
+          createdWeeks: ["2026-W29"],
+        },
+      }),
+      useCleanTable: true,
+    });
+
+    const plan = buildSelectionQueryPlan({ intent, page: 2, size: 100 });
+    expect(plan.executor).toBe("premium_products");
+    if (plan.executor !== "premium_products") {
+      throw new Error("expected premium plan");
+    }
+    expect(plan.params.methodId).toBe("M01");
+    expect(plan.params.title).toBe("lamp");
+    expect(plan.params.category).toBe("Home");
+    expect(plan.params.priceMin).toBe(5);
+    expect(plan.params.unitsMin).toBe(10);
+    expect(plan.params.listingDaysMax).toBe(90);
+    expect(plan.params.createdWeeks).toEqual(["2026-W29"]);
+  });
+
+  it("does not combine precise premium ASIN search with M01 or normal filters", () => {
+    const intent = buildSelectionFilterIntent({
+      scene: "premium",
+      methodId: "M01",
+      queryParams: createQueryParams({
+        asin: "B0H1C5W6KV\nB0H3YW76MV",
+        productTitle: "ignored",
+      }),
+      activeFilters: createFilterState({
+        category: ["Ignored"],
+        range: { ...createRange(), unitsMin: 10, createdWeeks: ["2026-W29"] },
+      }),
+      useCleanTable: true,
+    });
+
+    const plan = buildSelectionQueryPlan({ intent, page: 1, size: 60 });
+    expect(plan.executor).toBe("premium_products");
+    if (plan.executor !== "premium_products") {
+      throw new Error("expected premium plan");
+    }
+    expect(plan.params.asin).toEqual(["B0H1C5W6KV", "B0H3YW76MV"]);
+    expect(plan.params.methodId).toBeUndefined();
+    expect(plan.params.title).toBeUndefined();
+    expect(plan.params.category).toBeUndefined();
+    expect(plan.params.unitsMin).toBeUndefined();
+    expect(plan.params.createdWeeks).toBeUndefined();
   });
 });

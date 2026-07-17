@@ -344,15 +344,13 @@ export function useSelectionFilterState(
     buildPresetConfig(activeFilters.value, options.getQualifyRules());
 
   const handlePresetApply = (config: Record<string, any>) => {
-    // preset 里 category/fulfillment/createdWeeks 存的是数组,
-    // 但 SelectionQueryParams 里 category 是逗号分隔字符串;
-    // 其他数组字段不属于查询表单,只属于 activeFilters,不应回灌到 formData
+    // category/fulfillment/createdWeeks 都只归 activeFilters 管理。
+    // 禁止把分类数组拼成逗号字符串回灌，否则名称自带逗号时会被拆坏，
+    // 用户清空分类后也可能被 queryParams 中的旧值重新恢复。
     options.patchQueryParams({
       country: config.country ?? undefined,
       sellerSelect: config.sellerSelect ?? undefined,
-      category: Array.isArray(config.category)
-        ? config.category.join(",")
-        : (config.category ?? undefined),
+      category: "",
     });
     if (Array.isArray(config?.qualifyRules)) {
       options.setQualifyRules(config.qualifyRules);

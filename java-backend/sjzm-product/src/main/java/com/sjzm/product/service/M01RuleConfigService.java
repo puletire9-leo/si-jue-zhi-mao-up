@@ -43,6 +43,7 @@ public class M01RuleConfigService implements com.sjzm.product.methodrule.M01Rule
     private static final String F_SALES30 = "sales30";
     private static final String F_SALES60 = "sales60";
     private static final String F_SALES90 = "sales90";
+    private static final String F_SALES_MAX = "sales_max";
     private static final String F_BSR_MAX = "bsr_max";
 
     /** 按 marketplace 存储 DB 覆盖值；仅存被显式配置过的字段，其余取硬编码默认。 */
@@ -85,6 +86,7 @@ public class M01RuleConfigService implements com.sjzm.product.methodrule.M01Rule
                 case F_SALES30 -> ov.sales30 = Integer.parseInt(val.trim());
                 case F_SALES60 -> ov.sales60 = Integer.parseInt(val.trim());
                 case F_SALES90 -> ov.sales90 = Integer.parseInt(val.trim());
+                case F_SALES_MAX -> ov.salesMax = Integer.parseInt(val.trim());
                 // bsrMax 允许空字符串表示"不使用 BSR 判定"（如 US 站），故用 NONE 标记
                 case F_BSR_MAX -> {
                     ov.bsrMax = "NONE".equalsIgnoreCase(val.trim()) ? null : Integer.parseInt(val.trim());
@@ -115,6 +117,7 @@ public class M01RuleConfigService implements com.sjzm.product.methodrule.M01Rule
                 ov.sales30 != null ? ov.sales30 : base.sales30(),
                 ov.sales60 != null ? ov.sales60 : base.sales60(),
                 ov.sales90 != null ? ov.sales90 : base.sales90(),
+                ov.salesMax != null ? ov.salesMax : base.salesMax(),
                 ov.bsrMaxSet ? ov.bsrMax : base.bsrMax()
         );
     }
@@ -131,6 +134,7 @@ public class M01RuleConfigService implements com.sjzm.product.methodrule.M01Rule
         config.put("sales30", rule.sales30());
         config.put("sales60", rule.sales60());
         config.put("sales90", rule.sales90());
+        config.put("salesMax", rule.salesMax());
         config.put("bsrMax", rule.bsrMax());
         return config;
     }
@@ -170,6 +174,10 @@ public class M01RuleConfigService implements com.sjzm.product.methodrule.M01Rule
         if (updates.containsKey("sales90")) {
             ov.sales90 = ((Number) updates.get("sales90")).intValue();
             saveKey(mp, F_SALES90, String.valueOf(ov.sales90), "M01 90天销量门槛");
+        }
+        if (updates.containsKey("salesMax")) {
+            ov.salesMax = ((Number) updates.get("salesMax")).intValue();
+            saveKey(mp, F_SALES_MAX, String.valueOf(ov.salesMax), "M01 销量上限");
         }
         if (updates.containsKey("bsrMax")) {
             Object raw = updates.get("bsrMax");
@@ -215,6 +223,7 @@ public class M01RuleConfigService implements com.sjzm.product.methodrule.M01Rule
         volatile Integer sales30;
         volatile Integer sales60;
         volatile Integer sales90;
+        volatile Integer salesMax;
         volatile Integer bsrMax;
         /** bsrMax 允许显式设为 null（不判定），故需单独标记是否配置过。 */
         volatile boolean bsrMaxSet;

@@ -3,6 +3,7 @@ package com.sjzm.product.modules.requestcenter.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sjzm.common.PageResult;
 import com.sjzm.product.dto.CompetitorLookupRequest;
@@ -18,6 +19,7 @@ import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutio
 import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutionException;
 import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutionRequest;
 import com.sjzm.product.modules.requestcenter.model.SellerspriteExecutionErrorCode;
+import com.sjzm.product.modules.requestcenter.model.SellerspriteSellerNamePolicy;
 import com.sjzm.product.modules.requestcenter.mapper.SellerspriteRequestItemMapper;
 import com.sjzm.product.modules.requestcenter.mapper.SellerspriteRequestRunMapper;
 import com.sjzm.product.modules.shopcandidate.service.ShopCandidateService;
@@ -39,11 +41,14 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 /**
  * 卖家精灵请求中心最小骨架。
@@ -281,19 +286,50 @@ public class SellerspriteRequestCenterService {
             throw new IllegalArgumentException("初筛任务无 PASS ASIN: " + taskId);
         }
 
+        boolean premiumTarget = "premium_products".equalsIgnoreCase(srcTask.getTargetTable())
+                || Boolean.FALSE.equals(srcTask.getInitialFilter());
+
         // 内存去重（PASS 结果本身已去重，但防御性做一次）
-        Set<String> deduped = new LinkedHashSet<>(asins);
+        Set<String> deduped = asins.stream()
+                .filter(StringUtils::hasText)
+                .map(value -> value.trim().toUpperCase(Locale.ROOT))
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
         List<String> distinctAsins = new ArrayList<>(deduped);
+        int sourceAsinCount = distinctAsins.size();
+        int enrichedSkippedCount = 0;
+        if (premiumTarget) {
+            Set<String> enrichedAsins = competitorService.findEnrichedPremiumAsins(
+                    srcTask.getMarketplace(), distinctAsins);
+            if (!enrichedAsins.isEmpty()) {
+                distinctAsins.removeIf(enrichedAsins::contains);
+                enrichedSkippedCount = sourceAsinCount - distinctAsins.size();
+            }
+            if (distinctAsins.isEmpty()) {
+                throw new IllegalArgumentException("该站点本任务的精品 ASIN 均已由卖家精灵补全，无需重复请求");
+            }
+        }
         int totalItems = (distinctAsins.size() + ASIN_BATCH_SIZE - 1) / ASIN_BATCH_SIZE;
 
         String runId = "REQ_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         String batchCode = weekTagUtil.currentWeekTag();
         String batchDate = LocalDate.now().format(DATE_FMT);
 
-        // 在 triggerRef 中存储来源信息
+        String requestType = premiumTarget ? "PREMIUM_ASIN_LOOKUP" : "ASIN_BATCH_LOOKUP";
+
+        // 在 triggerRef 中存储来源信息和结果落表配置
         Map<String, Object> triggerMeta = new LinkedHashMap<>();
         triggerMeta.put("sourceTaskId", taskId);
         triggerMeta.put("month", dataMonth);
+        triggerMeta.put("mappingId", srcTask.getBazhuayuMappingId());
+        triggerMeta.put("bazhuayuTaskId", srcTask.getBazhuayuTaskId());
+        triggerMeta.put("taskName", srcTask.getTaskName());
+        triggerMeta.put("taskCategory", srcTask.getTaskCategory());
+        triggerMeta.put("initialFilter", srcTask.getInitialFilter());
+        triggerMeta.put("targetTable", srcTask.getTargetTable());
+        triggerMeta.put("weekTag", weekTagUtil.currentWeekTag());
+        triggerMeta.put("sourceAsinCount", sourceAsinCount);
+        triggerMeta.put("enrichedSkippedCount", enrichedSkippedCount);
+        triggerMeta.put("requestAsinCount", distinctAsins.size());
         String triggerRefJson;
         try {
             triggerRefJson = OBJECT_MAPPER.writeValueAsString(triggerMeta);
@@ -303,12 +339,13 @@ public class SellerspriteRequestCenterService {
 
         SellerspriteRequestRun run = new SellerspriteRequestRun();
         run.setRunId(runId);
-        run.setRequestType("ASIN_BATCH_LOOKUP");
+        run.setRequestType(requestType);
         run.setMarketplace(srcTask.getMarketplace());
         run.setTriggerType("MANUAL");
         run.setTriggerRef(triggerRefJson);
         run.setSourceTaskId(taskId);
-        run.setFetchReason(fetchReason != null ? fetchReason : "八爪鱼初筛 PASS 执行卖家精灵");
+        run.setFetchReason(fetchReason != null ? fetchReason
+                : (premiumTarget ? "八爪鱼精品任务人工确认请求" : "八爪鱼初筛 PASS 人工确认请求"));
         run.setBatchCode(batchCode);
         run.setBatchDate(batchDate);
         run.setTotalCount(totalItems);
@@ -344,8 +381,8 @@ public class SellerspriteRequestCenterService {
             itemMapper.insert(item);
         }
 
-        log.info("从初筛任务创建请求中心任务: runId={}, taskId={}, asins={}, items={}",
-                runId, taskId, distinctAsins.size(), totalItems);
+        log.info("从八爪鱼导入任务创建请求中心任务: runId={}, taskId={}, requestType={}, sourceAsins={}, skippedEnriched={}, requestAsins={}, items={}",
+                runId, taskId, requestType, sourceAsinCount, enrichedSkippedCount, distinctAsins.size(), totalItems);
         startAutoConsumeAfterCommit(runId);
         return run;
     }
@@ -678,6 +715,17 @@ public class SellerspriteRequestCenterService {
                 log.info("任务 {} 被 {}，停止消费剩余子项", runId, fresh.getStatus());
                 break;
             }
+            if (SellerspriteSellerNamePolicy.isBlocked(item.getSellerName())) {
+                int marked = itemMapper.markPendingSkipped(
+                        item.getId(), SellerspriteSellerNamePolicy.BLOCKED_AMAZON_REASON);
+                if (marked > 0) {
+                    consumed++;
+                    skipped++;
+                    log.info("请求中心跳过禁止店名: runId={}, itemId={}, sellerName={}",
+                            runId, item.getId(), item.getSellerName());
+                }
+                continue;
+            }
             int claimed = itemMapper.claimRunning(item.getId());
             if (claimed == 0) {
                 // 已被其它消费者抢走或状态不允许，跳过
@@ -691,8 +739,9 @@ public class SellerspriteRequestCenterService {
                 int fetched = getInt(syncResult, "fetchedCount", getInt(syncResult, "fetched", 0));
                 int written = getInt(syncResult, "writtenCount", getInt(syncResult, "inserted", 0));
                 int apiCalls = getInt(syncResult, "apiCalls", 0);
-                int itemFailed = Math.max(0, fetched - written);
-                String itemStatus = itemFailed > 0 ? "PARTIAL_SUCCESS" : "SUCCESS";
+                int itemFailed = getInt(syncResult, "failedCount", Math.max(0, fetched - written));
+                boolean truncated = Boolean.TRUE.equals(syncResult.get("truncated"));
+                String itemStatus = itemFailed > 0 || truncated ? "PARTIAL_SUCCESS" : "SUCCESS";
 
                 // 写回 item（事务外抓取，事务内写回）
                 transactionTemplate.executeWithoutResult(s ->
@@ -803,7 +852,9 @@ public class SellerspriteRequestCenterService {
      */
     private Map<String, Object> consumeSellerSpriteItem(SellerspriteRequestRun run, SellerspriteRequestItem item) {
         // ── ASIN 批量查询 ──────────────────────────────────────────
-        if ("ASIN_BATCH_LOOKUP".equals(run.getRequestType()) || "MANUAL_ASIN_LOOKUP".equals(run.getRequestType())) {
+        if ("ASIN_BATCH_LOOKUP".equals(run.getRequestType())
+                || "MANUAL_ASIN_LOOKUP".equals(run.getRequestType())
+                || "PREMIUM_ASIN_LOOKUP".equals(run.getRequestType())) {
             if (item.getAsinList() == null || item.getAsinList().isBlank()) {
                 throw new IllegalStateException("ASIN_BATCH_LOOKUP item 缺少 asin_list");
             }
@@ -831,17 +882,35 @@ public class SellerspriteRequestCenterService {
             String itemMarketplace = req.getMarketplace();
             String scope = "marketplace=" + itemMarketplace + ", asins=" + asins.size();
             AtomicInteger attemptNo = new AtomicInteger(nvl(item.getAttemptCount()));
-            Map<String, Object> raw = competitorService.doLookupAndSave(req,
-                    StringUtils.hasText(month) ? month : currentDataMonth(), LocalDateTime.now(),
-                    apiRequest -> executionGateway.execute(new SellerspriteExecutionRequest(apiRequest,
+            Function<CompetitorLookupRequest, JsonNode> executor = apiRequest ->
+                    executionGateway.execute(new SellerspriteExecutionRequest(apiRequest,
                             new SellerspriteExecutionContext(run.getRunId(), item.getId(), run.getRequestType(),
-                                    scope, attemptNo.incrementAndGet()))).data());
+                                    scope, attemptNo.incrementAndGet()))).data();
+            Map<String, Object> raw;
+            if ("PREMIUM_ASIN_LOOKUP".equals(run.getRequestType())) {
+                Map<String, Object> meta = readRunMeta(run);
+                raw = competitorService.doPremiumLookupAndSave(
+                        req,
+                        StringUtils.hasText(month) ? month : currentDataMonth(),
+                        LocalDateTime.now(),
+                        toLong(meta.get("mappingId")),
+                        stringValue(meta.get("bazhuayuTaskId")),
+                        stringValue(meta.get("taskName")),
+                        stringValue(meta.get("weekTag")),
+                        run.getRunId(),
+                        executor);
+            } else {
+                raw = competitorService.doLookupAndSave(req,
+                        StringUtils.hasText(month) ? month : currentDataMonth(), LocalDateTime.now(), executor);
+            }
             int total = ((Number) raw.getOrDefault("total", 0)).intValue();
             int apiCalls = ((Number) raw.getOrDefault("apiCalls", 0)).intValue();
 
             // 请求过的 ASIN 写入 skip_asins「API已请求」，下次导入不再重复请求扣费。
             // 与旧链路 AsinImportService.executeApiCalls 每批收尾一致；insertBatchIgnoreDup 幂等，重复写无害。
-            markAsinsRequested(asins, itemMarketplace);
+            if (!"PREMIUM_ASIN_LOOKUP".equals(run.getRequestType())) {
+                markAsinsRequested(asins, itemMarketplace);
+            }
 
             // 补齐 consumeNext 期望的 key（与 syncBySellerName 返回格式对齐）
             Map<String, Object> result = new LinkedHashMap<>(raw);
@@ -899,18 +968,38 @@ public class SellerspriteRequestCenterService {
     // ── list / detail ────────────────────────────────────────────
 
     public PageResult<SellerspriteRequestRun> listRuns(String requestType, String triggerType, String status,
-                                                       String batchCode, Integer page, Integer size) {
+                                                       String batchCode, String month, Integer page, Integer size) {
         int p = Math.max(1, page == null ? 1 : page);
         int s = Math.max(1, Math.min(size == null ? 50 : size, 200));
+        MonthRange monthRange = StringUtils.hasText(month) ? resolveMonthRange(month) : null;
         LambdaQueryWrapper<SellerspriteRequestRun> qw = new LambdaQueryWrapper<SellerspriteRequestRun>()
                 .eq(StringUtils.hasText(requestType), SellerspriteRequestRun::getRequestType, requestType)
                 .eq(StringUtils.hasText(triggerType), SellerspriteRequestRun::getTriggerType, triggerType)
                 .eq(StringUtils.hasText(status), SellerspriteRequestRun::getStatus, status)
-                .eq(StringUtils.hasText(batchCode), SellerspriteRequestRun::getBatchCode, batchCode)
-                .orderByDesc(SellerspriteRequestRun::getCreatedAt);
+                .eq(StringUtils.hasText(batchCode), SellerspriteRequestRun::getBatchCode, batchCode);
+        if (monthRange != null) {
+            qw.ge(SellerspriteRequestRun::getCreatedAt, monthRange.start())
+                    .lt(SellerspriteRequestRun::getCreatedAt, monthRange.endExclusive());
+        }
+        qw.orderByDesc(SellerspriteRequestRun::getCreatedAt);
         Page<SellerspriteRequestRun> mpPage = new Page<>(p, s);
         Page<SellerspriteRequestRun> result = runMapper.selectPage(mpPage, qw);
         return PageResult.of(result.getRecords(), result.getTotal(), (long) p, (long) s);
+    }
+
+    public Map<String, Object> monthlyUsageSummary(String month) {
+        MonthRange monthRange = resolveMonthRange(StringUtils.hasText(month)
+                ? month : YearMonth.now().toString());
+        LambdaQueryWrapper<SellerspriteRequestRun> countWrapper = new LambdaQueryWrapper<>();
+        countWrapper.ge(SellerspriteRequestRun::getCreatedAt, monthRange.start())
+                .lt(SellerspriteRequestRun::getCreatedAt, monthRange.endExclusive());
+        long taskCount = runMapper.selectCount(countWrapper);
+        Long apiCalls = runMapper.sumApiCallsByCreatedAt(monthRange.start(), monthRange.endExclusive());
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("month", monthRange.month().toString());
+        summary.put("taskCount", taskCount);
+        summary.put("totalApiCalls", apiCalls == null ? 0L : apiCalls);
+        return summary;
     }
 
     public SellerspriteRequestRun getRun(String runId) {
@@ -958,6 +1047,16 @@ public class SellerspriteRequestCenterService {
         return java.time.YearMonth.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
     }
 
+    private MonthRange resolveMonthRange(String month) {
+        try {
+            YearMonth parsed = YearMonth.parse(month.trim());
+            return new MonthRange(parsed, parsed.atDay(1).atStartOfDay(),
+                    parsed.plusMonths(1).atDay(1).atStartOfDay());
+        } catch (DateTimeParseException | NullPointerException e) {
+            throw new IllegalArgumentException("month 必须为 yyyy-MM 格式");
+        }
+    }
+
     private void markItemSuccess(Long itemId, String runId, Map<String, Object> syncResult,
                                  int total, int fetched, int written, int failed, int apiCalls, String itemStatus) {
         SellerspriteRequestItem item = itemMapper.selectById(itemId);
@@ -968,6 +1067,9 @@ public class SellerspriteRequestCenterService {
         item.setWrittenCount(written);
         item.setFailedCount(failed);
         item.setApiCalls(apiCalls);
+        if (syncResult.get("warning") != null) {
+            item.setErrorMessage(truncate(String.valueOf(syncResult.get("warning")), 512));
+        }
         item.setFinishedAt(LocalDateTime.now());
         itemMapper.updateById(item);
         // 精品池复抓触发时回写 shop_premium_pool（triggerId=premiumId）
@@ -1218,6 +1320,30 @@ public class SellerspriteRequestCenterService {
         return copy;
     }
 
+    private Map<String, Object> readRunMeta(SellerspriteRequestRun run) {
+        if (!StringUtils.hasText(run.getTriggerRef())) return Map.of();
+        try {
+            return OBJECT_MAPPER.readValue(run.getTriggerRef(),
+                    OBJECT_MAPPER.getTypeFactory().constructMapType(Map.class, String.class, Object.class));
+        } catch (Exception e) {
+            throw new IllegalStateException("请求中心任务来源信息解析失败: runId=" + run.getRunId(), e);
+        }
+    }
+
+    private Long toLong(Object value) {
+        if (value instanceof Number number) return number.longValue();
+        if (value == null) return null;
+        try {
+            return Long.valueOf(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
     private String resolveRunMonth(SellerspriteRequestRun run) {
         if (StringUtils.hasText(run.getTriggerRef())) {
             try {
@@ -1285,4 +1411,6 @@ public class SellerspriteRequestCenterService {
 
     /** 子项输入（创建任务时传入）。 */
     public record RequestItemInput(String marketplace, String sellerName, Long triggerId) {}
+
+    private record MonthRange(YearMonth month, LocalDateTime start, LocalDateTime endExclusive) {}
 }

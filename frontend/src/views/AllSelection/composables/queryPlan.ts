@@ -4,22 +4,31 @@ import type { ShopProductSelectionParams } from "@/api/shopCollection";
 import type { RangeFilterValue } from "@/components/RangeFilterPanel/index.vue";
 import type { SelectionQueryParams } from "@/components/SelectionQueryForm/types";
 
-export type SelectionScene = "all" | "new" | "reference" | "zheng" | "fbm";
+export type SelectionScene =
+  | "all"
+  | "new"
+  | "reference"
+  | "premium"
+  | "zheng"
+  | "fbm";
 export type SelectionMethodId = "M01" | "M02" | "M03";
 export type SelectionDataView = "clean" | "raw";
 export type SelectionLensId = "default" | SelectionMethodId;
 export type SelectionExecutor =
   | "competitor"
+  | "premium_products"
   | "deng_zong"
   | "shop_products"
   | "method_card";
 export type SelectionSnapshotKind =
   | "competitor_created_week"
+  | "premium_created_week"
   | "deng_zong_batch"
   | "shop_batch";
 export type SelectionTargetSource =
   | "competitor_clean"
   | "competitor_raw"
+  | "premium_products"
   | "deng_zong"
   | "shop_products";
 export type SelectionSemanticFilterKey =
@@ -137,6 +146,12 @@ export interface DengZongQueryPlan extends SelectionQueryPlanBase {
   params: Record<string, any>;
 }
 
+export interface PremiumProductsQueryPlan extends SelectionQueryPlanBase {
+  executor: "premium_products";
+  targetSource: "premium_products";
+  params: CompetitorListParams;
+}
+
 export interface ShopProductsQueryPlan extends SelectionQueryPlanBase {
   executor: "shop_products";
   targetSource: "shop_products";
@@ -151,6 +166,7 @@ export interface MethodCardQueryPlan extends SelectionQueryPlanBase {
 
 export type SelectionQueryPlan =
   | CompetitorQueryPlan
+  | PremiumProductsQueryPlan
   | DengZongQueryPlan
   | ShopProductsQueryPlan
   | MethodCardQueryPlan;
@@ -224,13 +240,19 @@ export const SOURCE_CAPABILITIES: Record<
     executor: "deng_zong",
     snapshotKind: "deng_zong_batch",
     supports: createSupportMap({
-      asin: "unsupported",
       filterMode: "unsupported",
       weekTag: "unsupported",
       createdAtRange: "unsupported",
-      units: "unsupported",
-      listingDays: "unsupported",
-      fulfillment: "unsupported",
+      grade: "unsupported",
+      qualifyRules: "unsupported",
+    }),
+  },
+  premium_products: {
+    targetSource: "premium_products",
+    executor: "premium_products",
+    snapshotKind: "premium_created_week",
+    supports: createSupportMap({
+      filterMode: "unsupported",
       grade: "unsupported",
       qualifyRules: "unsupported",
     }),
@@ -267,7 +289,7 @@ export const METHOD_LENS_DEFINITIONS: Record<
       asin: "unsupported",
       title: "unsupported",
       sellerName: "unsupported",
-      category: "unsupported",
+      category: "supported",
       filterMode: "unsupported",
       weekTag: "unsupported",
       createdAtRange: "unsupported",
@@ -355,6 +377,7 @@ export function resolveSceneBusinessSource(
     all: undefined,
     new: "新品榜",
     reference: "竞品店铺",
+    premium: "精品榜",
     zheng: "非标店铺",
   };
   if (scene === "fbm") return undefined;
@@ -401,8 +424,12 @@ function normalizeCategories(
   queryParams?: SelectionQueryParams,
   activeFilters?: SelectionFilterState,
 ): string[] {
-  if (activeFilters?.category?.length) {
-    return [...activeFilters.category];
+  // activeFilters 是统一筛选框的唯一事实来源；即使数组为空，也表示用户明确清空。
+  // 只有旧调用方没有传 activeFilters 时，才兼容 URL/表单中的逗号字符串。
+  if (activeFilters) {
+    return Array.isArray(activeFilters.category)
+      ? activeFilters.category.map((item) => String(item).trim()).filter(Boolean)
+      : [];
   }
   return splitCsv(queryParams?.category);
 }
@@ -485,6 +512,9 @@ function resolveDefaultTargetSource(
   if (intent.scene === "reference") {
     return "shop_products";
   }
+  if (intent.scene === "premium") {
+    return "premium_products";
+  }
   if (intent.scene === "zheng") {
     return "deng_zong";
   }
@@ -528,6 +558,9 @@ function buildMethodCardQueryPlan(input: {
   if (lens.snapshotParam === "createdWeek" && snapshotValue) {
     params.createdWeek = snapshotValue;
   }
+  if (intent.search.categories.length > 0) {
+    params.categories = [...intent.search.categories];
+  }
   if (
     lens.snapshotParam === "createdWeeks" &&
     intent.freshness.snapshotKeys.length > 0
@@ -570,6 +603,7 @@ function buildDengZongQueryPlan(input: {
       page,
       size,
       marketplace,
+      asins: intent.search.asin.length > 0 ? [...intent.search.asin] : undefined,
       title: intent.search.title,
       sellerName: intent.search.sellerName,
       brand: intent.search.brand,
@@ -581,9 +615,17 @@ function buildDengZongQueryPlan(input: {
       nodeId: intent.scope.nodeId,
       priceMin: intent.metrics.priceMin,
       priceMax: intent.metrics.priceMax,
+      unitsMin: intent.metrics.unitsMin,
+      unitsMax: intent.metrics.unitsMax,
+      listingDaysMin: intent.metrics.listingDaysMin,
+      listingDaysMax: intent.metrics.listingDaysMax,
       bsrMax: intent.metrics.bsrMax,
       weightMax: intent.metrics.weightMax,
       maxVariantCount: intent.metrics.variantCountMax,
+      fulfillment:
+        intent.metrics.fulfillment.length > 0
+          ? [...intent.metrics.fulfillment]
+          : undefined,
       batchDate,
       sortBy: intent.sort.field || "units",
       sortOrder: intent.sort.order || "desc",
@@ -767,6 +809,52 @@ function buildCompetitorQueryPlan(input: {
   };
 }
 
+function buildPremiumProductsQueryPlan(input: {
+  intent: SelectionFilterIntent;
+  page: number;
+  size: number;
+}): PremiumProductsQueryPlan {
+  const { intent, page, size } = input;
+  const base = buildCompetitorQueryPlan({
+    intent,
+    page,
+    size,
+    targetSource: "competitor_raw",
+  });
+  const marketplace = intent.scope.marketplace || "UK";
+  const params: CompetitorListParams = {
+    ...base.params,
+    source: undefined,
+    filterMode: undefined,
+    useCleanTable: false,
+  };
+  if (intent.methodId === "M01" || intent.methodId === "M03") {
+    params.methodId = intent.methodId;
+  }
+
+  return {
+    executor: "premium_products",
+    lensId: intent.methodId || "default",
+    methodId: intent.methodId,
+    targetSource: "premium_products",
+    params,
+    unsupportedFilters: collectUnsupportedFilters(
+      intent,
+      SOURCE_CAPABILITIES.premium_products.supports,
+    ),
+    forcedFilters: ["dataSource=premium_products", "dataView=raw"],
+    latestSnapshotFallback:
+      intent.search.exactAsin ||
+      intent.freshness.snapshotKeys.length > 0 ||
+      intent.freshness.createdAtStart
+        ? undefined
+        : {
+            kind: "premium_created_week",
+            marketplace,
+          },
+  };
+}
+
 export function buildSelectionFilterIntent(input: {
   scene: SelectionScene;
   methodId: SelectionMethodId | null;
@@ -900,6 +988,14 @@ export function buildSelectionQueryPlan(input: {
     return buildShopProductsQueryPlan({ intent, page, size });
   }
 
+  // 精品默认展示独立原始表；M01/M03 只作为可选规则叠加在 premium_products 上。
+  if (intent.scene === "premium") {
+    if (intent.methodId === "M02") {
+      throw new Error("精品选品暂不支持 M02 方法卡");
+    }
+    return buildPremiumProductsQueryPlan({ intent, page, size });
+  }
+
   if (intent.methodId) {
     return buildMethodCardQueryPlan({
       intent,
@@ -915,6 +1011,9 @@ export function buildSelectionQueryPlan(input: {
   }
   if (targetSource === "shop_products") {
     return buildShopProductsQueryPlan({ intent, page, size });
+  }
+  if (targetSource === "premium_products") {
+    return buildPremiumProductsQueryPlan({ intent, page, size });
   }
 
   return buildCompetitorQueryPlan({

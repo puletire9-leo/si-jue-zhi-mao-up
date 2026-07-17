@@ -12,15 +12,22 @@
 提供下载任务的创建、查询、下载、删除等接口
 """
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, Request, Response
+from fastapi.responses import FileResponse
 from typing import Optional, List
 from datetime import datetime
 import os
 import logging
-import urllib.parse
 
 from ...services.download_task_service import download_task_service
+from ...config import settings
+from ...utils.download_ticket import (
+    DOWNLOAD_TICKET_COOKIE,
+    DOWNLOAD_TICKET_TTL_SECONDS,
+    DownloadTicketError,
+    create_download_ticket,
+    verify_download_ticket,
+)
 
 logger = logging.getLogger(__name__)
 from ...models.download_task import (
@@ -30,6 +37,26 @@ from ...models.download_task import (
 from ...middleware.auth_middleware import require_auth
 
 router = APIRouter(prefix="/download-tasks", tags=["下载任务"])
+
+
+def _get_download_ticket_secret() -> str:
+    secret = os.getenv("JWT_SECRET") or settings.SECRET_KEY or os.getenv("JWT_SECRET_KEY", "")
+    if not secret:
+        raise HTTPException(status_code=500, detail="下载凭证密钥未配置")
+    return secret
+
+
+def _ensure_task_access(task, user_info: dict) -> None:
+    current_user_id = get_current_user_id(user_info)
+    if task.created_by and str(task.created_by) != str(current_user_id) and not is_admin(user_info):
+        raise HTTPException(status_code=403, detail="无权下载此任务")
+
+
+def _ensure_task_downloadable(task) -> None:
+    if task.status.value != "completed":
+        raise HTTPException(status_code=400, detail="任务尚未完成")
+    if not task.local_path or not os.path.exists(task.local_path):
+        raise HTTPException(status_code=404, detail="文件不存在")
 
 
 def get_current_user_id(user_info: dict) -> Optional[int]:
@@ -216,11 +243,47 @@ async def get_download_task(
     )
 
 
+@router.post("/{task_id}/download-session")
+async def create_download_session(
+    request: Request,
+    response: Response,
+    task_id: str,
+    user_info: dict = Depends(require_auth),
+):
+    """Issue a short-lived HttpOnly cookie for a browser-native download."""
+    mysql_repo = get_mysql_from_request(request)
+    download_task_service.set_mysql_repo(mysql_repo)
+
+    task = await download_task_service.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    _ensure_task_access(task, user_info)
+    _ensure_task_downloadable(task)
+
+    ticket = create_download_ticket(
+        task_id=task_id,
+        user_id=get_current_user_id(user_info),
+        secret=_get_download_ticket_secret(),
+    )
+    forwarded_proto = request.headers.get("X-Forwarded-Proto", request.url.scheme)
+    secure_cookie = forwarded_proto.split(",", 1)[0].strip().lower() == "https"
+    response.set_cookie(
+        key=DOWNLOAD_TICKET_COOKIE,
+        value=ticket,
+        max_age=DOWNLOAD_TICKET_TTL_SECONDS,
+        httponly=True,
+        secure=secure_cookie,
+        samesite="strict",
+        path=f"/api/v1/download-tasks/{task_id}/download",
+    )
+    return {"success": True, "expires_in": DOWNLOAD_TICKET_TTL_SECONDS}
+
+
 @router.get("/{task_id}/download")
 async def download_task_file(
     request: Request,
     task_id: str,
-    user_info: dict = Depends(require_auth)
 ):
     """
     下载任务文件
@@ -239,38 +302,29 @@ async def download_task_file(
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
     
-    # 检查任务状态
-    if task.status.value != "completed":
-        raise HTTPException(status_code=400, detail="任务尚未完成")
-    
-    # 检查文件是否存在
-    if not task.local_path or not os.path.exists(task.local_path):
-        raise HTTPException(status_code=404, detail="文件不存在")
-    
-    # 返回文件（使用StreamingResponse处理大文件）
-    
-    def iterfile():
-        with open(task.local_path, "rb") as f:
-            while True:
-                chunk = f.read(8192)  # 8KB chunks
-                if not chunk:
-                    break
-                yield chunk
-    
-    file_size = os.path.getsize(task.local_path)
-    
-    # 对文件名进行URL编码，处理中文文件名
-    encoded_filename = urllib.parse.quote(f"{task.name}.zip")
-    
-    return StreamingResponse(
-        iterfile(),
+    _ensure_task_downloadable(task)
+
+    ticket = request.cookies.get(DOWNLOAD_TICKET_COOKIE, "")
+    ticket_is_valid = False
+    if ticket:
+        try:
+            verify_download_ticket(ticket, task_id, _get_download_ticket_secret())
+            ticket_is_valid = True
+        except DownloadTicketError:
+            ticket_is_valid = False
+
+    if not ticket_is_valid:
+        user_info = await require_auth(request)
+        _ensure_task_access(task, user_info)
+
+    return FileResponse(
+        path=task.local_path,
         media_type="application/zip",
+        filename=f"{task.name}.zip",
         headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
-            "Content-Type": "application/zip",
-            "Content-Length": str(file_size),
-            "Accept-Ranges": "bytes"
-        }
+            "Cache-Control": "no-store",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 

@@ -261,6 +261,8 @@
                   type="primary"
                   size="small"
                   :icon="Download"
+                  :loading="downloadingTaskIds.has(row.id)"
+                  :disabled="downloadingTaskIds.has(row.id)"
                   @click="downloadFile(row)"
                 >
                   下载
@@ -611,6 +613,7 @@ const sourceOptions = [
 
 // 下载任务数据
 const downloadTasks = ref<DownloadTask[]>([]);
+const downloadingTaskIds = reactive(new Set<string>());
 
 // 分页配置
 const pagination = reactive({
@@ -929,13 +932,19 @@ const clearSelection = () => {
 
 // 下载文件
 const downloadFile = async (task: DownloadTask) => {
+  if (downloadingTaskIds.has(task.id)) return;
+  downloadingTaskIds.add(task.id);
   try {
     await downloadTaskFile(task.id, `${task.name}.zip`);
-    ElMessage.success("开始下载");
+    ElMessage.success("已交给浏览器下载，请查看浏览器下载列表");
   } catch (error: any) {
     console.error("下载文件失败:", error);
     ElMessage.error(`下载文件失败: ${error.message || "未知错误"}`);
+    downloadingTaskIds.delete(task.id);
+    return;
   }
+
+  window.setTimeout(() => downloadingTaskIds.delete(task.id), 3000);
 };
 
 // 重试任务

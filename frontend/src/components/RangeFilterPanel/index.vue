@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from "vue";
 import { QuestionFilled } from "@element-plus/icons-vue";
-import { getCreatedWeeks, getDengZongBatchDates } from "@/api/competitor";
+import {
+  getCreatedWeeks,
+  getDengZongBatchDates,
+  getPremiumCreatedWeeks,
+} from "@/api/competitor";
 import shopCollectionApi from "@/api/shopCollection";
 
 export interface RangeFilterValue {
@@ -35,7 +39,11 @@ const props = withDefaults(
     country?: string;
     /** 来源（如 '新品榜' / '竞品店铺'，与数据库 source 一致），用于把入库批次下拉对齐到查询口径 */
     source?: string;
-    snapshotKind?: "competitor_created_week" | "deng_zong_batch" | "shop_batch";
+    snapshotKind?:
+      | "competitor_created_week"
+      | "premium_created_week"
+      | "deng_zong_batch"
+      | "shop_batch";
     /** 外部页面提供自己的周期选项时复用本组件，不再请求选品源批次接口。 */
     snapshotOptions?: RangeSnapshotOption[];
     snapshotLabelText?: string;
@@ -108,11 +116,13 @@ const TOOLTIPS = {
 const currencySymbol = computed(() => CURRENCY_MAP[props.country] ?? "$");
 const snapshotLabel = computed(() =>
   props.snapshotLabelText ||
-  (props.snapshotKind === "competitor_created_week" ? "入库批次（周）" : "入库批次（批次日）"),
+  (["competitor_created_week", "premium_created_week"].includes(props.snapshotKind)
+    ? "入库批次（周）"
+    : "入库批次（批次日）"),
 );
 const snapshotPlaceholder = computed(() =>
   props.snapshotPlaceholderText ||
-  (props.snapshotKind === "competitor_created_week"
+  (["competitor_created_week", "premium_created_week"].includes(props.snapshotKind)
     ? "选择周批次（默认最新）"
     : "选择批次日期"),
 );
@@ -234,6 +244,15 @@ async function loadAvailableWeeks() {
       value: item.batchDate,
       label: item.batchDate,
       count: item.count,
+    }));
+  } else if (props.snapshotKind === "premium_created_week") {
+    const res = await getPremiumCreatedWeeks(props.country);
+    availableSnapshots.value = (res?.data ?? []).map((item) => ({
+      value: item.week,
+      label: item.week,
+      count: item.count,
+      startDate: item.startDate,
+      endDate: item.endDate,
     }));
   } else {
     const res = await getCreatedWeeks(props.country, props.source || undefined);

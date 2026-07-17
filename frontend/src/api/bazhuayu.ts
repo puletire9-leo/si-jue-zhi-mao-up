@@ -45,6 +45,12 @@ export interface BazhuayuTaskMapItem {
   id: number;
   marketplace: string;
   importType: string;
+  bazhuayuMappingId?: number | null;
+  bazhuayuTaskId?: string | null;
+  taskName?: string | null;
+  taskCategory?: string | null;
+  initialFilter: boolean;
+  targetTable?: string | null;
   status: string;
   processedCount: number;
   totalCount: number;
@@ -118,11 +124,29 @@ export interface BazhuayuCloudStat {
   cloudStatus: string | null;
   /** 云端当前已采集条数 */
   cloudCount: number;
+  /** 最新一次云采集批次号，格式 yyyyMMdd-HHmmss */
+  latestBatchNo: string | null;
+  latestBatchStartTime: string | null;
+  latestBatchExecutingTime: string | null;
+  latestBatchEndTime: string | null;
+  latestBatchCount: number;
   /** 上次刷新成功时间 ISO 字符串 */
   lastSyncAt: string | null;
   /** 上次刷新失败的错误信息(可能非空但 lastSyncAt 也非空,代表最近一次失败) */
   lastError: string | null;
   lastErrorAt: string | null;
+}
+
+export interface BazhuayuTaskEntry {
+  id: number;
+  taskName: string;
+  functionKey: string;
+  marketplace: string;
+  taskId: string;
+  taskCategory: string;
+  initialFilter: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /** 跨站点汇总（后端预计算） */
@@ -219,23 +243,48 @@ export const bazhuayuApi = {
   /** 读取已采数据：手动触发一次 drain 增量（异步，不启动云端） */
   trigger(
     marketplace?: string,
-  ): Promise<{ status: string; marketplace: string }> {
+    taskId?: string,
+    func = "bangdan",
+    batch?: Pick<
+      BazhuayuCloudStat,
+      | "latestBatchNo"
+      | "latestBatchStartTime"
+      | "latestBatchEndTime"
+      | "latestBatchCount"
+    >,
+  ): Promise<{ status: string; marketplace: string; batchNo: string }> {
     return unwrap(
       request({
         url: "/api/v1/modules/bazhuayu/trigger",
         method: "post",
-        params: marketplace ? { marketplace } : {},
+        params: {
+          function: func,
+          ...(marketplace ? { marketplace } : {}),
+          ...(taskId ? { taskId } : {}),
+          ...(batch?.latestBatchNo ? { batchNo: batch.latestBatchNo } : {}),
+          ...(batch?.latestBatchStartTime
+            ? { batchStartTime: batch.latestBatchStartTime }
+            : {}),
+          ...(batch?.latestBatchEndTime
+            ? { batchEndTime: batch.latestBatchEndTime }
+            : {}),
+          ...(batch ? { batchCount: batch.latestBatchCount || 0 } : {}),
+        },
       }),
     );
   },
 
   /** 启动云端采集一条龙（启动→等待→榜单则入库初筛，全异步） */
-  startCollect(func: string, marketplace?: string): Promise<StartCollectResp> {
+  startCollect(func: string, marketplace?: string, taskId?: string): Promise<StartCollectResp> {
     return unwrap(
       request({
         url: "/api/v1/modules/bazhuayu/start-collect",
         method: "post",
-        params: { function: func, ...(marketplace ? { marketplace } : {}) },
+        params: {
+          function: func,
+          ...(marketplace ? { marketplace } : {}),
+          ...(taskId ? { taskId } : {}),
+        },
       }),
     );
   },
@@ -244,6 +293,7 @@ export const bazhuayuApi = {
   stopCollect(
     func: string,
     marketplace: string,
+    taskId?: string,
   ): Promise<{
     function: string;
     marketplace: string;
@@ -254,7 +304,7 @@ export const bazhuayuApi = {
       request({
         url: "/api/v1/modules/bazhuayu/stop-collect",
         method: "post",
-        params: { function: func, marketplace },
+        params: { function: func, marketplace, ...(taskId ? { taskId } : {}) },
       }),
     );
   },
@@ -298,6 +348,8 @@ export const bazhuayuApi = {
   /** 读回当前生效的任务映射（DB 优先，env 回退）+ 来源标识 */
   getMapping(): Promise<{
     mapping: Record<string, Record<string, string>>;
+    taskNames: Record<string, Record<string, string>>;
+    entries: BazhuayuTaskEntry[];
     fromDb: boolean;
   }> {
     return unwrap(
@@ -306,6 +358,41 @@ export const bazhuayuApi = {
         method: "get",
       }),
     );
+  },
+
+  createTaskEntry(data: {
+    taskName: string;
+    function: string;
+    marketplace: string;
+    taskId: string;
+    taskCategory: string;
+    initialFilter?: boolean;
+  }): Promise<BazhuayuTaskEntry> {
+    return unwrap(request({
+      url: "/api/v1/modules/bazhuayu/config/task-entry",
+      method: "post",
+      data,
+    }));
+  },
+
+  updateTaskEntry(id: number, data: {
+    taskName: string;
+    taskId: string;
+    taskCategory: string;
+    initialFilter?: boolean;
+  }): Promise<BazhuayuTaskEntry> {
+    return unwrap(request({
+      url: `/api/v1/modules/bazhuayu/config/task-entry/${id}`,
+      method: "put",
+      data,
+    }));
+  },
+
+  deleteTaskEntry(id: number): Promise<void> {
+    return unwrap(request({
+      url: `/api/v1/modules/bazhuayu/config/task-entry/${id}`,
+      method: "delete",
+    }));
   },
 
   /** 整包覆盖任务映射（旧接口，PUT，JSON） */
@@ -326,12 +413,13 @@ export const bazhuayuApi = {
     function_: string,
     marketplace: string,
     taskId: string,
+    taskName: string,
   ): Promise<Record<string, Record<string, string>>> {
     return unwrap(
       request({
         url: "/api/v1/modules/bazhuayu/config/mapping/entry",
         method: "post",
-        data: { function: function_, marketplace, taskId },
+        data: { function: function_, marketplace, taskId, taskName },
       }),
     );
   },
@@ -367,6 +455,7 @@ export const bazhuayuApi = {
   refreshCloudStats(
     function_?: string,
     marketplace?: string,
+    taskId?: string,
   ): Promise<{
     refreshed: number;
     stat?: BazhuayuCloudStat;
@@ -379,8 +468,9 @@ export const bazhuayuApi = {
         params: {
           ...(function_ ? { function: function_ } : {}),
           ...(marketplace ? { marketplace } : {}),
+          ...(taskId ? { taskId } : {}),
         },
-        // 全刷需要串 6 个云端 API + 云端限流，放到 90s
+        // 全刷走一次批量状态接口；保留较长超时以兼容云端偶发延迟和退避重试。
         timeout: 90000,
       }),
     );

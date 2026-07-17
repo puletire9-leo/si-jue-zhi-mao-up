@@ -382,6 +382,74 @@ export interface ShopSelectionCategory {
   count: number;
 }
 
+export interface ShopScreeningBatch {
+  batchCode: string;
+  shopCount: number;
+  productCount: number;
+}
+
+export interface ShopScreeningRow {
+  marketplace: string;
+  sellerName: string;
+  sellerId: string | null;
+  productCount: number;
+  passedProductCount: number;
+  m01HitCount: number;
+  m01HitRatio: number | null;
+  avgListingDays: number | null;
+  avgUnits: number | null;
+  new30Count: number;
+  new90Count: number;
+  aCount: number;
+  bCount: number;
+  cCount: number;
+  dCount: number;
+  abcCount: number;
+  abcRatio: number | null;
+  topCategory: string | null;
+  latestBatchCode: string | null;
+  watchlistId: number | null;
+  watchlistStatus: string | null;
+  sourceType: string | null;
+  sourceCode: string | null;
+  reason: string | null;
+  sourceHitCount: number | null;
+  totalRows: number;
+  totalProductCount: number;
+  totalPassedProductCount: number;
+  totalM01HitCount: number;
+}
+
+export interface ShopScreeningQuery {
+  marketplace: string;
+  scope?: 'ALL' | 'WATCHLIST';
+  batchCodes?: string[];
+  sellerNames?: string[];
+  sellerKeyword?: string;
+  watchlistStatus?: string;
+  sourceType?: string;
+  priceMin?: number;
+  priceMax?: number;
+  unitsMin?: number;
+  unitsMax?: number;
+  listingDaysMin?: number;
+  listingDaysMax?: number;
+  bsrMax?: number;
+  weightMax?: number;
+  maxVariantCount?: number;
+  fulfillment?: string[];
+  categories?: string[];
+  m01Only?: boolean;
+  minProductCount?: number;
+  minPassedProductCount?: number;
+  minM01HitCount?: number;
+  avgListingDaysMax?: number;
+  sortBy?: 'productCount' | 'passedProductCount' | 'm01HitCount' | 'avgListingDays' | 'new90Count';
+  sortOrder?: 'asc' | 'desc';
+  page?: number;
+  size?: number;
+}
+
 /** Result<T> 解包 */
 function unwrap<T>(p: Promise<any>): Promise<T> {
   return p.then((res) => res?.data as T);
@@ -390,6 +458,18 @@ function unwrap<T>(p: Promise<any>): Promise<T> {
 const BASE = "/api/v1/modules/shop-collection";
 
 export const shopCollectionApi = {
+  screenShops(params: ShopScreeningQuery): Promise<PageResult<ShopScreeningRow>> {
+    return unwrap<PageResult<ShopScreeningRow>>(
+      request({ url: `${BASE}/shop-screening`, method: 'post', data: params }),
+    );
+  },
+
+  screeningBatches(marketplace: string): Promise<ShopScreeningBatch[]> {
+    return unwrap<ShopScreeningBatch[]>(
+      request({ url: `${BASE}/screening-batches`, method: 'get', params: { marketplace } }),
+    ).then((items) => (Array.isArray(items) ? items : []));
+  },
+
   /** 查询观察池 */
   listWatchlist(
     marketplace?: string,
@@ -479,12 +559,14 @@ export const shopCollectionApi = {
   },
 
   /** 统一选品页：店铺商品类目下拉。 */
-  selectionCategories(marketplace: string): Promise<ShopSelectionCategory[]> {
+  selectionCategories(
+    params: ShopProductSelectionParams,
+  ): Promise<ShopSelectionCategory[]> {
     return unwrap<ShopSelectionCategory[]>(
       request({
-        url: `${BASE}/selection-categories`,
-        method: 'get',
-        params: { marketplace },
+        url: `${BASE}/selection-categories/query`,
+        method: 'post',
+        data: { ...params, categories: undefined, page: undefined, size: undefined },
       }),
     ).then((items) => (Array.isArray(items) ? items : []));
   },

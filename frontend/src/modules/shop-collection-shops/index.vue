@@ -1,20 +1,13 @@
 <template>
   <div class="shop-shops">
     <el-card shadow="never" class="header-card">
-      <div class="toolbar">
-        <el-select v-model="marketplace" placeholder="站点" style="width: 120px" @change="loadList">
-          <el-option label="UK" value="UK" />
-          <el-option label="DE" value="DE" />
-          <el-option label="US" value="US" />
-        </el-select>
-        <el-input v-model="keyword" placeholder="店铺名筛选" clearable style="width: 200px" @keyup.enter="loadList" />
-        <el-input-number v-model="minM01" :min="0" :controls="false" placeholder="M01命中≥" style="width: 110px" />
-        <el-input-number v-model="minNew90" :min="0" :controls="false" placeholder="90天新品≥" style="width: 110px" />
-        <el-input-number v-model="minGood" :min="0" :controls="false" placeholder="好品倾向≥" style="width: 120px" />
-        <el-input-number v-model="maxStrong" :min="0" :controls="false" placeholder="强注意≤" style="width: 110px" />
-        <el-button type="primary" @click="loadList">查询</el-button>
-        <div class="tip">展示已通过请求中心抓取成功的店铺选品数据，数据源为 shop_products（variation=Y，不含变体父体）。点击店铺查看商品数据。</div>
-      </div>
+      <ShopScreeningToolbar
+        v-model="screeningFilters"
+        :batches="screeningBatches"
+        :loading="loading"
+        @search="searchList"
+        @marketplace-change="handleMarketplaceChange"
+      />
     </el-card>
 
     <el-card shadow="never">
@@ -23,18 +16,11 @@
           <el-empty description="暂无店铺选品数据。请先创建店铺抓取任务，完成后在此查看商品数据。" />
         </template>
         <el-table-column prop="sellerName" label="店铺名" min-width="170" show-overflow-tooltip />
-        <el-table-column prop="productCount" label="商品数" width="90" sortable />
-        <el-table-column label="结构标签" width="140">
-          <template #default="{ row }">
-            <el-tag size="small" :type="profileTagType(row.profileType)">{{ row.profileType || '-' }}</el-tag>
-          </template>
+        <el-table-column prop="latestBatchCode" label="周批次" width="105" />
+        <el-table-column prop="passedProductCount" label="通过筛选" width="100">
+          <template #default="{ row }"><strong class="good">{{ row.passedProductCount }}</strong></template>
         </el-table-column>
-        <el-table-column label="三维类型" min-width="150" show-overflow-tooltip>
-          <template #default="{ row }">
-            <el-tag v-if="row.shopProfile3dType" size="small" type="primary" effect="plain">{{ row.shopProfile3dType }}</el-tag>
-            <span v-else class="muted">-</span>
-          </template>
-        </el-table-column>
+        <el-table-column prop="productCount" label="商品数" width="90" />
         <el-table-column label="A/B/C/D" min-width="170">
           <template #default="{ row }">
             <span class="tier a">{{ row.aCount }}</span> /
@@ -43,30 +29,18 @@
             <span class="tier d">{{ row.dCount }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="ABC稳定盘" width="120">
+        <el-table-column label="ABC" width="110">
           <template #default="{ row }">{{ row.abcCount }}（{{ pct(row.abcRatio) }}）</template>
         </el-table-column>
-        <el-table-column label="D测品池" width="110">
-          <template #default="{ row }">{{ row.dCount }}（{{ pct(row.dRatio) }}）</template>
-        </el-table-column>
-        <el-table-column prop="topABCCategory" label="ABC主类目" min-width="140" show-overflow-tooltip />
-        <el-table-column label="M01命中" width="110" sortable :sort-method="(a, b) => (a.m01HitCount || 0) - (b.m01HitCount || 0)">
+        <el-table-column prop="topCategory" label="通过商品主类目" min-width="150" show-overflow-tooltip />
+        <el-table-column label="M01命中" width="110">
           <template #default="{ row }">
             <el-tag v-if="row.m01HitCount" size="small" type="success">{{ row.m01HitCount }}（{{ pct(row.m01HitRatio) }}）</el-tag>
             <span v-else class="muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="90天新品" width="90" sortable :sort-method="(a, b) => (a.new90Count || 0) - (b.new90Count || 0)">
+        <el-table-column label="90天新品" width="90">
           <template #default="{ row }">{{ row.new90Count ?? '-' }}</template>
-        </el-table-column>
-        <el-table-column label="新ABC" width="90" sortable :sort-method="(a, b) => (a.newABCCount || 0) - (b.newABCCount || 0)">
-          <template #default="{ row }">{{ row.newABCCount ?? 0 }}</template>
-        </el-table-column>
-        <el-table-column label="好品/强注意" width="120">
-          <template #default="{ row }">
-            <span class="good">{{ row.goodTendencyCount ?? 0 }}</span> /
-            <span class="danger">{{ row.attentionStrongCount ?? 0 }}</span>
-          </template>
         </el-table-column>
         <el-table-column label="平均上架天数" width="110">
           <template #default="{ row }">{{ row.avgListingDays != null ? Math.round(row.avgListingDays) : '-' }}</template>
@@ -77,6 +51,16 @@
           </template>
         </el-table-column>
       </el-table>
+      <el-pagination
+        v-model:current-page="screeningPage"
+        v-model:page-size="screeningSize"
+        :page-sizes="[20, 30, 50, 100]"
+        :total="screeningTotal"
+        layout="total, sizes, prev, pager, next"
+        class="screening-pager"
+        @current-change="loadList"
+        @size-change="handleSizeChange"
+      />
     </el-card>
 
     <el-drawer v-model="drawerVisible" :title="detailTitle" size="70%" destroy-on-close>
@@ -475,7 +459,8 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute } from 'vue-router'
 import shopCollectionApi, {
-    type ShopProfileSummary,
+    type ShopScreeningRow,
+    type ShopScreeningBatch,
     type ShopCollectionDetail,
     type ShopProfileProduct,
     type ShopSnapshot,
@@ -485,18 +470,23 @@ import shopCollectionApi, {
     type ShopMatrix,
     type ShopMatrixCell
   } from '@/api/shopCollection'
+import ShopScreeningToolbar from '@/modules/shop-collection-shared/ShopScreeningToolbar.vue'
+import {
+  buildShopScreeningQuery,
+  createShopScreeningFilters,
+} from '@/modules/shop-collection-shared/shopScreening'
 import { shopPremiumApi } from '@/api/shopPremium'
 import { competitorApi } from '@/api/competitor'
 import { shopCandidateApi } from '@/api/shopCandidate'
 
 const route = useRoute()
 const marketplace = ref('UK')
-const keyword = ref('')
-const minM01 = ref<number | undefined>(undefined)
-const minNew90 = ref<number | undefined>(undefined)
-const minGood = ref<number | undefined>(undefined)
-const maxStrong = ref<number | undefined>(undefined)
-const rows = ref<ShopProfileSummary[]>([])
+const screeningFilters = ref(createShopScreeningFilters('UK'))
+const screeningBatches = ref<ShopScreeningBatch[]>([])
+const screeningPage = ref(1)
+const screeningSize = ref(30)
+const screeningTotal = ref(0)
+const rows = ref<ShopScreeningRow[]>([])
 const loading = ref(false)
 
 const drawerVisible = ref(false)
@@ -543,22 +533,43 @@ const currentSnapshot = computed(() => snapshots.value.find((item) => item.sourc
 async function loadList() {
   loading.value = true
   try {
-    rows.value = await shopCollectionApi.selectionShops({
-      marketplace: marketplace.value,
-      sellerName: keyword.value || undefined,
-      minM01HitCount: minM01.value ?? undefined,
-      minNew90Count: minNew90.value ?? undefined,
-      minGoodTendencyCount: minGood.value ?? undefined,
-      maxAttentionStrongCount: maxStrong.value ?? undefined
-    })
+    marketplace.value = screeningFilters.value.marketplace
+    const result = await shopCollectionApi.screenShops(buildShopScreeningQuery(
+      screeningFilters.value, 'ALL', screeningPage.value, screeningSize.value
+    ))
+    rows.value = result.list || []
+    screeningTotal.value = result.total || 0
   } catch (e: any) {
+    rows.value = []
+    screeningTotal.value = 0
     ElMessage.error(e?.message || '加载失败')
   } finally {
     loading.value = false
   }
 }
 
-async function openDetail(row: ShopProfileSummary) {
+async function loadScreeningBatches() {
+  screeningBatches.value = await shopCollectionApi.screeningBatches(screeningFilters.value.marketplace)
+}
+
+function searchList() {
+  screeningPage.value = 1
+  loadList()
+}
+
+async function handleMarketplaceChange() {
+  marketplace.value = screeningFilters.value.marketplace
+  screeningPage.value = 1
+  await loadScreeningBatches()
+  await loadList()
+}
+
+function handleSizeChange() {
+  screeningPage.value = 1
+  loadList()
+}
+
+async function openDetail(row: ShopScreeningRow) {
   await openSeller(row.sellerName)
 }
 
@@ -874,7 +885,10 @@ function profileTagType(t: string | null): 'success' | 'primary' | 'warning' | '
 }
 
 async function openFromRouteQuery() {
-  if (route.query.marketplace) marketplace.value = String(route.query.marketplace)
+  if (route.query.marketplace) {
+    marketplace.value = String(route.query.marketplace)
+    screeningFilters.value.marketplace = marketplace.value
+  }
   if (route.query.sellerName) {
     const seller = String(route.query.sellerName)
     const tab = route.query.tab ? String(route.query.tab) : 'overview'
@@ -887,7 +901,11 @@ async function openFromRouteQuery() {
 }
 
 onMounted(async () => {
-  if (route.query.marketplace) marketplace.value = String(route.query.marketplace)
+  if (route.query.marketplace) {
+    marketplace.value = String(route.query.marketplace)
+    screeningFilters.value.marketplace = marketplace.value
+  }
+  await loadScreeningBatches()
   await loadList()
   await openFromRouteQuery()
 })
@@ -900,6 +918,7 @@ watch(
     const previousMarketplace = marketplace.value
     await openFromRouteQuery()
     if (marketplace.value !== previousMarketplace) {
+      await loadScreeningBatches()
       await loadList()
     }
   }
@@ -912,6 +931,10 @@ watch(
 }
 .header-card {
   margin-bottom: 12px;
+}
+.screening-pager {
+  justify-content: flex-end;
+  padding: 12px 16px;
 }
 .toolbar {
   display: flex;

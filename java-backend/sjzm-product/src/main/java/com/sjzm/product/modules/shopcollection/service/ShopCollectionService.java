@@ -563,9 +563,30 @@ public class ShopCollectionService {
     public PageResult<ShopProduct> selectionProducts(ShopProductSelectionQuery query) {
         int page = Math.max(1, query.getPage() == null ? 1 : query.getPage());
         int size = Math.min(500, Math.max(1, query.getSize() == null ? 60 : query.getSize()));
+        LambdaQueryWrapper<ShopProduct> qw = buildSelectionProductFilter(query, true);
+
+        boolean asc = "asc".equalsIgnoreCase(query.getSortOrder());
+        switch (query.getSortBy() == null ? "" : query.getSortBy()) {
+            case "salesVolume" -> qw.orderBy(true, asc, ShopProduct::getUnits);
+            case "price" -> qw.orderBy(true, asc, ShopProduct::getPrice);
+            case "listingDate" -> qw.orderBy(true, asc, ShopProduct::getAvailableDate);
+            case "bsr" -> qw.orderBy(true, asc, ShopProduct::getBsr);
+            case "score" -> qw.orderBy(true, asc, ShopProduct::getScore);
+            case "createdAt" -> qw.orderBy(true, asc, ShopProduct::getCreatedAt);
+            default -> qw.orderByDesc(ShopProduct::getUpdatedAt);
+        }
+        qw.orderByAsc(ShopProduct::getAsin);
+
+        Page<ShopProduct> result = shopProductMapper.selectPage(new Page<>(page, size), qw);
+        return PageResult.of(result.getRecords(), result.getTotal(), (long) page, (long) size);
+    }
+
+    /** 商品分页和类目统计的唯一筛选入口；统计类目时只排除 category 自身。 */
+    private LambdaQueryWrapper<ShopProduct> buildSelectionProductFilter(
+            ShopProductSelectionQuery query,
+            boolean includeCategories) {
         String marketplace = MarketplaceSupport.require(query.getMarketplace());
         String methodId = normalizeSelectionMethod(query.getMethodId());
-
         LambdaQueryWrapper<ShopProduct> qw = new LambdaQueryWrapper<ShopProduct>()
                 .eq(ShopProduct::getMarketplace, marketplace)
                 .in(hasItems(query.getAsins()), ShopProduct::getAsin, query.getAsins())
@@ -587,45 +608,36 @@ public class ShopCollectionService {
 
         applySelectionMethodRule(qw, methodId, marketplace);
 
-        if (hasItems(query.getCategories())) {
-            List<String> categories = query.getCategories().stream().filter(StringUtils::hasText).toList();
+        if (includeCategories && hasItems(query.getCategories())) {
+            List<String> categories = query.getCategories().stream()
+                    .filter(StringUtils::hasText)
+                    .map(String::trim)
+                    .distinct()
+                    .toList();
             if (!categories.isEmpty()) {
+                // 与分类聚合统一按 TRIM 后的完整路径精确匹配，兼容历史首尾空格脏数据。
                 qw.and(group -> {
-                    group.like(ShopProduct::getNodeLabelPath, categories.get(0));
+                    group.apply("TRIM(node_label_path) = {0}", categories.get(0));
                     for (int i = 1; i < categories.size(); i++) {
-                        group.or().like(ShopProduct::getNodeLabelPath, categories.get(i));
+                        group.or().apply("TRIM(node_label_path) = {0}", categories.get(i));
                     }
                 });
             }
         }
-
-        boolean asc = "asc".equalsIgnoreCase(query.getSortOrder());
-        switch (query.getSortBy() == null ? "" : query.getSortBy()) {
-            case "salesVolume" -> qw.orderBy(true, asc, ShopProduct::getUnits);
-            case "price" -> qw.orderBy(true, asc, ShopProduct::getPrice);
-            case "listingDate" -> qw.orderBy(true, asc, ShopProduct::getAvailableDate);
-            case "bsr" -> qw.orderBy(true, asc, ShopProduct::getBsr);
-            case "score" -> qw.orderBy(true, asc, ShopProduct::getScore);
-            case "createdAt" -> qw.orderBy(true, asc, ShopProduct::getCreatedAt);
-            default -> qw.orderByDesc(ShopProduct::getUpdatedAt);
-        }
-
-        Page<ShopProduct> result = shopProductMapper.selectPage(new Page<>(page, size), qw);
-        return PageResult.of(result.getRecords(), result.getTotal(), (long) page, (long) size);
+        return qw;
     }
 
     /** 统一选品页的店铺商品类目下拉。 */
     public List<Map<String, Object>> selectionCategories(String marketplace) {
-        String mp = MarketplaceSupport.require(marketplace);
-        QueryWrapper<ShopProduct> qw = new QueryWrapper<ShopProduct>()
-                .select("node_label_path AS category", "COUNT(1) AS count")
-                .eq("marketplace", mp)
-                .isNotNull("node_label_path")
-                .ne("node_label_path", "")
-                .groupBy("node_label_path")
-                .orderByDesc("count")
-                .last("LIMIT 200");
-        return shopProductMapper.selectMaps(qw);
+        ShopProductSelectionQuery query = new ShopProductSelectionQuery();
+        query.setMarketplace(marketplace);
+        return selectionCategories(query);
+    }
+
+    /** 与当前店铺商品查询同口径的类目统计，当前已选类目不参与统计收窄。 */
+    public List<Map<String, Object>> selectionCategories(ShopProductSelectionQuery query) {
+        return shopProductMapper.selectSelectionCategories(
+                buildSelectionProductFilter(query, false));
     }
 
     /** 统一选品页的店铺抓取批次下拉；不默认过滤，用户选择后才按批次收窄。 */
@@ -670,7 +682,10 @@ public class ShopCollectionService {
         qw.ge(ShopProduct::getPrice, rule.priceMin())
                 .le(ShopProduct::getPrice, rule.priceMax())
                 .lt(ShopProduct::getWeightG, rule.weightMax())
-                .lt(ShopProduct::getListingDays, rule.listingDaysMax());
+                .lt(ShopProduct::getListingDays, rule.listingDaysMax())
+                .and(units -> units.isNull(ShopProduct::getUnits)
+                        .or()
+                        .le(ShopProduct::getUnits, rule.salesMax()));
 
         // 与 M01Rule.matches 的 30/60/90 天分档及 BSR 兜底保持逐项同口径。
         qw.and(group -> {

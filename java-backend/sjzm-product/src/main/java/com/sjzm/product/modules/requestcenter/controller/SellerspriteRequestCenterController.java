@@ -95,9 +95,16 @@ public class SellerspriteRequestCenterController {
             @RequestParam(required = false) String triggerType,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String batchCode,
+            @RequestParam(required = false) String month,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "50") int size) {
-        return Result.success(centerService.listRuns(requestType, triggerType, status, batchCode, page, size));
+        return Result.success(centerService.listRuns(requestType, triggerType, status, batchCode, month, page, size));
+    }
+
+    @GetMapping("/usage-summary")
+    @Operation(summary = "按自然月汇总请求中心任务数和卖家精灵使用次数")
+    public Result<Map<String, Object>> usageSummary(@RequestParam(required = false) String month) {
+        return Result.success(centerService.monthlyUsageSummary(month));
     }
 
     @GetMapping("/health")

@@ -1,6 +1,10 @@
 package com.sjzm.product.modules.shopcollection.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.sjzm.common.PageResult;
 import com.sjzm.product.modules.analysisbaseline.shopprofile.mapper.ShopProfileMapper;
 import com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileProduct;
@@ -8,17 +12,21 @@ import com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileSumm
 import com.sjzm.product.modules.shopcandidate.entity.ShopFetchRun;
 import com.sjzm.product.modules.shopcandidate.mapper.ShopFetchRunMapper;
 import com.sjzm.product.modules.shopcollection.dto.ShopTierAgeCategoryCell;
+import com.sjzm.product.modules.shopcollection.dto.ShopProductSelectionQuery;
 import com.sjzm.product.modules.shopcollection.entity.ShopProduct;
 import com.sjzm.product.modules.shopcollection.mapper.ShopProductMapper;
 import com.sjzm.product.modules.shopcollection.mapper.ShopWatchlistMapper;
 import com.sjzm.product.modules.shopcollection.rule.ShopProfileLabelRule;
 import com.sjzm.product.modules.shopcollection.rule.ShopProfileLabelRule.CategoryLabel;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,6 +59,57 @@ class ShopCollectionServiceTest {
 
     @InjectMocks
     ShopCollectionService service;
+
+    @BeforeEach
+    void initShopProductTableInfo() {
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), "test"),
+                ShopProduct.class);
+    }
+
+    @Test
+    void selectionCategoriesReuseM01AndBatchFiltersButIgnoreCurrentCategory() {
+        ShopProductSelectionQuery query = new ShopProductSelectionQuery();
+        query.setMarketplace("US");
+        query.setMethodId("M01");
+        query.setBatchDates(List.of("20260714"));
+        query.setCategories(List.of("Sports & Outdoors:Fan Shop"));
+        when(shopProductMapper.selectSelectionCategories(ArgumentMatchers.any()))
+                .thenReturn(List.of(Map.of("category", "Sports & Outdoors:Fan Shop", "count", 3L)));
+
+        service.selectionCategories(query);
+
+        ArgumentCaptor<Wrapper<ShopProduct>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(shopProductMapper).selectSelectionCategories(wrapperCaptor.capture());
+        Wrapper<ShopProduct> wrapper = wrapperCaptor.getValue();
+        LambdaQueryWrapper<ShopProduct> lambdaWrapper = (LambdaQueryWrapper<ShopProduct>) wrapper;
+        assertThat(wrapper.getCustomSqlSegment())
+                .contains("marketplace", "batch_date", "price", "listing_days")
+                .doesNotContain("node_label_path");
+        assertThat(lambdaWrapper.getParamNameValuePairs().values())
+                .contains("US", "20260714")
+                .doesNotContain("Sports & Outdoors:Fan Shop");
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void selectionProductsMatchSelectedFullCategoryExactly() {
+        ShopProductSelectionQuery query = new ShopProductSelectionQuery();
+        query.setMarketplace("US");
+        query.setCategories(List.of("Sports & Outdoors:Fan Shop:Outdoor Flags"));
+        when(shopProductMapper.selectPage(ArgumentMatchers.any(Page.class), ArgumentMatchers.any(Wrapper.class)))
+                .thenReturn(new Page<>(1, 60, 0));
+
+        service.selectionProducts(query);
+
+        ArgumentCaptor<Wrapper<ShopProduct>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(shopProductMapper).selectPage(ArgumentMatchers.any(Page.class), wrapperCaptor.capture());
+        Wrapper<ShopProduct> wrapper = wrapperCaptor.getValue();
+        LambdaQueryWrapper<ShopProduct> lambdaWrapper = (LambdaQueryWrapper<ShopProduct>) wrapper;
+        assertThat(wrapper.getCustomSqlSegment()).contains("TRIM(node_label_path) =");
+        assertThat(lambdaWrapper.getParamNameValuePairs().values())
+                .contains("Sports & Outdoors:Fan Shop:Outdoor Flags");
+    }
 
     @Test
     void resolveSnapshotRejectsSourceRunFromAnotherShop() {

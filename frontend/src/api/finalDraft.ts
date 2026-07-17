@@ -89,9 +89,9 @@ export const finalDraftApi = {
   /**
    * 更新定稿
    */
-  update(sku: string, data: any): Promise<ApiResponse<FinalDraft>> {
+  update(id: number, data: any): Promise<ApiResponse<FinalDraft>> {
     return request({
-      url: `/api/v1/final-drafts/sku/${sku}`,
+      url: `/api/v1/final-drafts/${id}`,
       method: 'put',
       data
     })
@@ -100,9 +100,9 @@ export const finalDraftApi = {
   /**
    * 删除定稿（移动到回收站）
    */
-  delete(sku: string): Promise<ApiResponse<{ message: string; sku: string }>> {
+  delete(id: number): Promise<ApiResponse<{ message: string; sku: string }>> {
     return request({
-      url: `/api/v1/final-drafts/${sku}`,
+      url: `/api/v1/final-drafts/${id}`,
       method: 'delete'
     })
   },

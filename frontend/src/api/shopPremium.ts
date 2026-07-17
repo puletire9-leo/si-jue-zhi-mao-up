@@ -89,6 +89,12 @@ export interface PageResult<T> {
   totalPages: number
 }
 
+export interface SellerspriteMonthlyUsageSummary {
+  month: string
+  taskCount: number
+  totalApiCalls: number
+}
+
 /** dry-run 预览结果 */
 export interface RefreshDryRunResult {
   totalRequested: number
@@ -227,8 +233,14 @@ export const requestCenterApi = {
     return unwrap<number>(request({ url: `${RC_BASE}/tasks/${runId}/stop`, method: 'post' }))
   },
 
-  listTasks(params: { requestType?: string; triggerType?: string; status?: string; batchCode?: string; page?: number; size?: number }): Promise<PageResult<SellerspriteRequestRun>> {
+  listTasks(params: { requestType?: string; triggerType?: string; status?: string; batchCode?: string; month?: string; page?: number; size?: number }): Promise<PageResult<SellerspriteRequestRun>> {
     return unwrap<PageResult<SellerspriteRequestRun>>(request({ url: `${RC_BASE}/tasks`, method: 'get', params }))
+  },
+
+  monthlyUsageSummary(month?: string): Promise<SellerspriteMonthlyUsageSummary> {
+    return unwrap<SellerspriteMonthlyUsageSummary>(
+      request({ url: `${RC_BASE}/usage-summary`, method: 'get', params: month ? { month } : {} })
+    )
   },
 
   getTask(runId: string): Promise<SellerspriteRequestRun> {

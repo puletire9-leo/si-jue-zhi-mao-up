@@ -33,6 +33,10 @@ config/
 | 服务端口、超时、白名单 | `config/public/{dev,prod}.env` |
 | API key、密码、JWT secret | `config/secrets/{dev,prod}.env` |
 
+生产数据库连接与门禁配置统一放在 `config/public/prod.env`：
+`MYSQL_*_POOL_*` 控制各服务连接池，`DB_HEAVY_QUERY_MAX_CONCURRENCY`、
+`DB_EXPORT_MAX_CONCURRENCY`、`DB_HEAVY_WRITE_MAX_CONCURRENCY` 控制重负载并发。
+
 ### 2. docker-compose 引用
 
 ```yaml

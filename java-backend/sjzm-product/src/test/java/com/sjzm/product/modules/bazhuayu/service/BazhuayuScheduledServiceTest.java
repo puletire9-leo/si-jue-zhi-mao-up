@@ -2,9 +2,12 @@ package com.sjzm.product.modules.bazhuayu.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sjzm.product.config.DatabaseWorkloadGate;
 import com.sjzm.product.modules.bazhuayu.config.BazhuayuConfig;
+import com.sjzm.product.modules.bazhuayu.entity.BazhuayuTaskMapping;
 import com.sjzm.product.modules.bazhuayu.entity.BazhuayuWeeklyRaw;
 import com.sjzm.product.mapper.BazhuayuWeeklyRawMapper;
+import com.sjzm.product.modules.bazhuayu.mapper.PremiumProductMapper;
 import com.sjzm.product.service.AsinImportService;
 import com.sjzm.product.service.ScoringService;
 import org.junit.jupiter.api.Test;
@@ -46,8 +49,12 @@ class BazhuayuScheduledServiceTest {
                 mock(AsinImportService.StreamingFilterContext.class);
 
         when(scoringService.getCurrentWeekTag()).thenReturn("2026-W27");
-        when(configService.getMarketplaceTaskMap()).thenReturn(Map.of("US", "task-us"));
-        when(asinImportService.createStreamingTask("US", "BAZHUAYU_AUTO")).thenReturn(ctx);
+        BazhuayuTaskMapping entry = taskEntry("task-us", "美国榜单采集精铺", "精铺", true);
+        when(configService.listTaskEntries()).thenReturn(List.of(entry));
+        when(configService.findTaskEntry("bangdan", "US", "task-us")).thenReturn(entry);
+        when(asinImportService.createStreamingTask(
+                "US", "BAZHUAYU_AUTO", 7L, "task-us", "美国榜单采集精铺",
+                "精铺", true, "competitor_products")).thenReturn(ctx);
         when(asinImportService.finishStreamingTask(ctx)).thenReturn(Map.of("taskId", 99L));
 
         doAnswer(invocation -> {
@@ -60,8 +67,8 @@ class BazhuayuScheduledServiceTest {
         }).when(client).drainNotExported(anyString(), any(), anyInt(), nullable(BooleanSupplier.class));
 
         BazhuayuScheduledService service = new BazhuayuScheduledService(
-                client, configService, config, rawMapper, asinImportService,
-                scoringService, runState, executor);
+                client, configService, config, rawMapper, mock(PremiumProductMapper.class), asinImportService,
+                scoringService, runState, executor, workloadGate());
 
         Map<String, Object> result = service.runCollection("US");
 
@@ -85,19 +92,89 @@ class BazhuayuScheduledServiceTest {
         config.setDrainMaxRows(1000);
 
         when(scoringService.getCurrentWeekTag()).thenReturn("2026-W27");
-        when(configService.getMarketplaceTaskMap()).thenReturn(Map.of("US", "task-us"));
+        BazhuayuTaskMapping entry = taskEntry("task-us", "美国榜单采集精铺", "精铺", true);
+        AsinImportService.StreamingFilterContext ctx = mock(AsinImportService.StreamingFilterContext.class);
+        when(configService.listTaskEntries()).thenReturn(List.of(entry));
+        when(configService.findTaskEntry("bangdan", "US", "task-us")).thenReturn(entry);
+        when(asinImportService.createStreamingTask(
+                "US", "BAZHUAYU_AUTO", 7L, "task-us", "美国榜单采集精铺",
+                "精铺", true, "competitor_products")).thenReturn(ctx);
+        when(asinImportService.finishStreamingTask(ctx)).thenReturn(Map.of("taskId", 100L));
         when(client.drainNotExported(anyString(), any(), anyInt(), nullable(BooleanSupplier.class)))
                 .thenReturn(0);
 
         BazhuayuScheduledService service = new BazhuayuScheduledService(
-                client, configService, config, rawMapper, asinImportService,
-                scoringService, runState, executor);
+                client, configService, config, rawMapper, mock(PremiumProductMapper.class), asinImportService,
+                scoringService, runState, executor, workloadGate());
 
         service.runCollection("US");
 
-        verify(asinImportService, never()).createStreamingTask(anyString(), anyString());
-        verify(asinImportService, never()).finishStreamingTask(any());
+        verify(asinImportService).finishStreamingTask(ctx);
         verify(rawMapper, never()).insertBatchIgnoreDup(anyListOfRawRows());
+    }
+
+    @Test
+    void premiumTaskBypassesInitialFilterButWaitsForManualRequest() throws Exception {
+        BazhuayuClient client = mock(BazhuayuClient.class);
+        BazhuayuConfigService configService = mock(BazhuayuConfigService.class);
+        BazhuayuWeeklyRawMapper rawMapper = mock(BazhuayuWeeklyRawMapper.class);
+        PremiumProductMapper premiumMapper = mock(PremiumProductMapper.class);
+        AsinImportService asinImportService = mock(AsinImportService.class);
+        ScoringService scoringService = mock(ScoringService.class);
+        BazhuayuRunStateService runState = mock(BazhuayuRunStateService.class);
+        ThreadPoolTaskExecutor executor = mock(ThreadPoolTaskExecutor.class);
+        BazhuayuConfig config = new BazhuayuConfig();
+        config.setDrainMaxRows(1000);
+
+        BazhuayuTaskMapping entry = new BazhuayuTaskMapping();
+        entry.setId(7L);
+        entry.setTaskName("美国榜单采集精品");
+        entry.setTaskCategory("精品");
+        entry.setFunctionKey("bangdan");
+        entry.setMarketplace("US");
+        entry.setTaskId("premium-us");
+        entry.setInitialFilter(false);
+        when(scoringService.getCurrentWeekTag()).thenReturn("2026-W29");
+        when(configService.listTaskEntries()).thenReturn(List.of(entry));
+        when(configService.findTaskEntry("bangdan", "US", "premium-us")).thenReturn(entry);
+        AsinImportService.StreamingFilterContext ctx = mock(AsinImportService.StreamingFilterContext.class);
+        when(ctx.getTaskId()).thenReturn(101L);
+        when(asinImportService.createStreamingTask(
+                "US", "BAZHUAYU_AUTO", 7L, "premium-us", "美国榜单采集精品",
+                "精品", false, "premium_products")).thenReturn(ctx);
+        when(asinImportService.finishStreamingTask(ctx)).thenReturn(Map.of("taskId", 101L, "passCount", 1));
+        doAnswer(invocation -> {
+            Consumer<List<JsonNode>> pageHandler = invocation.getArgument(1);
+            pageHandler.accept(List.of(row("B0PREMIUM1", "$19.99", "5")));
+            return 1;
+        }).when(client).fetchAllDataStreaming(anyString(), any());
+        BazhuayuScheduledService service = new BazhuayuScheduledService(
+                client, configService, config, rawMapper, premiumMapper, asinImportService,
+                scoringService, runState, executor, workloadGate());
+
+        service.runCollection("US");
+
+        verify(premiumMapper).upsertRawBatch(any());
+        verify(asinImportService).appendPageWithoutInitialFilter(org.mockito.ArgumentMatchers.eq(ctx), any());
+        verify(asinImportService).finishStreamingTask(ctx);
+        verify(rawMapper, never()).insertBatchIgnoreDup(anyListOfRawRows());
+        verify(client, never()).drainNotExported(anyString(), any(), anyInt(), nullable(BooleanSupplier.class));
+    }
+
+    private BazhuayuTaskMapping taskEntry(String taskId, String name, String category, boolean initialFilter) {
+        BazhuayuTaskMapping entry = new BazhuayuTaskMapping();
+        entry.setId(7L);
+        entry.setFunctionKey("bangdan");
+        entry.setMarketplace("US");
+        entry.setTaskId(taskId);
+        entry.setTaskName(name);
+        entry.setTaskCategory(category);
+        entry.setInitialFilter(initialFilter);
+        return entry;
+    }
+
+    private DatabaseWorkloadGate workloadGate() {
+        return new DatabaseWorkloadGate(2, 1, 1, 1000);
     }
 
     @SuppressWarnings("unchecked")

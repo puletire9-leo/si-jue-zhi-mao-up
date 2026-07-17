@@ -290,7 +290,8 @@ public class ShopCandidateService {
         int written = getInt(syncResult, "writtenCount", getInt(syncResult, "inserted", 0));
         int failed = getInt(syncResult, "failedCount", Math.max(0, fetched - written));
         int apiCalls = getInt(syncResult, "apiCalls", 0);
-        String runStatus = failed > 0 ? "PARTIAL_SUCCESS" : "SUCCESS";
+        boolean truncated = Boolean.TRUE.equals(syncResult.get("truncated"));
+        String runStatus = failed > 0 || truncated ? "PARTIAL_SUCCESS" : "SUCCESS";
         transactionTemplate.executeWithoutResult(status ->
                 markFetchSuccess(candidateId, watchlist.getId(), runId, total, fetched, written, failed, apiCalls, runStatus));
 
@@ -308,6 +309,9 @@ public class ShopCandidateService {
         result.put("writtenCount", written);
         result.put("failedCount", failed);
         result.put("apiCalls", apiCalls);
+        result.put("truncated", truncated);
+        result.put("truncationReason", syncResult.get("truncationReason"));
+        result.put("remainingCount", getInt(syncResult, "remainingCount", 0));
         result.put("status", runStatus);
         return result;
     }

@@ -6,6 +6,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sjzm.product.dto.CompetitorLookupRequest;
+import com.sjzm.product.config.DatabaseWorkloadGate;
 import com.sjzm.product.entity.AsinImportResult;
 import com.sjzm.product.entity.AsinImportTask;
 import com.sjzm.product.entity.CompetitorProduct;
@@ -63,6 +64,7 @@ public class AsinImportService {
     private final SellerspriteExecutionGateway executionGateway;
     private final ScoringService scoringService;
     private final CleanLayerService cleanLayerService;
+    private final DatabaseWorkloadGate workloadGate;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -112,7 +114,7 @@ public class AsinImportService {
         log.info("合并解析完成: {} 条记录", rows.size());
 
         // 文件路径走 import_type=ASIN，复用通用初筛建任务逻辑
-        return filterRowsAndCreateTask(rows, marketplace, "ASIN");
+        return workloadGate.runHeavyWrite(() -> filterRowsAndCreateTask(rows, marketplace, "ASIN"));
     }
 
     /**
@@ -217,6 +219,20 @@ public class AsinImportService {
      * 不加 @Transactional —— 长任务逐页提交，不裹大事务。
      */
     public StreamingFilterContext createStreamingTask(String marketplace, String importType) {
+        return createStreamingTask(marketplace, importType, null, null, null,
+                "默认", true, "competitor_products");
+    }
+
+    /** 创建带八爪鱼命名任务来源信息的可见导入任务。 */
+    public StreamingFilterContext createStreamingTask(
+            String marketplace,
+            String importType,
+            Long mappingId,
+            String bazhuayuTaskId,
+            String taskName,
+            String taskCategory,
+            boolean initialFilter,
+            String targetTable) {
         AsinImportTask task = new AsinImportTask();
         task.setMarketplace(marketplace);
         task.setImportType(importType);
@@ -231,10 +247,17 @@ public class AsinImportService {
         task.setBatchCurrent(0);
         task.setDataMonth(java.time.YearMonth.now()
                 .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMM")));
+        task.setBazhuayuMappingId(mappingId);
+        task.setBazhuayuTaskId(bazhuayuTaskId);
+        task.setTaskName(taskName);
+        task.setTaskCategory(taskCategory);
+        task.setInitialFilter(initialFilter);
+        task.setTargetTable(targetTable);
         task.setCreatedAt(java.time.LocalDateTime.now());
         task.setUpdatedAt(java.time.LocalDateTime.now());
         taskMapper.insert(task);
-        log.info("流式初筛任务已创建: taskId={}, marketplace={}, importType={}", task.getId(), marketplace, importType);
+        log.info("八爪鱼导入任务已创建: taskId={}, marketplace={}, taskName={}, category={}, initialFilter={}",
+                task.getId(), marketplace, taskName, taskCategory, initialFilter);
         return new StreamingFilterContext(task.getId(), marketplace);
     }
 
@@ -299,6 +322,39 @@ public class AsinImportService {
         ctx.skipMain += result.get("SKIP_MAIN").size();
 
         // 周期写回：每 5 页或每 5 秒把累计统计刷进 RUNNING 任务，让前端看到实时进度
+        ctx.pageCount++;
+        long now = System.currentTimeMillis();
+        if (ctx.pageCount % PROGRESS_FLUSH_PAGES == 0 || now - ctx.lastFlushMs >= PROGRESS_FLUSH_INTERVAL_MS) {
+            flushProgress(ctx);
+            ctx.lastFlushMs = now;
+        }
+    }
+
+    /**
+     * 不初筛导入：仅做合法 ASIN 校验与任务内去重，全部唯一 ASIN 记为 PASS。
+     * 不查询主表/黑名单，也不写 skip_asins，保证精品链路与精铺去重完全隔离。
+     */
+    public void appendPageWithoutInitialFilter(StreamingFilterContext ctx, List<Map<String, String>> pageRows) {
+        ctx.total += pageRows.size();
+        Map<String, List<Map<String, String>>> result = new LinkedHashMap<>();
+        result.put("PASS", new ArrayList<>());
+        result.put("DUPLICATE", new ArrayList<>());
+
+        for (Map<String, String> row : pageRows) {
+            String asin = findAsin(row);
+            if (asin == null || !asin.matches("^B0[0-9A-Z]{8}$")) continue;
+            Map<String, String> normalized = new LinkedHashMap<>(row);
+            normalized.put("asin", asin);
+            if (!ctx.seenAsins.add(asin)) {
+                result.get("DUPLICATE").add(normalized);
+            } else {
+                result.get("PASS").add(normalized);
+            }
+        }
+
+        saveResults(ctx.taskId, result, ctx.marketplace);
+        ctx.pass += result.get("PASS").size();
+        ctx.duplicate += result.get("DUPLICATE").size();
         ctx.pageCount++;
         long now = System.currentTimeMillis();
         if (ctx.pageCount % PROGRESS_FLUSH_PAGES == 0 || now - ctx.lastFlushMs >= PROGRESS_FLUSH_INTERVAL_MS) {
@@ -753,6 +809,10 @@ public class AsinImportService {
      * 卖家名批量导入 - 预览
      */
     public Map<String, Object> sellerPreview(List<String> sellerNames, String marketplace, String target) {
+        return workloadGate.runHeavyWrite(() -> doSellerPreview(sellerNames, marketplace, target));
+    }
+
+    private Map<String, Object> doSellerPreview(List<String> sellerNames, String marketplace, String target) {
         List<String> cleaned = sellerNames.stream()
                 .map(String::trim)
                 .filter(name -> !name.isEmpty())

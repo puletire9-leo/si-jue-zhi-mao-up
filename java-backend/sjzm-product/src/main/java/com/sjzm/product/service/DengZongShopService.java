@@ -7,6 +7,7 @@ import com.sjzm.product.dto.CompetitorLookupRequest;
 import com.sjzm.product.modules.requestcenter.gateway.SellerspriteExecutionGateway;
 import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutionContext;
 import com.sjzm.product.modules.requestcenter.gateway.model.SellerspriteExecutionRequest;
+import com.sjzm.product.modules.requestcenter.model.SellerspriteShopFetchPolicy;
 import com.sjzm.product.entity.DengZongShop;
 import com.sjzm.product.entity.DengZongShopSeller;
 import com.sjzm.product.mapper.DengZongShopMapper;
@@ -38,10 +39,19 @@ public class DengZongShopService {
     public Map<String, Object> syncBySellerName(String sellerName, String marketplace) {
         int total = 0;
         int inserted = 0;
+        int fetched = 0;
         int apiCalls = 0;
         int page = 1;
+        boolean truncated = false;
 
         while (true) {
+            if (SellerspriteShopFetchPolicy.reachedRequestLimit(apiCalls)) {
+                truncated = true;
+                log.info("非标店铺抓取达到单店请求上限，停止剩余分页并继续下一店: sellerName={}, marketplace={}, "
+                                + "apiCalls={}, fetched={}, total={}",
+                        sellerName, marketplace, apiCalls, fetched, total);
+                break;
+            }
             log.info("同步店铺数据: sellerName={}, marketplace={}, page={}", sellerName, marketplace, page);
             JsonNode data = callApi(sellerName, marketplace, page, 100);
             apiCalls++;
@@ -52,6 +62,8 @@ public class DengZongShopService {
             if (items == null || !items.isArray() || items.isEmpty()) break;
 
             total = apiTotal;
+            int pageItems = items.size();
+            fetched += pageItems;
             for (JsonNode item : items) {
                 try {
                     DengZongShop entity = mapToEntity(item, marketplace);
@@ -62,7 +74,7 @@ public class DengZongShopService {
                 }
             }
 
-            if (inserted >= total) break;
+            if ((total > 0 && fetched >= total) || pageItems < 100) break;
             page++;
             try { Thread.sleep(300); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         }
@@ -71,7 +83,13 @@ public class DengZongShopService {
         Map<String, Object> result = new HashMap<>();
         result.put("total", total);
         result.put("inserted", inserted);
+        result.put("fetched", fetched);
+        result.put("fetchedCount", fetched);
+        result.put("writtenCount", inserted);
         result.put("apiCalls", apiCalls);
+        result.put("truncated", truncated);
+        result.put("truncationReason", truncated ? SellerspriteShopFetchPolicy.LIMIT_REASON : null);
+        result.put("remainingCount", truncated && total > fetched ? total - fetched : 0);
         return result;
     }
 
@@ -163,20 +181,26 @@ public class DengZongShopService {
 
     // ===== MED-6: 委托方法 — Controller 不再直接注入 Mapper =====
     public long countGroupedByParent(String marketplace, String month, String brand,
-            String sellerName, String title, String category, String bsrId, Long nodeId,
-            java.math.BigDecimal priceMin, java.math.BigDecimal priceMax, Integer bsrMax,
-            java.math.BigDecimal ratingMin, String weightMax, Integer maxVariantCount, String batchDate) {
-        return mapper.countGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId,
-                priceMin, priceMax, bsrMax, ratingMin, weightMax, maxVariantCount, batchDate);
+            String sellerName, String title, List<String> asins, String category, String bsrId, Long nodeId,
+            java.math.BigDecimal priceMin, java.math.BigDecimal priceMax, Integer unitsMin, Integer unitsMax,
+            Integer listingDaysMin, Integer listingDaysMax, Integer bsrMax,
+            java.math.BigDecimal ratingMin, java.math.BigDecimal weightMax, List<String> fulfillment,
+            Integer maxVariantCount, String batchDate) {
+        return mapper.countGroupedByParent(marketplace, month, brand, sellerName, title, asins, category, bsrId, nodeId,
+                priceMin, priceMax, unitsMin, unitsMax, listingDaysMin, listingDaysMax, bsrMax, ratingMin,
+                weightMax, fulfillment, maxVariantCount, batchDate);
     }
 
     public List<DengZongShop> selectGroupedByParent(String marketplace, String month, String brand,
-            String sellerName, String title, String category, String bsrId, Long nodeId,
-            java.math.BigDecimal priceMin, java.math.BigDecimal priceMax, Integer bsrMax,
-            java.math.BigDecimal ratingMin, String weightMax, Integer maxVariantCount, String batchDate,
+            String sellerName, String title, List<String> asins, String category, String bsrId, Long nodeId,
+            java.math.BigDecimal priceMin, java.math.BigDecimal priceMax, Integer unitsMin, Integer unitsMax,
+            Integer listingDaysMin, Integer listingDaysMax, Integer bsrMax,
+            java.math.BigDecimal ratingMin, java.math.BigDecimal weightMax, List<String> fulfillment,
+            Integer maxVariantCount, String batchDate,
             String sortBy, String sortOrder, int offset, int size) {
-        return mapper.selectGroupedByParent(marketplace, month, brand, sellerName, title, category, bsrId, nodeId,
-                priceMin, priceMax, bsrMax, ratingMin, weightMax, maxVariantCount, batchDate, sortBy, sortOrder, offset, size);
+        return mapper.selectGroupedByParent(marketplace, month, brand, sellerName, title, asins, category, bsrId, nodeId,
+                priceMin, priceMax, unitsMin, unitsMax, listingDaysMin, listingDaysMax, bsrMax, ratingMin,
+                weightMax, fulfillment, maxVariantCount, batchDate, sortBy, sortOrder, offset, size);
     }
 
     public List<DengZongShop> shopSelectList(LambdaQueryWrapper<DengZongShop> qw) {

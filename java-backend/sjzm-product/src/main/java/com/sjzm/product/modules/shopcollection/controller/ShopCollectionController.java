@@ -10,11 +10,14 @@ import com.sjzm.product.modules.shopcollection.dto.ShopCollectionDetail;
 import com.sjzm.product.modules.shopcollection.dto.ShopCollectionInsight;
 import com.sjzm.product.modules.shopcollection.dto.ShopProductSelectionQuery;
 import com.sjzm.product.modules.shopcollection.dto.ShopSnapshot;
+import com.sjzm.product.modules.shopcollection.dto.ShopScreeningQuery;
+import com.sjzm.product.modules.shopcollection.dto.ShopScreeningRow;
 import com.sjzm.product.modules.shopcollection.entity.ShopProduct;
 import com.sjzm.product.modules.shopcollection.entity.ShopWatchlist;
 import com.sjzm.product.modules.shopcollection.mapper.ShopProductMapper;
 import com.sjzm.product.modules.shopcollection.service.ShopCollectionService;
 import com.sjzm.product.modules.shopcollection.service.ShopWatchlistService;
+import com.sjzm.product.modules.shopcollection.service.ShopScreeningService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +40,20 @@ public class ShopCollectionController {
 
     private final ShopWatchlistService watchlistService;
     private final ShopCollectionService collectionService;
+    private final ShopScreeningService screeningService;
     private final ShopProductMapper shopProductMapper;
+
+    @PostMapping("/shop-screening")
+    @Operation(summary = "统一店铺筛选工作台", description = "以 shop_products 周批次为口径，商品筛选后按店铺聚合并服务端分页")
+    public Result<PageResult<ShopScreeningRow>> screenShops(@RequestBody ShopScreeningQuery query) {
+        return Result.success(screeningService.screen(query));
+    }
+
+    @GetMapping("/screening-batches")
+    @Operation(summary = "统一店铺筛选周批次")
+    public Result<List<Map<String, Object>>> screeningBatches(@RequestParam String marketplace) {
+        return Result.success(screeningService.batchOptions(marketplace));
+    }
 
     // ============================================================
     // 观察池
@@ -124,6 +140,13 @@ public class ShopCollectionController {
     @Operation(summary = "统一选品页的店铺商品类目")
     public Result<List<Map<String, Object>>> selectionCategories(@RequestParam String marketplace) {
         return Result.success(collectionService.selectionCategories(marketplace));
+    }
+
+    @PostMapping("/selection-categories/query")
+    @Operation(summary = "统一选品页的店铺商品类目（同口径）", description = "复用当前店铺商品方法卡、批次和筛选条件，忽略当前类目自身")
+    public Result<List<Map<String, Object>>> querySelectionCategories(
+            @RequestBody ShopProductSelectionQuery query) {
+        return Result.success(collectionService.selectionCategories(query));
     }
 
     @GetMapping("/selection-batches")

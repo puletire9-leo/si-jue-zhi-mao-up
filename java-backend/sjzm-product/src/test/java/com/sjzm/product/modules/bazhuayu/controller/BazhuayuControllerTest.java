@@ -5,7 +5,11 @@ import com.sjzm.product.entity.AsinImportTask;
 import com.sjzm.product.mapper.AsinImportTaskMapper;
 import com.sjzm.product.mapper.BazhuayuWeeklyRawMapper;
 import com.sjzm.product.modules.bazhuayu.entity.BazhuayuWeeklyRaw;
+import com.sjzm.product.modules.bazhuayu.service.BazhuayuBatchSnapshot;
+import com.sjzm.product.modules.bazhuayu.service.BazhuayuClient;
 import com.sjzm.product.modules.bazhuayu.service.BazhuayuRunStateService;
+import com.sjzm.product.modules.bazhuayu.service.BazhuayuScheduledService;
+import com.sjzm.product.modules.requestcenter.service.SellerspriteRequestCenterService;
 import com.sjzm.product.service.ScoringService;
 import org.junit.jupiter.api.Test;
 
@@ -21,6 +25,35 @@ import static org.mockito.Mockito.*;
  * 用 now() 保证 US 任务落在本周；UK 任务用一年前日期，只出现在历史累计里。
  */
 class BazhuayuControllerTest {
+
+    @Test
+    void triggerWithoutBatchMetadataLocksLatestFinishedBatchForOldFrontend() throws Exception {
+        BazhuayuScheduledService scheduledService = mock(BazhuayuScheduledService.class);
+        BazhuayuClient client = mock(BazhuayuClient.class);
+        BazhuayuBatchSnapshot latest = BazhuayuBatchSnapshot.fromStatus(new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree("{\"status\":\"Finished\",\"currentTotalExtractCount\":1136,"
+                        + "\"startExecuteTime\":\"2026-07-15T16:43:55.243\","
+                        + "\"endExecuteTime\":\"2026-07-15T16:46:50.700\"}"));
+        when(client.getLatestBatchSnapshot("task-de")).thenReturn(latest);
+
+        BazhuayuController controller = new BazhuayuController(
+                scheduledService,
+                mock(com.sjzm.product.modules.bazhuayu.service.BazhuayuConfigService.class),
+                mock(BazhuayuRunStateService.class),
+                mock(com.sjzm.product.modules.bazhuayu.service.BazhuayuCloudStatsService.class),
+                client,
+                mock(com.sjzm.product.modules.bazhuayu.service.BazhuayuImageSearchService.class),
+                mock(BazhuayuWeeklyRawMapper.class),
+                mock(AsinImportTaskMapper.class),
+                mock(ScoringService.class),
+                mock(SellerspriteRequestCenterService.class));
+
+        Map<String, Object> data = controller.trigger(
+                "bangdan", "DE", "task-de", null, null, null, 0).getData();
+
+        assertThat(data.get("batchNo")).isEqualTo("20260715-164355");
+        verify(scheduledService).triggerTaskAsync("bangdan", "DE", "task-de", latest);
+    }
 
     @Test
     void overview_splitsCountsIntoWeekAndLifetime() {
@@ -61,7 +94,8 @@ class BazhuayuControllerTest {
                 mock(com.sjzm.product.modules.bazhuayu.service.BazhuayuImageSearchService.class),
                 rawMapper,
                 taskMapper,
-                scoringService);
+                scoringService,
+                mock(SellerspriteRequestCenterService.class));
 
         Map<String, Object> overview = controller.overview().getData();
 

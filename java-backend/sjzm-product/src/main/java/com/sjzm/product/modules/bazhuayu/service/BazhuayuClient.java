@@ -16,7 +16,10 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 八爪鱼开放平台 API 客户端（Java 移植）。
@@ -144,11 +147,41 @@ public class BazhuayuClient {
 
     /** 批量获取任务状态 V2，返回单个任务的状态节点（取第一个匹配） */
     public JsonNode getTaskStatusV2(String taskId) {
+        return getTaskStatusesV2(List.of(taskId)).getOrDefault(taskId, objectMapper.createObjectNode());
+    }
+
+    /**
+     * 一次请求批量获取多个任务状态。八爪鱼 statuses/v2 原生支持 taskIds 数组，
+     * 全量面板刷新必须走本方法，禁止逐任务瞬时连发导致 TooManyRequests。
+     */
+    public Map<String, JsonNode> getTaskStatusesV2(Collection<String> taskIds) {
+        List<String> ids = taskIds == null ? List.of() : taskIds.stream()
+                .filter(id -> id != null && !id.isBlank())
+                .distinct()
+                .toList();
+        if (ids.isEmpty()) return Map.of();
         ObjectNode body = objectMapper.createObjectNode();
-        body.putArray("taskIds").add(taskId);
+        var array = body.putArray("taskIds");
+        ids.forEach(array::add);
         JsonNode data = post("/cloudextraction/statuses/v2", body, true).path("data");
-        if (data.isArray() && !data.isEmpty()) return data.get(0);
-        return objectMapper.createObjectNode();
+        Map<String, JsonNode> result = new LinkedHashMap<>();
+        if (!data.isArray()) return result;
+        int index = 0;
+        for (JsonNode status : data) {
+            String returnedId = status.path("taskId").asText("");
+            if (returnedId.isBlank() && index < ids.size()) returnedId = ids.get(index);
+            if (!returnedId.isBlank()) result.put(returnedId, status);
+            index++;
+        }
+        // 尚未产生过云采集记录的任务不会出现在 statuses/v2 的 data 中。
+        // 保持旧版单任务查询语义：这不是接口失败，按“0 条、暂无状态”返回。
+        ids.forEach(id -> result.putIfAbsent(id, objectMapper.createObjectNode()));
+        return result;
+    }
+
+    /** 读取任务最新一次云采集快照；批次号由 startExecuteTime 生成。 */
+    public BazhuayuBatchSnapshot getLatestBatchSnapshot(String taskId) {
+        return BazhuayuBatchSnapshot.fromStatus(getTaskStatusV2(taskId));
     }
 
     /**
@@ -213,7 +246,8 @@ public class BazhuayuClient {
         int offset = 0;
         int size = Math.min(1000, Math.max(1, config.getDataPageSize()));
         while (true) {
-            JsonNode data = get("/data/all?taskId=" + enc(taskId) + "&offset=" + offset + "&size=" + size);
+            JsonNode data = paginationData(get("/data/all?taskId=" + enc(taskId)
+                    + "&offset=" + offset + "&size=" + size));
             JsonNode rows = data.path("data");
             if (rows.isArray()) rows.forEach(all::add);
             int restTotal = data.path("restTotal").asInt(0);
@@ -238,7 +272,8 @@ public class BazhuayuClient {
         int total = 0;
         int size = Math.min(1000, Math.max(1, config.getDataPageSize()));
         while (true) {
-            JsonNode data = get("/data/all?taskId=" + enc(taskId) + "&offset=" + offset + "&size=" + size);
+            JsonNode data = paginationData(get("/data/all?taskId=" + enc(taskId)
+                    + "&offset=" + offset + "&size=" + size));
             JsonNode rows = data.path("data");
             List<JsonNode> page = new ArrayList<>();
             if (rows.isArray()) rows.forEach(page::add);
@@ -253,6 +288,65 @@ public class BazhuayuClient {
         }
         log.info("八爪鱼任务 {} 流式拉取共 {} 行", taskId, total);
         return total;
+    }
+
+    /**
+     * 读取已由调用方确认的单次云采集数据。
+     *
+     * <p>系统自己启动的任务带真实 lotNo，走 /data/lotno/all 精确读取。八爪鱼网页手动启动的任务，
+     * statuses/v2 不返回内部 lotNo，只能读取 /data/all 当前快照；此时首屏 total 不得超过最新批次
+     * currentTotalExtractCount，避免历史累计数据混入。</p>
+     */
+    public int fetchBatchDataStreaming(
+            String taskId,
+            BazhuayuBatchSnapshot batch,
+            java.util.function.Consumer<List<JsonNode>> pageHandler) {
+        if (batch == null || batch.batchNo() == null) {
+            throw new IllegalArgumentException("八爪鱼批次不能为空");
+        }
+        String pathPrefix = batch.lotNo() != null && !batch.lotNo().isBlank()
+                ? "/data/lotno/all?taskId=" + enc(taskId) + "&lotno=" + enc(batch.lotNo())
+                : "/data/all?taskId=" + enc(taskId);
+        int offset = 0;
+        int total = 0;
+        int size = Math.min(1000, Math.max(1, config.getDataPageSize()));
+        boolean firstPage = true;
+        while (true) {
+            JsonNode data = paginationData(get(pathPrefix + "&offset=" + offset + "&size=" + size));
+            if (firstPage && (batch.lotNo() == null || batch.lotNo().isBlank())) {
+                int snapshotTotal = data.path("total").asInt(0);
+                if (batch.cloudCount() > 0 && snapshotTotal > batch.cloudCount()) {
+                    throw new IllegalStateException("八爪鱼当前全量数据 " + snapshotTotal
+                            + " 条，超过页面最新批次 " + batch.batchNo() + " 的 " + batch.cloudCount()
+                            + " 条，已拒绝导入以避免混入历史批次");
+                }
+            }
+            firstPage = false;
+            JsonNode rows = data.path("data");
+            List<JsonNode> page = new ArrayList<>();
+            if (rows.isArray()) rows.forEach(page::add);
+            if (!page.isEmpty()) {
+                pageHandler.accept(page);
+                total += page.size();
+            }
+            int restTotal = data.path("restTotal").asInt(0);
+            offset = data.path("offset").asInt(offset);
+            if (restTotal <= 0 || page.isEmpty()) break;
+            sleep2s();
+        }
+        log.info("八爪鱼任务 {} 批次 {} 流式拉取 {} 行（lotNo={}）",
+                taskId, batch.batchNo(), total, batch.lotNo());
+        return total;
+    }
+
+    /** 兼容开放平台分页字段位于响应 data 对象内或直接位于根节点两种形态。 */
+    private JsonNode paginationData(JsonNode response) {
+        JsonNode nested = response == null ? null : response.path("data");
+        if (nested != null && nested.isObject()
+                && (nested.has("data") || nested.has("total") || nested.has("restTotal"))) {
+            return nested;
+        }
+        return response == null ? objectMapper.createObjectNode() : response;
     }
 
     // ============================================================

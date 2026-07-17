@@ -13,6 +13,10 @@ public class CompetitorProduct {
     @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
+    /** 精品表查询时标识是否已有卖家精灵原始响应；普通竞品表不使用。 */
+    @TableField(exist = false)
+    private Boolean enriched;
+
     private String marketplace;
     private String asin;
     private String month;

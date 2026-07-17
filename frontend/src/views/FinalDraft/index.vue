@@ -657,12 +657,12 @@ const handleDelete = async (draft: Draft): Promise<void> => {
     });
 
     // 调用真实删除API
-    const response = await finalDraftApi.delete(draft.sku);
+    const response = await finalDraftApi.delete(draft.id);
 
     if (response.code === 200) {
       ElMessage.success(response.message || "删除成功");
       // 立即从列表中移除被删除的定稿，确保UI立即更新
-      const index = draftList.value.findIndex((item) => item.sku === draft.sku);
+      const index = draftList.value.findIndex((item) => item.id === draft.id);
       if (index > -1) {
         draftList.value.splice(index, 1);
         // 如果是最后一页且删除后列表为空，切换到上一页
