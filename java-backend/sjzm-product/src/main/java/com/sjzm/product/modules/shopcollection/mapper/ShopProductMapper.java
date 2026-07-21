@@ -27,6 +27,16 @@ public interface ShopProductMapper extends BaseMapper<ShopProduct> {
     List<Map<String, Object>> selectSelectionCategories(
             @Param(Constants.WRAPPER) Wrapper<ShopProduct> wrapper);
 
+    /** 统一选品按已入库的 ISO 周 batch_code 展示店铺抓取批次。 */
+    @Select("SELECT batch_code AS week, " +
+            "COUNT(1) AS count, " +
+            "DATE_FORMAT(MIN(STR_TO_DATE(batch_date, '%Y%m%d')), '%Y-%m-%d') AS startDate, " +
+            "DATE_FORMAT(MAX(STR_TO_DATE(batch_date, '%Y%m%d')), '%Y-%m-%d') AS endDate " +
+            "FROM shop_products " +
+            "WHERE marketplace = #{marketplace} AND batch_code LIKE '____-W__' " +
+            "GROUP BY batch_code ORDER BY batch_code DESC")
+    List<Map<String, Object>> selectSelectionWeeks(@Param("marketplace") String marketplace);
+
     /** 该店铺是否有成功快照（任意 batch_date 有商品入库）。精品池入池前置校验用。 */
     @Select("SELECT COUNT(1) FROM shop_products WHERE marketplace = #{marketplace} AND seller_name = #{sellerName} LIMIT 1")
     int countByMarketplaceAndSeller(@org.apache.ibatis.annotations.Param("marketplace") String marketplace,

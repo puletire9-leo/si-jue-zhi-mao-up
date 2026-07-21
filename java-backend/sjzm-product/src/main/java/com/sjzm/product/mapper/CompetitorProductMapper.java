@@ -138,6 +138,18 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
                                                           @Param("source") String source,
                                                           @Param("filterMode") String filterMode);
 
+    /** 与统一选品默认 clean 列表同口径的入库周统计。 */
+    @Select("<script>" +
+            "SELECT DATE_FORMAT(created_at, '%x-W%v') AS week, COUNT(*) AS count, " +
+            "MIN(DATE(created_at)) AS startDate, MAX(DATE(created_at)) AS endDate " +
+            "FROM competitor_products_clean " +
+            "WHERE marketplace = #{marketplace} AND created_at IS NOT NULL " +
+            "<if test='source != null and source != \"\"'> AND source LIKE CONCAT('%', #{source}, '%')</if>" +
+            "GROUP BY week ORDER BY week DESC" +
+            "</script>")
+    List<Map<String, Object>> selectCleanCreatedWeeksWithCount(@Param("marketplace") String marketplace,
+                                                               @Param("source") String source);
+
     /**
      * 数据清洗层：拉取候选商品（走清洗表，已按父 ASIN 去重）
      * 用于 ④线 ElementDiscovery 的元素发现/载体审计/manual-candidates 接口

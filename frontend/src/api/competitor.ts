@@ -530,8 +530,9 @@ export function getCreatedWeeks(
   marketplace: string,
   source?: string,
   filterMode?: string,
+  useCleanTable = false,
 ): Promise<ApiResponse<BatchWeek[]>> {
-  const params: Record<string, any> = { marketplace };
+  const params: Record<string, any> = { marketplace, useCleanTable };
   if (source) params.source = source;
   if (filterMode) params.filterMode = filterMode;
   return request.get("/api/v1/competitor/created-weeks", { params });

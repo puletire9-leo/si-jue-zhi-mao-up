@@ -2,7 +2,7 @@
   <div class="shop-watchlist">
     <el-card shadow="never" class="header-card">
       <div class="toolbar">
-        <el-button type="primary" @click="goCandidatePool">去方法卡找店</el-button>
+        <el-button type="primary" @click="goCandidatePool">去店铺请求中心</el-button>
         <ShopScreeningToolbar
           v-model="filters"
           :batches="batches"

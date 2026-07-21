@@ -5,7 +5,6 @@ import com.sjzm.common.Result;
 import com.sjzm.product.modules.shopcandidate.entity.ShopCandidatePool;
 import com.sjzm.product.modules.shopcandidate.entity.ShopFetchRun;
 import com.sjzm.product.modules.shopcandidate.service.ShopCandidateService;
-import com.sjzm.product.modules.requestcenter.entity.SellerspriteRequestRun;
 import com.sjzm.product.modules.requestcenter.service.SellerspriteRequestCenterService;
 import com.sjzm.product.modules.shoprating.dto.ShopMethodBatchOption;
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,6 +41,15 @@ public class ShopCandidateController {
         return Result.success(candidateService.syncFromMethodRank(methodId, marketplace, minCount, batchCode, limit));
     }
 
+    @PostMapping("/sync-all-from-batch")
+    @Operation(summary = "从来源周批次同步全部店铺",
+            description = "读取 competitor_products_clean 指定 effective_week_tag 的全部店铺，不判断 M01 是否通过")
+    public Result<Map<String, Object>> syncAllFromBatch(
+            @RequestParam(required = false) String marketplace,
+            @RequestParam String batchCode) {
+        return Result.success(candidateService.syncAllFromBatch(marketplace, batchCode));
+    }
+
     @GetMapping("/method-batches")
     @Operation(summary = "方法卡找店来源批次",
             description = "返回方法卡实际读取的数据表和周批次。M01 当前读取 competitor_products_clean.effective_week_tag。")
@@ -50,6 +58,15 @@ public class ShopCandidateController {
             @RequestParam(required = false) String marketplace,
             @RequestParam(defaultValue = "30") int limit) {
         return Result.success(candidateService.listMethodBatches(methodId, marketplace, limit));
+    }
+
+    @GetMapping("/source-batches")
+    @Operation(summary = "全部找店来源批次",
+            description = "返回 competitor_products_clean 的全部周批次，不要求批次内存在 M01 通过商品。")
+    public Result<List<ShopMethodBatchOption>> sourceBatches(
+            @RequestParam(required = false) String marketplace,
+            @RequestParam(defaultValue = "30") int limit) {
+        return Result.success(candidateService.listAllSourceBatches(marketplace, limit));
     }
 
     // ── list / detail ────────────────────────────────────────────
@@ -64,10 +81,11 @@ public class ShopCandidateController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) Integer minHitCount,
             @RequestParam(required = false) String sellerName,
+            @RequestParam(required = false) String requestState,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "50") int size) {
         return Result.success(candidateService.list(marketplace, batchCode, sourceType, sourceCode,
-                status, minHitCount, sellerName, page, size));
+                status, minHitCount, sellerName, requestState, page, size));
     }
 
     @GetMapping("/fetchable")
@@ -81,9 +99,10 @@ public class ShopCandidateController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) Integer minHitCount,
             @RequestParam(required = false) String sellerName,
+            @RequestParam(required = false) String requestState,
             @RequestParam(defaultValue = "5000") int limit) {
         return Result.success(candidateService.listFetchable(marketplace, batchCode, sourceType, sourceCode,
-                status, minHitCount, sellerName, limit));
+                status, minHitCount, sellerName, requestState, limit));
     }
 
     @GetMapping("/{id}")
@@ -106,11 +125,10 @@ public class ShopCandidateController {
     @Operation(summary = "创建候选店铺抓取任务", description = "返回请求中心 runId，不同步调用卖家精灵")
     public Result<Map<String, Object>> confirmFetch(@PathVariable Long id) {
         ShopCandidatePool candidate = candidateService.getById(id);
-        SellerspriteRequestRun run = requestCenterService.createTask("CANDIDATE_BATCH", candidate.getMarketplace(),
+        return Result.success(requestCenterService.createShopTaskOnce(candidate.getMarketplace(),
                 "CANDIDATE_CONFIRM", null, "候选店铺确认抓取",
                 List.of(new SellerspriteRequestCenterService.RequestItemInput(candidate.getMarketplace(),
-                        candidate.getSellerName(), candidate.getId())), "CANDIDATE_API");
-        return Result.success(Map.of("runId", run.getRunId(), "status", run.getStatus()));
+                        candidate.getSellerName(), candidate.getId())), "CANDIDATE_API"));
     }
 
     @PostMapping("/batch-confirm-fetch")
@@ -128,9 +146,8 @@ public class ShopCandidateController {
         }
         String marketplace = items.stream().map(SellerspriteRequestCenterService.RequestItemInput::marketplace)
                 .distinct().count() == 1 ? items.get(0).marketplace() : "MIXED";
-        SellerspriteRequestRun run = requestCenterService.createTask("CANDIDATE_BATCH", marketplace,
-                "CANDIDATE_CONFIRM", null, "候选店铺批量确认抓取", items, "CANDIDATE_API");
-        return Result.success(Map.of("runId", run.getRunId(), "status", run.getStatus(), "count", items.size()));
+        return Result.success(requestCenterService.createShopTaskOnce(marketplace,
+                "CANDIDATE_CONFIRM", null, "候选店铺批量确认抓取", items, "CANDIDATE_API"));
     }
 
     // ── fetch runs ───────────────────────────────────────────────

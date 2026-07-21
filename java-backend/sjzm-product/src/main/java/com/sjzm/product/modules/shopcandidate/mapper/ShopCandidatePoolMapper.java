@@ -4,7 +4,10 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.sjzm.product.modules.shopcandidate.entity.ShopCandidatePool;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
+
+import java.util.List;
 
 /**
  * 店铺候选池 Mapper。
@@ -32,6 +35,41 @@ public interface ShopCandidatePoolMapper extends BaseMapper<ShopCandidatePool> {
         "operator=VALUES(operator), note=VALUES(note), updated_at=NOW()",
         "</script>"})
     int upsert(ShopCandidatePool entity);
+
+    int upsertBatch(@Param("items") List<ShopCandidatePool> items);
+
+    List<ShopCandidatePool> selectByRequestState(
+            @Param("marketplace") String marketplace,
+            @Param("batchCode") String batchCode,
+            @Param("sourceType") String sourceType,
+            @Param("sourceCode") String sourceCode,
+            @Param("status") String status,
+            @Param("minHitCount") Integer minHitCount,
+            @Param("sellerName") String sellerName,
+            @Param("requestState") String requestState,
+            @Param("offset") int offset,
+            @Param("limit") int limit);
+
+    long countByRequestState(
+            @Param("marketplace") String marketplace,
+            @Param("batchCode") String batchCode,
+            @Param("sourceType") String sourceType,
+            @Param("sourceCode") String sourceCode,
+            @Param("status") String status,
+            @Param("minHitCount") Integer minHitCount,
+            @Param("sellerName") String sellerName,
+            @Param("requestState") String requestState);
+
+    List<ShopCandidatePool> selectFetchableByRequestState(
+            @Param("marketplace") String marketplace,
+            @Param("batchCode") String batchCode,
+            @Param("sourceType") String sourceType,
+            @Param("sourceCode") String sourceCode,
+            @Param("status") String status,
+            @Param("minHitCount") Integer minHitCount,
+            @Param("sellerName") String sellerName,
+            @Param("requestState") String requestState,
+            @Param("limit") int limit);
 
     /**
      * 原子抢锁——只有允许的状态才能进入 FETCHING。

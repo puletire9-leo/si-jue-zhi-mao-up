@@ -66,4 +66,17 @@ class CompetitorServiceCreatedWeeksTest {
 
         assertThat(service.getCreatedWeeks("UK", "新品榜", null)).isEmpty();
     }
+
+    @Test
+    void getCreatedWeeks_usesCleanTableWhenPageUsesCleanData() {
+        List<Map<String, Object>> mapperResult = List.of(
+                week("2026-W29", 2757, "2026-07-14", "2026-07-14"));
+        when(productMapper.selectCleanCreatedWeeksWithCount("UK", "新品榜"))
+                .thenReturn(mapperResult);
+
+        List<Map<String, Object>> result = service.getCreatedWeeks("UK", "新品榜", null, true);
+
+        verify(productMapper).selectCleanCreatedWeeksWithCount("UK", "新品榜");
+        assertThat(result.get(0).get("count")).isEqualTo(2757);
+    }
 }

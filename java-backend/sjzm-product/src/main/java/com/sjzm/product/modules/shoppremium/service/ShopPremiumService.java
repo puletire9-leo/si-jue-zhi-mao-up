@@ -20,6 +20,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 精品店铺池——长期复用、周期复抓。
@@ -218,17 +219,30 @@ public class ShopPremiumService {
         }
 
         String triggerRef = objectMapper.valueToTree(lockedIds).toString();
-        var run = requestCenterService.createTask(
-                "PREMIUM_REFRESH", null, "PREMIUM_REFRESH", triggerRef,
-                "精品池周期复抓", items, operator);
+        Map<String, Object> taskResult = requestCenterService.createRepeatableShopTask(
+                null, triggerRef, "精品池周期复抓", items, operator);
+
+        // 请求中心按店铺全局活跃状态再次去重时，释放本次先抢到但未入队的精品行。
+        Object skippedValue = taskResult.get("skippedShops");
+        Set<String> skippedKeys = skippedValue instanceof List<?> list
+                ? list.stream().map(String::valueOf).map(value -> value.toUpperCase(Locale.ROOT)).collect(Collectors.toSet())
+                : Set.of();
+        if (!skippedKeys.isEmpty()) {
+            for (Map<String, Object> entry : toRefresh) {
+                Long id = ((Number) entry.get("premiumId")).longValue();
+                String key = String.valueOf(entry.get("marketplace")).trim().toUpperCase(Locale.ROOT)
+                        + ":" + String.valueOf(entry.get("sellerName")).trim().toUpperCase(Locale.ROOT);
+                if (skippedKeys.contains(key)) {
+                    premiumMapper.markRefreshStopped(id, "请求中心检测到已有活跃店铺任务，未重复入队");
+                }
+            }
+        }
 
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("runId", run.getRunId());
-        result.put("requestType", run.getRequestType());
-        result.put("totalCount", run.getTotalCount());
-        result.put("toRefreshCount", items.size());
+        result.putAll(taskResult);
+        result.put("toRefreshCount", taskResult.get("queuedCount"));
         result.put("lockedPremiumIds", lockedIds);
-        result.put("message", "复抓任务已创建，调用请求中心 consumeNext 推进抓取");
+        result.put("message", "精品周期复抓任务已创建；允许历史成功店铺再次抓取，但活跃任务不会重复创建");
         return result;
     }
 

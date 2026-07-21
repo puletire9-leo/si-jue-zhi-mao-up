@@ -949,6 +949,15 @@ public class CompetitorService {
      * @param filterMode 筛选模式，null 则不限
      */
     public List<Map<String, Object>> getCreatedWeeks(String marketplace, String source, String filterMode) {
+        return getCreatedWeeks(marketplace, source, filterMode, false);
+    }
+
+    /** 周批次数量必须与页面当前选择的 clean/raw 数据源一致。 */
+    public List<Map<String, Object>> getCreatedWeeks(
+            String marketplace, String source, String filterMode, boolean useCleanTable) {
+        if (useCleanTable) {
+            return productMapper.selectCleanCreatedWeeksWithCount(marketplace, source);
+        }
         return productMapper.selectCreatedWeeksWithCount(marketplace, source, filterMode);
     }
 

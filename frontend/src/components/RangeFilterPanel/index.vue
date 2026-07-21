@@ -50,6 +50,8 @@ const props = withDefaults(
     snapshotPlaceholderText?: string;
     /** 是否在加载批次列表后自动默认选中最新一项（首次进入时）。默认 true */
     autoSelectLatestWeek?: boolean;
+    /** competitor 周批次按当前页面的 clean/raw 数据源统计。 */
+    useCleanTable?: boolean;
     /** 嵌入抽屉/卡片时为 true：去掉自身灰底边框，与外层风格统一 */
     embedded?: boolean;
   }>(),
@@ -75,6 +77,7 @@ const props = withDefaults(
     snapshotKind: "competitor_created_week",
     embedded: false,
     autoSelectLatestWeek: true,
+    useCleanTable: false,
   },
 );
 
@@ -218,7 +221,7 @@ function formatSnapshotLabel(item: {
   const start = toMd(item.startDate);
   const end = toMd(item.endDate);
   const range = start && end ? `${start}-${end}` : item.label;
-  return `${range}（${item.count}）`;
+  return `${range}（批次总数 ${item.count}）`;
 }
 
 /** 最新一项摘要：日期范围 + 条数，让用户一眼看到最新导入了多少数据 */
@@ -241,9 +244,11 @@ async function loadAvailableWeeks() {
   } else if (props.snapshotKind === "shop_batch") {
     const rows = await shopCollectionApi.selectionBatches(props.country);
     availableSnapshots.value = rows.map((item) => ({
-      value: item.batchDate,
-      label: item.batchDate,
+      value: item.week,
+      label: item.week,
       count: item.count,
+      startDate: item.startDate,
+      endDate: item.endDate,
     }));
   } else if (props.snapshotKind === "premium_created_week") {
     const res = await getPremiumCreatedWeeks(props.country);
@@ -255,7 +260,12 @@ async function loadAvailableWeeks() {
       endDate: item.endDate,
     }));
   } else {
-    const res = await getCreatedWeeks(props.country, props.source || undefined);
+    const res = await getCreatedWeeks(
+      props.country,
+      props.source || undefined,
+      undefined,
+      props.useCleanTable,
+    );
     availableSnapshots.value = (res?.data ?? []).map((item) => ({
       value: item.week,
       label: item.week,
@@ -264,6 +274,12 @@ async function loadAvailableWeeks() {
       endDate: item.endDate,
     }));
   }
+
+  // 切换新品榜/店铺选品或站点时，旧数据源不存在的周值不能继续污染新查询。
+  const availableValues = new Set(availableSnapshots.value.map((item) => item.value));
+  local.value.createdWeeks = local.value.createdWeeks.filter((value) =>
+    availableValues.has(value),
+  );
 
   // 默认选中最新一项（列表第一项即最新批次）：仅在开启、当前无已选、
   // 且该 country+source+snapshotKind 组合尚未自动填充过时执行，尊重用户的手动清空。
@@ -283,7 +299,7 @@ async function loadAvailableWeeks() {
 onMounted(loadAvailableWeeks);
 
 watch(
-  () => [props.country, props.source, props.snapshotKind],
+  () => [props.country, props.source, props.snapshotKind, props.useCleanTable],
   loadAvailableWeeks,
 );
 

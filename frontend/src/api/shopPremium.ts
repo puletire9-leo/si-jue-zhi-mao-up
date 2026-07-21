@@ -89,6 +89,19 @@ export interface PageResult<T> {
   totalPages: number
 }
 
+export interface ShopTaskCreateResult {
+  runId: string
+  status: string
+  requestType: string
+  requestMode: 'ONCE' | 'REPEATABLE'
+  requestedCount: number
+  queuedCount: number
+  totalCount: number
+  skippedCount: number
+  skippedShops: string[]
+  repeatPolicy: string
+}
+
 export interface SellerspriteMonthlyUsageSummary {
   month: string
   taskCount: number
@@ -235,6 +248,33 @@ export const requestCenterApi = {
 
   listTasks(params: { requestType?: string; triggerType?: string; status?: string; batchCode?: string; month?: string; page?: number; size?: number }): Promise<PageResult<SellerspriteRequestRun>> {
     return unwrap<PageResult<SellerspriteRequestRun>>(request({ url: `${RC_BASE}/tasks`, method: 'get', params }))
+  },
+
+  /** 普通候选店铺：同站点同店铺跨来源只允许抓取一次。 */
+  createShopTaskOnce(body: {
+    marketplace?: string
+    triggerType: string
+    triggerRef?: string
+    fetchReason?: string
+    operator?: string
+    items: Array<{ marketplace: string; sellerName: string; triggerId?: number }>
+  }): Promise<ShopTaskCreateResult> {
+    return unwrap<ShopTaskCreateResult>(
+      request({ url: `${RC_BASE}/shop-tasks/once`, method: 'post', data: body })
+    )
+  },
+
+  /** 精品店铺：允许历史完成后周期复抓，但不允许并发重复活跃任务。 */
+  createRepeatableShopTask(body: {
+    marketplace?: string
+    triggerRef?: string
+    fetchReason?: string
+    operator?: string
+    items: Array<{ marketplace: string; sellerName: string; triggerId?: number }>
+  }): Promise<ShopTaskCreateResult> {
+    return unwrap<ShopTaskCreateResult>(
+      request({ url: `${RC_BASE}/shop-tasks/repeatable`, method: 'post', data: body })
+    )
   },
 
   monthlyUsageSummary(month?: string): Promise<SellerspriteMonthlyUsageSummary> {

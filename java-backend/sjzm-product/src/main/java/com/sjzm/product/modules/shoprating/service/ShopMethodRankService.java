@@ -52,6 +52,17 @@ public class ShopMethodRankService {
     }
 
     /**
+     * 返回指定来源周批次的全部店铺，不受任何方法卡通过状态影响。
+     */
+    public List<ShopMethodRankItem> rankAllByBatch(String marketplace, String effectiveWeekTag) {
+        if (effectiveWeekTag == null || effectiveWeekTag.isBlank()) {
+            throw new IllegalArgumentException("批次全部店铺查询必须指定来源周批次");
+        }
+        String mp = normalizeRankMarketplace(marketplace);
+        return mapper.selectAllShopRanking(mp, effectiveWeekTag.trim());
+    }
+
+    /**
      * 方法卡感知的店铺分级入口。当前仅实现 M01，后续方法卡必须显式接入自己的 hit source。
      */
     public List<ShopMethodRankItem> rankByMethod(String methodId, String marketplace, Integer minCount, Integer limit) {
@@ -83,6 +94,12 @@ public class ShopMethodRankService {
             case "M01" -> mapper.selectM01MethodBatches(normalizeRankMarketplace(marketplace), lim);
             default -> throw new IllegalArgumentException("店铺方法卡批次暂不支持 methodId=" + method + "，当前仅支持 M01");
         };
+    }
+
+    /** 返回 clean 表中全部可找店批次，不要求批次内存在 M01 通过商品。 */
+    public List<ShopMethodBatchOption> listAllSourceBatches(String marketplace, Integer limit) {
+        int lim = limit == null || limit < 1 ? 20 : Math.min(limit, 100);
+        return mapper.selectAllSourceBatches(normalizeRankMarketplace(marketplace), lim);
     }
 
     private String normalizeMethodId(String methodId) {

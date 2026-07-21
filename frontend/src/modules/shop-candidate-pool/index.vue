@@ -4,6 +4,7 @@
       <div class="toolbar">
         <el-select v-model="sourceTypeFilter" placeholder="来源" style="width: 130px" @change="handleSourceTypeChange">
           <el-option label="M1 方法卡" value="METHOD_CARD" />
+          <el-option label="批次全部" value="BATCH_ALL" />
           <el-option label="全部来源" value="" />
           <el-option label="人工加入" value="MANUAL" />
           <el-option label="基线" value="BASELINE" />
@@ -34,8 +35,13 @@
           <el-option label="M1 / M01 新品加速法" value="M01" />
         </el-select>
         <el-input-number v-model="minCount" :min="1" :max="100" controls-position="right" style="width: 130px" />
-        <el-button type="primary" :loading="syncing" @click="handleSyncFromRank">刷新 M1 通过店铺</el-button>
+        <el-button type="primary" :loading="syncing" @click="handleSyncFromRank">获取 M1 通过店铺</el-button>
+        <el-button :loading="syncingAll" @click="handleSyncAllFromBatch">获取批次全部店铺</el-button>
         <div class="spacer" />
+        <el-radio-group v-model="requestState" size="small" @change="handleRequestStateChange">
+          <el-radio-button label="UNREQUESTED">未请求</el-radio-button>
+          <el-radio-button label="REQUESTED">已请求</el-radio-button>
+        </el-radio-group>
         <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 140px" @change="handleFilterChange">
           <el-option label="待处理 PENDING" value="PENDING" />
           <el-option label="已选中 SELECTED" value="SELECTED" />
@@ -48,29 +54,31 @@
         <el-button @click="loadList">刷新</el-button>
       </div>
       <div class="flow-strip">
-        <span :class="['flow-step', 'active']">M1 通过店铺</span>
+        <span :class="['flow-step', { active: sourceTypeFilter === 'METHOD_CARD' }]">M1 通过店铺</span>
+        <span class="flow-or">或</span>
+        <span :class="['flow-step', { active: sourceTypeFilter === 'BATCH_ALL' }]">批次全部店铺</span>
         <span class="flow-arrow">→</span>
         <span class="flow-step">单个/批量抓全集</span>
         <span class="flow-arrow">→</span>
         <span class="flow-step">看画像</span>
         <span class="flow-arrow">→</span>
         <span class="flow-step">入精品池</span>
-        <span class="flow-note">当前表格默认只看 {{ methodId }} 方法卡命中的店铺；抓全集才会消耗卖家精灵次数。</span>
+        <span class="flow-note">可获取 M1 通过店铺，也可忽略方法卡结果获取本批次全部店铺；抓全集才会消耗卖家精灵次数。</span>
       </div>
       <div class="source-strip">
         <span>来源表：{{ selectedBatchOption?.sourceTable || 'competitor_products_clean' }}</span>
         <span>批次字段：{{ selectedBatchOption?.sourceWeekField || 'effective_week_tag' }}</span>
         <span>当前批次：{{ selectedBatchDateLabel || '全部候选池批次' }}</span>
         <span v-if="selectedBatchOption">
-          命中商品 {{ selectedBatchOption.productCount }} 个 / 店铺 {{ selectedBatchOption.sellerCount }} 家
+          批次商品 {{ selectedBatchOption.productCount }} 个 / 全部店铺 {{ selectedBatchOption.sellerCount }} 家
         </span>
-        <span v-else>未选批次时仅查看候选池已有记录；刷新方法卡会自动使用最新来源批次。</span>
+        <span v-else>未选批次时仅查看候选池已有记录；获取店铺会自动使用最新来源批次。</span>
       </div>
     </el-card>
 
     <el-card shadow="never">
       <div class="result-bar">
-        <span>当前列表：{{ resultScopeLabel }}</span>
+        <span>当前列表：{{ requestState === 'UNREQUESTED' ? '未请求' : '已请求' }} · {{ resultScopeLabel }}</span>
         <span>共 {{ total }} 家</span>
         <span>已选 {{ selectedRows.length }} 家，可抓 {{ fetchableSelectedCount }} 家</span>
         <span v-if="currentPageDuplicateCount > 0">本页跨批重复 {{ currentPageDuplicateCount }} 条</span>
@@ -81,7 +89,7 @@
         </div>
       </div>
       <el-table ref="tableRef" :data="rows" v-loading="loading" stripe height="calc(100vh - 325px)" @selection-change="onSelectionChange">
-        <el-table-column type="selection" width="45" />
+        <el-table-column type="selection" width="45" :selectable="isRowSelectable" />
         <el-table-column prop="marketplace" label="站点" width="70" />
         <el-table-column prop="sellerName" label="店铺名" min-width="190" show-overflow-tooltip>
           <template #default="{ row }">
@@ -89,7 +97,7 @@
             <el-tag v-if="isCurrentPageDuplicate(row)" size="small" type="warning" class="duplicate-tag">跨批重复</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="命中数" width="90" sortable :sort-by="'hitCount'">
+        <el-table-column label="商品数" width="90" sortable :sort-by="'hitCount'">
           <template #default="{ row }">
             <el-tag type="success" v-if="row.hitCount != null">{{ row.hitCount }}</el-tag>
             <span v-else>-</span>
@@ -101,7 +109,7 @@
             {{ displayBatchDate(row.batchCode, row.batchDate) }}
           </template>
         </el-table-column>
-        <el-table-column label="通过方法" width="150">
+        <el-table-column label="来源方式" width="150">
           <template #default="{ row }">
             <el-tag size="small" :type="row.sourceType === 'METHOD_CARD' ? 'primary' : 'info'">
               {{ sourceLabel(row.sourceType) }}
@@ -109,7 +117,7 @@
             <span v-if="row.sourceCode" class="src-code">{{ row.sourceCode }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="通过原因" min-width="240" show-overflow-tooltip>
+        <el-table-column label="来源说明" min-width="240" show-overflow-tooltip>
           <template #default="{ row }">
             {{ reasonText(row) }}
           </template>
@@ -125,6 +133,13 @@
             <el-tag :type="statusType(row.status)">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="请求记录" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.requested ? 'success' : 'info'" size="small">
+              {{ row.requested ? '已请求' : '未请求' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="抓取" width="100">
           <template #default="{ row }">
             <span v-if="row.fetchRunId" :title="row.fetchRunId">有记录</span>
@@ -137,7 +152,7 @@
               size="small"
               type="primary"
               link
-              :disabled="!canFetch(row.status)"
+              :disabled="!canFetchCandidate(row)"
               @click="handleFetch(row)"
             >抓全集</el-button>
             <el-button size="small" link @click="openShop(row)">看画像</el-button>
@@ -188,17 +203,35 @@ import { shopCandidateApi, type ShopCandidatePool, type ShopMethodBatchOption } 
 import { requestCenterApi, shopPremiumApi } from '@/api/shopPremium'
 
 const router = useRouter()
-const marketplace = ref('')
-const batchCode = ref('')
-const sourceTypeFilter = ref('METHOD_CARD')
-const methodId = ref('M01')
-const minCount = ref(1)
-const statusFilter = ref('')
+const FILTER_STORAGE_KEY = 'shop-request-center:filters:v1'
+type RequestState = 'UNREQUESTED' | 'REQUESTED'
+interface StoredFilters {
+  marketplace?: string
+  batchCode?: string
+  batchByMarketplace?: Record<string, string>
+  sourceTypeFilter?: string
+  methodId?: string
+  minCount?: number
+  statusFilter?: string
+  requestState?: RequestState
+  size?: number
+}
+
+const storedFilters = readStoredFilters()
+const marketplace = ref(storedFilters.marketplace || '')
+const batchCode = ref(storedFilters.batchCode || '')
+const batchByMarketplace = ref<Record<string, string>>(storedFilters.batchByMarketplace || {})
+const sourceTypeFilter = ref(storedFilters.sourceTypeFilter ?? 'METHOD_CARD')
+const methodId = ref(storedFilters.methodId || 'M01')
+const minCount = ref(storedFilters.minCount || 1)
+const statusFilter = ref(storedFilters.statusFilter || '')
+const requestState = ref<RequestState>(storedFilters.requestState || 'UNREQUESTED')
 const rows = ref<ShopCandidatePool[]>([])
 const batchOptions = ref<ShopMethodBatchOption[]>([])
 const loading = ref(false)
 const batchLoading = ref(false)
 const syncing = ref(false)
+const syncingAll = ref(false)
 const batchFetching = ref(false)
 const allSelecting = ref(false)
 const selectedRows = ref<ShopCandidatePool[]>([])
@@ -206,9 +239,9 @@ const tableRef = ref<InstanceType<typeof ElTable>>()
 const syncingTableSelection = ref(false)
 
 const page = ref(1)
-const size = ref(50)
+const size = ref(storedFilters.size || 50)
 const total = ref(0)
-const fetchableSelectedCount = computed(() => selectedRows.value.filter((row) => canFetch(row.status)).length)
+const fetchableSelectedCount = computed(() => selectedRows.value.filter(canFetchCandidate).length)
 const selectedBatchOption = computed(() => batchOptions.value.find((item) => item.batchCode === batchCode.value))
 const selectedBatchDateLabel = computed(() => {
   const selected = selectedBatchOption.value
@@ -228,6 +261,7 @@ const currentPageDuplicateKeys = computed(() => {
 const currentPageDuplicateCount = computed(() => rows.value.filter((row) => isCurrentPageDuplicate(row)).length)
 const resultScopeLabel = computed(() => {
   if (sourceTypeFilter.value === 'METHOD_CARD') return `${methodId.value} 方法卡通过店铺`
+  if (sourceTypeFilter.value === 'BATCH_ALL') return '当前批次全部店铺'
   if (sourceTypeFilter.value === 'MANUAL') return '人工加入店铺'
   if (sourceTypeFilter.value === 'BASELINE') return '基线来源店铺'
   return '全部店铺候选'
@@ -236,26 +270,28 @@ const resultScopeLabel = computed(() => {
 async function loadMethodBatches(preferLatest = false) {
   batchLoading.value = true
   try {
-    const list = await shopCandidateApi.methodBatches({
-      methodId: methodId.value,
+    const list = await shopCandidateApi.sourceBatches({
       marketplace: marketplace.value || undefined,
       limit: 50
     })
     batchOptions.value = list || []
-    if (preferLatest) {
-      batchCode.value = batchOptions.value[0]?.batchCode || ''
-    } else if (batchCode.value && !batchOptions.value.some((item) => item.batchCode === batchCode.value)) {
-      batchCode.value = batchOptions.value[0]?.batchCode || ''
-    }
+    const rememberedBatch = batchByMarketplace.value[marketplaceStorageKey()]
+    const preferredBatch = preferLatest ? '' : (rememberedBatch || batchCode.value)
+    batchCode.value = preferredBatch && batchOptions.value.some((item) => item.batchCode === preferredBatch)
+      ? preferredBatch
+      : (batchOptions.value[0]?.batchCode || '')
+    rememberCurrentBatch()
+    persistFilters()
   } catch (e: any) {
     batchOptions.value = []
-    ElMessage.error(e?.message || '加载方法卡来源批次失败')
+    ElMessage.error(e?.message || '加载找店来源批次失败')
   } finally {
     batchLoading.value = false
   }
 }
 
 async function loadList() {
+  persistFilters()
   loading.value = true
   try {
     const r = await shopCandidateApi.list({
@@ -265,6 +301,7 @@ async function loadList() {
       sourceCode: sourceTypeFilter.value === 'METHOD_CARD' ? methodId.value : undefined,
       status: statusFilter.value || undefined,
       minHitCount: sourceTypeFilter.value === 'METHOD_CARD' ? minCount.value : undefined,
+      requestState: requestState.value,
       page: page.value,
       size: size.value
     })
@@ -310,10 +347,36 @@ function handleSourceTypeChange() {
   loadList()
 }
 
+async function handleSyncAllFromBatch() {
+  sourceTypeFilter.value = 'BATCH_ALL'
+  if (!batchCode.value) {
+    await loadMethodBatches(true)
+  }
+  if (!batchCode.value) {
+    ElMessage.warning('没有可用的来源周批次')
+    return
+  }
+  syncingAll.value = true
+  try {
+    const r = await shopCandidateApi.syncAllFromBatch(
+      marketplace.value || undefined,
+      batchCode.value
+    )
+    ElMessage.success(`批次全部店铺 ${r.rankedShops} 家，写入候选池 ${r.upserted} 家（${displayBatchDate(r.batchCode)}）`)
+    page.value = 1
+    clearSelection()
+    await loadList()
+  } catch (e: any) {
+    ElMessage.error(e?.message || '同步批次全部店铺失败')
+  } finally {
+    syncingAll.value = false
+  }
+}
+
 async function handleMarketplaceChange() {
   page.value = 1
   clearSelection()
-  await loadMethodBatches(true)
+  await loadMethodBatches(false)
   await loadList()
 }
 
@@ -321,11 +384,12 @@ async function handleMethodChange() {
   sourceTypeFilter.value = 'METHOD_CARD'
   page.value = 1
   clearSelection()
-  await loadMethodBatches(true)
+  await loadMethodBatches(false)
   await loadList()
 }
 
 function handleBatchChange() {
+  rememberCurrentBatch()
   page.value = 1
   clearSelection()
   loadList()
@@ -337,8 +401,18 @@ function handleFilterChange() {
   loadList()
 }
 
-function canFetch(status: string): boolean {
-  return ['PENDING', 'SELECTED', 'FETCH_FAILED'].includes(status)
+function handleRequestStateChange() {
+  page.value = 1
+  clearSelection()
+  loadList()
+}
+
+function canFetchCandidate(row: ShopCandidatePool): boolean {
+  return !row.requested && ['PENDING', 'SELECTED', 'FETCH_FAILED'].includes(row.status)
+}
+
+function isRowSelectable(row: ShopCandidatePool): boolean {
+  return canFetchCandidate(row)
 }
 
 function canResetPending(status: string): boolean {
@@ -357,7 +431,7 @@ async function handleFetch(row: ShopCandidatePool) {
   }
   try {
     const task = await createCandidateFetchTask([row])
-    ElMessage.success(`请求中心任务已创建：${task.runId}`)
+    ElMessage.success(`请求中心任务已创建：${task.runId}${task.skippedCount > 0 ? `，已跳过重复店铺 ${task.skippedCount} 家` : ''}`)
     await loadList()
     goToRequestCenter(task.runId)
   } catch (e: any) {
@@ -367,7 +441,7 @@ async function handleFetch(row: ShopCandidatePool) {
 
 async function handleBatchFetch() {
   if (selectedRows.value.length === 0) return
-  const fetchable = selectedRows.value.filter((r) => canFetch(r.status))
+  const fetchable = selectedRows.value.filter(canFetchCandidate)
   if (fetchable.length === 0) {
     ElMessage.warning('所选店铺没有可抓取的（状态需为 PENDING/SELECTED/FETCH_FAILED）')
     return
@@ -385,7 +459,7 @@ async function handleBatchFetch() {
   batchFetching.value = true
   try {
     const task = await createCandidateFetchTask(deduped)
-    ElMessage.success(`请求中心任务已创建：${task.runId}，共 ${task.totalCount} 家`)
+    ElMessage.success(`请求中心任务已创建：${task.runId}，入队 ${task.queuedCount} 家${task.skippedCount > 0 ? `，跳过重复 ${task.skippedCount} 家` : ''}`)
     clearSelection()
     await loadList()
     goToRequestCenter(task.runId)
@@ -397,8 +471,7 @@ async function handleBatchFetch() {
 }
 
 function createCandidateFetchTask(candidates: ShopCandidatePool[]) {
-  return requestCenterApi.createTask({
-    requestType: 'CANDIDATE_BATCH',
+  return requestCenterApi.createShopTaskOnce({
     triggerType: 'CANDIDATE_CONFIRM',
     triggerRef: buildCandidateBatchTriggerRef(candidates),
     fetchReason: '候选池确认抓取店铺全集',
@@ -418,7 +491,7 @@ function onSelectionChange(sel: ShopCandidatePool[]) {
 }
 
 function selectCurrentPageFetchable() {
-  rows.value.filter((row) => canFetch(row.status)).forEach((row) => {
+  rows.value.filter(canFetchCandidate).forEach((row) => {
     tableRef.value?.toggleRowSelection(row, true)
   })
 }
@@ -446,6 +519,7 @@ async function selectAllFetchable() {
       sourceCode: sourceTypeFilter.value === 'METHOD_CARD' ? methodId.value : undefined,
       status: statusFilter.value || undefined,
       minHitCount: sourceTypeFilter.value === 'METHOD_CARD' ? minCount.value : undefined,
+      requestState: requestState.value,
       limit: 10000
     })
     selectedRows.value = list || []
@@ -616,7 +690,7 @@ async function handleRemove(row: ShopCandidatePool) {
 
 function sourceLabel(t: string) {
   const map: Record<string, string> = {
-    METHOD_CARD: '方法卡', BASELINE: '基线', MANUAL: '人工', OWN_GOOD_SIMILAR: '自有相似', CATEGORY: '类目'
+    METHOD_CARD: '方法卡', BATCH_ALL: '批次全量', BASELINE: '基线', MANUAL: '人工', OWN_GOOD_SIMILAR: '自有相似', CATEGORY: '类目'
   }
   return map[t] || t
 }
@@ -624,6 +698,9 @@ function reasonText(row: ShopCandidatePool) {
   if (row.reason) return row.reason
   if (row.sourceType === 'METHOD_CARD') {
     return `${row.sourceCode || '方法卡'} 命中 ${row.hitCount ?? '-'} 个合格新品${row.topCategory ? `，主打 ${row.topCategory}` : ''}`
+  }
+  if (row.sourceType === 'BATCH_ALL') {
+    return `批次全量收录 ${row.hitCount ?? '-'} 个商品${row.topCategory ? `，主打 ${row.topCategory}` : ''}`
   }
   return '-'
 }
@@ -642,8 +719,44 @@ function statusType(s: string): 'primary' | 'success' | 'info' | 'warning' | 'da
   return map[s] || 'info'
 }
 
+function marketplaceStorageKey() {
+  return marketplace.value || '__ALL__'
+}
+
+function rememberCurrentBatch() {
+  if (batchCode.value) {
+    batchByMarketplace.value[marketplaceStorageKey()] = batchCode.value
+  } else {
+    delete batchByMarketplace.value[marketplaceStorageKey()]
+  }
+}
+
+function persistFilters() {
+  const filters: StoredFilters = {
+    marketplace: marketplace.value,
+    batchCode: batchCode.value,
+    batchByMarketplace: batchByMarketplace.value,
+    sourceTypeFilter: sourceTypeFilter.value,
+    methodId: methodId.value,
+    minCount: minCount.value,
+    statusFilter: statusFilter.value,
+    requestState: requestState.value,
+    size: size.value
+  }
+  localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters))
+}
+
+function readStoredFilters(): StoredFilters {
+  try {
+    return JSON.parse(localStorage.getItem(FILTER_STORAGE_KEY) || '{}') as StoredFilters
+  } catch {
+    localStorage.removeItem(FILTER_STORAGE_KEY)
+    return {}
+  }
+}
+
 onMounted(async () => {
-  await loadMethodBatches(true)
+  await loadMethodBatches(false)
   await loadList()
 })
 </script>

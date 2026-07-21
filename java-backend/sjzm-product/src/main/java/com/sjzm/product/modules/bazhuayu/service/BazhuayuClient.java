@@ -293,9 +293,9 @@ public class BazhuayuClient {
     /**
      * 读取已由调用方确认的单次云采集数据。
      *
-     * <p>系统自己启动的任务带真实 lotNo，走 /data/lotno/all 精确读取。八爪鱼网页手动启动的任务，
-     * statuses/v2 不返回内部 lotNo，只能读取 /data/all 当前快照；此时首屏 total 不得超过最新批次
-     * currentTotalExtractCount，避免历史累计数据混入。</p>
+     * <p>系统自己启动的任务带真实 lotNo，走 /data/lotno/all 精确读取。八爪鱼网页手动或定时启动的任务，
+     * statuses/v2 不返回内部 lotNo，只能读取 /data/all。八爪鱼实测按最新数据优先返回，因此此分支只消费
+     * currentTotalExtractCount 指定的前 N 行，到 N 立即停止，禁止继续扫描后面的历史累计数据。</p>
      */
     public int fetchBatchDataStreaming(
             String taskId,
@@ -304,7 +304,13 @@ public class BazhuayuClient {
         if (batch == null || batch.batchNo() == null) {
             throw new IllegalArgumentException("八爪鱼批次不能为空");
         }
-        String pathPrefix = batch.lotNo() != null && !batch.lotNo().isBlank()
+        boolean exactLotNo = batch.lotNo() != null && !batch.lotNo().isBlank();
+        int expectedRows = Math.max(0, batch.cloudCount());
+        if (expectedRows == 0) {
+            log.info("八爪鱼任务 {} 批次 {} 本批次数量为 0，无需拉取", taskId, batch.batchNo());
+            return 0;
+        }
+        String pathPrefix = exactLotNo
                 ? "/data/lotno/all?taskId=" + enc(taskId) + "&lotno=" + enc(batch.lotNo())
                 : "/data/all?taskId=" + enc(taskId);
         int offset = 0;
@@ -312,31 +318,53 @@ public class BazhuayuClient {
         int size = Math.min(1000, Math.max(1, config.getDataPageSize()));
         boolean firstPage = true;
         while (true) {
-            JsonNode data = paginationData(get(pathPrefix + "&offset=" + offset + "&size=" + size));
-            if (firstPage && (batch.lotNo() == null || batch.lotNo().isBlank())) {
-                int snapshotTotal = data.path("total").asInt(0);
-                if (batch.cloudCount() > 0 && snapshotTotal > batch.cloudCount()) {
-                    throw new IllegalStateException("八爪鱼当前全量数据 " + snapshotTotal
-                            + " 条，超过页面最新批次 " + batch.batchNo() + " 的 " + batch.cloudCount()
-                            + " 条，已拒绝导入以避免混入历史批次");
+            JsonNode data = fetchDataPage(pathPrefix + "&offset=" + offset + "&size=" + size);
+            if (firstPage) {
+                int sourceTotal = data.path("total").asInt(0);
+                if (sourceTotal < expectedRows) {
+                    throw new IllegalStateException("八爪鱼批次 " + batch.batchNo() + " 页面显示 "
+                            + expectedRows + " 条，但批次数据接口仅返回 " + sourceTotal
+                            + " 条，已拒绝导入；请先同步最新批次后重试");
+                }
+                if (exactLotNo && sourceTotal != expectedRows) {
+                    throw new IllegalStateException("八爪鱼批次 " + batch.batchNo() + " 的 lotNo 数据量 "
+                            + sourceTotal + " 与页面显示 " + expectedRows + " 不一致，已拒绝导入");
+                }
+                if (!exactLotNo && sourceTotal > expectedRows) {
+                    log.info("八爪鱼任务 {} /data/all 含历史累计 {} 行；批次 {} 仅读取最新前 {} 行",
+                            taskId, sourceTotal, batch.batchNo(), expectedRows);
                 }
             }
             firstPage = false;
             JsonNode rows = data.path("data");
             List<JsonNode> page = new ArrayList<>();
             if (rows.isArray()) rows.forEach(page::add);
+            int remaining = expectedRows - total;
+            if (page.size() > remaining) {
+                page = new ArrayList<>(page.subList(0, remaining));
+            }
             if (!page.isEmpty()) {
                 pageHandler.accept(page);
                 total += page.size();
             }
+            if (total >= expectedRows) break;
             int restTotal = data.path("restTotal").asInt(0);
             offset = data.path("offset").asInt(offset);
             if (restTotal <= 0 || page.isEmpty()) break;
             sleep2s();
         }
+        if (total != expectedRows) {
+            throw new IllegalStateException("八爪鱼批次 " + batch.batchNo() + " 应读取 " + expectedRows
+                    + " 条，实际只读取 " + total + " 条，已拒绝生成不完整导入任务");
+        }
         log.info("八爪鱼任务 {} 批次 {} 流式拉取 {} 行（lotNo={}）",
                 taskId, batch.batchNo(), total, batch.lotNo());
         return total;
+    }
+
+    /** 单页数据读取 seam，包内测试可替换 HTTP，只验证批次截断与数量保护。 */
+    JsonNode fetchDataPage(String path) {
+        return paginationData(get(path));
     }
 
     /** 兼容开放平台分页字段位于响应 data 对象内或直接位于根节点两种形态。 */

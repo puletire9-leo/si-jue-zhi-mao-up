@@ -75,7 +75,7 @@ export interface SelectionFilterIntent {
   };
   search: {
     asin: string[];
-    /** 多项精准 ASIN 搜索：只保留站点/业务数据源，不与普通筛选条件求交集。 */
+    /** ASIN 精准直查（单条或多条）：只保留站点/业务数据源，不与普通筛选条件求交集。 */
     exactAsin: boolean;
     title?: string;
     sellerName?: string;
@@ -885,7 +885,11 @@ export function buildSelectionFilterIntent(input: {
     overrides,
   } = input;
   const asinValues = splitSearchValues(queryParams?.asin);
-  const exactAsinSearch = asinValues.length > 1;
+  // ASIN 是定位商品的主键。无论输入 1 条还是多条，都必须走当前业务数据源的
+  // 精准直查，不能继续套用 M01/M02/M03 或批次、销量等普通筛选。
+  // 否则新品榜默认 M01 时，单条 ASIN 会落到不支持 asin 参数的方法卡接口，
+  // 表现为点击搜索后列表完全不变；店铺选品则因为走 shop_products 而正常。
+  const exactAsinSearch = asinValues.length > 0;
   const sellerName =
     compactText(overrides?.sellerName) ||
     compactText(activeFilters.sellerSelect) ||
@@ -894,7 +898,7 @@ export function buildSelectionFilterIntent(input: {
 
   return {
     scene,
-    // 多项精准搜索用于直接定位商品，不能继续套方法卡规则。
+    // ASIN 精准直查用于直接定位商品，不能继续套方法卡规则。
     lensId: exactAsinSearch ? "default" : methodId || "default",
     methodId: exactAsinSearch ? null : methodId,
     scope: {

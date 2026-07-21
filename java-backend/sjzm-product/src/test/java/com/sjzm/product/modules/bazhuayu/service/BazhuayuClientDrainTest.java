@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 /**
@@ -99,6 +100,50 @@ class BazhuayuClientDrainTest {
     }
 
     @Test
+    void batchWithoutLotNo_readsOnlyLatestPrefixFromCumulativeData() {
+        BazhuayuClient client = spyClient(1000);
+        doReturn(dataPage(2500, 1500, 1000, 1000), dataPage(2500, 500, 2000, 1000))
+                .when(client).fetchDataPage(anyString());
+        doNothing().when(client).sleep2s();
+
+        AtomicInteger handled = new AtomicInteger();
+        BazhuayuBatchSnapshot batch = BazhuayuBatchSnapshot.expected(
+                "20260720-103833", "2026-07-20T10:38:33.147", "2026-07-20T10:41:15.663", 1321);
+
+        int processed = client.fetchBatchDataStreaming(
+                "task-1", batch, page -> handled.addAndGet(page.size()));
+
+        assertThat(processed).isEqualTo(1321);
+        assertThat(handled.get()).isEqualTo(1321);
+        verify(client, times(2)).fetchDataPage(anyString());
+    }
+
+    @Test
+    void batchWithoutLotNo_rejectsWhenSourceHasFewerRowsThanStatus() {
+        BazhuayuClient client = spyClient(1000);
+        doReturn(dataPage(1200, 200, 1000, 1000)).when(client).fetchDataPage(anyString());
+        BazhuayuBatchSnapshot batch = BazhuayuBatchSnapshot.expected(
+                "20260720-103833", "2026-07-20T10:38:33.147", "2026-07-20T10:41:15.663", 1321);
+
+        assertThatThrownBy(() -> client.fetchBatchDataStreaming("task-1", batch, page -> {}))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("仅返回 1200 条");
+    }
+
+    @Test
+    void exactLotNo_rejectsMismatchedBatchTotal() {
+        BazhuayuClient client = spyClient(1000);
+        doReturn(dataPage(1322, 322, 1000, 1000)).when(client).fetchDataPage(anyString());
+        BazhuayuBatchSnapshot batch = BazhuayuBatchSnapshot.expected(
+                        "20260720-103833", "2026-07-20T10:38:33.147", "2026-07-20T10:41:15.663", 1321)
+                .withLotNo("639201407131476393");
+
+        assertThatThrownBy(() -> client.fetchBatchDataStreaming("task-1", batch, page -> {}))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("lotNo 数据量 1322");
+    }
+
+    @Test
     void waitForExtraction_finished_returnsFinished_andReportsProgress() {
         BazhuayuClient client = spyClient(1000);
         doReturn(status("Extracting", 100), status("Finished", 300))
@@ -136,5 +181,17 @@ class BazhuayuClientDrainTest {
         n.put("status", s);
         n.put("currentTotalExtractCount", count);
         return n;
+    }
+
+    private JsonNode dataPage(int total, int restTotal, int offset, int rows) {
+        ObjectNode data = om.createObjectNode();
+        data.put("total", total);
+        data.put("restTotal", restTotal);
+        data.put("offset", offset);
+        var array = data.putArray("data");
+        for (int i = 0; i < rows; i++) {
+            array.addObject().put("ASIN", "B0" + i);
+        }
+        return data;
     }
 }

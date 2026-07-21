@@ -29,10 +29,20 @@ public interface ShopMethodRankMapper {
                                                   @Param("limit") int limit);
 
     /**
+     * 按来源周批次汇总全部店铺，不判断 m01_active。
+     */
+    List<ShopMethodRankItem> selectAllShopRanking(@Param("marketplace") String marketplace,
+                                                   @Param("effectiveWeekTag") String effectiveWeekTag);
+
+    /**
      * M01 可用来源批次。注意：这里读取的是 clean 表的 effective_week_tag，
      * 不是候选池 batch_code，也不是 created_at 临时推导周次。
      */
     List<ShopMethodBatchOption> selectM01MethodBatches(@Param("marketplace") String marketplace,
+                                                       @Param("limit") int limit);
+
+    /** competitor_products_clean 中全部可找店的来源周批次。 */
+    List<ShopMethodBatchOption> selectAllSourceBatches(@Param("marketplace") String marketplace,
                                                        @Param("limit") int limit);
 
     int normalizeM01UnknownListingDaysRaw(@Param("marketplace") String marketplace,

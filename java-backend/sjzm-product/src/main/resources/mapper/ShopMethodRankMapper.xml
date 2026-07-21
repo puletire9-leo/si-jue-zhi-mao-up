@@ -31,7 +31,8 @@
                   <if test="effectiveWeekTag != null and effectiveWeekTag != ''">
                   AND c.effective_week_tag = #{effectiveWeekTag}
                   </if>
-                  AND c.seller_name IS NOT NULL AND c.seller_name != ''
+                  AND c.seller_name IS NOT NULL AND TRIM(c.seller_name) != ''
+                  AND LOWER(TRIM(c.seller_name)) NOT IN ('amazon', 'null')
                   AND c.asin IS NOT NULL AND c.asin != ''
             ) ranked
             WHERE rn = 1
@@ -70,6 +71,81 @@
         LIMIT #{limit}
     </select>
 
+    <!--
+      批次全部店铺：仍按店铺 + 父体去重统计商品数，但不读取 m01_active，
+      因此方法卡未通过的店铺也会进入结果。
+    -->
+    <select id="selectAllShopRanking"
+            resultType="com.sjzm.product.modules.shoprating.dto.ShopMethodRankItem">
+        WITH ranked AS (
+                SELECT c.marketplace, c.seller_name, c.price, c.node_label_path,
+                    COALESCE(NULLIF(c.parent_asin, ''), c.asin) AS product_key,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY c.marketplace, c.seller_name,
+                            COALESCE(NULLIF(c.parent_asin, ''), c.asin)
+                        ORDER BY
+                            CASE WHEN c.updated_at IS NULL THEN 1 ELSE 0 END ASC,
+                            c.updated_at DESC,
+                            c.id DESC
+                    ) AS rn
+                FROM competitor_products_clean c
+                WHERE c.effective_week_tag = #{effectiveWeekTag}
+                  <if test="marketplace != null and marketplace != ''">
+                  AND c.marketplace = #{marketplace}
+                  </if>
+                  AND c.seller_name IS NOT NULL AND TRIM(c.seller_name) != ''
+                  AND LOWER(TRIM(c.seller_name)) NOT IN ('amazon', 'null')
+                  AND c.asin IS NOT NULL AND TRIM(c.asin) != ''
+        ),
+        base AS (
+            SELECT * FROM ranked
+            WHERE rn = 1
+        ),
+        shop_stats AS (
+            SELECT
+                seller_name,
+                marketplace,
+                COUNT(*) AS hitCount,
+                ROUND(AVG(price), 2) AS avgPrice,
+                MIN(price) AS minPrice,
+                MAX(price) AS maxPrice
+            FROM base
+            GROUP BY seller_name, marketplace
+        ),
+        category_counts AS (
+            SELECT
+                seller_name,
+                marketplace,
+                SUBSTRING_INDEX(node_label_path, ':', -1) AS category_name,
+                COUNT(*) AS category_count
+            FROM base
+            WHERE node_label_path IS NOT NULL AND TRIM(node_label_path) != ''
+            GROUP BY seller_name, marketplace, SUBSTRING_INDEX(node_label_path, ':', -1)
+        ),
+        category_ranked AS (
+            SELECT *, ROW_NUMBER() OVER (
+                PARTITION BY marketplace, seller_name
+                ORDER BY category_count DESC, category_name ASC
+            ) AS category_rank
+            FROM category_counts
+        )
+        SELECT
+            'ALL' AS methodId,
+            s.seller_name AS sellerName,
+            s.marketplace AS marketplace,
+            s.hitCount,
+            s.avgPrice,
+            s.minPrice,
+            s.maxPrice,
+            cr.category_name AS topCategory
+        FROM shop_stats s
+        LEFT JOIN category_ranked cr
+          ON cr.marketplace = s.marketplace
+         AND cr.seller_name = s.seller_name
+         AND cr.category_rank = 1
+        ORDER BY s.hitCount DESC, s.avgPrice ASC
+    </select>
+
     <select id="selectM01MethodBatches"
             resultType="com.sjzm.product.modules.shoprating.dto.ShopMethodBatchOption">
         SELECT
@@ -93,8 +169,42 @@
         FROM competitor_products_clean c
         WHERE c.m01_active = 1
           AND c.effective_week_tag IS NOT NULL AND c.effective_week_tag != ''
-          AND c.seller_name IS NOT NULL AND c.seller_name != ''
+          AND c.seller_name IS NOT NULL AND TRIM(c.seller_name) != ''
+          AND LOWER(TRIM(c.seller_name)) NOT IN ('amazon', 'null')
           AND c.asin IS NOT NULL AND c.asin != ''
+          <if test="marketplace != null and marketplace != ''">
+          AND c.marketplace = #{marketplace}
+          </if>
+        GROUP BY c.effective_week_tag
+        ORDER BY MAX(c.created_at) DESC, c.effective_week_tag DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectAllSourceBatches"
+            resultType="com.sjzm.product.modules.shoprating.dto.ShopMethodBatchOption">
+        SELECT
+            'ALL' AS methodId,
+            <choose>
+                <when test="marketplace != null and marketplace != ''">
+                    #{marketplace} AS marketplace,
+                </when>
+                <otherwise>
+                    'ALL' AS marketplace,
+                </otherwise>
+            </choose>
+            c.effective_week_tag AS batchCode,
+            'competitor_products_clean' AS sourceTable,
+            'effective_week_tag' AS sourceWeekField,
+            COUNT(DISTINCT CONCAT(
+                c.marketplace, '|', c.seller_name, '|', COALESCE(NULLIF(c.parent_asin, ''), c.asin)
+            )) AS productCount,
+            COUNT(DISTINCT CONCAT(c.marketplace, '|', c.seller_name)) AS sellerCount,
+            MAX(c.created_at) AS latestCreatedAt
+        FROM competitor_products_clean c
+        WHERE c.effective_week_tag IS NOT NULL AND c.effective_week_tag != ''
+          AND c.seller_name IS NOT NULL AND TRIM(c.seller_name) != ''
+          AND LOWER(TRIM(c.seller_name)) NOT IN ('amazon', 'null')
+          AND c.asin IS NOT NULL AND TRIM(c.asin) != ''
           <if test="marketplace != null and marketplace != ''">
           AND c.marketplace = #{marketplace}
           </if>

@@ -40,7 +40,9 @@ class ProductFeatureProcessorTest {
         assertEquals(0, new BigDecimal("250").compareTo(product.getWeightG()));
         assertEquals("B", product.getSalesTier());
         assertEquals("https://www.amazon.co.uk/dp/B0TEST1234", product.getProductUrl());
-        assertEquals("https://www.amazon.co.uk/stylesnap?q=https://example.test/image.jpg", product.getSimilarUrl());
+        assertEquals(
+                "https://www.amazon.co.uk/stylesnap?q=https%3A%2F%2Fexample.test%2Fimage.jpg",
+                product.getSimilarUrl());
         assertEquals("新品榜", product.getSource());
         assertNull(product.getM01Active());
     }

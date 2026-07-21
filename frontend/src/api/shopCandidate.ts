@@ -25,6 +25,7 @@ export interface ShopCandidatePool {
   note: string | null
   createdAt: string | null
   updatedAt: string | null
+  requested: boolean
 }
 
 /** 店铺抓取运行记录（后端 shop_fetch_run 映射） */
@@ -69,7 +70,7 @@ export interface CandidateSyncResult {
   upserted: number
 }
 
-/** 方法卡找店来源批次（M01 当前来自 competitor_products_clean.effective_week_tag） */
+/** 店铺请求中心来源批次（M01 当前来自 competitor_products_clean.effective_week_tag） */
 export interface ShopMethodBatchOption {
   methodId: string
   marketplace: string
@@ -105,7 +106,7 @@ function unwrap<T>(p: Promise<any>): Promise<T> {
 const BASE = '/api/v1/modules/shop-candidates'
 
 export const shopCandidateApi = {
-  /** 方法卡找店来源批次：用于周批次下拉，避免手输和 created_at 周次口径混用 */
+  /** 店铺请求中心来源批次：用于周批次下拉，避免手输和 created_at 周次口径混用 */
   methodBatches(params: {
     methodId?: string
     marketplace?: string
@@ -113,6 +114,16 @@ export const shopCandidateApi = {
   }): Promise<ShopMethodBatchOption[]> {
     return unwrap<ShopMethodBatchOption[]>(
       request({ url: `${BASE}/method-batches`, method: 'get', params })
+    )
+  },
+
+  /** 全部找店来源批次，不要求批次内商品通过 M01。 */
+  sourceBatches(params: {
+    marketplace?: string
+    limit?: number
+  }): Promise<ShopMethodBatchOption[]> {
+    return unwrap<ShopMethodBatchOption[]>(
+      request({ url: `${BASE}/source-batches`, method: 'get', params })
     )
   },
 
@@ -128,6 +139,18 @@ export const shopCandidateApi = {
     )
   },
 
+  /** 将指定周批次的全部店铺写入候选池，不判断方法卡是否通过。 */
+  syncAllFromBatch(marketplace: string | undefined, batchCode: string): Promise<CandidateSyncResult> {
+    return unwrap<CandidateSyncResult>(
+      request({
+        url: `${BASE}/sync-all-from-batch`,
+        method: 'post',
+        params: { batchCode, ...(marketplace ? { marketplace } : {}) },
+        timeout: 600000
+      })
+    )
+  },
+
   /** 候选池分页查询 */
   list(params: {
     marketplace?: string
@@ -137,6 +160,7 @@ export const shopCandidateApi = {
     status?: string
     minHitCount?: number
     sellerName?: string
+    requestState?: 'UNREQUESTED' | 'REQUESTED'
     page?: number
     size?: number
   }): Promise<PageResult<ShopCandidatePool>> {
@@ -154,6 +178,7 @@ export const shopCandidateApi = {
     status?: string
     minHitCount?: number
     sellerName?: string
+    requestState?: 'UNREQUESTED' | 'REQUESTED'
     limit?: number
   }): Promise<ShopCandidatePool[]> {
     return unwrap<ShopCandidatePool[]>(

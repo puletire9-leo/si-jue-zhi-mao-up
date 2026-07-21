@@ -2,6 +2,7 @@ package com.sjzm.product.service;
 
 import com.sjzm.product.entity.CompetitorProduct;
 import com.sjzm.product.methodrule.M01Rule;
+import com.sjzm.product.modules.bazhuayu.service.ImageSearchUrlBuilder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -80,12 +81,6 @@ public class ProductFeatureProcessor {
     }
 
     public String buildSimilarUrl(String imageUrl, String marketplace) {
-        if (imageUrl == null) return null;
-        String domain = switch (marketplace) {
-            case "DE" -> "https://www.amazon.de";
-            case "US" -> "https://www.amazon.com";
-            default -> "https://www.amazon.co.uk";
-        };
-        return domain + "/stylesnap?q=" + imageUrl;
+        return ImageSearchUrlBuilder.build(marketplace, imageUrl);
     }
 }

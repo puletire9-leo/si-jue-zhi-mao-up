@@ -92,6 +92,39 @@ class ShopCollectionServiceTest {
     }
 
     @Test
+    void selectionProductsAcceptIsoWeekBatchFilter() {
+        ShopProductSelectionQuery query = new ShopProductSelectionQuery();
+        query.setMarketplace("UK");
+        query.setBatchDates(List.of("2026-W29"));
+        when(shopProductMapper.selectPage(ArgumentMatchers.any(Page.class), ArgumentMatchers.any(Wrapper.class)))
+                .thenReturn(new Page<>(1, 60, 0));
+
+        service.selectionProducts(query);
+
+        ArgumentCaptor<Wrapper<ShopProduct>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(shopProductMapper).selectPage(ArgumentMatchers.any(Page.class), wrapperCaptor.capture());
+        Wrapper<ShopProduct> wrapper = wrapperCaptor.getValue();
+        assertThat(wrapper.getCustomSqlSegment())
+                .contains("batch_code")
+                .doesNotContain("STR_TO_DATE(batch_date", "%x-W%v");
+        assertThat(((LambdaQueryWrapper<ShopProduct>) wrapper).getParamNameValuePairs().values())
+                .contains("2026-W29");
+    }
+
+    @Test
+    void selectionBatchesUsesWeeklyAggregation() {
+        List<Map<String, Object>> weeks = List.of(Map.of(
+                "week", "2026-W29",
+                "count", 30216L,
+                "startDate", "2026-07-14",
+                "endDate", "2026-07-14"));
+        when(shopProductMapper.selectSelectionWeeks("UK")).thenReturn(weeks);
+
+        assertThat(service.selectionBatches("UK")).isEqualTo(weeks);
+        verify(shopProductMapper).selectSelectionWeeks("UK");
+    }
+
+    @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
     void selectionProductsMatchSelectedFullCategoryExactly() {
         ShopProductSelectionQuery query = new ShopProductSelectionQuery();
@@ -133,6 +166,13 @@ class ShopCollectionServiceTest {
 
         assertThat(aSection.get("count")).isEqualTo(30);
         assertThat((List<?>) aSection.get("products")).hasSize(24);
+
+        ArgumentCaptor<LambdaQueryWrapper<ShopProduct>> wrapperCaptor = ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(shopProductMapper).selectList(wrapperCaptor.capture());
+        assertThat(wrapperCaptor.getValue().getSqlSelect())
+                .contains("asin", "parent_asin", "image_url", "title", "units", "sales_tier",
+                        "price", "rating", "ratings", "node_label_path", "product_url")
+                .doesNotContain("raw_json");
     }
 
     @Test

@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.modules.shopcandidate.mapper.ShopCandidatePoolMapper">
+
+    <sql id="requestedKeys">
+        SELECT source_keys.marketplace, source_keys.seller_name
+        FROM (
+            SELECT i.marketplace COLLATE utf8mb4_unicode_ci AS marketplace,
+                   i.seller_name COLLATE utf8mb4_unicode_ci AS seller_name
+            FROM sellersprite_request_item i
+            JOIN sellersprite_request_run r ON r.run_id = i.run_id
+            WHERE i.seller_name IS NOT NULL AND TRIM(i.seller_name) != ''
+              <if test="marketplace != null and marketplace != ''">
+                AND i.marketplace = #{marketplace}
+              </if>
+              AND (
+                COALESCE(i.request_dispatched, 0) = 1
+                OR i.status IN ('SUCCESS', 'PARTIAL_SUCCESS')
+                OR (r.status IN ('PENDING', 'RUNNING', 'PAUSED', 'PAUSED_SYSTEM')
+                    AND i.status IN ('PENDING', 'RUNNING', 'WAITING_RETRY'))
+              )
+            GROUP BY i.marketplace, i.seller_name
+            UNION ALL
+            SELECT f.marketplace COLLATE utf8mb4_unicode_ci,
+                   f.seller_name COLLATE utf8mb4_unicode_ci
+            FROM shop_fetch_run f
+            WHERE f.status IN ('SUCCESS', 'PARTIAL_SUCCESS')
+              <if test="marketplace != null and marketplace != ''">
+                AND f.marketplace = #{marketplace}
+              </if>
+            GROUP BY f.marketplace, f.seller_name
+            UNION ALL
+            SELECT p.marketplace COLLATE utf8mb4_unicode_ci,
+                   p.seller_name COLLATE utf8mb4_unicode_ci
+            FROM shop_products p
+            WHERE p.seller_name IS NOT NULL AND TRIM(p.seller_name) != ''
+              <if test="marketplace != null and marketplace != ''">
+                AND p.marketplace = #{marketplace}
+              </if>
+            GROUP BY p.marketplace, p.seller_name
+        ) source_keys
+        GROUP BY source_keys.marketplace, source_keys.seller_name
+    </sql>
+
+    <sql id="requestedJoin">
+        LEFT JOIN (<include refid="requestedKeys"/>) requested
+          ON requested.marketplace = c.marketplace COLLATE utf8mb4_unicode_ci
+         AND requested.seller_name = c.seller_name COLLATE utf8mb4_unicode_ci
+    </sql>
+
+    <sql id="candidateFilters">
+        c.seller_name IS NOT NULL
+        AND LOWER(TRIM(c.seller_name)) NOT IN ('', 'amazon', 'null')
+        <if test="marketplace != null and marketplace != ''">
+            AND c.marketplace = #{marketplace}
+        </if>
+        <if test="batchCode != null and batchCode != ''">
+            AND c.batch_code = #{batchCode}
+        </if>
+        <if test="sourceType != null and sourceType != ''">
+            AND c.source_type = #{sourceType}
+        </if>
+        <if test="sourceCode != null and sourceCode != ''">
+            AND c.source_code = #{sourceCode}
+        </if>
+        <if test="status != null and status != ''">
+            AND c.status = #{status}
+        </if>
+        <if test="minHitCount != null">
+            AND c.hit_count &gt;= #{minHitCount}
+        </if>
+        <if test="sellerName != null and sellerName != ''">
+            AND c.seller_name LIKE CONCAT('%', #{sellerName}, '%')
+        </if>
+    </sql>
+
+    <sql id="candidateColumns">
+        c.*,
+        CASE WHEN requested.seller_name IS NOT NULL THEN TRUE ELSE FALSE END AS requested
+    </sql>
+
+    <sql id="requestStateFilter">
+        <if test="requestState == 'REQUESTED'">
+            AND requested.seller_name IS NOT NULL
+        </if>
+        <if test="requestState == 'UNREQUESTED'">
+            AND requested.seller_name IS NULL
+        </if>
+    </sql>
+
+    <select id="selectByRequestState"
+            resultType="com.sjzm.product.modules.shopcandidate.entity.ShopCandidatePool">
+        SELECT <include refid="candidateColumns"/>
+        FROM shop_candidate_pool c
+        <include refid="requestedJoin"/>
+        WHERE <include refid="candidateFilters"/>
+        <include refid="requestStateFilter"/>
+        ORDER BY c.hit_count DESC, c.updated_at DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countByRequestState" resultType="long">
+        SELECT COUNT(*)
+        FROM shop_candidate_pool c
+        <include refid="requestedJoin"/>
+        WHERE <include refid="candidateFilters"/>
+        <include refid="requestStateFilter"/>
+    </select>
+
+    <select id="selectFetchableByRequestState"
+            resultType="com.sjzm.product.modules.shopcandidate.entity.ShopCandidatePool">
+        SELECT <include refid="candidateColumns"/>
+        FROM shop_candidate_pool c
+        <include refid="requestedJoin"/>
+        WHERE <include refid="candidateFilters"/>
+          <include refid="requestStateFilter"/>
+          <choose>
+            <when test="status != null and status != ''">
+              AND c.status = #{status}
+            </when>
+            <otherwise>
+              AND c.status IN ('PENDING', 'SELECTED', 'FETCH_FAILED')
+            </otherwise>
+          </choose>
+        ORDER BY c.hit_count DESC, c.updated_at DESC
+        LIMIT #{limit}
+    </select>
+
+    <insert id="upsertBatch">
+        INSERT INTO shop_candidate_pool (
+            marketplace, seller_name, seller_id, source_type, source_code,
+            batch_code, batch_date, reason, hit_count, top_category,
+            sales_tier_summary_json, sample_products_json, status, operator, note, created_at, updated_at
+        ) VALUES
+        <foreach collection="items" item="item" separator=",">
+            (#{item.marketplace}, #{item.sellerName}, #{item.sellerId}, #{item.sourceType}, #{item.sourceCode},
+             #{item.batchCode}, #{item.batchDate}, #{item.reason}, #{item.hitCount}, #{item.topCategory},
+             #{item.salesTierSummaryJson}, #{item.sampleProductsJson}, COALESCE(#{item.status}, 'PENDING'),
+             #{item.operator}, #{item.note}, NOW(), NOW())
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            seller_id=VALUES(seller_id), batch_date=VALUES(batch_date), reason=VALUES(reason),
+            hit_count=VALUES(hit_count), top_category=VALUES(top_category),
+            sales_tier_summary_json=VALUES(sales_tier_summary_json),
+            sample_products_json=VALUES(sample_products_json), operator=VALUES(operator),
+            note=VALUES(note), updated_at=NOW()
+    </insert>
+</mapper>

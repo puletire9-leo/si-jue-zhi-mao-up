@@ -3,6 +3,7 @@ package com.sjzm.product.modules.shopcandidate.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.sjzm.common.PageResult;
+import com.sjzm.product.config.DatabaseWorkloadGate;
 import com.sjzm.product.modules.shopcandidate.entity.ShopCandidatePool;
 import com.sjzm.product.modules.shopcandidate.entity.ShopFetchRun;
 import com.sjzm.product.modules.shopcandidate.mapper.ShopCandidatePoolMapper;
@@ -17,7 +18,6 @@ import com.sjzm.product.util.WeekTagUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
@@ -52,8 +52,10 @@ public class ShopCandidateService {
     private final ShopWatchlistMapper watchlistMapper;
     private final WeekTagUtil weekTagUtil;
     private final TransactionTemplate transactionTemplate;
+    private final DatabaseWorkloadGate workloadGate;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
+    private static final int UPSERT_BATCH_SIZE = 500;
     private static final Set<String> VALID_STATUSES = Set.of(
             "PENDING", "SELECTED", "FETCHING", "FETCHED", "FETCH_FAILED", "IGNORED", "PROMOTED");
     private record FetchPreparation(ShopCandidatePool candidate, ShopWatchlist watchlist, ShopFetchRun run) {}
@@ -67,6 +69,11 @@ public class ShopCandidateService {
         return methodRankService.listMethodBatches(methodId, marketplace, limit);
     }
 
+    /** 全量找店可用批次，不要求商品通过方法卡。 */
+    public List<ShopMethodBatchOption> listAllSourceBatches(String marketplace, Integer limit) {
+        return workloadGate.runHeavyQuery(() -> methodRankService.listAllSourceBatches(marketplace, limit));
+    }
+
     /**
      * 从方法卡店铺排名同步候选池（替代旧 ShopWatchlistService.syncFromMethodRank 直写观察池）。
      *
@@ -76,23 +83,28 @@ public class ShopCandidateService {
      * @param batchCode   ISO 周批次，null=当前周
      * @return 同步结果
      */
-    @Transactional
     public Map<String, Object> syncFromMethodRank(String methodId, String marketplace,
                                                    Integer minCount, String batchCode, Integer limit) {
         String method = normalizeMethodId(methodId);
         int min = minCount == null || minCount < 1 ? 1 : minCount;
         String batch = StringUtils.hasText(batchCode) ? batchCode.trim() : weekTagUtil.currentWeekTag();
         int lim = limit == null || limit < 1 ? 1000 : Math.min(limit, 5000);
+        return workloadGate.runHeavyWrite(() -> doSyncFromMethodRank(method, marketplace, min, batch, lim));
+    }
+
+    private Map<String, Object> doSyncFromMethodRank(String method, String marketplace,
+                                                     int min, String batch, int lim) {
         String batchDate = LocalDate.now().format(DATE_FMT);
 
-        List<ShopMethodRankItem> ranking = methodRankService.rankByMethod(method, marketplace, batch, min, lim);
+        List<ShopMethodRankItem> ranking = workloadGate.runHeavyQuery(
+                () -> methodRankService.rankByMethod(method, marketplace, batch, min, lim));
 
-        int upserted = 0;
+        List<ShopCandidatePool> candidates = new ArrayList<>(ranking.size());
         for (ShopMethodRankItem item : ranking) {
-            if (item.getSellerName() == null || item.getSellerName().isBlank()) continue;
+            if (isInvalidSellerName(item.getSellerName())) continue;
             ShopCandidatePool entity = new ShopCandidatePool();
             entity.setMarketplace(item.getMarketplace());
-            entity.setSellerName(item.getSellerName());
+            entity.setSellerName(item.getSellerName().trim());
             entity.setSourceType("METHOD_CARD");
             entity.setSourceCode(method);
             entity.setBatchCode(batch);
@@ -101,9 +113,9 @@ public class ShopCandidateService {
             entity.setTopCategory(item.getTopCategory());
             entity.setReason(buildReason(method, item));
             entity.setStatus("PENDING");
-            candidateMapper.upsert(entity);
-            upserted++;
+            candidates.add(entity);
         }
+        int upserted = upsertCandidatesInBatches(candidates);
 
         log.info("候选池同步完成: methodId={}, marketplace={}, batchCode={}, ranked={}, upserted={}",
                 method, marketplace, batch, ranking.size(), upserted);
@@ -118,28 +130,71 @@ public class ShopCandidateService {
         return result;
     }
 
+    /**
+     * 将指定来源周批次的全部店铺同步到候选池，不判断方法卡是否通过。
+     */
+    public Map<String, Object> syncAllFromBatch(String marketplace, String batchCode) {
+        if (!StringUtils.hasText(batchCode)) {
+            throw new IllegalArgumentException("请选择来源周批次");
+        }
+        return workloadGate.runHeavyWrite(() -> doSyncAllFromBatch(marketplace, batchCode));
+    }
+
+    private Map<String, Object> doSyncAllFromBatch(String marketplace, String batchCode) {
+        String batch = batchCode.trim();
+        String batchDate = LocalDate.now().format(DATE_FMT);
+        List<ShopMethodRankItem> ranking = workloadGate.runHeavyQuery(
+                () -> methodRankService.rankAllByBatch(marketplace, batch));
+
+        List<ShopCandidatePool> candidates = new ArrayList<>(ranking.size());
+        for (ShopMethodRankItem item : ranking) {
+            if (isInvalidSellerName(item.getSellerName())) continue;
+            ShopCandidatePool entity = new ShopCandidatePool();
+            entity.setMarketplace(item.getMarketplace());
+            entity.setSellerName(item.getSellerName().trim());
+            entity.setSourceType("BATCH_ALL");
+            entity.setSourceCode("ALL_PRODUCTS");
+            entity.setBatchCode(batch);
+            entity.setBatchDate(batchDate);
+            entity.setHitCount(item.getHitCount());
+            entity.setTopCategory(item.getTopCategory());
+            entity.setReason(buildAllBatchReason(item));
+            entity.setStatus("PENDING");
+            candidates.add(entity);
+        }
+        int upserted = upsertCandidatesInBatches(candidates);
+
+        log.info("批次全部店铺同步完成: marketplace={}, batchCode={}, ranked={}, upserted={}",
+                marketplace, batch, ranking.size(), upserted);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("methodId", "ALL");
+        result.put("marketplace", marketplace);
+        result.put("batchCode", batch);
+        result.put("minCount", 0);
+        result.put("limit", ranking.size());
+        result.put("rankedShops", ranking.size());
+        result.put("upserted", upserted);
+        return result;
+    }
+
     // ── list / detail ────────────────────────────────────────────
 
     /** 候选池分页查询。 */
     public PageResult<ShopCandidatePool> list(String marketplace, String batchCode, String sourceType,
                                               String sourceCode, String status, Integer minHitCount,
-                                              String sellerName, Integer page, Integer size) {
-        int p = Math.max(1, page == null ? 1 : page);
-        int s = Math.max(1, Math.min(size == null ? 50 : size, 200));
-        LambdaQueryWrapper<ShopCandidatePool> qw = new LambdaQueryWrapper<ShopCandidatePool>()
-                .eq(StringUtils.hasText(marketplace), ShopCandidatePool::getMarketplace, marketplace)
-                .eq(StringUtils.hasText(batchCode), ShopCandidatePool::getBatchCode, batchCode)
-                .eq(StringUtils.hasText(sourceType), ShopCandidatePool::getSourceType, sourceType)
-                .eq(StringUtils.hasText(sourceCode), ShopCandidatePool::getSourceCode, sourceCode)
-                .eq(StringUtils.hasText(status), ShopCandidatePool::getStatus, status)
-                .ge(minHitCount != null, ShopCandidatePool::getHitCount, minHitCount)
-                .like(StringUtils.hasText(sellerName), ShopCandidatePool::getSellerName, sellerName)
-                .orderByDesc(ShopCandidatePool::getHitCount)
-                .orderByDesc(ShopCandidatePool::getUpdatedAt);
-
-        Page<ShopCandidatePool> mpPage = new Page<>(p, s);
-        Page<ShopCandidatePool> result = candidateMapper.selectPage(mpPage, qw);
-        return PageResult.of(result.getRecords(), result.getTotal(), (long) p, (long) s);
+                                              String sellerName, String requestState, Integer page, Integer size) {
+        return workloadGate.runHeavyQuery(() -> {
+            int p = Math.max(1, page == null ? 1 : page);
+            int s = Math.max(1, Math.min(size == null ? 50 : size, 200));
+            String normalizedRequestState = normalizeRequestState(requestState);
+            String normalizedStatus = StringUtils.hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : null;
+            long total = candidateMapper.countByRequestState(marketplace, batchCode, sourceType, sourceCode,
+                    normalizedStatus, minHitCount, sellerName, normalizedRequestState);
+            List<ShopCandidatePool> records = total == 0 ? List.of() : candidateMapper.selectByRequestState(
+                    marketplace, batchCode, sourceType, sourceCode, normalizedStatus, minHitCount, sellerName,
+                    normalizedRequestState, (p - 1) * s, s);
+            return PageResult.of(records, total, (long) p, (long) s);
+        });
     }
 
     /**
@@ -150,26 +205,16 @@ public class ShopCandidateService {
      */
     public List<ShopCandidatePool> listFetchable(String marketplace, String batchCode, String sourceType,
                                                  String sourceCode, String status, Integer minHitCount,
-                                                 String sellerName, Integer limit) {
+                                                 String sellerName, String requestState, Integer limit) {
         int lim = limit == null || limit < 1 ? 5000 : Math.min(limit, 10000);
         List<String> fetchableStatuses = List.of("PENDING", "SELECTED", "FETCH_FAILED");
         if (StringUtils.hasText(status) && !fetchableStatuses.contains(status.trim().toUpperCase(Locale.ROOT))) {
             return List.of();
         }
-        LambdaQueryWrapper<ShopCandidatePool> qw = new LambdaQueryWrapper<ShopCandidatePool>()
-                .eq(StringUtils.hasText(marketplace), ShopCandidatePool::getMarketplace, marketplace)
-                .eq(StringUtils.hasText(batchCode), ShopCandidatePool::getBatchCode, batchCode)
-                .eq(StringUtils.hasText(sourceType), ShopCandidatePool::getSourceType, sourceType)
-                .eq(StringUtils.hasText(sourceCode), ShopCandidatePool::getSourceCode, sourceCode)
-                .eq(StringUtils.hasText(status), ShopCandidatePool::getStatus,
-                        StringUtils.hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : null)
-                .in(!StringUtils.hasText(status), ShopCandidatePool::getStatus, fetchableStatuses)
-                .ge(minHitCount != null, ShopCandidatePool::getHitCount, minHitCount)
-                .like(StringUtils.hasText(sellerName), ShopCandidatePool::getSellerName, sellerName)
-                .orderByDesc(ShopCandidatePool::getHitCount)
-                .orderByDesc(ShopCandidatePool::getUpdatedAt)
-                .last("LIMIT " + lim);
-        return candidateMapper.selectList(qw);
+        return workloadGate.runHeavyQuery(() -> candidateMapper.selectFetchableByRequestState(
+                marketplace, batchCode, sourceType, sourceCode,
+                StringUtils.hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : null,
+                minHitCount, sellerName, normalizeRequestState(requestState), lim));
     }
 
     public ShopCandidatePool getById(Long id) {
@@ -542,6 +587,40 @@ public class ShopCandidateService {
             sb.append("，主打 ").append(item.getTopCategory());
         }
         return sb.toString();
+    }
+
+    private String buildAllBatchReason(ShopMethodRankItem item) {
+        StringBuilder sb = new StringBuilder("批次全部店铺，收录 ")
+                .append(item.getHitCount()).append(" 个商品");
+        if (StringUtils.hasText(item.getTopCategory())) {
+            sb.append("，主打 ").append(item.getTopCategory());
+        }
+        return sb.toString();
+    }
+
+    private int upsertCandidatesInBatches(List<ShopCandidatePool> candidates) {
+        int processed = 0;
+        for (int from = 0; from < candidates.size(); from += UPSERT_BATCH_SIZE) {
+            int to = Math.min(from + UPSERT_BATCH_SIZE, candidates.size());
+            candidateMapper.upsertBatch(new ArrayList<>(candidates.subList(from, to)));
+            processed += to - from;
+        }
+        return processed;
+    }
+
+    private boolean isInvalidSellerName(String sellerName) {
+        return !StringUtils.hasText(sellerName)
+                || "amazon".equalsIgnoreCase(sellerName.trim())
+                || "null".equalsIgnoreCase(sellerName.trim());
+    }
+
+    private String normalizeRequestState(String requestState) {
+        if (!StringUtils.hasText(requestState)) return null;
+        String normalized = requestState.trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("REQUESTED", "UNREQUESTED").contains(normalized)) {
+            throw new IllegalArgumentException("请求状态仅支持 REQUESTED 或 UNREQUESTED");
+        }
+        return normalized;
     }
 
     private String normalizeMethodId(String methodId) {

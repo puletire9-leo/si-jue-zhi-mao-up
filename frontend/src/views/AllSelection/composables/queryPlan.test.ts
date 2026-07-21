@@ -569,6 +569,96 @@ describe("buildSelectionQueryPlan", () => {
     expect(plan.latestSnapshotFallback).toBeUndefined();
   });
 
+  it("treats a single ASIN as an exact lookup and bypasses M01 and normal filters", () => {
+    const intent = buildSelectionFilterIntent({
+      scene: "new",
+      methodId: "M01",
+      queryParams: createQueryParams({
+        asin: "B0H5K617VH",
+        productTitle: "ignored title",
+      }),
+      activeFilters: createFilterState({
+        category: ["Ignored category"],
+        range: {
+          ...createRange(),
+          unitsMin: 30,
+          listingDaysMax: 30,
+          createdWeeks: ["2026-W29", "2026-W30"],
+        },
+      }),
+      useCleanTable: true,
+      qualifyRules: [
+        {
+          conditions: [{ field: "units", op: "gt", value: 30 }],
+        },
+      ],
+    });
+
+    const plan = buildSelectionQueryPlan({ intent, page: 1, size: 60 });
+
+    expect(plan.executor).toBe("competitor");
+    if (plan.executor !== "competitor") {
+      throw new Error("expected competitor plan");
+    }
+    expect(plan.params.asin).toEqual(["B0H5K617VH"]);
+    expect(plan.methodId).toBeNull();
+    expect(plan.params.title).toBeUndefined();
+    expect(plan.params.category).toBeUndefined();
+    expect(plan.params.unitsMin).toBeUndefined();
+    expect(plan.params.listingDaysMax).toBeUndefined();
+    expect(plan.params.createdWeeks).toBeUndefined();
+    expect(plan.params.qualifyRules).toBeUndefined();
+    expect(plan.latestSnapshotFallback).toBeUndefined();
+  });
+
+  it.each([
+    ["reference", "shop_products"],
+    ["premium", "premium_products"],
+    ["zheng", "deng_zong"],
+  ] as const)(
+    "keeps single-ASIN lookup semantics unified for %s",
+    (scene, expectedExecutor) => {
+      const intent = buildSelectionFilterIntent({
+        scene,
+        methodId: scene === "zheng" ? null : "M01",
+        queryParams: createQueryParams({ asin: "B0H5K617VH" }),
+        activeFilters: createFilterState({
+          category: ["Ignored"],
+          range: {
+            ...createRange(),
+            unitsMin: 10,
+            listingDaysMax: 90,
+            createdWeeks: ["2026-W29"],
+          },
+        }),
+        useCleanTable: true,
+      });
+
+      const plan = buildSelectionQueryPlan({ intent, page: 1, size: 60 });
+      expect(plan.executor).toBe(expectedExecutor);
+      expect(plan.methodId).toBeNull();
+
+      if (plan.executor === "competitor" || plan.executor === "premium_products") {
+        expect(plan.params.asin).toEqual(["B0H5K617VH"]);
+        expect(plan.params.unitsMin).toBeUndefined();
+        expect(plan.params.listingDaysMax).toBeUndefined();
+        expect(plan.params.createdWeeks).toBeUndefined();
+      } else if (plan.executor === "shop_products") {
+        expect(plan.params.asins).toEqual(["B0H5K617VH"]);
+        expect(plan.params.unitsMin).toBeUndefined();
+        expect(plan.params.listingDaysMax).toBeUndefined();
+        expect(plan.params.batchDates).toBeUndefined();
+      } else if (plan.executor === "deng_zong") {
+        expect(plan.params.asins).toEqual(["B0H5K617VH"]);
+        expect(plan.params.unitsMin).toBeUndefined();
+        expect(plan.params.listingDaysMax).toBeUndefined();
+        expect(plan.params.batchDate).toBeUndefined();
+      } else {
+        throw new Error("exact ASIN lookup must not use a method-card executor");
+      }
+    },
+  );
+
   it("passes all visible zheng filters and listing-date sorting to the backend", () => {
     const intent = buildSelectionFilterIntent({
       scene: "zheng",

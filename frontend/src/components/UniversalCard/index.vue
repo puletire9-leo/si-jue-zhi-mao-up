@@ -209,6 +209,7 @@ import {
   Promotion,
   Search,
 } from "@element-plus/icons-vue";
+import { buildAmazonImageSearchUrl } from "@/utils/amazonImageSearch";
 import { trackClick } from "@/api/clickLog";
 import { getProductType } from "@/api/competitor";
 import { formatDetailMoney } from "@/components/ProductDetailDialog/productDetail";
@@ -376,9 +377,16 @@ const productLink = computed(() => {
   return "";
 });
 
-const similarProductsLink = computed(
-  () => props.product.similarProducts || props.product.similarUrl || "",
-);
+const similarProductsLink = computed(() => {
+  const sourceImage = props.product.imageUrl || props.product.image || "";
+  const marketplace = props.product.marketplace || props.product.country || "UK";
+  return (
+    buildAmazonImageSearchUrl(sourceImage, marketplace) ||
+    props.product.similarProducts ||
+    props.product.similarUrl ||
+    ""
+  );
+});
 
 const visibleTags = computed(() => (props.product.tags || []).slice(0, 3));
 const extraTagsCount = computed(() =>

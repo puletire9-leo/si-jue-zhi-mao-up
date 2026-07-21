@@ -12,6 +12,67 @@ import java.util.List;
 @Mapper
 public interface SellerspriteRequestItemMapper extends BaseMapper<SellerspriteRequestItem> {
 
+    int insertBatch(@Param("items") List<SellerspriteRequestItem> items);
+
+    /**
+     * 一次性找店入口的全局去重：历史已发出、成功抓取、已有店铺数据或当前活跃任务都不可再入队。
+     */
+    @Select("""
+            <script>
+            SELECT DISTINCT shop_key
+            FROM (
+                SELECT CONVERT(CONCAT(UPPER(TRIM(i.marketplace)), '|', LOWER(TRIM(i.seller_name))) USING utf8mb4)
+                    COLLATE utf8mb4_unicode_ci AS shop_key
+                FROM sellersprite_request_item i
+                JOIN sellersprite_request_run r ON r.run_id = i.run_id
+                WHERE i.seller_name IS NOT NULL
+                  AND (
+                    COALESCE(i.request_dispatched, 0) = 1
+                    OR i.status IN ('SUCCESS', 'PARTIAL_SUCCESS')
+                    OR (r.status IN ('PENDING', 'RUNNING', 'PAUSED', 'PAUSED_SYSTEM')
+                        AND i.status IN ('PENDING', 'RUNNING', 'WAITING_RETRY'))
+                  )
+                  AND CONVERT(CONCAT(UPPER(TRIM(i.marketplace)), '|', LOWER(TRIM(i.seller_name))) USING utf8mb4)
+                    COLLATE utf8mb4_unicode_ci IN
+                  <foreach collection='shopKeys' item='key' open='(' separator=',' close=')'>#{key}</foreach>
+                UNION
+                SELECT CONVERT(CONCAT(UPPER(TRIM(f.marketplace)), '|', LOWER(TRIM(f.seller_name))) USING utf8mb4)
+                    COLLATE utf8mb4_unicode_ci AS shop_key
+                FROM shop_fetch_run f
+                WHERE f.status IN ('SUCCESS', 'PARTIAL_SUCCESS')
+                  AND CONVERT(CONCAT(UPPER(TRIM(f.marketplace)), '|', LOWER(TRIM(f.seller_name))) USING utf8mb4)
+                    COLLATE utf8mb4_unicode_ci IN
+                  <foreach collection='shopKeys' item='key' open='(' separator=',' close=')'>#{key}</foreach>
+                UNION
+                SELECT CONVERT(CONCAT(UPPER(TRIM(p.marketplace)), '|', LOWER(TRIM(p.seller_name))) USING utf8mb4)
+                    COLLATE utf8mb4_unicode_ci AS shop_key
+                FROM shop_products p
+                WHERE p.seller_name IS NOT NULL AND TRIM(p.seller_name) != ''
+                  AND CONVERT(CONCAT(UPPER(TRIM(p.marketplace)), '|', LOWER(TRIM(p.seller_name))) USING utf8mb4)
+                    COLLATE utf8mb4_unicode_ci IN
+                  <foreach collection='shopKeys' item='key' open='(' separator=',' close=')'>#{key}</foreach>
+            ) existing
+            </script>
+            """)
+    List<String> selectUnavailableOnceShopKeys(@Param("shopKeys") List<String> shopKeys);
+
+    /** 精品复抓只拦截当前活跃任务，历史成功记录允许按周期再次抓取。 */
+    @Select("""
+            <script>
+            SELECT DISTINCT CONVERT(CONCAT(UPPER(TRIM(i.marketplace)), '|', LOWER(TRIM(i.seller_name))) USING utf8mb4)
+                COLLATE utf8mb4_unicode_ci AS shop_key
+            FROM sellersprite_request_item i
+            JOIN sellersprite_request_run r ON r.run_id = i.run_id
+            WHERE i.seller_name IS NOT NULL
+              AND r.status IN ('PENDING', 'RUNNING', 'PAUSED', 'PAUSED_SYSTEM')
+              AND i.status IN ('PENDING', 'RUNNING', 'WAITING_RETRY')
+              AND CONVERT(CONCAT(UPPER(TRIM(i.marketplace)), '|', LOWER(TRIM(i.seller_name))) USING utf8mb4)
+                COLLATE utf8mb4_unicode_ci IN
+              <foreach collection='shopKeys' item='key' open='(' separator=',' close=')'>#{key}</foreach>
+            </script>
+            """)
+    List<String> selectActiveShopKeys(@Param("shopKeys") List<String> shopKeys);
+
     /** 取一批 PENDING 子项（按 seq 升序），原子置为 RUNNING 抢锁。返回抢到的条目。 */
     @Select("SELECT * FROM sellersprite_request_item WHERE run_id=#{runId} AND status='PENDING' ORDER BY seq ASC LIMIT #{batchSize}")
     List<SellerspriteRequestItem> selectPending(@Param("runId") String runId, @Param("batchSize") int batchSize);

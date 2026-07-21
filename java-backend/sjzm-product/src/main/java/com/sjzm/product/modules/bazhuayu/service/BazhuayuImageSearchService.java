@@ -77,7 +77,8 @@ public class BazhuayuImageSearchService {
         }
 
         // 4. 构造 stylesnap URL，写进任务循环
-        String searchUrl = ImageSearchUrlBuilder.build(MARKETPLACE, imageUrl);
+        String sourceImageUrl = ImageSearchUrlBuilder.normalizeSourceImageUrl(imageUrl);
+        String searchUrl = ImageSearchUrlBuilder.build(MARKETPLACE, sourceImageUrl);
         client.updateLoopItems(taskId, "UrlList", List.of(searchUrl));
 
         // 5. 启动云采集
@@ -108,7 +109,7 @@ public class BazhuayuImageSearchService {
             BazhuayuImageSearchResult r = new BazhuayuImageSearchResult();
             r.setSourceAsin(normAsin);
             r.setMarketplace(MARKETPLACE);
-            r.setSourceImageUrl(imageUrl);
+            r.setSourceImageUrl(sourceImageUrl);
             r.setSearchUrl(searchUrl);
             r.setResultAsin(BazhuayuRowMapper.pick(row, RESULT_ASIN_KEYS));
             r.setResultTitle(BazhuayuRowMapper.pick(row, RESULT_TITLE_KEYS));

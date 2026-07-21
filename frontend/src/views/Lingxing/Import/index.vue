@@ -631,8 +631,9 @@ const extractAndUploadImagesFromExcel = async (
     clearLogs();
     addLog("开始提取Excel中的图片（按视觉顺序）...", "info");
 
-    // 提取图片（SKU列索引为4，即E列）
-    const images = await extractImagesFromExcel(arrayBuffer, 4);
+    // 提取图片：SKU列索引=4(E列)，图片列索引=2(C列)。
+    // 只取"图片"列的商品图，忽略 cpc段/采购数量 等其它列里的图。
+    const images = await extractImagesFromExcel(arrayBuffer, 4, 2);
 
     if (images.length === 0) {
       addLog("Excel中没有找到嵌入的图片", "warning");
@@ -660,17 +661,42 @@ const extractAndUploadImagesFromExcel = async (
     let successCount = 0;
     let skipCount = 0;
 
+    // 已被占用的数据行(防止同一 SKU 或位置被两张图覆盖)
+    const usedRows = new Set<number>();
+    const normSku = (v: any) => String(v ?? "").trim();
+
+    /**
+     * 解析图片应落到哪一行数据。
+     * 优先按 SKU 精确匹配(最可靠,不受图片顺序影响);
+     * SKU 匹配不到再退回提取器给出的行号;最后退回视觉顺序序号。
+     */
+    const resolveRowIndex = (image: any, seqIndex: number): number => {
+      const imgSku = normSku(image.sku);
+      if (imgSku) {
+        const bySku = parsedData.findIndex(
+          (r, idx) => !usedRows.has(idx) && normSku(r.sku) === imgSku,
+        );
+        if (bySku >= 0) return bySku;
+      }
+      // 提取器 image.row 含表头偏移(第0行是表头),数据行索引 = row - 1
+      if (typeof image.row === "number" && image.row - 1 >= 0) {
+        const byRow = image.row - 1;
+        if (!usedRows.has(byRow)) return byRow;
+      }
+      return seqIndex;
+    };
+
     for (let i = 0; i < images.length; i++) {
       const image = images[i];
-      // 按视觉顺序直接匹配：第i个图片对应第i行数据
-      const rowIndex = i;
       const visualOrder = image.visualOrder || i + 1;
+      const rowIndex = resolveRowIndex(image, i);
 
       if (rowIndex >= parsedData.length) {
         skipCount++;
         addLog(`[跳过] 视觉顺序${visualOrder} 超出数据行范围`, "warning");
         continue;
       }
+      usedRows.add(rowIndex);
 
       const targetSku = parsedData[rowIndex]?.sku;
       addLog(

@@ -373,8 +373,10 @@ export interface ShopProductSelectionParams {
 }
 
 export interface ShopSelectionBatch {
-  batchDate: string;
+  week: string;
   count: number;
+  startDate: string;
+  endDate: string;
 }
 
 export interface ShopSelectionCategory {

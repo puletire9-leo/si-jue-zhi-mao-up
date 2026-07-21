@@ -91,8 +91,9 @@ public class CompetitorController {
     public Result<List<Map<String, Object>>> createdWeeks(
             @RequestParam(defaultValue = "UK") String marketplace,
             @RequestParam(required = false) String source,
-            @RequestParam(required = false) String filterMode) {
-        return Result.success(competitorService.getCreatedWeeks(marketplace, source, filterMode));
+            @RequestParam(required = false) String filterMode,
+            @RequestParam(defaultValue = "false") boolean useCleanTable) {
+        return Result.success(competitorService.getCreatedWeeks(marketplace, source, filterMode, useCleanTable));
     }
 
     @GetMapping("/premium-created-weeks")

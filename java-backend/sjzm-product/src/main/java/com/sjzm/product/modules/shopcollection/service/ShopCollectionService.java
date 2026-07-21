@@ -1,7 +1,6 @@
 package com.sjzm.product.modules.shopcollection.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.sjzm.common.PageResult;
 import com.sjzm.product.methodrule.M01Rule;
@@ -168,6 +167,12 @@ public class ShopCollectionService {
         int safeSize = Math.max(1, Math.min(size == null ? 24 : size, 100));
 
         LambdaQueryWrapper<ShopProduct> qw = new LambdaQueryWrapper<ShopProduct>()
+                // 只取商品墙实际用到的列，避免拉取 raw_json 等 70+ 大字段进 JVM。
+                // 商品墙需按 tier 统计总数，无法 SQL 侧 LIMIT，故用列裁剪降低单行体积。
+                .select(ShopProduct::getAsin, ShopProduct::getParentAsin, ShopProduct::getImageUrl,
+                        ShopProduct::getTitle, ShopProduct::getUnits, ShopProduct::getSalesTier,
+                        ShopProduct::getPrice, ShopProduct::getRating, ShopProduct::getRatings,
+                        ShopProduct::getNodeLabelPath, ShopProduct::getProductUrl)
                 .eq(ShopProduct::getMarketplace, mp)
                 .eq(ShopProduct::getSellerName, seller)
                 .eq(ShopProduct::getSourceRunId, snapshot.sourceRunId())
@@ -565,17 +570,36 @@ public class ShopCollectionService {
         int size = Math.min(500, Math.max(1, query.getSize() == null ? 60 : query.getSize()));
         LambdaQueryWrapper<ShopProduct> qw = buildSelectionProductFilter(query, true);
 
+        // 列裁剪：只取选品卡片实际用到的字段（对齐前端 ShopProductRow），
+        // 排除 raw_json 等 70+ 大字段，避免 SELECT * 拉爆单行体积和 JVM 内存。
+        qw.select(ShopProduct::getId, ShopProduct::getMarketplace, ShopProduct::getSellerName,
+                ShopProduct::getSellerId, ShopProduct::getAsin, ShopProduct::getParentAsin,
+                ShopProduct::getTitle, ShopProduct::getBrand, ShopProduct::getImageUrl,
+                ShopProduct::getProductUrl, ShopProduct::getSimilarUrl, ShopProduct::getNodeLabelPath,
+                ShopProduct::getUnits, ShopProduct::getSalesTier, ShopProduct::getBsr,
+                ShopProduct::getPrice, ShopProduct::getRating, ShopProduct::getRatings,
+                ShopProduct::getFulfillment, ShopProduct::getVariations, ShopProduct::getWeightG,
+                ShopProduct::getGrade, ShopProduct::getFilterMode, ShopProduct::getFilterReasons,
+                ShopProduct::getSource, ShopProduct::getAvailableDate, ShopProduct::getListingDays,
+                ShopProduct::getBatchDate, ShopProduct::getSourceRunId,
+                ShopProduct::getCreatedAt, ShopProduct::getUpdatedAt);
+
         boolean asc = "asc".equalsIgnoreCase(query.getSortOrder());
+        // 记录主排序的实际方向，次级键必须同方向，否则破坏索引（反向）扫描、强制全量 filesort。
+        boolean tieAsc;
         switch (query.getSortBy() == null ? "" : query.getSortBy()) {
-            case "salesVolume" -> qw.orderBy(true, asc, ShopProduct::getUnits);
-            case "price" -> qw.orderBy(true, asc, ShopProduct::getPrice);
-            case "listingDate" -> qw.orderBy(true, asc, ShopProduct::getAvailableDate);
-            case "bsr" -> qw.orderBy(true, asc, ShopProduct::getBsr);
-            case "score" -> qw.orderBy(true, asc, ShopProduct::getScore);
-            case "createdAt" -> qw.orderBy(true, asc, ShopProduct::getCreatedAt);
-            default -> qw.orderByDesc(ShopProduct::getUpdatedAt);
+            case "salesVolume" -> { qw.orderBy(true, asc, ShopProduct::getUnits); tieAsc = asc; }
+            case "price" -> { qw.orderBy(true, asc, ShopProduct::getPrice); tieAsc = asc; }
+            case "listingDate" -> { qw.orderBy(true, asc, ShopProduct::getAvailableDate); tieAsc = asc; }
+            case "bsr" -> { qw.orderBy(true, asc, ShopProduct::getBsr); tieAsc = asc; }
+            case "score" -> { qw.orderBy(true, asc, ShopProduct::getScore); tieAsc = asc; }
+            case "createdAt" -> { qw.orderBy(true, asc, ShopProduct::getCreatedAt); tieAsc = asc; }
+            default -> { qw.orderByDesc(ShopProduct::getUpdatedAt); tieAsc = false; }
         }
-        qw.orderByAsc(ShopProduct::getAsin);
+        // 次级排序键用 id（主键，天然在二级索引叶子），与主排序同方向保证唯一稳定顺序，
+        // 同时不破坏 idx_shop_sel_default / idx_shop_sel_metrics 的（反向）索引扫描、避免 filesort。
+        // 旧代码固定 orderByAsc(asin)：与降序主排序方向冲突，强制全量 filesort（首屏 2.7s 的主因）。
+        qw.orderBy(true, tieAsc, ShopProduct::getId);
 
         Page<ShopProduct> result = shopProductMapper.selectPage(new Page<>(page, size), qw);
         return PageResult.of(result.getRecords(), result.getTotal(), (long) page, (long) size);
@@ -593,7 +617,6 @@ public class ShopCollectionService {
                 .like(StringUtils.hasText(query.getTitle()), ShopProduct::getTitle, query.getTitle())
                 .like(StringUtils.hasText(query.getSellerName()), ShopProduct::getSellerName, query.getSellerName())
                 .like(StringUtils.hasText(query.getBrand()), ShopProduct::getBrand, query.getBrand())
-                .in(hasItems(query.getBatchDates()), ShopProduct::getBatchDate, query.getBatchDates())
                 .ge(query.getPriceMin() != null, ShopProduct::getPrice, query.getPriceMin())
                 .le(query.getPriceMax() != null, ShopProduct::getPrice, query.getPriceMax())
                 .ge(query.getUnitsMin() != null, ShopProduct::getUnits, query.getUnitsMin())
@@ -605,6 +628,8 @@ public class ShopCollectionService {
                 .le(query.getMaxVariantCount() != null, ShopProduct::getVariations, query.getMaxVariantCount())
                 .in(hasItems(query.getFulfillment()), ShopProduct::getFulfillment, query.getFulfillment())
                 .in(hasItems(query.getGrade()), ShopProduct::getGrade, query.getGrade());
+
+        applySelectionBatchFilter(qw, query.getBatchDates());
 
         applySelectionMethodRule(qw, methodId, marketplace);
 
@@ -640,17 +665,36 @@ public class ShopCollectionService {
                 buildSelectionProductFilter(query, false));
     }
 
-    /** 统一选品页的店铺抓取批次下拉；不默认过滤，用户选择后才按批次收窄。 */
+    /** 统一选品页的店铺抓取周批次；直接读取入库时生成的 ISO 周 batch_code。 */
     public List<Map<String, Object>> selectionBatches(String marketplace) {
-        String mp = MarketplaceSupport.require(marketplace);
-        QueryWrapper<ShopProduct> qw = new QueryWrapper<ShopProduct>()
-                .select("batch_date AS batchDate", "COUNT(1) AS count")
-                .eq("marketplace", mp)
-                .isNotNull("batch_date")
-                .ne("batch_date", "")
-                .groupBy("batch_date")
-                .orderByDesc("batch_date");
-        return shopProductMapper.selectMaps(qw);
+        return shopProductMapper.selectSelectionWeeks(MarketplaceSupport.require(marketplace));
+    }
+
+    private static void applySelectionBatchFilter(
+            LambdaQueryWrapper<ShopProduct> qw, Collection<String> values) {
+        if (!hasItems(values)) return;
+        List<String> weeks = values.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .filter(value -> value.matches("\\d{4}-W\\d{2}"))
+                .distinct()
+                .toList();
+        List<String> dates = values.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .filter(value -> !value.matches("\\d{4}-W\\d{2}"))
+                .distinct()
+                .toList();
+        if (weeks.isEmpty() && dates.isEmpty()) return;
+        qw.and(group -> {
+            if (!dates.isEmpty()) {
+                group.in(ShopProduct::getBatchDate, dates);
+            }
+            if (!weeks.isEmpty()) {
+                if (!dates.isEmpty()) group.or();
+                group.in(ShopProduct::getBatchCode, weeks);
+            }
+        });
     }
 
     private static boolean hasItems(Collection<?> values) {

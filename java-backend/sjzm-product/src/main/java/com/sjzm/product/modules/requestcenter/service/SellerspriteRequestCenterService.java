@@ -190,6 +190,82 @@ public class SellerspriteRequestCenterService {
     public SellerspriteRequestRun createTask(String requestType, String marketplace, String triggerType,
                                              String triggerRef, String fetchReason,
                                              List<RequestItemInput> items, String operator) {
+        if (Set.of("SHOP_FULL_LOOKUP", "CANDIDATE_BATCH", "PREMIUM_REFRESH")
+                .contains(normalizeCode(requestType))) {
+            throw new IllegalArgumentException(
+                    "店铺任务禁止使用通用创建接口：普通候选请调用 /shop-tasks/once，精品复抓请调用 /shop-tasks/repeatable");
+        }
+        return createTaskInternal(requestType, marketplace, triggerType, triggerRef, fetchReason, items, operator);
+    }
+
+    /**
+     * 普通候选店铺的一次性抓取入口。同站点同店铺跨 M1、批次全量及其他来源永久去重。
+     */
+    @Transactional
+    public Map<String, Object> createShopTaskOnce(String marketplace, String triggerType,
+                                                   String triggerRef, String fetchReason,
+                                                   List<RequestItemInput> items, String operator) {
+        return withCreateLock("SHOP_ONCE_GLOBAL", () -> {
+            List<RequestItemInput> requested = normalizeShopItems(items);
+            Set<String> unavailable = findShopKeys(requested, true);
+            List<RequestItemInput> queued = requested.stream()
+                    .filter(item -> !unavailable.contains(shopKey(item)))
+                    .toList();
+            if (queued.isEmpty()) {
+                throw new IllegalArgumentException("所选店铺均已抓取或已有进行中的任务，无需重复请求卖家精灵");
+            }
+            SellerspriteRequestRun run = createTaskInternal(
+                    "CANDIDATE_BATCH", marketplace, triggerType, triggerRef, fetchReason, queued, operator);
+            return buildShopTaskResult(run, "ONCE", requested, queued, unavailable,
+                    "同站点同店铺仅首次抓取；跨 M1、批次全量及其他普通来源不重复请求");
+        });
+    }
+
+    /**
+     * 精品店铺周期复抓入口。允许历史成功店铺再次抓取，但禁止与当前活跃任务并发重复。
+     */
+    @Transactional
+    public Map<String, Object> createRepeatableShopTask(String marketplace, String triggerRef,
+                                                         String fetchReason, List<RequestItemInput> items,
+                                                         String operator) {
+        return withCreateLock("SHOP_REPEATABLE_GLOBAL", () -> {
+            List<RequestItemInput> requested = normalizeShopItems(items);
+            validatePremiumRefreshItems(requested);
+            Set<String> unavailable = findShopKeys(requested, false);
+            List<RequestItemInput> queued = requested.stream()
+                    .filter(item -> !unavailable.contains(shopKey(item)))
+                    .toList();
+            if (queued.isEmpty()) {
+                throw new IllegalArgumentException("所选精品店铺已有进行中的复抓任务，请勿重复创建");
+            }
+            SellerspriteRequestRun run = createTaskInternal(
+                    "PREMIUM_REFRESH", marketplace, "PREMIUM_REFRESH", triggerRef,
+                    fetchReason, queued, operator);
+            return buildShopTaskResult(run, "REPEATABLE", requested, queued, unavailable,
+                    "仅精品店铺池使用；允许按周期再次抓取，但同一时间只允许一个活跃任务");
+        });
+    }
+
+    private void validatePremiumRefreshItems(List<RequestItemInput> items) {
+        for (RequestItemInput item : items) {
+            if (item.triggerId() == null) {
+                throw new IllegalArgumentException("精品复抓子项必须携带精品店铺 premiumId");
+            }
+            var premium = premiumMapper.selectById(item.triggerId());
+            if (premium == null || !"ACTIVE".equals(premium.getStatus())) {
+                throw new IllegalArgumentException("可重复抓取接口仅允许 ACTIVE 精品店铺: premiumId=" + item.triggerId());
+            }
+            String expectedKey = premium.getMarketplace().trim().toUpperCase(Locale.ROOT) + "|"
+                    + premium.getSellerName().trim().toLowerCase(Locale.ROOT);
+            if (!expectedKey.equals(shopKey(item))) {
+                throw new IllegalArgumentException("精品复抓店铺与 premiumId 不匹配: premiumId=" + item.triggerId());
+            }
+        }
+    }
+
+    private SellerspriteRequestRun createTaskInternal(String requestType, String marketplace, String triggerType,
+                                                       String triggerRef, String fetchReason,
+                                                       List<RequestItemInput> items, String operator) {
         if (items == null || items.isEmpty()) {
             throw new IllegalArgumentException("子项不能为空");
         }
@@ -227,6 +303,7 @@ public class SellerspriteRequestCenterService {
             runMapper.insert(run);
 
             int seq = 0;
+            List<SellerspriteRequestItem> requestItems = new ArrayList<>(items.size());
             for (RequestItemInput input : items) {
                 SellerspriteRequestItem item = new SellerspriteRequestItem();
                 item.setRunId(runId);
@@ -235,7 +312,11 @@ public class SellerspriteRequestCenterService {
                 item.setSellerName(input.sellerName());
                 item.setTriggerId(input.triggerId());
                 item.setStatus("PENDING");
-                itemMapper.insert(item);
+                requestItems.add(item);
+            }
+            for (int from = 0; from < requestItems.size(); from += 500) {
+                int to = Math.min(from + 500, requestItems.size());
+                itemMapper.insertBatch(new ArrayList<>(requestItems.subList(from, to)));
             }
 
             log.info("请求中心任务已创建: runId={}, requestType={}, marketplace={}, items={}",
@@ -243,6 +324,73 @@ public class SellerspriteRequestCenterService {
             startAutoConsumeAfterCommit(runId);
             return run;
         });
+    }
+
+    private List<RequestItemInput> normalizeShopItems(List<RequestItemInput> items) {
+        if (items == null || items.isEmpty()) {
+            throw new IllegalArgumentException("店铺子项不能为空");
+        }
+        Map<String, RequestItemInput> distinct = new LinkedHashMap<>();
+        for (RequestItemInput item : items) {
+            if (item == null || !StringUtils.hasText(item.marketplace()) || !StringUtils.hasText(item.sellerName())) {
+                continue;
+            }
+            String mp = item.marketplace().trim().toUpperCase(Locale.ROOT);
+            String seller = item.sellerName().trim();
+            if (SellerspriteSellerNamePolicy.isBlocked(seller)) continue;
+            RequestItemInput normalized = new RequestItemInput(mp, seller, item.triggerId());
+            distinct.putIfAbsent(shopKey(normalized), normalized);
+        }
+        if (distinct.isEmpty()) {
+            throw new IllegalArgumentException("没有有效店铺；店铺名和站点不能为空，Amazon 店铺禁止抓取");
+        }
+        return new ArrayList<>(distinct.values());
+    }
+
+    private Set<String> findShopKeys(List<RequestItemInput> items, boolean onceOnly) {
+        List<String> keys = items.stream().map(this::shopKey).toList();
+        Set<String> result = new HashSet<>();
+        for (int from = 0; from < keys.size(); from += 200) {
+            List<String> chunk = keys.subList(from, Math.min(from + 200, keys.size()));
+            List<String> found = onceOnly
+                    ? itemMapper.selectUnavailableOnceShopKeys(chunk)
+                    : itemMapper.selectActiveShopKeys(chunk);
+            if (found != null) result.addAll(found);
+        }
+        return result;
+    }
+
+    private String shopKey(RequestItemInput item) {
+        return item.marketplace().trim().toUpperCase(Locale.ROOT) + "|"
+                + item.sellerName().trim().toLowerCase(Locale.ROOT);
+    }
+
+    private Map<String, Object> buildShopTaskResult(SellerspriteRequestRun run, String mode,
+                                                     List<RequestItemInput> requested,
+                                                     List<RequestItemInput> queued,
+                                                     Set<String> skippedKeys,
+                                                     String policy) {
+        List<String> skippedShops = requested.stream()
+                .filter(item -> skippedKeys.contains(shopKey(item)))
+                .map(item -> item.marketplace() + ":" + item.sellerName())
+                .limit(100)
+                .toList();
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("runId", run.getRunId());
+        result.put("status", run.getStatus());
+        result.put("requestType", run.getRequestType());
+        result.put("requestMode", mode);
+        result.put("requestedCount", requested.size());
+        result.put("queuedCount", queued.size());
+        result.put("totalCount", queued.size());
+        result.put("skippedCount", requested.size() - queued.size());
+        result.put("skippedShops", skippedShops);
+        result.put("repeatPolicy", policy);
+        return result;
+    }
+
+    private String normalizeCode(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     /**

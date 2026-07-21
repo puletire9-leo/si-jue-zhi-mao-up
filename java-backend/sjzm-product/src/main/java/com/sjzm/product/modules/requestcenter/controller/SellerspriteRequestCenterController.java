@@ -37,6 +37,26 @@ public class SellerspriteRequestCenterController {
                 req.triggerRef(), req.fetchReason(), items, req.operator()));
     }
 
+    @PostMapping("/shop-tasks/once")
+    @Operation(summary = "创建一次性店铺抓取任务",
+            description = "用于 M1、批次全部及其他普通找店来源。同站点同店铺跨来源只允许抓取一次；" +
+                    "历史已发出、已成功、有 shop_products 数据或当前已有活跃任务时跳过。")
+    public Result<Map<String, Object>> createShopTaskOnce(@RequestBody CreateTaskRequest req) {
+        List<RequestItemInput> items = toRequestItems(req);
+        return Result.success(centerService.createShopTaskOnce(
+                req.marketplace(), req.triggerType(), req.triggerRef(), req.fetchReason(), items, req.operator()));
+    }
+
+    @PostMapping("/shop-tasks/repeatable")
+    @Operation(summary = "创建允许周期复抓的精品店铺任务",
+            description = "仅供精品店铺池使用。允许已完成店铺按月或设定周期再次抓取；" +
+                    "同站点同店铺存在 PENDING/RUNNING/PAUSED 活跃任务时仍会跳过，避免并发重复。")
+    public Result<Map<String, Object>> createRepeatableShopTask(@RequestBody CreateTaskRequest req) {
+        List<RequestItemInput> items = toRequestItems(req);
+        return Result.success(centerService.createRepeatableShopTask(
+                req.marketplace(), req.triggerRef(), req.fetchReason(), items, req.operator()));
+    }
+
     @PostMapping("/tasks/from-streaming/{taskId}")
     @Operation(summary = "从八爪鱼流式初筛 READY 任务创建请求中心 ASIN 批量查询任务",
             description = "读取 asin_import_results 的 PASS ASIN 去重后每 40 个 ASIN 创建一个子项，" +
@@ -51,9 +71,15 @@ public class SellerspriteRequestCenterController {
     @PostMapping("/dry-run")
     @Operation(summary = "dry-run 预览（不创建任务，不消耗使用次数）")
     public Result<Map<String, Object>> dryRun(@RequestBody CreateTaskRequest req) {
-        List<RequestItemInput> items = req.items() == null ? List.of()
-                : req.items().stream().map(i -> new RequestItemInput(i.marketplace(), i.sellerName(), i.triggerId())).toList();
+        List<RequestItemInput> items = toRequestItems(req);
         return Result.success(centerService.dryRunPreview(req.requestType(), req.marketplace(), items, req.description()));
+    }
+
+    private List<RequestItemInput> toRequestItems(CreateTaskRequest req) {
+        return req.items() == null ? List.of()
+                : req.items().stream()
+                .map(i -> new RequestItemInput(i.marketplace(), i.sellerName(), i.triggerId()))
+                .toList();
     }
 
     @PostMapping("/tasks/{runId}/consume")

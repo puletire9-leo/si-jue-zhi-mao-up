@@ -271,12 +271,14 @@
           </template>
           <div
             v-else
+            ref="productsGridRef"
             v-loading="refreshing"
             class="products-grid"
-            :style="productGridStyle"
+            :style="[productGridStyle, virtualGridSpacerStyle]"
+            @scroll.passive="onGridScroll"
           >
             <div
-              v-for="product in sortedProductList"
+              v-for="product in virtualVisibleProducts"
               :key="product.id"
               class="product-card-scale-wrapper"
               :style="cardWrapperStyle(product)"
@@ -546,7 +548,8 @@
               :country="activeFilters.country || 'UK'"
               :source="currentSource"
               :snapshot-kind="currentSnapshotKind"
-              :auto-select-latest-week="!activeMethodCard && !isShopProductsScene"
+              :use-clean-table="useCleanTable"
+              :auto-select-latest-week="!activeMethodCard"
               embedded
             />
           </div>
@@ -1075,6 +1078,7 @@ import {
   onDeactivated,
   computed,
   nextTick,
+  watch,
 } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { ElMessage, ElMessageBox, ElLoading } from "element-plus";
@@ -1160,9 +1164,12 @@ const isFixedSelectionSourceScene = computed(
 );
 const isReadOnlySourceScene = isFixedSelectionSourceScene;
 const isManualLibrarySourceScene = computed(() =>
-  ["/new-products", "/reference-products", "/premium-products"].includes(
-    route.path,
-  ),
+  [
+    "/all-selection",
+    "/new-products",
+    "/reference-products",
+    "/premium-products",
+  ].includes(route.path),
 );
 const detailDataSource = computed(() =>
   isPremiumProductsScene.value ? "premium" : "selection",
@@ -1186,16 +1193,8 @@ const componentKey = ref(2);
 // 当前激活的标签页
 const activeTab = ref<string>("all");
 
-// 新品榜合格规则（取代写死的 MODE1）。默认：上架≤30天 且 月销>30。
-const NEW_TAB_DEFAULT_RULES: QualifyRule[] = [
-  {
-    conditions: [
-      { field: "listingDays", op: "le", value: 30 },
-      { field: "units", op: "gt", value: 30 },
-    ],
-  },
-];
-const newQualifyRules = ref<QualifyRule[]>([...NEW_TAB_DEFAULT_RULES]);
+// 统一筛选框是默认查询的唯一条件来源；方法规则只在用户显式应用时生效。
+const newQualifyRules = ref<QualifyRule[]>([]);
 const activeMethodCard = ref<{
   id: "M01" | "M02" | "M03";
   name: string;
@@ -1526,13 +1525,55 @@ let cardHeightObserver: ResizeObserver | null = null;
 const productCardKey = (product: Record<string, unknown>): string =>
   String(product.id ?? product.asin ?? "");
 
+let visibleCardKeys = new Set<string>();
+
+const resetVisibleCardMetrics = (products: Record<string, unknown>[]) => {
+  visibleCardKeys = new Set(products.map(productCardKey).filter(Boolean));
+  cardBaseHeights.value = Object.fromEntries(
+    Object.entries(cardBaseHeights.value).filter(([key]) =>
+      visibleCardKeys.has(key),
+    ),
+  );
+  if (pendingHeightUpdates) {
+    pendingHeightUpdates = Object.fromEntries(
+      Object.entries(pendingHeightUpdates).filter(([key]) =>
+        visibleCardKeys.has(key),
+      ),
+    );
+  }
+};
+
+// 批量高度更新：ResizeObserver 首次挂载会为当前页 N 张卡片同时回调，
+// 旧实现每张卡都做一次 {...spread} 整体替换 → O(N²) 拷贝 + N 次全量重渲染，
+// 数据量大时严重卡顿。改为累积到 pending，用 rAF 每帧只提交一次 reactive 写。
+let pendingHeightUpdates: Record<string, number> | null = null;
+let heightFlushHandle: number | null = null;
+
+const flushCardBaseHeights = () => {
+  heightFlushHandle = null;
+  if (!pendingHeightUpdates) return;
+  const pending = pendingHeightUpdates;
+  pendingHeightUpdates = null;
+  let changed = false;
+  const next = { ...cardBaseHeights.value };
+  for (const [key, height] of Object.entries(pending)) {
+    if (next[key] !== height) {
+      next[key] = height;
+      changed = true;
+    }
+  }
+  if (changed) cardBaseHeights.value = next; // 每帧仅一次响应式写入
+};
+
 const updateCardBaseHeight = (key: string, canvas: HTMLElement) => {
+  if (!visibleCardKeys.has(key)) return;
   const height = canvas.offsetHeight;
   if (height > 0 && cardBaseHeights.value[key] !== height) {
-    cardBaseHeights.value = {
-      ...cardBaseHeights.value,
-      [key]: height,
-    };
+    if (!pendingHeightUpdates) pendingHeightUpdates = {};
+    pendingHeightUpdates[key] = height;
+    if (heightFlushHandle === null) {
+      heightFlushHandle = requestAnimationFrame(flushCardBaseHeights);
+    }
   }
 };
 
@@ -1556,6 +1597,146 @@ const cardWrapperStyle = (product: Record<string, unknown>) => {
     ? { height: Math.ceil(baseHeight * cardScale.value) + "px" }
     : undefined;
 };
+
+// ============================================================
+// 网格行虚拟化：只渲染可视区域附近的卡片，避免一次性挂载整页
+// （最多 500 个 UniversalCard 重组件）导致主线程长时间阻塞卡顿。
+// 按 cols 列分行，行高取行内实测卡片高度最大值（缩放后），未测量用 fallback，
+// 用 grid 的上下 padding 撑起被虚拟化掉的行空间，保证滚动条与列布局正确。
+// ============================================================
+const productsGridRef = ref<HTMLElement | null>(null);
+const gridScrollTop = ref(0);
+const gridViewportHeight = ref(0);
+const gridColumns = ref(1);
+const VIRT_ROW_BUFFER = 3; // 可视区上下各多渲染的缓冲行数
+const VIRT_MIN_COUNT = 80; // 低于此数量直接全量渲染，避免小页面额外开销
+
+const scaledFallbackRowHeight = computed(
+  () => Math.round(BASE_CARD_HEIGHT * cardScale.value),
+);
+const scaledGap = computed(() => Math.max(8, Math.round(BASE_CARD_GAP * cardScale.value)));
+
+// 单张卡片缩放后的实际渲染高度（与 cardWrapperStyle 同口径）。
+const scaledCardHeight = (product: Record<string, unknown>): number => {
+  const base = cardBaseHeights.value[productCardKey(product)];
+  return base ? Math.ceil(base * cardScale.value) : scaledFallbackRowHeight.value;
+};
+
+// 依据容器宽度与卡片最小宽度推算每行列数。
+const recomputeGridColumns = () => {
+  const el = productsGridRef.value;
+  if (!el) return;
+  const styles = getComputedStyle(el);
+  const minWidth = Math.round(BASE_CARD_WIDTH * cardScale.value);
+  const paddingX =
+    parseFloat(styles.paddingLeft || "0") + parseFloat(styles.paddingRight || "0");
+  const usable = el.clientWidth - paddingX;
+  const gap = scaledGap.value;
+  const cols = Math.max(1, Math.floor((usable + gap) / (minWidth + gap)));
+  gridColumns.value = cols;
+  gridViewportHeight.value = el.clientHeight;
+};
+
+// 把当前商品列表按列数切成行，并累计每行 top 偏移与高度。
+const virtualRows = computed(() => {
+  const list = sortedProductList.value;
+  const cols = Math.max(1, gridColumns.value);
+  const gap = scaledGap.value;
+  const rows: { top: number; height: number; start: number; end: number }[] = [];
+  let top = 0;
+  for (let i = 0; i < list.length; i += cols) {
+    let rowH = 0;
+    const end = Math.min(i + cols, list.length);
+    for (let j = i; j < end; j++) {
+      const h = scaledCardHeight(list[j] as Record<string, unknown>);
+      if (h > rowH) rowH = h;
+    }
+    rows.push({ top, height: rowH, start: i, end });
+    top += rowH + gap;
+  }
+  return rows;
+});
+
+const virtualTotalHeight = computed(() => {
+  const rows = virtualRows.value;
+  if (rows.length === 0) return 0;
+  const last = rows[rows.length - 1];
+  return last.top + last.height;
+});
+
+// 计算当前可视行区间（含 buffer）。
+const virtualRange = computed(() => {
+  const rows = virtualRows.value;
+  const list = sortedProductList.value;
+  if (list.length < VIRT_MIN_COUNT || rows.length === 0) {
+    return { startIndex: 0, endIndex: list.length, padTop: 0, padBottom: 0 };
+  }
+  const scrollTop = gridScrollTop.value;
+  const viewport = gridViewportHeight.value || 800;
+  let firstRow = 0;
+  let lastRow = rows.length - 1;
+  for (let r = 0; r < rows.length; r++) {
+    if (rows[r].top + rows[r].height >= scrollTop) {
+      firstRow = r;
+      break;
+    }
+  }
+  for (let r = firstRow; r < rows.length; r++) {
+    if (rows[r].top > scrollTop + viewport) {
+      lastRow = r;
+      break;
+    }
+  }
+  firstRow = Math.max(0, firstRow - VIRT_ROW_BUFFER);
+  lastRow = Math.min(rows.length - 1, lastRow + VIRT_ROW_BUFFER);
+  const startIndex = rows[firstRow].start;
+  const endIndex = rows[lastRow].end;
+  const padTop = rows[firstRow].top;
+  const padBottom = virtualTotalHeight.value - (rows[lastRow].top + rows[lastRow].height);
+  return { startIndex, endIndex, padTop, padBottom: Math.max(0, padBottom) };
+});
+
+const virtualVisibleProducts = computed(() => {
+  const { startIndex, endIndex } = virtualRange.value;
+  return sortedProductList.value.slice(startIndex, endIndex);
+});
+
+// 用 grid 的上下 padding 占位被虚拟化掉的行，保持滚动高度与列布局。
+const virtualGridSpacerStyle = computed(() => {
+  const list = sortedProductList.value;
+  if (list.length < VIRT_MIN_COUNT) return {};
+  const { padTop, padBottom } = virtualRange.value;
+  return {
+    paddingTop: padTop + "px",
+    paddingBottom: padBottom + "px",
+  };
+});
+
+let gridScrollHandle: number | null = null;
+const onGridScroll = () => {
+  const el = productsGridRef.value;
+  if (!el) return;
+  if (gridScrollHandle !== null) return;
+  gridScrollHandle = requestAnimationFrame(() => {
+    gridScrollHandle = null;
+    if (!productsGridRef.value) return;
+    gridScrollTop.value = productsGridRef.value.scrollTop;
+    gridViewportHeight.value = productsGridRef.value.clientHeight;
+  });
+};
+
+let gridResizeObserver: ResizeObserver | null = null;
+// 列数受容器宽度和缩放影响，两者变化都要重算。
+watch(cardScale, () => nextTick(recomputeGridColumns));
+// 列表刷新或翻页后回到顶部并重算区间。
+watch(
+  () => sortedProductList.value.length,
+  () => {
+    if (productsGridRef.value) productsGridRef.value.scrollTop = 0;
+    gridScrollTop.value = 0;
+    nextTick(recomputeGridColumns);
+  },
+);
 
 const pagination = reactive({
   page: 1,
@@ -1678,18 +1859,23 @@ const loadProducts = async (params?: SelectionQueryParams) => {
     if (reqId !== productsReqId) return;
     lastQueryPlan.value = resolved.plan;
 
+    const nextProducts = resolved.result.list as Record<string, unknown>[];
+    resetVisibleCardMetrics(nextProducts);
     productList.value = resolved.result.list;
     pagination.total = resolved.result.total;
-    await loadSelections();
+    // 商品列表已就位，先结束 loading 让卡片立即渲染；选中态（我的选品 + 多人选中）
+    // 与列表渲染无关，改为异步补齐，不再串在首屏关键路径上拖长转圈时间。
+    loading.value = false;
+    hasLoaded.value = true;
+    loadSelections().catch((err) => {
+      console.error("加载选品选中态失败:", err);
+    });
   } catch (error) {
     if (reqId !== productsReqId) return;
     console.error("加载选品列表失败:", error);
     ElMessage.error("加载选品列表失败");
-  } finally {
-    if (reqId === productsReqId) {
-      loading.value = false;
-      hasLoaded.value = true;
-    }
+    loading.value = false;
+    hasLoaded.value = true;
   }
 };
 
@@ -2029,7 +2215,7 @@ const {
   setQualifyRules: (rules) => {
     newQualifyRules.value = Array.isArray(rules)
       ? (rules as QualifyRule[])
-      : [...NEW_TAB_DEFAULT_RULES];
+      : [];
   },
   applyQuery: triggerFilterQuery,
   syncMarketplaceScope: (marketplace) => {
@@ -2804,6 +2990,15 @@ onMounted(async () => {
     updateCardBaseHeight(key, canvas);
   });
 
+  // 初始化网格虚拟化：测量列数/视口，并监听容器尺寸变化。
+  nextTick(() => {
+    recomputeGridColumns();
+    if (productsGridRef.value) {
+      gridResizeObserver = new ResizeObserver(() => recomputeGridColumns());
+      gridResizeObserver.observe(productsGridRef.value);
+    }
+  });
+
   // 根据当前路由初始化 tab 和默认筛选（route watch 不设 immediate，由这里处理首次加载）
   const pathTabMap: Record<string, string> = {
     "/zheng-products": "zheng",
@@ -2889,6 +3084,17 @@ onUnmounted(() => {
   cardHeightObserver?.disconnect();
   cardHeightObserver = null;
   cardScaleCanvases.clear();
+  if (heightFlushHandle !== null) {
+    cancelAnimationFrame(heightFlushHandle);
+    heightFlushHandle = null;
+  }
+  pendingHeightUpdates = null;
+  if (gridScrollHandle !== null) {
+    cancelAnimationFrame(gridScrollHandle);
+    gridScrollHandle = null;
+  }
+  gridResizeObserver?.disconnect();
+  gridResizeObserver = null;
   stopSelectionPolling();
   // 清理校准定时器
   Object.values(calibrateTimers.value).forEach((t) => clearTimeout(t));
@@ -3082,6 +3288,11 @@ onUnmounted(() => {
     position: relative;
     min-width: 0;
     min-height: var(--selection-card-fallback-height, 560px);
+    // 第一阶段视口裁剪：跳过视口外卡片的布局/绘制，仍会创建 Vue 组件与 DOM。
+    // intrinsic size 为尚未测量的变高卡片预留空间；真实高度由 ResizeObserver 回填。
+    content-visibility: auto;
+    contain-intrinsic-size: auto var(--selection-card-min-width, 280px)
+      auto var(--selection-card-fallback-height, 560px);
   }
 
   .product-card-scale-canvas {

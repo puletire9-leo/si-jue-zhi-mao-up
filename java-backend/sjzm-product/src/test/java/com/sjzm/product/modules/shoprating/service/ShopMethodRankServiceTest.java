@@ -1,6 +1,7 @@
 package com.sjzm.product.modules.shoprating.service;
 
 import com.sjzm.product.mapper.ShopMethodRankMapper;
+import com.sjzm.product.modules.shoprating.dto.ShopMethodBatchOption;
 import com.sjzm.product.modules.shoprating.dto.ShopMethodRankItem;
 import org.junit.jupiter.api.Test;
 
@@ -38,5 +39,37 @@ class ShopMethodRankServiceTest {
         );
 
         assertEquals("店铺方法卡排名暂不支持 methodId=M02，当前仅支持 M01", ex.getMessage());
+    }
+
+    @Test
+    void rankAllByBatchIgnoresMethodCardAndDelegatesExactBatch() {
+        ShopMethodRankMapper mapper = mock(ShopMethodRankMapper.class);
+        ShopMethodRankService service = new ShopMethodRankService(mapper);
+        List<ShopMethodRankItem> expected = List.of(new ShopMethodRankItem());
+        when(mapper.selectAllShopRanking("UK", "2026-W29")).thenReturn(expected);
+
+        assertEquals(expected, service.rankAllByBatch("uk", " 2026-W29 "));
+        verify(mapper).selectAllShopRanking("UK", "2026-W29");
+    }
+
+    @Test
+    void rankAllByBatchRequiresBatch() {
+        ShopMethodRankService service = new ShopMethodRankService(mock(ShopMethodRankMapper.class));
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.rankAllByBatch("UK", " ")
+        );
+        assertEquals("批次全部店铺查询必须指定来源周批次", ex.getMessage());
+    }
+
+    @Test
+    void listAllSourceBatchesDoesNotUseM01BatchQuery() {
+        ShopMethodRankMapper mapper = mock(ShopMethodRankMapper.class);
+        ShopMethodRankService service = new ShopMethodRankService(mapper);
+        List<ShopMethodBatchOption> expected = List.of(new ShopMethodBatchOption());
+        when(mapper.selectAllSourceBatches("DE", 50)).thenReturn(expected);
+
+        assertEquals(expected, service.listAllSourceBatches("DE", 50));
+        verify(mapper).selectAllSourceBatches("DE", 50);
     }
 }

@@ -2,6 +2,7 @@ package com.sjzm.product.modules.shopcandidate.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
@@ -82,4 +83,8 @@ public class ShopCandidatePool {
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    /** 是否已经进入过一次性店铺请求链路（非数据库字段）。 */
+    @TableField(exist = false)
+    private Boolean requested;
 }

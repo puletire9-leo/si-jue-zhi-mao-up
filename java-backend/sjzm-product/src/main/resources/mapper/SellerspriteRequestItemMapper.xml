@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.modules.requestcenter.mapper.SellerspriteRequestItemMapper">
+    <insert id="insertBatch">
+        INSERT INTO sellersprite_request_item (
+            run_id, seq, marketplace, seller_name, trigger_id, source_task_id,
+            asin_list, payload_json, status, attempt_count, request_dispatched,
+            usage_confirmed, created_at
+        ) VALUES
+        <foreach collection="items" item="item" separator=",">
+            (#{item.runId}, #{item.seq}, #{item.marketplace}, #{item.sellerName}, #{item.triggerId},
+             #{item.sourceTaskId}, #{item.asinList}, #{item.payloadJson}, #{item.status},
+             COALESCE(#{item.attemptCount}, 0), COALESCE(#{item.requestDispatched}, 0),
+             COALESCE(#{item.usageConfirmed}, 0), NOW())
+        </foreach>
+    </insert>
+</mapper>
