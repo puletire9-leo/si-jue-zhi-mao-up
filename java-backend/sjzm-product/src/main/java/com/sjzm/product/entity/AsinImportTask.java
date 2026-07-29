@@ -32,6 +32,12 @@ public class AsinImportTask {
     /** 八爪鱼命名任务来源，用于任务列表展示及卖家精灵结果分流。 */
     private Long bazhuayuMappingId;
     private String bazhuayuTaskId;
+    /** 八爪鱼云端批次身份；与 mappingId 组合后构成一次导入的幂等键。 */
+    private String bazhuayuBatchNo;
+    private LocalDateTime bazhuayuBatchStartTime;
+    private LocalDateTime bazhuayuBatchEndTime;
+    private Integer bazhuayuBatchCount;
+    private String bazhuayuLotNo;
     private String taskName;
     private String taskCategory;
     private Boolean initialFilter;
@@ -45,4 +51,7 @@ public class AsinImportTask {
 
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
+
+    /** 任务终态完成时间。仅在 READY/DONE/ERROR/REJECTED/CANCELLED 等终态写入，与 updatedAt 区分。 */
+    private LocalDateTime completedAt;
 }

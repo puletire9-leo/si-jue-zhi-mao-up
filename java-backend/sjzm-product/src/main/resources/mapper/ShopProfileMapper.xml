@@ -426,7 +426,7 @@
             <if test="minProductCount != null">sa.productCount &gt;= #{minProductCount}</if>
         </where>
         ORDER BY sa.productCount DESC, (sa.aCount + sa.bCount + sa.cCount) DESC, sa.sellerName ASC
-        LIMIT #{limit}
+        <if test="limit != null and limit > 0">LIMIT #{limit}</if>
     </select>
 
     <select id="selectShopInsightOverviewFromShopProducts" resultType="com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileSummary">

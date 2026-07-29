@@ -33,7 +33,8 @@ cp config/secrets/prod.env.example config/secrets/prod.env
 | `COS_SECRET_ID` | 腾讯云 COS 密钥 ID | 腾讯云控制台 |
 | `COS_SECRET_KEY` | 腾讯云 COS 密钥 KEY | 腾讯云控制台 |
 | `SELLERSPRITE_SECRET_KEY` | 卖家精灵 API key | 卖家精灵后台 |
-| `DEEPSEEK_API_KEY` | DeepSeek API key (selection-agent 用) | DeepSeek 平台 |
+| `DEEPSEEK_API_KEY` | DeepSeek 上游 API key (仅 ai-center 持有) | DeepSeek 平台 |
+| `AI_CENTER_INTERNAL_KEY` | AI 请求中心内部鉴权 key (调用方持有, 与上游密钥隔离) | 本地生成: `openssl rand -hex 32` |
 | `NACOS_AUTH_TOKEN` | Nacos 鉴权 token (可选) | Nacos 控制台 |
 
 ---

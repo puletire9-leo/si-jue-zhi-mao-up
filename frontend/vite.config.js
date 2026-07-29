@@ -23,11 +23,11 @@ export default defineConfig(({ mode }) => {
       AutoImport({
         resolvers: [ElementPlusResolver()],
         imports: ['vue', 'vue-router', 'pinia'],
-        dts: 'src/auto-import.d.ts'
+        dts: mode === 'development' ? 'src/auto-import.d.ts' : false
       }),
       Components({
         resolvers: [ElementPlusResolver()],
-        dts: 'src/components.d.ts'
+        dts: mode === 'development' ? 'src/components.d.ts' : false
       })
     ],
     resolve: {
@@ -142,6 +142,21 @@ export default defineConfig(({ mode }) => {
           logLevel: 'warn'
         },
         '/api/v1/modules': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 300000,
+          logLevel: 'warn'
+        },
+        // 预留 Java AI 选品路由；服务默认关闭，仅保持开发/生产代理口径一致。
+        '/api/v1/ai-selection-pool': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 300000,
+          logLevel: 'warn'
+        },
+        '/api/v1/nonstandard-carrier': {
           target: javaTarget,
           changeOrigin: true,
           secure: false,

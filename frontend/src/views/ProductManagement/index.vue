@@ -140,7 +140,7 @@
           v-model:current-page="pagination.page"
           :page-size="pagination.size"
           :total="pagination.total"
-          :page-sizes="[60, 100, 200, 500]"
+          :page-sizes="[60, 100, 200]"
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"

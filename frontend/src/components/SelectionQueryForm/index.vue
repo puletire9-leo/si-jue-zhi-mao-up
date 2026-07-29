@@ -576,6 +576,8 @@ defineExpose({
         >
           以图搜图
         </el-button>
+
+        <slot name="compact-actions" />
       </div>
     </div>
 

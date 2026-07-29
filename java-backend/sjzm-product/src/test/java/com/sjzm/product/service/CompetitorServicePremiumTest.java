@@ -22,6 +22,8 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import org.mockito.ArgumentCaptor;
 import static org.mockito.Mockito.mock;
@@ -32,14 +34,53 @@ class CompetitorServicePremiumTest {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private CompetitorService service(PremiumProductMapper premiumMapper) {
+        CompetitorFilterService filterService = mock(CompetitorFilterService.class);
+        when(filterService.filter(anyList(), anyString(), anyString(), anyString()))
+                .thenReturn(new CompetitorFilterService.FilterResult());
         return new CompetitorService(
                 mock(SellerspriteApiService.class),
                 mock(CompetitorProductMapper.class),
                 mock(CompetitorSubcategoryMapper.class),
-                mock(CompetitorFilterService.class),
+                filterService,
                 mock(SkipAsinMapper.class),
                 mock(ShopMapper.class),
                 premiumMapper);
+    }
+
+    @Test
+    void regularLookupReportsRequestedAsinsMissingFromSellerSpriteResponse() throws Exception {
+        CompetitorService service = service(mock(PremiumProductMapper.class));
+
+        CompetitorLookupRequest request = new CompetitorLookupRequest();
+        request.setMarketplace("DE");
+        request.setAsins(List.of("B0RETURNED1", "B0MISSING01"));
+        request.setSize(100);
+
+        JsonNode response = OBJECT_MAPPER.readTree("""
+                {
+                  "total": 1,
+                  "items": [
+                    {
+                      "asin": "B0RETURNED1",
+                      "title": "Returned product",
+                      "imageUrl": "https://example.com/product.jpg",
+                      "price": 12.99,
+                      "units": 8,
+                      "bsr": 1200
+                    }
+                  ]
+                }
+                """);
+
+        Map<String, Object> result = service.doLookupAndSave(
+                request, "202607", LocalDateTime.now(), ignored -> response);
+
+        assertThat(result.get("total")).isEqualTo(2);
+        assertThat(result.get("fetchedCount")).isEqualTo(1);
+        assertThat(result.get("writtenCount")).isEqualTo(1);
+        assertThat(result.get("failedCount")).isEqualTo(1);
+        assertThat(result.get("missingAsins")).isEqualTo(List.of("B0MISSING01"));
+        assertThat(result.get("warning")).asString().contains("未返回或未写入 1 个请求 ASIN");
     }
 
     @Test

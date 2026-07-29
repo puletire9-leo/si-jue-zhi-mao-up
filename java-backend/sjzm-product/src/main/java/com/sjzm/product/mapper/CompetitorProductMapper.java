@@ -111,6 +111,97 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
             @Param("bsrMax") Integer bsrMax
     );
 
+    /**
+     * 统计场景（按批次日期）：品线树跟随批次改造后使用，按 DATE(created_at) IN (...) 过滤，
+     * 替代按 month 的口径。batchDates 为 yyyy-MM-dd 列表；为空时不加日期过滤（全量）。
+     */
+    @Select("<script>" +
+            "SELECT bsr_id AS bsrId, node_id AS nodeId," +
+            " MAX(node_label_path) AS nodeFullPath," +
+            " SUBSTRING_INDEX(MAX(node_label_path), ':', -1) AS nodeName," +
+            " COUNT(*) AS productCount" +
+            " FROM competitor_products_clean" +
+            " WHERE marketplace = #{marketplace} AND filter_mode = 'MODE1'" +
+            "<if test='batchDates != null and batchDates.size() > 0'>" +
+            " AND DATE(created_at) IN " +
+            "<foreach collection='batchDates' item='d' open='(' separator=',' close=')'>#{d}</foreach>" +
+            "</if>" +
+            " GROUP BY bsr_id, node_id" +
+            " ORDER BY bsr_id, productCount DESC" +
+            "</script>")
+    List<Map<String, Object>> countByNodeIdByBatch(@Param("marketplace") String marketplace,
+                                                   @Param("batchDates") List<String> batchDates);
+
+    /**
+     * 统计场景（按批次日期）应用 M01 硬筛条件，口径与 countByNodeIdForM01 一致，
+     * 仅把 month 过滤替换为 DATE(created_at) IN (...)。batchDates 为空时不加日期过滤。
+     */
+    @Select("<script>" +
+            "SELECT bsr_id AS bsrId, node_id AS nodeId," +
+            " MAX(node_label_path) AS nodeFullPath," +
+            " SUBSTRING_INDEX(MAX(node_label_path), ':', -1) AS nodeName," +
+            " COUNT(*) AS productCount" +
+            " FROM competitor_products_clean cp" +
+            " WHERE cp.marketplace = #{marketplace}" +
+            "<if test='batchDates != null and batchDates.size() > 0'>" +
+            " AND DATE(cp.created_at) IN " +
+            "<foreach collection='batchDates' item='d' open='(' separator=',' close=')'>#{d}</foreach>" +
+            "</if>" +
+            " AND cp.filter_mode = 'MODE1'" +
+            " AND cp.price BETWEEN #{priceMin} AND #{priceMax}" +
+            " AND cp.weight_g IS NOT NULL AND cp.weight_g &lt; #{weightMax}" +
+            " AND cp.listing_days IS NOT NULL AND cp.listing_days &lt; #{listingDaysMax}" +
+            " AND (" +
+            "  (cp.listing_days &lt;= 30 AND cp.units IS NOT NULL AND cp.units &gt;= #{sales30})" +
+            "  OR (cp.listing_days &lt;= 60 AND cp.units IS NOT NULL AND cp.units &gt;= #{sales60})" +
+            "  OR (cp.listing_days &lt;= 90 AND cp.units IS NOT NULL AND cp.units &gt;= #{sales90})" +
+            "  <if test='bsrMax != null'>OR (cp.bsr IS NOT NULL AND cp.bsr &gt; 0 AND cp.bsr &lt; #{bsrMax})</if>" +
+            " )" +
+            " GROUP BY bsr_id, node_id" +
+            " ORDER BY bsr_id, productCount DESC" +
+            "</script>")
+    List<Map<String, Object>> countByNodeIdForM01ByBatch(
+            @Param("marketplace") String marketplace,
+            @Param("batchDates") List<String> batchDates,
+            @Param("priceMin") java.math.BigDecimal priceMin,
+            @Param("priceMax") java.math.BigDecimal priceMax,
+            @Param("weightMax") java.math.BigDecimal weightMax,
+            @Param("listingDaysMax") Integer listingDaysMax,
+            @Param("sales30") Integer sales30,
+            @Param("sales60") Integer sales60,
+            @Param("sales90") Integer sales90,
+            @Param("bsrMax") Integer bsrMax
+    );
+
+    /**
+     * 统计场景（按批次日期）应用 M03 硬筛条件，口径与 MethodCardMapper.M03Where 一致：
+     * fulfillment=FBM(大小写不敏感)、listing_days &lt; listingDaysMax、units &gt;= sales90。
+     * 仅把 month 过滤替换为 DATE(created_at) IN (...)。batchDates 为空时不加日期过滤。
+     */
+    @Select("<script>" +
+            "SELECT bsr_id AS bsrId, node_id AS nodeId," +
+            " MAX(node_label_path) AS nodeFullPath," +
+            " SUBSTRING_INDEX(MAX(node_label_path), ':', -1) AS nodeName," +
+            " COUNT(*) AS productCount" +
+            " FROM competitor_products_clean cp" +
+            " WHERE cp.marketplace = #{marketplace}" +
+            "<if test='batchDates != null and batchDates.size() > 0'>" +
+            " AND DATE(cp.created_at) IN " +
+            "<foreach collection='batchDates' item='d' open='(' separator=',' close=')'>#{d}</foreach>" +
+            "</if>" +
+            " AND cp.title IS NOT NULL" +
+            " AND UPPER(TRIM(cp.fulfillment)) = 'FBM'" +
+            " AND cp.listing_days IS NOT NULL AND cp.listing_days &lt; #{listingDaysMax}" +
+            " AND cp.units IS NOT NULL AND cp.units &gt;= #{sales90}" +
+            " GROUP BY bsr_id, node_id" +
+            " ORDER BY bsr_id, productCount DESC" +
+            "</script>")
+    List<Map<String, Object>> countByNodeIdForM03ByBatch(
+            @Param("marketplace") String marketplace,
+            @Param("batchDates") List<String> batchDates,
+            @Param("listingDaysMax") Integer listingDaysMax,
+            @Param("sales90") Integer sales90);
+
     @Select("SELECT DISTINCT bsr_id FROM competitor_products WHERE marketplace = #{marketplace}")
     Set<String> selectDistinctBsrIdByMarketplace(@Param("marketplace") String marketplace);
 
@@ -122,30 +213,31 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
     String selectLatestMonth(@Param("marketplace") String marketplace);
 
     /**
-     * 实时按 created_at 计算入库周次（ISO 周），返回每周条数与起止日期，按周倒序（第一条即最新批次）。
+     * 实时按 created_at 计算入库批次（单天粒度），返回每天条数与起止日期，按日期倒序（第一条即最新批次）。
      * 不依赖 week_tag / is_current / month 列。source 用 LIKE 以兼容存量来源文案。
+     * value/week 返回 yyyy-MM-dd 日期串，与统一批次模型 DayBatchOption 对齐。
      */
     @Select("<script>" +
-            "SELECT DATE_FORMAT(created_at, '%x-W%v') AS week, COUNT(*) AS count, " +
-            "MIN(DATE(created_at)) AS startDate, MAX(DATE(created_at)) AS endDate " +
+            "SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS week, COUNT(*) AS count, " +
+            "DATE_FORMAT(created_at, '%Y-%m-%d') AS startDate, DATE_FORMAT(created_at, '%Y-%m-%d') AS endDate " +
             "FROM competitor_products " +
             "WHERE marketplace = #{marketplace} AND created_at IS NOT NULL " +
             "<if test='source != null and source != \"\"'> AND source LIKE CONCAT('%', #{source}, '%')</if>" +
             "<if test='filterMode != null and filterMode != \"\"'> AND filter_mode = #{filterMode}</if>" +
-            "GROUP BY week ORDER BY week DESC" +
+            "GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d') ORDER BY DATE_FORMAT(created_at, '%Y-%m-%d') DESC" +
             "</script>")
     List<Map<String, Object>> selectCreatedWeeksWithCount(@Param("marketplace") String marketplace,
                                                           @Param("source") String source,
                                                           @Param("filterMode") String filterMode);
 
-    /** 与统一选品默认 clean 列表同口径的入库周统计。 */
+    /** 与统一选品默认 clean 列表同口径的入库批次统计（单天粒度）。 */
     @Select("<script>" +
-            "SELECT DATE_FORMAT(created_at, '%x-W%v') AS week, COUNT(*) AS count, " +
-            "MIN(DATE(created_at)) AS startDate, MAX(DATE(created_at)) AS endDate " +
+            "SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS week, COUNT(*) AS count, " +
+            "DATE_FORMAT(created_at, '%Y-%m-%d') AS startDate, DATE_FORMAT(created_at, '%Y-%m-%d') AS endDate " +
             "FROM competitor_products_clean " +
             "WHERE marketplace = #{marketplace} AND created_at IS NOT NULL " +
             "<if test='source != null and source != \"\"'> AND source LIKE CONCAT('%', #{source}, '%')</if>" +
-            "GROUP BY week ORDER BY week DESC" +
+            "GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d') ORDER BY DATE_FORMAT(created_at, '%Y-%m-%d') DESC" +
             "</script>")
     List<Map<String, Object>> selectCleanCreatedWeeksWithCount(@Param("marketplace") String marketplace,
                                                                @Param("source") String source);

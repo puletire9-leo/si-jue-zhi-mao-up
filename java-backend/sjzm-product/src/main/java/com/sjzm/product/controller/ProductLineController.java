@@ -89,8 +89,15 @@ public class ProductLineController {
     )
     public Result<Map<String, Object>> getTree(
             @RequestParam(defaultValue = "UK") String marketplace,
-            @RequestParam String month,
-            @RequestParam(required = false) String methodId) {
+            @RequestParam(required = false) String month,
+            @RequestParam(required = false) List<String> batchDates,
+            @RequestParam(required = false) String methodId,
+            @RequestParam(required = false) String dataSource) {
+        // 品线树跟随批次：优先按 batchDates（单天，yyyy-MM-dd）；未传 batchDates 时回退按 month 兼容旧调用。
+        // dataSource：new/shop/all(默认合并两源)；methodId=M01 时固定走新品榜口径。
+        if (batchDates != null || dataSource != null || month == null || month.isBlank()) {
+            return Result.success(productLineTreeService.getTreeByBatch(marketplace, batchDates, methodId, dataSource));
+        }
         return Result.success(productLineTreeService.getTree(marketplace, month, methodId));
     }
 }

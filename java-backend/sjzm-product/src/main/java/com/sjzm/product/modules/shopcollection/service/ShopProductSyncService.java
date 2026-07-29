@@ -41,6 +41,8 @@ public class ShopProductSyncService {
     private final ShopProductMapper mapper;
     private final WeekTagUtil weekTagUtil;
     private final ProductFeatureProcessor productFeatureProcessor;
+    /** 抓取写库后失效选品分类/批次聚合缓存。ShopCollectionService 不依赖本类，无循环依赖。 */
+    private final ShopCollectionService shopCollectionService;
 
     /** 向后兼容重载——不传 runId/batchCode，内部自动生成。保留给旧调用方（观察池直抓等）。 */
     public Map<String, Object> syncBySellerName(String sellerName, String marketplace,
@@ -71,6 +73,18 @@ public class ShopProductSyncService {
                                                 String fetchReason, Long watchlistId,
                                                 String runId, String batchCode,
                                                 BooleanSupplier mayRequestNextPage) {
+        return syncBySellerName(sellerName, marketplace, fetchReason, watchlistId, runId, batchCode,
+                mayRequestNextPage, true);
+    }
+
+    /**
+     * Request-center batches disable per-item snapshot refresh and refresh once when the run reaches a terminal state.
+     */
+    public Map<String, Object> syncBySellerName(String sellerName, String marketplace,
+                                                String fetchReason, Long watchlistId,
+                                                String runId, String batchCode,
+                                                BooleanSupplier mayRequestNextPage,
+                                                boolean refreshSummaryAfterWrite) {
         String effectiveRunId = StringUtils.hasText(runId)
                 ? runId : "SHOP_" + marketplace + "_" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
                 + "_" + Integer.toHexString((sellerName + System.identityHashCode(this)).hashCode());
@@ -130,6 +144,23 @@ public class ShopProductSyncService {
 
             if ((total > 0 && fetched >= total) || pageItems < pageSize) break;
             page++;
+        }
+
+        // 有新数据落库才失效缓存 + 刷新店铺聚合画像快照，避免空跑也做重活。
+        if (written > 0) {
+            try {
+                shopCollectionService.evictSelectionAggregates(marketplace);
+            } catch (Exception e) {
+                log.warn("失效选品聚合缓存失败: marketplace={}, error={}", marketplace, e.getMessage());
+            }
+            if (refreshSummaryAfterWrite) {
+                try {
+                    int n = shopCollectionService.refreshSellerSummarySnapshot(marketplace);
+                    log.info("店铺聚合画像快照已刷新: marketplace={}, 店铺数={}", marketplace, n);
+                } catch (Exception e) {
+                    log.warn("刷新店铺聚合画像快照失败: marketplace={}, error={}", marketplace, e.getMessage());
+                }
+            }
         }
 
         log.info("店铺全集抓取完成: sellerName={}, total={}, fetched={}, written={}, runId={}, batchCode={}",

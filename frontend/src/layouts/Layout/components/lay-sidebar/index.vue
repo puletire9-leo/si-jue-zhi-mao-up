@@ -62,7 +62,25 @@ const menuItems = computed<MenuItem[]>(() => {
       if (!groups.has(mod.menuGroup)) {
         groups.set(mod.menuGroup, { items: [], order: mod.menuOrder ?? 99 })
       }
-      groups.get(mod.menuGroup)!.items.push(item)
+      const group = groups.get(mod.menuGroup)!
+      group.order = Math.min(group.order, mod.menuOrder ?? 99)
+      if (mod.menuSection) {
+        const sectionIndex = `menu:${mod.menuGroup}:${mod.menuSection}`
+        let section = group.items.find(candidate => candidate.index === sectionIndex)
+        if (!section) {
+          section = {
+            index: sectionIndex,
+            title: mod.menuSection,
+            icon: undefined,
+            order: mod.menuSectionOrder ?? mod.menuOrder ?? 99,
+            children: []
+          }
+          group.items.push(section)
+        }
+        section.children!.push(item)
+      } else {
+        group.items.push(item)
+      }
     } else {
       topLevel.push(item)
     }
@@ -74,9 +92,15 @@ const menuItems = computed<MenuItem[]>(() => {
     .map(([title, { items, order }]) => ({
       index: title,
       title,
-      icon: items[0]?.icon,
+      icon: items.find(item => item.icon)?.icon
+        ?? items.find(item => item.children?.some(child => child.icon))?.children?.find(child => child.icon)?.icon,
       order,
-      children: items.sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
+      children: items
+        .map(item => ({
+          ...item,
+          children: item.children?.sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
+        }))
+        .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
     }))
     .sort((a, b) => (a.order ?? 99) - (b.order ?? 99))
 
@@ -125,7 +149,6 @@ const handleSelect = (index: string) => {
         mode="vertical"
         :collapse="collapsed"
         :collapse-transition="false"
-        unique-opened
         @select="handleSelect"
       >
         <template v-for="item in menuItems" :key="item.index">
@@ -134,13 +157,21 @@ const handleSelect = (index: string) => {
               <el-icon><component :is="item.icon" /></el-icon>
               <span>{{ item.title }}</span>
             </template>
-            <el-menu-item
-              v-for="child in item.children"
-              :key="child.index"
-              :index="child.index"
-            >
-              {{ child.title }}
-            </el-menu-item>
+            <template v-for="child in item.children" :key="child.index">
+              <el-sub-menu v-if="child.children" :index="child.index" class="menu-section">
+                <template #title>{{ child.title }}</template>
+                <el-menu-item
+                  v-for="leaf in child.children"
+                  :key="leaf.index"
+                  :index="leaf.index"
+                >
+                  {{ leaf.title }}
+                </el-menu-item>
+              </el-sub-menu>
+              <el-menu-item v-else :index="child.index">
+                {{ child.title }}
+              </el-menu-item>
+            </template>
           </el-sub-menu>
 
           <el-menu-item v-else :index="item.index">
@@ -256,6 +287,23 @@ const handleSelect = (index: string) => {
             background: rgba(180, 83, 9, 0.15);
             color: #b45309;
             box-shadow: none;
+          }
+        }
+
+        .menu-section {
+          > .el-sub-menu__title {
+            height: 40px;
+            line-height: 40px;
+            padding-left: 42px !important;
+            font-size: 13px;
+            font-weight: 600;
+            color: #4b5563;
+          }
+
+          .el-menu-item {
+            height: 38px;
+            line-height: 38px;
+            padding-left: 62px !important;
           }
         }
       }

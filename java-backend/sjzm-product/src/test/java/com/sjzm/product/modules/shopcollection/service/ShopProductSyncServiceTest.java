@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -30,13 +31,14 @@ class ShopProductSyncServiceTest {
         ShopProductMapper mapper = mock(ShopProductMapper.class);
         WeekTagUtil weekTagUtil = mock(WeekTagUtil.class);
         ProductFeatureProcessor featureProcessor = mock(ProductFeatureProcessor.class);
+        ShopCollectionService collectionService = mock(ShopCollectionService.class);
         when(weekTagUtil.currentWeekTag()).thenReturn("2026-W29");
         when(mapper.upsert(any())).thenReturn(1);
         when(gateway.execute(any())).thenReturn(new SellerspriteExecutionResult(
                 pageWithOneHundredItems(2000), true, true, 1));
 
         ShopProductSyncService service = new ShopProductSyncService(
-                gateway, mapper, weekTagUtil, featureProcessor);
+                gateway, mapper, weekTagUtil, featureProcessor, collectionService);
         Map<String, Object> result = service.syncBySellerName(
                 "Large Store", "UK", "test", null, "RUN_TEST", "2026-W29");
 
@@ -45,6 +47,28 @@ class ShopProductSyncServiceTest {
         assertEquals(1000, result.get("remainingCount"));
         assertTrue(Boolean.TRUE.equals(result.get("truncated")));
         verify(gateway, times(10)).execute(any());
+        verify(collectionService).evictSelectionAggregates("UK");
+        verify(collectionService).refreshSellerSummarySnapshot("UK");
+    }
+
+    @Test
+    void requestCenterModeDefersSnapshotRefreshUntilRunFinalization() {
+        SellerspriteExecutionGateway gateway = mock(SellerspriteExecutionGateway.class);
+        ShopProductMapper mapper = mock(ShopProductMapper.class);
+        WeekTagUtil weekTagUtil = mock(WeekTagUtil.class);
+        ProductFeatureProcessor featureProcessor = mock(ProductFeatureProcessor.class);
+        ShopCollectionService collectionService = mock(ShopCollectionService.class);
+        when(mapper.upsert(any())).thenReturn(1);
+        when(gateway.execute(any())).thenReturn(new SellerspriteExecutionResult(
+                pageWithOneHundredItems(100), true, true, 1));
+
+        ShopProductSyncService service = new ShopProductSyncService(
+                gateway, mapper, weekTagUtil, featureProcessor, collectionService);
+        service.syncBySellerName("Batch Store", "UK", "test", null,
+                "RUN_BATCH", "2026-W29", () -> true, false);
+
+        verify(collectionService).evictSelectionAggregates("UK");
+        verify(collectionService, never()).refreshSellerSummarySnapshot("UK");
     }
 
     private static ObjectNode pageWithOneHundredItems(int total) {

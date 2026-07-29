@@ -28,16 +28,22 @@
     </div>
     <SkeletonWrapper :loading="loading" variant="card-grid" :count="12">
       <div class="card-grid">
-        <UniversalCard
-          v-for="item in products"
-          :key="item.asin"
-          :product="item"
-          mode="selection"
-          :selected="selectedAsins?.has(item.asin)"
-          @click="$emit('cardClick', item)"
-          @toggle-select="$emit('toggleSelect', item.asin)"
-          @view="$emit('viewDetail', item)"
-        />
+        <div v-for="item in products" :key="item.asin" class="card-cell">
+          <span
+            v-if="sourceBadge(item)"
+            class="source-badge"
+            :class="`source-badge--${item.dataSource}`"
+            >{{ sourceBadge(item) }}</span
+          >
+          <UniversalCard
+            :product="item"
+            mode="selection"
+            :selected="selectedAsins?.has(item.asin)"
+            @click="$emit('cardClick', item)"
+            @toggle-select="$emit('toggleSelect', item.asin)"
+            @view="$emit('viewDetail', item)"
+          />
+        </div>
         <el-empty v-if="!loading && products.length === 0" description="点击左侧大类浏览全部商品，点击子类加载 AI 品线模型" />
       </div>
     </SkeletonWrapper>
@@ -49,7 +55,7 @@
         :total="total"
         :current-page="currentPage"
         :page-size="pageSize"
-        :page-sizes="[60, 100, 200, 500]"
+        :page-sizes="[60, 100, 200]"
         layout="total, sizes, prev, pager, next"
         @current-change="$emit('pageChange', $event)"
         @size-change="$emit('sizeChange', $event)"
@@ -103,6 +109,14 @@ const allSelectedOnPage = computed(() => {
   if (!set || !props.products.length) return false
   return props.products.every(p => set.has(p.asin))
 })
+
+/** 合并视图下显示来源角标(新品榜/店铺);单源视图不打标。 */
+function sourceBadge(item: Record<string, any>): string {
+  const src = item?.dataSource
+  if (src === 'new') return '新品榜'
+  if (src === 'shop') return '店铺'
+  return ''
+}
 </script>
 
 <style scoped lang="scss">
@@ -129,6 +143,26 @@ const allSelectedOnPage = computed(() => {
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 16px;
   padding: 16px;
+}
+
+.card-cell {
+  position: relative;
+}
+
+.source-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 2;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  pointer-events: none;
+
+  &--new { background: var(--el-color-primary, #b45309); }
+  &--shop { background: #2563eb; }
 }
 
 .grid-footer {

@@ -294,8 +294,8 @@ public class BazhuayuClient {
      * 读取已由调用方确认的单次云采集数据。
      *
      * <p>系统自己启动的任务带真实 lotNo，走 /data/lotno/all 精确读取。八爪鱼网页手动或定时启动的任务，
-     * statuses/v2 不返回内部 lotNo，只能读取 /data/all。八爪鱼实测按最新数据优先返回，因此此分支只消费
-     * currentTotalExtractCount 指定的前 N 行，到 N 立即停止，禁止继续扫描后面的历史累计数据。</p>
+     * statuses/v2 不返回内部 lotNo，只能读取 /data/all。该接口的 total 是任务历史累计量，因此无 lotNo 时
+     * 必须以 statuses/v2 的 currentTotalExtractCount 作为最新批次硬上限，只读取最前 N 条，到数立即停止。</p>
      */
     public int fetchBatchDataStreaming(
             String taskId,
@@ -316,30 +316,35 @@ public class BazhuayuClient {
         int offset = 0;
         int total = 0;
         int size = Math.min(1000, Math.max(1, config.getDataPageSize()));
+        int targetRows = exactLotNo ? 0 : expectedRows;
         boolean firstPage = true;
         while (true) {
             JsonNode data = fetchDataPage(pathPrefix + "&offset=" + offset + "&size=" + size);
             if (firstPage) {
                 int sourceTotal = data.path("total").asInt(0);
-                if (sourceTotal < expectedRows) {
-                    throw new IllegalStateException("八爪鱼批次 " + batch.batchNo() + " 页面显示 "
-                            + expectedRows + " 条，但批次数据接口仅返回 " + sourceTotal
-                            + " 条，已拒绝导入；请先同步最新批次后重试");
+                if (exactLotNo) {
+                    targetRows = sourceTotal;
+                } else if (sourceTotal < expectedRows) {
+                    throw new IllegalStateException("八爪鱼任务 " + taskId + " 批次 " + batch.batchNo()
+                            + " 预计 " + expectedRows + " 条，但数据接口总量仅 " + sourceTotal + " 条，拒绝导入");
                 }
                 if (exactLotNo && sourceTotal != expectedRows) {
-                    throw new IllegalStateException("八爪鱼批次 " + batch.batchNo() + " 的 lotNo 数据量 "
-                            + sourceTotal + " 与页面显示 " + expectedRows + " 不一致，已拒绝导入");
+                    log.info("八爪鱼任务 {} 批次 {} 采集计数 {} 条，数据接口实际 {} 条（云端去重或进度差异），按实际数量导入",
+                            taskId, batch.batchNo(), expectedRows, sourceTotal);
+                } else if (!exactLotNo && sourceTotal > expectedRows) {
+                    log.info("八爪鱼任务 {} 批次 {} 本批次 {} 条，任务历史累计 {} 条，仅导入最新批次前 {} 条",
+                            taskId, batch.batchNo(), expectedRows, sourceTotal, expectedRows);
                 }
-                if (!exactLotNo && sourceTotal > expectedRows) {
-                    log.info("八爪鱼任务 {} /data/all 含历史累计 {} 行；批次 {} 仅读取最新前 {} 行",
-                            taskId, sourceTotal, batch.batchNo(), expectedRows);
+                if (targetRows == 0) {
+                    log.info("八爪鱼任务 {} 批次 {} 数据接口返回 0 条，跳过导入", taskId, batch.batchNo());
+                    return 0;
                 }
             }
             firstPage = false;
             JsonNode rows = data.path("data");
             List<JsonNode> page = new ArrayList<>();
             if (rows.isArray()) rows.forEach(page::add);
-            int remaining = expectedRows - total;
+            int remaining = targetRows - total;
             if (page.size() > remaining) {
                 page = new ArrayList<>(page.subList(0, remaining));
             }
@@ -347,15 +352,15 @@ public class BazhuayuClient {
                 pageHandler.accept(page);
                 total += page.size();
             }
-            if (total >= expectedRows) break;
+            if (total >= targetRows) break;
             int restTotal = data.path("restTotal").asInt(0);
             offset = data.path("offset").asInt(offset);
             if (restTotal <= 0 || page.isEmpty()) break;
             sleep2s();
         }
-        if (total != expectedRows) {
-            throw new IllegalStateException("八爪鱼批次 " + batch.batchNo() + " 应读取 " + expectedRows
-                    + " 条，实际只读取 " + total + " 条，已拒绝生成不完整导入任务");
+        if (total < targetRows) {
+            throw new IllegalStateException("八爪鱼任务 " + taskId + " 批次 " + batch.batchNo()
+                    + " 预计读取 " + targetRows + " 条，实际仅读取 " + total + " 条，拒绝按不完整批次收口");
         }
         log.info("八爪鱼任务 {} 批次 {} 流式拉取 {} 行（lotNo={}）",
                 taskId, batch.batchNo(), total, batch.lotNo());

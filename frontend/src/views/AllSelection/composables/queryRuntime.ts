@@ -1,12 +1,14 @@
 import { competitorApi, type CompetitorListResponse } from "@/api/competitor";
 import { methodCardsApi, type MethodCardListParams } from "@/api/methodCards";
 import shopCollectionApi, { type ShopProductRow } from "@/api/shopCollection";
+import { getList as getAiSelectionList } from "@/api/ai-selection-pool";
 import type {
   SelectionQueryPlan,
   CompetitorQueryPlan,
   PremiumProductsQueryPlan,
   DengZongQueryPlan,
   ShopProductsQueryPlan,
+  AiSelectionQueryPlan,
   MethodCardQueryPlan,
 } from "./queryPlan";
 import type { ApiResponse } from "@/types/api";
@@ -93,6 +95,19 @@ async function resolveShopProductsPlan(
   };
 }
 
+async function resolveAiSelectionPlan(
+  plan: AiSelectionQueryPlan,
+): Promise<ResolvedQueryResponse> {
+  const res = await getAiSelectionList(plan.params);
+  return {
+    plan,
+    result: {
+      list: res?.list ?? [],
+      total: res?.total ?? 0,
+    },
+  };
+}
+
 async function resolveMethodCardPlan(
   plan: MethodCardQueryPlan,
 ): Promise<ResolvedQueryResponse> {
@@ -144,6 +159,8 @@ export async function resolveSelectionQueryPlan(
       return resolveDengZongPlan(plan);
     case "shop_products":
       return resolveShopProductsPlan(plan);
+    case "ai_selection":
+      return resolveAiSelectionPlan(plan);
     case "method_card":
       return resolveMethodCardPlan(plan);
     default:

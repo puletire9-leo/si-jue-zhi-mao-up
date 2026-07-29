@@ -2,8 +2,12 @@ package com.sjzm.product.modules.bazhuayu.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 八爪鱼原始行 → 初筛输入行的整形（纯函数，便于单测）。
@@ -16,11 +20,15 @@ public final class BazhuayuRowMapper {
 
     // 八爪鱼原始字段候选名（实际字段须按真实采集核实，必要时在此补充）
     static final String[] ASIN_KEYS = {"ASIN", "asin", "Asin", "产品ASIN", "asin码"};
-    static final String[] PRICE_KEYS = {"价格", "price", "Price", "售价", "价格(£)", "价格(€)", "价格($)"};
-    static final String[] REVIEW_KEYS = {"评论数", "评论数量", "review数量", "reviews", "review", "评论"};
-    static final String[] TITLE_KEYS = {"标题", "title", "Title", "产品标题", "商品标题"};
+    static final String[] ASIN_URL_KEYS = {"标题_链接", "alinknormal_链接1"};
+    static final String[] PRICE_KEYS = {"价格", "价格1", "price", "Price", "售价", "价格(£)", "价格(€)", "价格($)"};
+    static final String[] REVIEW_KEYS = {"评论数", "评论数量", "review数量", "reviews", "review", "评论", "alinknormal", "asizesmall1"};
+    static final String[] TITLE_KEYS = {"标题", "title", "Title", "产品标题", "商品标题", "cdezb_p13nsccsslineclamp3_g3dy1"};
 
     static final String ASIN_REGEX = "^B0[0-9A-Z]{8}$";
+    private static final Pattern AMAZON_PRODUCT_ASIN_PATTERN = Pattern.compile(
+            "/(?:dp|product-reviews|gp/product|gp/aw/d)/([0-9A-Z]{10})(?:[/?#]|$)",
+            Pattern.CASE_INSENSITIVE);
 
     private BazhuayuRowMapper() {}
 
@@ -38,7 +46,34 @@ public final class BazhuayuRowMapper {
 
     /** 提取并规范化 ASIN（大写、trim）；非法格式返回 null */
     public static String extractAsin(JsonNode raw) {
-        String asin = pick(raw, ASIN_KEYS);
+        String asin = normalizeAsin(pick(raw, ASIN_KEYS));
+        if (asin != null) return asin;
+
+        for (String key : ASIN_URL_KEYS) {
+            asin = extractAsinFromUrl(pick(raw, new String[]{key}));
+            if (asin != null) return asin;
+        }
+        return null;
+    }
+
+    private static String extractAsinFromUrl(String url) {
+        if (url == null || url.isBlank() || !isAmazonUrl(url)) return null;
+        Matcher matcher = AMAZON_PRODUCT_ASIN_PATTERN.matcher(url);
+        return matcher.find() ? normalizeAsin(matcher.group(1)) : null;
+    }
+
+    private static boolean isAmazonUrl(String url) {
+        if (url == null || url.isBlank()) return false;
+        try {
+            String host = new URI(url).getHost();
+            return host != null && (host.equalsIgnoreCase("amazon.com")
+                    || host.toLowerCase().matches("(?:.+\\.)?amazon\\.[a-z.]+"));
+        } catch (URISyntaxException | RuntimeException e) {
+            return false;
+        }
+    }
+
+    private static String normalizeAsin(String asin) {
         if (asin == null) return null;
         asin = asin.trim().toUpperCase();
         return asin.matches(ASIN_REGEX) ? asin : null;

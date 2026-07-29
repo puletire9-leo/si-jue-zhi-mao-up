@@ -1,8 +1,8 @@
 """
-JWT工具函数（简化版）
+JWT 工具函数。
 
-Gateway 负责 JWT 验证和签发。
-Python 后端仅保留 decode_token 用于解析 token（不验证签名）。
+Gateway 负责主要认证；Python 后端也会验证 Bearer JWT，防止绕过
+Gateway 直连 Python 服务时使用伪造令牌。
 """
 
 import jwt
@@ -17,13 +17,21 @@ JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
 
 
 def decode_token(token: str) -> Optional[Dict[str, Any]]:
-    """
-    解码token（不验证签名，仅用于解析）
-    用于 auth.py 的 /me 和 /logout 端点
-    """
+    """验证并解析 Java 后端签发的 access token。"""
     try:
-        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM], options={"verify_signature": False, "verify_exp": False})
+        payload = jwt.decode(
+            token,
+            JWT_SECRET_KEY,
+            algorithms=[JWT_ALGORITHM],
+            options={"require": ["exp", "sub"]},
+        )
+        if payload.get("type") != "access":
+            logger.warning("JWT 类型不是 access token")
+            return None
         return payload
-    except Exception as e:
-        logger.error(f"Token decoding error: {e}")
+    except jwt.ExpiredSignatureError:
+        logger.info("JWT 已过期")
+        return None
+    except jwt.InvalidTokenError as e:
+        logger.warning("JWT 验证失败: %s", e)
         return None

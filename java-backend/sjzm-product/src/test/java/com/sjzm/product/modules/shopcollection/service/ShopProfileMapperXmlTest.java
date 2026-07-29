@@ -20,15 +20,26 @@ class ShopProfileMapperXmlTest {
         assertSelectContainsSourceRunId(xml, "selectCategoriesFromShopProducts");
     }
 
+    @Test
+    void sellerSummaryLimitIsOptionalForFullSnapshotRefresh() throws Exception {
+        String select = selectById(readMapperXml(), "selectSummaryFromShopProducts");
+
+        assertThat(select).contains("<if test=\"limit != null and limit > 0\">LIMIT #{limit}</if>");
+    }
+
     private void assertSelectContainsSourceRunId(String xml, String selectId) {
+        String select = selectById(xml, selectId);
+        assertThat(select).as(selectId + " filters source_run_id")
+                .contains("ds.source_run_id = #{sourceRunId}");
+    }
+
+    private String selectById(String xml, String selectId) {
         String start = "<select id=\"" + selectId + "\"";
         int startIndex = xml.indexOf(start);
         assertThat(startIndex).as(selectId + " exists").isGreaterThanOrEqualTo(0);
         int endIndex = xml.indexOf("</select>", startIndex);
         assertThat(endIndex).as(selectId + " has closing tag").isGreaterThan(startIndex);
-        String select = xml.substring(startIndex, endIndex);
-        assertThat(select).as(selectId + " filters source_run_id")
-                .contains("ds.source_run_id = #{sourceRunId}");
+        return xml.substring(startIndex, endIndex);
     }
 
     private String readMapperXml() throws Exception {

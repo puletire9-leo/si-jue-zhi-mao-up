@@ -354,6 +354,10 @@ export interface ShopProductSelectionParams {
   sellerName?: string;
   brand?: string;
   categories?: string[];
+  /** 品线树精确筛选：L2 小类 node_id。 */
+  nodeId?: number;
+  /** 品线树精确筛选：L1 大类 bsr_id。 */
+  bsrId?: string;
   batchDates?: string[];
   priceMin?: number;
   priceMax?: number;

@@ -9,6 +9,11 @@ import com.sjzm.product.dto.CompetitorLookupRequest;
 import com.sjzm.product.config.DatabaseWorkloadGate;
 import com.sjzm.product.entity.AsinImportResult;
 import com.sjzm.product.entity.AsinImportTask;
+import com.sjzm.product.modules.bazhuayu.service.BazhuayuBatchSnapshot;
+import com.sjzm.product.modules.bazhuayu.entity.BazhuayuWeeklyRaw;
+import com.sjzm.product.modules.bazhuayu.mapper.PremiumProductMapper;
+import com.sjzm.product.modules.bazhuayu.entity.PremiumProduct;
+import com.sjzm.product.mapper.BazhuayuWeeklyRawMapper;
 import com.sjzm.product.entity.CompetitorProduct;
 import com.sjzm.product.entity.DengZongShop;
 import com.sjzm.product.entity.DengZongShopSeller;
@@ -25,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,6 +63,8 @@ public class AsinImportService {
     private final CompetitorService competitorService;
     private final CompetitorProductMapper competitorProductMapper;
     private final SkipAsinMapper skipAsinMapper;
+    private final BazhuayuWeeklyRawMapper bazhuayuWeeklyRawMapper;
+    private final PremiumProductMapper premiumProductMapper;
     private final DengZongShopSellerMapper sellerMapper;
     private final DengZongShopService dengZongShopService;
     private final ApiRateLimitService rateLimitService;
@@ -73,12 +81,16 @@ public class AsinImportService {
     @jakarta.annotation.PostConstruct
     public void recoverStaleTasks() {
         try {
+            LocalDateTime now = LocalDateTime.now();
             AsinImportTask update = new AsinImportTask();
             update.setTaskStatus("ERROR");
             update.setErrorMessage("容器重启导致任务中断，请重新导入");
+            // 恢复也是一次终态转换：显式写 updatedAt + completedAt，避免完成时间为空或停留在旧值。
+            update.setUpdatedAt(now);
+            update.setCompletedAt(now);
             int updated = taskMapper.update(update,
                     new LambdaQueryWrapper<AsinImportTask>()
-                            .eq(AsinImportTask::getTaskStatus, "RUNNING"));
+                            .in(AsinImportTask::getTaskStatus, List.of("QUEUED", "RUNNING")));
             if (updated > 0) {
                 log.info("启动恢复: 将 {} 个僵尸任务标记为 ERROR", updated);
             }
@@ -161,8 +173,10 @@ public class AsinImportService {
         int fullBatches = passAsins.size() / BATCH_SIZE;
         task.setBatchTotal(fullBatches);
         task.setBatchCurrent(0);
-        task.setCreatedAt(java.time.LocalDateTime.now());
-        task.setUpdatedAt(java.time.LocalDateTime.now());
+        java.time.LocalDateTime createNow = java.time.LocalDateTime.now();
+        task.setCreatedAt(createNow);
+        task.setUpdatedAt(createNow);
+        task.setCompletedAt(createNow);   // 文件上传初筛建任务即 READY 终态
         taskMapper.insert(task);
 
         // 4. 保存明细
@@ -197,17 +211,24 @@ public class AsinImportService {
     public static class StreamingFilterContext {
         final Long taskId;
         final String marketplace;
+        final boolean alreadyImported;
         final Set<String> seenAsins = new HashSet<>();   // 跨页去重（in-file 重复）
         int total, pass, priceFail, reviewFail, duplicate, skipBlacklist, skipMain;
         int pageCount;                                   // 已处理页数，用于周期写回节流
         long lastFlushMs = System.currentTimeMillis();   // 上次写回时间戳
 
         StreamingFilterContext(Long taskId, String marketplace) {
+            this(taskId, marketplace, false);
+        }
+
+        StreamingFilterContext(Long taskId, String marketplace, boolean alreadyImported) {
             this.taskId = taskId;
             this.marketplace = marketplace;
+            this.alreadyImported = alreadyImported;
         }
 
         public Long getTaskId() { return taskId; }
+        public boolean isAlreadyImported() { return alreadyImported; }
     }
 
     /** 周期写回节流阈值：每 5 页或每 5 秒把累计统计刷进 DB */
@@ -233,6 +254,140 @@ public class AsinImportService {
             String taskCategory,
             boolean initialFilter,
             String targetTable) {
+        return createStreamingTask(marketplace, importType, mappingId, bazhuayuTaskId,
+                taskName, taskCategory, initialFilter, targetTable, null);
+    }
+
+    /** 同步预建结果：只有新插入的任务需要提交 worker，重复请求仅复用已有任务。 */
+    public record QueuedTask(Long taskId, boolean alreadyImported, boolean shouldSubmit) {}
+
+    /**
+     * 同步预建一条 QUEUED 八爪鱼导入任务，让前端点击“导入DB”后立即能看到任务并轮询。
+     * 幂等：同 (mappingId, batchNo) 已存在 READY/DONE/ERROR/RUNNING 时不新建，返回其 id 且 alreadyImported=true；
+     * 已存在 QUEUED（重复点击）时仅复用其 id，不重复提交 worker。
+     */
+    @Transactional
+    public QueuedTask createQueuedBazhuayuTask(
+            String marketplace,
+            String importType,
+            Long mappingId,
+            String bazhuayuTaskId,
+            String taskName,
+            String taskCategory,
+            boolean initialFilter,
+            String targetTable,
+            BazhuayuBatchSnapshot batch) {
+        if (mappingId != null && batch != null && batch.batchNo() != null
+                && !batch.batchNo().isBlank()) {
+            AsinImportTask existing = taskMapper.selectBazhuayuBatch(mappingId, batch.batchNo());
+            if (existing != null) {
+                boolean queued = "QUEUED".equals(existing.getTaskStatus());
+                log.info("八爪鱼批次已存在: mappingId={}, batchNo={}, taskId={}, status={}, {}",
+                        mappingId, batch.batchNo(), existing.getId(), existing.getTaskStatus(),
+                        queued ? "复用排队任务继续" : "跳过重复导入");
+                return new QueuedTask(existing.getId(), !queued, false);
+            }
+        }
+        AsinImportTask task = new AsinImportTask();
+        task.setMarketplace(marketplace);
+        task.setImportType(importType);
+        task.setTaskStatus("QUEUED");
+        task.setTotalCount(0);
+        task.setPassCount(0);
+        task.setPriceFailCount(0);
+        task.setReviewFailCount(0);
+        task.setDuplicateCount(0);
+        task.setSkipCount(0);
+        task.setBatchTotal(0);
+        task.setBatchCurrent(0);
+        task.setDataMonth(java.time.YearMonth.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMM")));
+        task.setBazhuayuMappingId(mappingId);
+        task.setBazhuayuTaskId(bazhuayuTaskId);
+        if (batch != null) {
+            task.setBazhuayuBatchNo(batch.batchNo());
+            task.setBazhuayuBatchStartTime(batch.startTime());
+            task.setBazhuayuBatchEndTime(batch.endTime());
+            task.setBazhuayuBatchCount(batch.cloudCount());
+            task.setBazhuayuLotNo(batch.lotNo());
+        }
+        task.setTaskName(taskName);
+        task.setTaskCategory(taskCategory);
+        task.setInitialFilter(initialFilter);
+        task.setTargetTable(targetTable);
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        task.setCreatedAt(now);
+        task.setUpdatedAt(now);
+        try {
+            taskMapper.insert(task);
+        } catch (DuplicateKeyException e) {
+            if (mappingId == null || batch == null || batch.batchNo() == null) throw e;
+            AsinImportTask winner = taskMapper.selectBazhuayuBatch(mappingId, batch.batchNo());
+            if (winner == null) throw e;
+            boolean queued = "QUEUED".equals(winner.getTaskStatus());
+            log.info("八爪鱼批次并发排队命中已有任务: mappingId={}, batchNo={}, taskId={}, status={}",
+                    mappingId, batch.batchNo(), winner.getId(), winner.getTaskStatus());
+            return new QueuedTask(winner.getId(), !queued, false);
+        }
+        log.info("八爪鱼导入任务已排队: taskId={}, marketplace={}, taskName={}, batchNo={}",
+                task.getId(), marketplace, taskName, batch == null ? null : batch.batchNo());
+        return new QueuedTask(task.getId(), false, true);
+    }
+
+    /** 异步导入前置阶段失败时，把同步预建的 QUEUED/RUNNING 任务标记为 ERROR，避免永远停留在排队态。 */
+    public void failBazhuayuTaskById(Long taskId, String errorMessage) {
+        if (taskId == null) return;
+        try {
+            AsinImportTask task = taskMapper.selectById(taskId);
+            if (task == null) return;
+            String st = task.getTaskStatus();
+            // 已收口的任务不覆盖
+            if ("READY".equals(st) || "DONE".equals(st)) return;
+            AsinImportTask update = new AsinImportTask();
+            update.setId(taskId);
+            update.setTaskStatus("ERROR");
+            update.setErrorMessage(truncateText(errorMessage, 1000));
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            update.setUpdatedAt(now);
+            update.setCompletedAt(now);
+            taskMapper.updateById(update);
+        } catch (RuntimeException e) {
+            log.warn("标记八爪鱼任务 {} 为 ERROR 失败(忽略): {}", taskId, e.getMessage());
+        }
+    }
+
+    /** 创建八爪鱼导入任务；同一配置的同一云端批次只允许创建一次。 */
+    public StreamingFilterContext createStreamingTask(
+            String marketplace,
+            String importType,
+            Long mappingId,
+            String bazhuayuTaskId,
+            String taskName,
+            String taskCategory,
+            boolean initialFilter,
+            String targetTable,
+            BazhuayuBatchSnapshot batch) {
+        if (mappingId != null && batch != null && batch.batchNo() != null
+                && !batch.batchNo().isBlank()) {
+            AsinImportTask existing = taskMapper.selectBazhuayuBatch(mappingId, batch.batchNo());
+            if (existing != null) {
+                // QUEUED = trigger 同步预建的排队任务，复用它转 RUNNING 继续，不新建。
+                if ("QUEUED".equals(existing.getTaskStatus())) {
+                    AsinImportTask run = new AsinImportTask();
+                    run.setId(existing.getId());
+                    run.setTaskStatus("RUNNING");
+                    run.setUpdatedAt(java.time.LocalDateTime.now());
+                    taskMapper.updateById(run);
+                    log.info("复用排队任务继续导入: mappingId={}, batchNo={}, taskId={}",
+                            mappingId, batch.batchNo(), existing.getId());
+                    return new StreamingFilterContext(existing.getId(), marketplace);
+                }
+                // READY/DONE/RUNNING/ERROR 均视为已存在（ERROR 重试留待后续批次处理）。
+                log.info("八爪鱼批次已导入，跳过重复任务: mappingId={}, batchNo={}, taskId={}, status={}",
+                        mappingId, batch.batchNo(), existing.getId(), existing.getTaskStatus());
+                return new StreamingFilterContext(existing.getId(), marketplace, true);
+            }
+        }
         AsinImportTask task = new AsinImportTask();
         task.setMarketplace(marketplace);
         task.setImportType(importType);
@@ -249,6 +404,13 @@ public class AsinImportService {
                 .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMM")));
         task.setBazhuayuMappingId(mappingId);
         task.setBazhuayuTaskId(bazhuayuTaskId);
+        if (batch != null) {
+            task.setBazhuayuBatchNo(batch.batchNo());
+            task.setBazhuayuBatchStartTime(batch.startTime());
+            task.setBazhuayuBatchEndTime(batch.endTime());
+            task.setBazhuayuBatchCount(batch.cloudCount());
+            task.setBazhuayuLotNo(batch.lotNo());
+        }
         task.setTaskName(taskName);
         task.setTaskCategory(taskCategory);
         task.setInitialFilter(initialFilter);
@@ -400,7 +562,9 @@ public class AsinImportService {
         task.setDuplicateCount(ctx.duplicate);
         task.setSkipCount(ctx.skipBlacklist + ctx.skipMain);
         task.setBatchTotal(totalBatches);
-        task.setUpdatedAt(java.time.LocalDateTime.now());
+        java.time.LocalDateTime finishNow = java.time.LocalDateTime.now();
+        task.setUpdatedAt(finishNow);
+        task.setCompletedAt(finishNow);   // READY 是流式初筛的终态，写入真实完成时间
         taskMapper.updateById(task);
 
         Map<String, Object> preview = new HashMap<>();
@@ -431,7 +595,9 @@ public class AsinImportService {
         task.setDuplicateCount(ctx.duplicate);
         task.setSkipCount(ctx.skipBlacklist + ctx.skipMain);
         task.setErrorMessage(truncateText(errorMessage, 1000));
-        task.setUpdatedAt(java.time.LocalDateTime.now());
+        java.time.LocalDateTime failNow = java.time.LocalDateTime.now();
+        task.setUpdatedAt(failNow);
+        task.setCompletedAt(failNow);   // ERROR 也是终态，写入完成时间
         taskMapper.updateById(task);
     }
 
@@ -457,7 +623,10 @@ public class AsinImportService {
                         .eq(AsinImportTask::getMarketplace, task.getMarketplace())
                         .in(AsinImportTask::getTaskStatus, List.of("RUNNING", "PAUSED")));
         if (activeCount != null && activeCount > 0) {
+            LocalDateTime rejectedAt = LocalDateTime.now();
             task.setTaskStatus("REJECTED");
+            task.setUpdatedAt(rejectedAt);
+            task.setCompletedAt(rejectedAt);
             taskMapper.updateById(task);
             log.warn("任务 {} 被拒绝：已有活动中任务 (RUNNING/PAUSED 共: {})", taskId, activeCount);
             return;
@@ -577,11 +746,13 @@ public class AsinImportService {
                 }
             }
 
+            LocalDateTime completedAt = LocalDateTime.now();
             task.setTaskStatus("DONE");
             task.setApiRequestsUsed(totalApiCalls);
             task.setParentAsinCount(totalParentCount);
             task.setVariantAsinCount(totalVariantCount);
-            task.setUpdatedAt(java.time.LocalDateTime.now());
+            task.setUpdatedAt(completedAt);
+            task.setCompletedAt(completedAt);
             taskMapper.updateById(task);
             log.info("任务 {} 执行完成。成功: {}, 失败: {}, API请求: {}, 父ASIN: {}, 变体: {}",
                     taskId, successCount, failCount, totalApiCalls, totalParentCount, totalVariantCount);
@@ -598,7 +769,10 @@ public class AsinImportService {
 
         } catch (Exception e) {
             log.error("任务 {} 执行异常: {}", taskId, e.getMessage(), e);
+            LocalDateTime failedAt = LocalDateTime.now();
             task.setTaskStatus("ERROR");
+            task.setUpdatedAt(failedAt);
+            task.setCompletedAt(failedAt);
             taskMapper.updateById(task);
         }
     }
@@ -631,7 +805,7 @@ public class AsinImportService {
             item.put("variantAsinCount", t.getVariantAsinCount());
             item.put("dataMonth", t.getDataMonth());
             item.put("createdAt", t.getCreatedAt());
-            item.put("completedAt", t.getUpdatedAt());
+            item.put("completedAt", t.getCompletedAt());
             list.add(item);
         }
         return list;
@@ -731,8 +905,10 @@ public class AsinImportService {
         newTask.setTaskStatus("READY");
         newTask.setTotalCount(allFailed.size());
         newTask.setPassCount(allFailed.size());
-        newTask.setCreatedAt(java.time.LocalDateTime.now());
-        newTask.setUpdatedAt(java.time.LocalDateTime.now());
+        LocalDateTime createdAt = LocalDateTime.now();
+        newTask.setCreatedAt(createdAt);
+        newTask.setUpdatedAt(createdAt);
+        newTask.setCompletedAt(createdAt);
         taskMapper.insert(newTask);
 
         // 保存为 PASS 结果
@@ -771,7 +947,10 @@ public class AsinImportService {
         if ("pause".equals(action)) {
             task.setTaskStatus("PAUSED");
         } else {
+            LocalDateTime cancelledAt = LocalDateTime.now();
             task.setTaskStatus("CANCELLED");
+            task.setUpdatedAt(cancelledAt);
+            task.setCompletedAt(cancelledAt);
         }
         taskMapper.updateById(task);
         log.info("任务 {} 已{}", taskId, "pause".equals(action) ? "暂停" : "取消");
@@ -812,6 +991,54 @@ public class AsinImportService {
         return workloadGate.runHeavyWrite(() -> doSellerPreview(sellerNames, marketplace, target));
     }
 
+    /** 删除八爪鱼导入任务及其明细，释放该批次的幂等记录以便重新导入。 */
+    @Transactional
+    public void deleteBazhuayuTask(Long taskId) {
+        AsinImportTask task = taskMapper.selectById(taskId);
+        if (task == null) {
+            throw new IllegalArgumentException("导入任务不存在: " + taskId);
+        }
+        if (!"BAZHUAYU_AUTO".equals(task.getImportType())) {
+            throw new IllegalArgumentException("只能删除八爪鱼导入任务");
+        }
+        if ("RUNNING".equalsIgnoreCase(task.getTaskStatus())) {
+            throw new IllegalStateException("任务正在运行，请等待完成后再删除");
+        }
+        List<String> asins = resultMapper.selectList(new LambdaQueryWrapper<AsinImportResult>()
+                        .select(AsinImportResult::getAsin)
+                        .eq(AsinImportResult::getTaskId, taskId)
+                        .isNotNull(AsinImportResult::getAsin))
+                .stream().map(AsinImportResult::getAsin).filter(Objects::nonNull)
+                .distinct().toList();
+        forEachAsinChunk(asins, chunk -> {
+            skipAsinMapper.delete(new LambdaQueryWrapper<SkipAsin>()
+                    .eq(SkipAsin::getMarketplace, task.getMarketplace())
+                    .in(SkipAsin::getAsin, chunk));
+            bazhuayuWeeklyRawMapper.delete(new LambdaQueryWrapper<BazhuayuWeeklyRaw>()
+                    .eq(BazhuayuWeeklyRaw::getMarketplace, task.getMarketplace())
+                    .in(BazhuayuWeeklyRaw::getAsin, chunk));
+            if ("premium_products".equals(task.getTargetTable())) {
+                LambdaQueryWrapper<PremiumProduct> premium = new LambdaQueryWrapper<PremiumProduct>()
+                        .eq(PremiumProduct::getMarketplace, task.getMarketplace())
+                        .in(PremiumProduct::getAsin, chunk);
+                if (task.getBazhuayuMappingId() != null) {
+                    premium.eq(PremiumProduct::getBazhuayuMappingId, task.getBazhuayuMappingId());
+                }
+                premiumProductMapper.delete(premium);
+            }
+        });
+        resultMapper.delete(new LambdaQueryWrapper<AsinImportResult>()
+                .eq(AsinImportResult::getTaskId, taskId));
+        taskMapper.deleteById(taskId);
+        log.info("八爪鱼导入任务已删除: taskId={}, batchNo={}", taskId, task.getBazhuayuBatchNo());
+    }
+
+    private void forEachAsinChunk(List<String> asins, java.util.function.Consumer<List<String>> action) {
+        for (int from = 0; from < asins.size(); from += 1000) {
+            action.accept(asins.subList(from, Math.min(from + 1000, asins.size())));
+        }
+    }
+
     private Map<String, Object> doSellerPreview(List<String> sellerNames, String marketplace, String target) {
         List<String> cleaned = sellerNames.stream()
                 .map(String::trim)
@@ -836,8 +1063,10 @@ public class AsinImportService {
         task.setPassCount(cleaned.size());
         task.setBatchTotal(cleaned.size());
         task.setBatchCurrent(0);
-        task.setCreatedAt(LocalDateTime.now());
-        task.setUpdatedAt(LocalDateTime.now());
+        LocalDateTime createdAt = LocalDateTime.now();
+        task.setCreatedAt(createdAt);
+        task.setUpdatedAt(createdAt);
+        task.setCompletedAt(createdAt);
         taskMapper.insert(task);
 
         List<AsinImportResult> results = new ArrayList<>();
@@ -882,7 +1111,10 @@ public class AsinImportService {
                         .eq(AsinImportTask::getMarketplace, task.getMarketplace())
                         .in(AsinImportTask::getTaskStatus, List.of("RUNNING", "PAUSED")));
         if (activeCount != null && activeCount > 0) {
+            LocalDateTime rejectedAt = LocalDateTime.now();
             task.setTaskStatus("REJECTED");
+            task.setUpdatedAt(rejectedAt);
+            task.setCompletedAt(rejectedAt);
             taskMapper.updateById(task);
             log.warn("卖家导入任务 {} 被拒绝：同市场已有活动中任务", taskId);
             return;
@@ -960,8 +1192,10 @@ public class AsinImportService {
                 try { Thread.sleep(SELLER_API_DELAY_MS); } catch (InterruptedException ignored) {}
             }
 
+            LocalDateTime completedAt = LocalDateTime.now();
             task.setTaskStatus("DONE");
-            task.setUpdatedAt(LocalDateTime.now());
+            task.setUpdatedAt(completedAt);
+            task.setCompletedAt(completedAt);
             taskMapper.updateById(task);
             log.info("卖家导入完成: taskId={}, sellers={}, products={}", taskId, totalSellers, totalProducts);
 
@@ -977,8 +1211,11 @@ public class AsinImportService {
             }
         } catch (Exception e) {
             log.error("卖家导入异常: {}", e.getMessage(), e);
+            LocalDateTime failedAt = LocalDateTime.now();
             task.setTaskStatus("ERROR");
             task.setErrorMessage(e.getMessage());
+            task.setUpdatedAt(failedAt);
+            task.setCompletedAt(failedAt);
             taskMapper.updateById(task);
         }
     }

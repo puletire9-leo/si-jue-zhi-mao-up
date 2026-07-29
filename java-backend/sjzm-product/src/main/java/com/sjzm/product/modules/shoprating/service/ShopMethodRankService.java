@@ -2,6 +2,7 @@ package com.sjzm.product.modules.shoprating.service;
 
 import com.sjzm.product.mapper.ShopMethodRankMapper;
 import com.sjzm.product.methodrule.M01Rule;
+import com.sjzm.product.util.DayBatchSupport;
 import com.sjzm.product.modules.shoprating.dto.ShopMethodBatchOption;
 import com.sjzm.product.modules.shoprating.dto.ShopMethodRankItem;
 import lombok.RequiredArgsConstructor;
@@ -47,19 +48,24 @@ public class ShopMethodRankService {
         String mp = normalizeRankMarketplace(marketplace);
         int min = minCount == null || minCount < 1 ? 1 : minCount;
         int lim = limit == null || limit < 1 ? 100 : Math.min(limit, 5000);
-        String batch = effectiveWeekTag == null || effectiveWeekTag.isBlank() ? null : effectiveWeekTag.trim();
+        // 批次值统一归一到「单天导入日期」；兼容前端传来的旧 ISO 周值。
+        String batch = DayBatchSupport.normalizeToDate(effectiveWeekTag);
         return mapper.selectM01ShopRanking(mp, batch, min, lim);
     }
 
     /**
-     * 返回指定来源周批次的全部店铺，不受任何方法卡通过状态影响。
+     * 返回指定来源批次（单天导入日期）的全部店铺，不受任何方法卡通过状态影响。
      */
     public List<ShopMethodRankItem> rankAllByBatch(String marketplace, String effectiveWeekTag) {
         if (effectiveWeekTag == null || effectiveWeekTag.isBlank()) {
-            throw new IllegalArgumentException("批次全部店铺查询必须指定来源周批次");
+            throw new IllegalArgumentException("批次全部店铺查询必须指定来源批次日期");
+        }
+        String batch = DayBatchSupport.normalizeToDate(effectiveWeekTag);
+        if (batch == null) {
+            throw new IllegalArgumentException("无法识别的批次值: " + effectiveWeekTag);
         }
         String mp = normalizeRankMarketplace(marketplace);
-        return mapper.selectAllShopRanking(mp, effectiveWeekTag.trim());
+        return mapper.selectAllShopRanking(mp, batch);
     }
 
     /**
@@ -91,15 +97,36 @@ public class ShopMethodRankService {
         String method = normalizeMethodId(methodId);
         int lim = limit == null || limit < 1 ? 20 : Math.min(limit, 100);
         return switch (method) {
-            case "M01" -> mapper.selectM01MethodBatches(normalizeRankMarketplace(marketplace), lim);
+            case "M01" -> filterMainShopBatches(
+                    mapper.selectM01MethodBatches(normalizeRankMarketplace(marketplace), lim));
             default -> throw new IllegalArgumentException("店铺方法卡批次暂不支持 methodId=" + method + "，当前仅支持 M01");
         };
     }
 
-    /** 返回 clean 表中全部可找店批次，不要求批次内存在 M01 通过商品。 */
+    /** 返回 clean 表中全部可找店批次（单天粒度），不要求批次内存在 M01 通过商品。 */
     public List<ShopMethodBatchOption> listAllSourceBatches(String marketplace, Integer limit) {
         int lim = limit == null || limit < 1 ? 20 : Math.min(limit, 100);
-        return mapper.selectAllSourceBatches(normalizeRankMarketplace(marketplace), lim);
+        return filterMainShopBatches(
+                mapper.selectAllSourceBatches(normalizeRankMarketplace(marketplace), lim));
+    }
+
+    /**
+     * 只留主批次：按天分组后，同一周里那些只有零星几条的历史日期（变体行/补数据）不进下拉。
+     * 首项（最新批次）无条件保留，避免全被滤空。
+     */
+    private List<ShopMethodBatchOption> filterMainShopBatches(List<ShopMethodBatchOption> options) {
+        if (options == null || options.isEmpty()) {
+            return options;
+        }
+        List<ShopMethodBatchOption> kept = new java.util.ArrayList<>(options.size());
+        for (int i = 0; i < options.size(); i++) {
+            ShopMethodBatchOption o = options.get(i);
+            long productCount = o.getProductCount() == null ? 0L : o.getProductCount();
+            if (i == 0 || productCount >= DayBatchSupport.DEFAULT_MAIN_BATCH_MIN_COUNT) {
+                kept.add(o);
+            }
+        }
+        return kept;
     }
 
     private String normalizeMethodId(String methodId) {

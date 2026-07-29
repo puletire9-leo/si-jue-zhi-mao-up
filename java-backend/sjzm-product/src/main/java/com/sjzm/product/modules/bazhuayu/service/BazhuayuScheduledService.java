@@ -105,28 +105,59 @@ public class BazhuayuScheduledService {
         });
     }
 
+    public record DirectTriggerResult(Long taskId, String status, boolean alreadyImported,
+                                      boolean submitted, String batchNo) {}
+
     /** 手动按配置行的 taskId 导入，避免同站点多任务时误用主任务。 */
-    public void triggerTaskAsync(String function, String marketplace, String taskId) {
-        triggerTaskAsync(function, marketplace, taskId, null);
+    public DirectTriggerResult triggerTaskAsync(String function, String marketplace, String taskId) {
+        return triggerTaskAsync(function, marketplace, taskId, null);
     }
 
-    /** 手动导入页面当前显示的云采集批次；提交异步任务前先同步校验，避免误点旧批次。 */
-    public void triggerTaskAsync(String function, String marketplace, String taskId,
-                                 BazhuayuBatchSnapshot expectedBatch) {
+    /** 手动导入页面当前显示的云采集批次；提交异步任务前先同步校验并创建可见任务。 */
+    public DirectTriggerResult triggerTaskAsync(String function, String marketplace, String taskId,
+                                                BazhuayuBatchSnapshot expectedBatch) {
         if (!BazhuayuConfigService.FUNC_BANGDAN.equals(function)) {
             throw new IllegalArgumentException("当前仅榜单任务支持导入 DB");
         }
-        if (expectedBatch != null) {
-            validateLatestBatch(taskId, expectedBatch, null);
+        BazhuayuTaskMapping entry = configService.findTaskEntry(function, marketplace, taskId);
+        if (entry == null) {
+            throw new IllegalArgumentException("八爪鱼命名任务不存在: "
+                    + function + ":" + marketplace + ":" + taskId);
         }
-        executor.execute(() -> {
-            try {
-                String weekTag = scoringService.getCurrentWeekTag();
-                collectConfiguredTask(function, marketplace, taskId, weekTag, null, expectedBatch);
-            } catch (Exception e) {
-                log.error("Bazhuayu task {}:{} direct drain failed: {}", marketplace, taskId, e.getMessage(), e);
-            }
-        });
+        BazhuayuBatchSnapshot batch = expectedBatch == null
+                ? null : validateLatestBatch(taskId, expectedBatch, null);
+        boolean initialFilter = !Boolean.FALSE.equals(entry.getInitialFilter());
+        String targetTable = initialFilter ? "competitor_products" : "premium_products";
+        AsinImportService.QueuedTask queued = asinImportService.createQueuedBazhuayuTask(
+                entry.getMarketplace(), IMPORT_TYPE, entry.getId(), entry.getTaskId(), entry.getTaskName(),
+                entry.getTaskCategory(), initialFilter, targetTable, batch);
+        String batchNo = batch == null ? null : batch.batchNo();
+        if (!queued.shouldSubmit()) {
+            return new DirectTriggerResult(queued.taskId(),
+                    queued.alreadyImported() ? "ALREADY_IMPORTED" : "QUEUED",
+                    queued.alreadyImported(), false, batchNo);
+        }
+        try {
+            executor.execute(() -> {
+                try {
+                    String weekTag = scoringService.getCurrentWeekTag();
+                    Map<String, Object> result = collectConfiguredTask(
+                            function, marketplace, taskId, weekTag, null, batch);
+                    if ("SKIPPED".equals(result.get("status"))) {
+                        asinImportService.failBazhuayuTaskById(queued.taskId(),
+                                "导入未执行: " + result.getOrDefault("reason", "SKIPPED"));
+                    }
+                } catch (Exception e) {
+                    asinImportService.failBazhuayuTaskById(queued.taskId(), e.getMessage());
+                    log.error("Bazhuayu task {}:{} direct drain failed: {}",
+                            marketplace, taskId, e.getMessage(), e);
+                }
+            });
+        } catch (RuntimeException e) {
+            asinImportService.failBazhuayuTaskById(queued.taskId(), e.getMessage());
+            throw e;
+        }
+        return new DirectTriggerResult(queued.taskId(), "QUEUED", false, true, batchNo);
     }
 
     /**
@@ -160,8 +191,10 @@ public class BazhuayuScheduledService {
             r.put("taskCategory", entry.getTaskCategory());
             r.put("initialFilter", entry.getInitialFilter());
             try {
+                BazhuayuBatchSnapshot latestBatch = client.getLatestBatchSnapshot(entry.getTaskId());
+                latestBatch.assertSameBatch(latestBatch);
                 r.putAll(collectConfiguredTask(BazhuayuConfigService.FUNC_BANGDAN,
-                        mp, entry.getTaskId(), weekTag, null, null));
+                        mp, entry.getTaskId(), weekTag, null, latestBatch));
             } catch (Exception e) {
                 log.error("Bazhuayu marketplace {} drain failed: {}", mp, e.getMessage(), e);
                 r.put("status", "ERROR");
@@ -374,62 +407,69 @@ public class BazhuayuScheduledService {
             return Map.of("status", "SKIPPED", "reason", "DRAIN_ALREADY_RUNNING", "rawCount", 0);
         }
 
-        String month = YearMonth.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
-        AsinImportService.StreamingFilterContext ctx = asinImportService.createStreamingTask(
-                mp, IMPORT_TYPE, entry.getId(), entry.getTaskId(), entry.getTaskName(),
-                entry.getTaskCategory(), false, "premium_products");
+        // 加锁后所有分支都必须走 finally 释放；命中幂等直接 return 也不能漏掉 remove。
         try {
-            // 精品“导入DB”是人工确认的全量快照导入，必须读取任务当前全部结果。
-            // /data/notexported 受八爪鱼“已导出”游标影响：云端明明有上千条时也可能返回 0，
-            // 因此这里只用 /data/all 流式分页；精铺初筛仍保留 notexported 增量语义。
-            java.util.function.Consumer<List<JsonNode>> pageHandler = page -> {
-                List<PremiumProduct> shells = new ArrayList<>(page.size());
-                List<Map<String, String>> shapedRows = new ArrayList<>(page.size());
-                Set<String> pageSeen = new HashSet<>();
-                LocalDateTime now = LocalDateTime.now();
-                for (JsonNode raw : page) {
-                    String asin = BazhuayuRowMapper.extractAsin(raw);
-                    if (asin == null || !pageSeen.add(asin)) continue;
-                    String price = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.PRICE_KEYS);
-                    String reviews = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.REVIEW_KEYS);
-                    String title = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.TITLE_KEYS);
+            String month = YearMonth.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
+            AsinImportService.StreamingFilterContext ctx = asinImportService.createStreamingTask(
+                    mp, IMPORT_TYPE, entry.getId(), entry.getTaskId(), entry.getTaskName(),
+                    entry.getTaskCategory(), false, "premium_products", batch);
+            if (ctx.isAlreadyImported()) {
+                return Map.of("status", "SKIPPED", "reason", "BATCH_ALREADY_IMPORTED",
+                        "taskId", ctx.getTaskId(), "batchNo", batch == null ? null : batch.batchNo());
+            }
+            try {
+                // 精品“导入DB”只读取页面确认的最新批次；无 lotNo 时由客户端按批次数量截断 /data/all。
+                // /data/notexported 受八爪鱼“已导出”游标影响：云端明明有上千条时也可能返回 0，
+                // 因此这里只用 /data/all 流式分页；精铺初筛仍保留 notexported 增量语义。
+                java.util.function.Consumer<List<JsonNode>> pageHandler = page -> {
+                    List<PremiumProduct> shells = new ArrayList<>(page.size());
+                    List<Map<String, String>> shapedRows = new ArrayList<>(page.size());
+                    Set<String> pageSeen = new HashSet<>();
+                    LocalDateTime now = LocalDateTime.now();
+                    for (JsonNode raw : page) {
+                        String asin = BazhuayuRowMapper.extractAsin(raw);
+                        if (asin == null || !pageSeen.add(asin)) continue;
+                        String price = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.PRICE_KEYS);
+                        String reviews = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.REVIEW_KEYS);
+                        String title = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.TITLE_KEYS);
 
-                    PremiumProduct product = new PremiumProduct();
-                    product.setMarketplace(mp);
-                    product.setAsin(asin);
-                    product.setMonth(month);
-                    product.setTitle(title);
-                    product.setSource("精品榜-八爪鱼");
-                    product.setWeekTag(weekTag);
-                    product.setIsCurrent(1);
-                    product.setBazhuayuMappingId(entry.getId());
-                    product.setBazhuayuTaskId(entry.getTaskId());
-                    product.setBazhuayuTaskName(entry.getTaskName());
-                    product.setBazhuayuRawJson(raw.toString());
-                    product.setDeleted(0);
-                    product.setCreatedAt(now);
-                    product.setUpdatedAt(now);
-                    shells.add(product);
-                    shapedRows.add(BazhuayuRowMapper.shapeRow(asin, price, reviews, title));
-                }
-                if (!shells.isEmpty()) premiumProductMapper.upsertRawBatch(shells);
-                asinImportService.appendPageWithoutInitialFilter(ctx, shapedRows);
-            };
-            int totalRaw = batch == null
-                    ? client.fetchAllDataStreaming(entry.getTaskId(), pageHandler)
-                    : client.fetchBatchDataStreaming(entry.getTaskId(), batch, pageHandler);
+                        PremiumProduct product = new PremiumProduct();
+                        product.setMarketplace(mp);
+                        product.setAsin(asin);
+                        product.setMonth(month);
+                        product.setTitle(title);
+                        product.setSource("精品榜-八爪鱼");
+                        product.setWeekTag(weekTag);
+                        product.setIsCurrent(1);
+                        product.setBazhuayuMappingId(entry.getId());
+                        product.setBazhuayuTaskId(entry.getTaskId());
+                        product.setBazhuayuTaskName(entry.getTaskName());
+                        product.setBazhuayuRawJson(raw.toString());
+                        product.setDeleted(0);
+                        product.setCreatedAt(now);
+                        product.setUpdatedAt(now);
+                        shells.add(product);
+                        shapedRows.add(BazhuayuRowMapper.shapeRow(asin, price, reviews, title));
+                    }
+                    if (!shells.isEmpty()) premiumProductMapper.upsertRawBatch(shells);
+                    asinImportService.appendPageWithoutInitialFilter(ctx, shapedRows);
+                };
+                int totalRaw = batch == null
+                        ? client.fetchAllDataStreaming(entry.getTaskId(), pageHandler)
+                        : client.fetchBatchDataStreaming(entry.getTaskId(), batch, pageHandler);
 
-            Map<String, Object> result = new LinkedHashMap<>();
-            result.put("rawCount", totalRaw);
-            result.put("batchNo", batch == null ? null : batch.batchNo());
-            result.put("status", "READY");
-            result.putAll(asinImportService.finishStreamingTask(ctx));
-            log.info("[精品榜:{}] 已导入任务 {}，跳过初筛，等待人工请求卖家精灵",
-                    mp, ctx.getTaskId());
-            return result;
-        } catch (RuntimeException e) {
-            asinImportService.failStreamingTask(ctx, e.getMessage());
-            throw e;
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("rawCount", totalRaw);
+                result.put("batchNo", batch == null ? null : batch.batchNo());
+                result.put("status", "READY");
+                result.putAll(asinImportService.finishStreamingTask(ctx));
+                log.info("[精品榜:{}] 已导入任务 {}，跳过初筛，等待人工请求卖家精灵",
+                        mp, ctx.getTaskId());
+                return result;
+            } catch (RuntimeException e) {
+                asinImportService.failStreamingTask(ctx, e.getMessage());
+                throw e;
+            }
         } finally {
             activeDrainMarketplaces.remove(mp);
         }
@@ -451,69 +491,76 @@ public class BazhuayuScheduledService {
 
         log.info("Starting Bazhuayu increment drain for marketplace {}, task {}", mp, taskId);
 
-        AtomicBoolean initialized = new AtomicBoolean(false);
-        AsinImportService.StreamingFilterContext ctx = asinImportService.createStreamingTask(
-                mp, IMPORT_TYPE, entry.getId(), entry.getTaskId(), entry.getTaskName(),
-                entry.getTaskCategory(), true, "competitor_products");
-
+        // 加锁后所有分支都必须走 finally 释放；命中幂等直接 return 也不能漏掉 remove。
         try {
-            java.util.function.Consumer<List<JsonNode>> pageHandler = page -> {
-                if (initialized.compareAndSet(false, true)) {
-                    rawMapper.delete(new LambdaQueryWrapper<BazhuayuWeeklyRaw>()
-                            .eq(BazhuayuWeeklyRaw::getMarketplace, mp)
-                            .eq(BazhuayuWeeklyRaw::getWeekTag, weekTag));
-                }
-
-                List<BazhuayuWeeklyRaw> pageEntities = new ArrayList<>(page.size());
-                List<Map<String, String>> shapedRows = new ArrayList<>(page.size());
-                Set<String> pageSeen = new HashSet<>();
-                for (JsonNode raw : page) {
-                    String asin = BazhuayuRowMapper.extractAsin(raw);
-                    if (asin == null || !pageSeen.add(asin)) {
-                        continue;
-                    }
-
-                    String price = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.PRICE_KEYS);
-                    String reviews = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.REVIEW_KEYS);
-                    String title = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.TITLE_KEYS);
-
-                    BazhuayuWeeklyRaw e = new BazhuayuWeeklyRaw();
-                    e.setMarketplace(mp);
-                    e.setAsin(asin);
-                    e.setPrice(price);
-                    e.setReviews(reviews);
-                    e.setTitle(title);
-                    e.setRawJson(raw.toString());
-                    e.setWeekTag(weekTag);
-                    e.setLotNo(null);
-                    e.setScrapedAt(LocalDateTime.now());
-                    pageEntities.add(e);
-
-                    shapedRows.add(BazhuayuRowMapper.shapeRow(asin, price, reviews, title));
-                }
-                if (!pageEntities.isEmpty()) {
-                    rawMapper.insertBatchIgnoreDup(pageEntities);
-                }
-                asinImportService.filterPageAndAppend(ctx, shapedRows);
-            };
-            int totalRaw = batch == null
-                    ? client.drainNotExported(taskId, pageHandler, config.getDrainMaxRows(), cancelled)
-                    : client.fetchBatchDataStreaming(taskId, batch, pageHandler);
-
-            Map<String, Object> r = new LinkedHashMap<>();
-            r.put("status", "READY");
-            r.put("rawCount", totalRaw);
-            r.put("batchNo", batch == null ? null : batch.batchNo());
-            if (!initialized.get()) {
-                log.info("marketplace {} has no not-exported increment; skip drain", mp);
+            AtomicBoolean initialized = new AtomicBoolean(false);
+            AsinImportService.StreamingFilterContext ctx = asinImportService.createStreamingTask(
+                    mp, IMPORT_TYPE, entry.getId(), entry.getTaskId(), entry.getTaskName(),
+                    entry.getTaskCategory(), true, "competitor_products", batch);
+            if (ctx.isAlreadyImported()) {
+                return Map.of("status", "SKIPPED", "reason", "BATCH_ALREADY_IMPORTED",
+                        "taskId", ctx.getTaskId(), "batchNo", batch == null ? null : batch.batchNo());
             }
 
-            Map<String, Object> preview = asinImportService.finishStreamingTask(ctx);
-            r.putAll(preview);
-            return r;
-        } catch (RuntimeException e) {
-            asinImportService.failStreamingTask(ctx, e.getMessage());
-            throw e;
+            try {
+                java.util.function.Consumer<List<JsonNode>> pageHandler = page -> {
+                    if (initialized.compareAndSet(false, true)) {
+                        rawMapper.delete(new LambdaQueryWrapper<BazhuayuWeeklyRaw>()
+                                .eq(BazhuayuWeeklyRaw::getMarketplace, mp)
+                                .eq(BazhuayuWeeklyRaw::getWeekTag, weekTag));
+                    }
+
+                    List<BazhuayuWeeklyRaw> pageEntities = new ArrayList<>(page.size());
+                    List<Map<String, String>> shapedRows = new ArrayList<>(page.size());
+                    Set<String> pageSeen = new HashSet<>();
+                    for (JsonNode raw : page) {
+                        String asin = BazhuayuRowMapper.extractAsin(raw);
+                        if (asin == null || !pageSeen.add(asin)) {
+                            continue;
+                        }
+
+                        String price = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.PRICE_KEYS);
+                        String reviews = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.REVIEW_KEYS);
+                        String title = BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.TITLE_KEYS);
+
+                        BazhuayuWeeklyRaw e = new BazhuayuWeeklyRaw();
+                        e.setMarketplace(mp);
+                        e.setAsin(asin);
+                        e.setPrice(price);
+                        e.setReviews(reviews);
+                        e.setTitle(title);
+                        e.setRawJson(raw.toString());
+                        e.setWeekTag(weekTag);
+                        e.setLotNo(batch == null ? null : batch.lotNo());
+                        e.setScrapedAt(LocalDateTime.now());
+                        pageEntities.add(e);
+
+                        shapedRows.add(BazhuayuRowMapper.shapeRow(asin, price, reviews, title));
+                    }
+                    if (!pageEntities.isEmpty()) {
+                        rawMapper.insertBatchIgnoreDup(pageEntities);
+                    }
+                    asinImportService.filterPageAndAppend(ctx, shapedRows);
+                };
+                int totalRaw = batch == null
+                        ? client.drainNotExported(taskId, pageHandler, config.getDrainMaxRows(), cancelled)
+                        : client.fetchBatchDataStreaming(taskId, batch, pageHandler);
+
+                Map<String, Object> r = new LinkedHashMap<>();
+                r.put("status", "READY");
+                r.put("rawCount", totalRaw);
+                r.put("batchNo", batch == null ? null : batch.batchNo());
+                if (!initialized.get()) {
+                    log.info("marketplace {} has no not-exported increment; skip drain", mp);
+                }
+
+                Map<String, Object> preview = asinImportService.finishStreamingTask(ctx);
+                r.putAll(preview);
+                return r;
+            } catch (RuntimeException e) {
+                asinImportService.failStreamingTask(ctx, e.getMessage());
+                throw e;
+            }
         } finally {
             activeDrainMarketplaces.remove(mp);
         }

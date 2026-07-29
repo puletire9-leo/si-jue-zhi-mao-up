@@ -21,6 +21,10 @@ public class ShopProductSelectionQuery {
     private String sellerName;
     private String brand;
     private List<String> categories;
+    /** 品线树精确筛选：L2 小类 node_id（品线页按 bsrId/nodeId 树组织时使用）。 */
+    private Long nodeId;
+    /** 品线树精确筛选：L1 大类 bsr_id。 */
+    private String bsrId;
     private List<String> batchDates;
     private BigDecimal priceMin;
     private BigDecimal priceMax;

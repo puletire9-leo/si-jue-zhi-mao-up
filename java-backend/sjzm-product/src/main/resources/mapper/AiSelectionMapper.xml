@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.mapper.AiSelectionMapper">
+
+    <!-- 批量 INSERT IGNORE（用 (asin, marketplace, batch_id) 防同一批次重复） -->
+    <insert id="insertBatchIgnoreDup" parameterType="java.util.List">
+        INSERT IGNORE INTO ai_selection (
+            marketplace, asin, month,
+            title, brand, brand_url, image_url, parent_asin, sku,
+            node_id, node_id_path, node_label_path, symbol,
+            units, sales_tier, units_gr, amz_unit, amz_sales, amz_unit_date, revenue,
+            bsr_id, bsr, bsr_cr, bsr_cv,
+            ratings, rating, ratings_rate, ratings_cv, rating_delta,
+            price, prime_price, profit, fba, delivery_price,
+            seller_name, seller_id, seller_nation, sellers,
+            fulfillment, variations, weight, dimension, dimensions_type,
+            pkg_dimensions, pkg_dimension_type, pkg_weight,
+            lqs, available_date,
+            best_seller, amazon_choice, new_release, ebc, video,
+            filter_mode, filter_reasons, listing_days, weight_g,
+            product_url, similar_url, source,
+            score, grade, week_tag, is_current,
+            batch_id, batch_label, source_ref, pushed_by, pushed_at,
+            created_at, updated_at
+        ) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.marketplace}, #{item.asin}, #{item.month},
+            #{item.title}, #{item.brand}, #{item.brandUrl}, #{item.imageUrl}, #{item.parentAsin}, #{item.sku},
+            #{item.nodeId}, #{item.nodeIdPath}, #{item.nodeLabelPath}, #{item.symbol},
+            #{item.units}, #{item.salesTier}, #{item.unitsGr}, #{item.amzUnit}, #{item.amzSales}, #{item.amzUnitDate}, #{item.revenue},
+            #{item.bsrId}, #{item.bsr}, #{item.bsrCr}, #{item.bsrCv},
+            #{item.ratings}, #{item.rating}, #{item.ratingsRate}, #{item.ratingsCv}, #{item.ratingDelta},
+            #{item.price}, #{item.primePrice}, #{item.profit}, #{item.fba}, #{item.deliveryPrice},
+            #{item.sellerName}, #{item.sellerId}, #{item.sellerNation}, #{item.sellers},
+            #{item.fulfillment}, #{item.variations}, #{item.weight}, #{item.dimension}, #{item.dimensionsType},
+            #{item.pkgDimensions}, #{item.pkgDimensionType}, #{item.pkgWeight},
+            #{item.lqs}, #{item.availableDate},
+            #{item.bestSeller}, #{item.amazonChoice}, #{item.newRelease}, #{item.ebc}, #{item.video},
+            #{item.filterMode}, #{item.filterReasons}, #{item.listingDays}, #{item.weightG},
+            #{item.productUrl}, #{item.similarUrl}, #{item.source},
+            #{item.score}, #{item.grade}, #{item.weekTag}, #{item.isCurrent},
+            #{item.batchId}, #{item.batchLabel}, #{item.sourceRef}, #{item.pushedBy}, #{item.pushedAt},
+            NOW(), NOW()
+            )
+        </foreach>
+    </insert>
+
+    <!-- 双通道召回 + 三层形态过滤。source 表 alias 用 s。
+         1. 标题或类目命中；2. 硬排除词始终生效；
+         3. 条件排除词默认排除，只有标题命中成品保护词时才救回。 -->
+    <sql id="dualChannelWhere">
+        AND (
+        <trim prefixOverrides="OR">
+            <foreach collection="titleKeywords" item="kw">
+                OR s.title LIKE CONCAT('%', #{kw}, '%')
+            </foreach>
+            <foreach collection="categoryPaths" item="cp">
+                OR s.node_label_path LIKE CONCAT('%', #{cp}, '%')
+            </foreach>
+        </trim>
+        )
+        <if test="excludeKeywords != null and excludeKeywords.size() > 0">
+            <foreach collection="excludeKeywords" item="ex">
+                AND s.title NOT LIKE CONCAT('%', #{ex}, '%')
+            </foreach>
+        </if>
+        <if test="conditionalExcludeKeywords != null and conditionalExcludeKeywords.size() > 0">
+            AND (
+                <trim prefixOverrides="AND">
+                    <foreach collection="conditionalExcludeKeywords" item="conditionalEx">
+                        AND s.title NOT LIKE CONCAT('%', #{conditionalEx}, '%')
+                    </foreach>
+                </trim>
+                <if test="includeKeywords != null and includeKeywords.size() > 0">
+                    OR (
+                        <trim prefixOverrides="OR">
+                            <foreach collection="includeKeywords" item="includeKw">
+                                OR s.title LIKE CONCAT('%', #{includeKw}, '%')
+                            </foreach>
+                        </trim>
+                    )
+                </if>
+            )
+        </if>
+    </sql>
+
+    <!-- 增量去重：相对该「载体 + 站点 + ASIN」的历史（跨所有批次）不存在才捞入。
+         同事务内 clean 能看到 shop 刚插入的行，故 shop∪clean、跨站点天然不重复。
+         走 idx_carrier_mp_asin (carrier, marketplace, asin)。 -->
+    <sql id="incrementalNotExists">
+        AND NOT EXISTS (
+            SELECT 1 FROM ai_selection e
+            WHERE e.carrier = #{carrier}
+              AND e.marketplace = s.marketplace
+              AND e.asin = s.asin
+        )
+    </sql>
+
+    <!-- 全量捞取的目标列清单（与 insertBatchIgnoreDup 一致，末尾补 carrier） -->
+    <sql id="harvestColumns">
+        marketplace, asin, month,
+        title, brand, brand_url, image_url, parent_asin, sku,
+        node_id, node_id_path, node_label_path, symbol,
+        units, sales_tier, units_gr, amz_unit, amz_sales, amz_unit_date, revenue,
+        bsr_id, bsr, bsr_cr, bsr_cv,
+        ratings, rating, ratings_rate, ratings_cv, rating_delta,
+        price, prime_price, profit, fba, delivery_price,
+        seller_name, seller_id, seller_nation, sellers,
+        fulfillment, variations, weight, dimension, dimensions_type,
+        pkg_dimensions, pkg_dimension_type, pkg_weight,
+        lqs, available_date,
+        best_seller, amazon_choice, new_release, ebc, video,
+        filter_mode, filter_reasons, listing_days, weight_g,
+        product_url, similar_url, source,
+        score, grade, week_tag, is_current,
+        batch_id, batch_label, source_ref, carrier, pushed_by, pushed_at,
+        created_at, updated_at
+    </sql>
+
+    <!-- SELECT 侧对应表达式（batch/载体常量 + NOW()） -->
+    <sql id="harvestSelect">
+        s.marketplace, s.asin, s.month,
+        s.title, s.brand, s.brand_url, s.image_url, s.parent_asin, s.sku,
+        s.node_id, s.node_id_path, s.node_label_path, s.symbol,
+        s.units, s.sales_tier, s.units_gr, s.amz_unit, s.amz_sales, s.amz_unit_date, s.revenue,
+        s.bsr_id, s.bsr, s.bsr_cr, s.bsr_cv,
+        s.ratings, s.rating, s.ratings_rate, s.ratings_cv, s.rating_delta,
+        s.price, s.prime_price, s.profit, s.fba, s.delivery_price,
+        s.seller_name, s.seller_id, s.seller_nation, s.sellers,
+        s.fulfillment, s.variations, s.weight, s.dimension, s.dimensions_type,
+        s.pkg_dimensions, s.pkg_dimension_type, s.pkg_weight,
+        s.lqs, s.available_date,
+        s.best_seller, s.amazon_choice, s.new_release, s.ebc, s.video,
+        s.filter_mode, s.filter_reasons, s.listing_days, s.weight_g,
+        s.product_url, s.similar_url, s.source,
+        s.score, s.grade, s.week_tag, s.is_current,
+        #{batchId}, #{batchLabel}, #{sourceRef}, #{carrier}, #{pushedBy}, NOW(),
+        NOW(), NOW()
+    </sql>
+
+    <!-- 从 shop_products 全量捞取（去重靠目标表 uk_batch_asin，同批次同 asin 保留首行） -->
+    <insert id="harvestFromShop">
+        <bind name="sourceRef" value="'shop_products'"/>
+        INSERT IGNORE INTO ai_selection (<include refid="harvestColumns"/>)
+        SELECT <include refid="harvestSelect"/>
+        FROM shop_products s
+        WHERE s.marketplace = #{marketplace}
+          AND s.title IS NOT NULL AND s.title != ''
+          AND s.asin IS NOT NULL AND s.asin != ''
+        <include refid="dualChannelWhere"/>
+        <include refid="incrementalNotExists"/>
+    </insert>
+
+    <!-- 从 competitor_products_clean 全量捞取（clean 在 shop 之后跑，撞 uk_batch_asin 的被忽略） -->
+    <insert id="harvestFromClean">
+        <bind name="sourceRef" value="'competitor_products_clean'"/>
+        INSERT IGNORE INTO ai_selection (<include refid="harvestColumns"/>)
+        SELECT <include refid="harvestSelect"/>
+        FROM competitor_products_clean s
+        WHERE s.marketplace = #{marketplace}
+          AND s.title IS NOT NULL AND s.title != ''
+          AND s.asin IS NOT NULL AND s.asin != ''
+        <include refid="dualChannelWhere"/>
+        <include refid="incrementalNotExists"/>
+    </insert>
+
+</mapper>

@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.github.benmanes.caffeine.cache.Cache;
 import com.sjzm.common.PageResult;
 import com.sjzm.product.modules.analysisbaseline.shopprofile.mapper.ShopProfileMapper;
 import com.sjzm.product.modules.analysisbaseline.shopprofile.dto.ShopProfileProduct;
@@ -14,7 +15,9 @@ import com.sjzm.product.modules.shopcandidate.mapper.ShopFetchRunMapper;
 import com.sjzm.product.modules.shopcollection.dto.ShopTierAgeCategoryCell;
 import com.sjzm.product.modules.shopcollection.dto.ShopProductSelectionQuery;
 import com.sjzm.product.modules.shopcollection.entity.ShopProduct;
+import com.sjzm.product.modules.shopcollection.entity.ShopSellerSummary;
 import com.sjzm.product.modules.shopcollection.mapper.ShopProductMapper;
+import com.sjzm.product.modules.shopcollection.mapper.ShopSellerSummaryMapper;
 import com.sjzm.product.modules.shopcollection.mapper.ShopWatchlistMapper;
 import com.sjzm.product.modules.shopcollection.rule.ShopProfileLabelRule;
 import com.sjzm.product.modules.shopcollection.rule.ShopProfileLabelRule.CategoryLabel;
@@ -57,6 +60,15 @@ class ShopCollectionServiceTest {
     @Mock
     ShopProfileLabelRule labelRule;
 
+    @Mock
+    ShopSellerSummaryMapper shopSellerSummaryMapper;
+
+    @Mock
+    ShopSellerSummarySnapshotWriter snapshotWriter;
+
+    @Mock
+    Cache<String, Object> categoryCache;
+
     @InjectMocks
     ShopCollectionService service;
 
@@ -65,6 +77,9 @@ class ShopCollectionServiceTest {
         TableInfoHelper.initTableInfo(
                 new MapperBuilderAssistant(new MybatisConfiguration(), "test"),
                 ShopProduct.class);
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), "test"),
+                ShopSellerSummary.class);
     }
 
     @Test
@@ -262,6 +277,44 @@ class ShopCollectionServiceTest {
                 ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
                 ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
                 ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any());
+    }
+
+    @Test
+    void summaryReturnsEmptySnapshotResultWithoutRunningLiveAggregation() {
+        when(shopProductMapper.selectMaxBatchDate("UK")).thenReturn("20260708");
+        when(shopSellerSummaryMapper.selectList(ArgumentMatchers.any())).thenReturn(List.of());
+        when(shopSellerSummaryMapper.selectCount(ArgumentMatchers.any())).thenReturn(1L);
+
+        List<ShopProfileSummary> result = service.summary("UK", null, "NOT_FOUND", null, 100, null);
+
+        assertThat(result).isEmpty();
+        verify(shopProfileMapper, never()).selectSummaryFromShopProducts(
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
+                ArgumentMatchers.any(), ArgumentMatchers.any());
+    }
+
+    @Test
+    void refreshComputesOutsideAndDelegatesAtomicSnapshotReplacement() {
+        when(shopProductMapper.selectMaxBatchDate("UK")).thenReturn("20260708");
+        when(shopProfileMapper.selectSummaryFromShopProducts(
+                eq("UK"), eq("20260708"), ArgumentMatchers.isNull(), ArgumentMatchers.isNull(),
+                ArgumentMatchers.isNull(), ArgumentMatchers.isNull(),
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(),
+                ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any()))
+                .thenReturn(List.of());
+
+        assertThat(service.refreshSellerSummarySnapshot("UK")).isZero();
+        verify(snapshotWriter).replace("UK", List.of());
+    }
+
+    @Test
+    void cacheKeyEncodingDoesNotCollideOnPipesOrCategoryCommas() {
+        assertThat(ShopCollectionService.encodeParts(List.of("a|b", "")))
+                .isNotEqualTo(ShopCollectionService.encodeParts(List.of("a", "b")));
+        assertThat(ShopCollectionService.encodeList(List.of("Arts, Crafts & Sewing")))
+                .isNotEqualTo(ShopCollectionService.encodeList(List.of("Arts", "Crafts & Sewing")));
     }
 
     @Test

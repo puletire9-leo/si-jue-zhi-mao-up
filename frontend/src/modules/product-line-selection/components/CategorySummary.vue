@@ -4,7 +4,7 @@
     <div class="cs-header" @click="expanded = !expanded">
       <span class="cs-arrow">{{ expanded ? "▾" : "▸" }}</span>
       <span class="cs-title"
-        >📊 {{ store.marketplace }} · {{ store.month }}</span
+        >📊 {{ store.marketplace }} · {{ dataSourceLabel }}</span
       >
     </div>
 
@@ -49,6 +49,11 @@ import type { TreeGroup } from "@/types/productLine";
 
 const store = useProductLineSelectionStore();
 const expanded = ref(false);
+
+const dataSourceLabel = computed(
+  () =>
+    ({ all: "全部", new: "新品榜", shop: "店铺" })[store.dataSource] ?? "全部",
+);
 
 function countOf(g: TreeGroup): number {
   return g.children.reduce((s, c) => s + (c.productCount || 0), 0);

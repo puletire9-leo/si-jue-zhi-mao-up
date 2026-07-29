@@ -29,7 +29,7 @@
                   AND c.marketplace = #{marketplace}
                   </if>
                   <if test="effectiveWeekTag != null and effectiveWeekTag != ''">
-                  AND c.effective_week_tag = #{effectiveWeekTag}
+                  AND DATE(c.created_at) = #{effectiveWeekTag}
                   </if>
                   AND c.seller_name IS NOT NULL AND TRIM(c.seller_name) != ''
                   AND LOWER(TRIM(c.seller_name)) NOT IN ('amazon', 'null')
@@ -89,7 +89,7 @@
                             c.id DESC
                     ) AS rn
                 FROM competitor_products_clean c
-                WHERE c.effective_week_tag = #{effectiveWeekTag}
+                WHERE DATE(c.created_at) = #{effectiveWeekTag}
                   <if test="marketplace != null and marketplace != ''">
                   AND c.marketplace = #{marketplace}
                   </if>
@@ -158,9 +158,9 @@
                     'ALL' AS marketplace,
                 </otherwise>
             </choose>
-            c.effective_week_tag AS batchCode,
+            DATE_FORMAT(c.created_at, '%Y-%m-%d') AS batchCode,
             'competitor_products_clean' AS sourceTable,
-            'effective_week_tag' AS sourceWeekField,
+            'created_at_date' AS sourceWeekField,
             COUNT(DISTINCT CONCAT(
                 c.marketplace, '|', c.seller_name, '|', COALESCE(NULLIF(c.parent_asin, ''), c.asin)
             )) AS productCount,
@@ -168,15 +168,15 @@
             MAX(c.created_at) AS latestCreatedAt
         FROM competitor_products_clean c
         WHERE c.m01_active = 1
-          AND c.effective_week_tag IS NOT NULL AND c.effective_week_tag != ''
+          AND c.created_at IS NOT NULL
           AND c.seller_name IS NOT NULL AND TRIM(c.seller_name) != ''
           AND LOWER(TRIM(c.seller_name)) NOT IN ('amazon', 'null')
           AND c.asin IS NOT NULL AND c.asin != ''
           <if test="marketplace != null and marketplace != ''">
           AND c.marketplace = #{marketplace}
           </if>
-        GROUP BY c.effective_week_tag
-        ORDER BY MAX(c.created_at) DESC, c.effective_week_tag DESC
+        GROUP BY DATE_FORMAT(c.created_at, '%Y-%m-%d')
+        ORDER BY DATE_FORMAT(c.created_at, '%Y-%m-%d') DESC
         LIMIT #{limit}
     </select>
 
@@ -192,24 +192,24 @@
                     'ALL' AS marketplace,
                 </otherwise>
             </choose>
-            c.effective_week_tag AS batchCode,
+            DATE_FORMAT(c.created_at, '%Y-%m-%d') AS batchCode,
             'competitor_products_clean' AS sourceTable,
-            'effective_week_tag' AS sourceWeekField,
+            'created_at_date' AS sourceWeekField,
             COUNT(DISTINCT CONCAT(
                 c.marketplace, '|', c.seller_name, '|', COALESCE(NULLIF(c.parent_asin, ''), c.asin)
             )) AS productCount,
             COUNT(DISTINCT CONCAT(c.marketplace, '|', c.seller_name)) AS sellerCount,
             MAX(c.created_at) AS latestCreatedAt
         FROM competitor_products_clean c
-        WHERE c.effective_week_tag IS NOT NULL AND c.effective_week_tag != ''
+        WHERE c.created_at IS NOT NULL
           AND c.seller_name IS NOT NULL AND TRIM(c.seller_name) != ''
           AND LOWER(TRIM(c.seller_name)) NOT IN ('amazon', 'null')
           AND c.asin IS NOT NULL AND TRIM(c.asin) != ''
           <if test="marketplace != null and marketplace != ''">
           AND c.marketplace = #{marketplace}
           </if>
-        GROUP BY c.effective_week_tag
-        ORDER BY MAX(c.created_at) DESC, c.effective_week_tag DESC
+        GROUP BY DATE_FORMAT(c.created_at, '%Y-%m-%d')
+        ORDER BY DATE_FORMAT(c.created_at, '%Y-%m-%d') DESC
         LIMIT #{limit}
     </select>
 

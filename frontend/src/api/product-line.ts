@@ -28,9 +28,29 @@ export function getAggregatedData(marketplace: string, month: string) {
   });
 }
 
-export function getTree(marketplace: string, month: string, methodId?: string) {
+/**
+ * 品线树。跟随批次改造后优先按 batchDates(单天 yyyy-MM-dd)取数;
+ * 未传 batchDates 时后端回退取最新批次。month 参数保留兼容旧调用。
+ */
+export function getTree(
+  marketplace: string,
+  options?: {
+    batchDates?: string[];
+    methodId?: string;
+    month?: string;
+    dataSource?: "all" | "new" | "shop";
+  },
+) {
   return request.get(`${MODEL_BASE}/tree`, {
-    params: { marketplace, month, methodId },
+    params: {
+      marketplace,
+      ...(options?.batchDates?.length
+        ? { batchDates: options.batchDates }
+        : {}),
+      ...(options?.month ? { month: options.month } : {}),
+      ...(options?.methodId ? { methodId: options.methodId } : {}),
+      ...(options?.dataSource ? { dataSource: options.dataSource } : {}),
+    },
   });
 }
 

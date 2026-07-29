@@ -66,6 +66,76 @@ class BazhuayuRowMapperTest {
     }
 
     @Test
+    void extractAsin_usesHeatSalesRankLinksWhenExplicitAsinIsMissing() {
+        var raw = json("""
+                {
+                  "alinknormal_链接1":"https://www.amazon.de/product-reviews/B07VLBWKWQ/ref=zg_bs_g_360376031_d_sccl_1_cr/602-1478403-2286305",
+                  "alinknormal":"37.205",
+                  "cdezb_p13nsccsslineclamp3_g3dy1":"Kinetic Sand 907 g Naturbraun",
+                  "aiconalt":"4,7 von 5 Sternen",
+                  "asizesmall1":"37.205",
+                  "价格1":"9,99 €",
+                  "标题_链接":"https://www.amazon.de/Kinetic-Sand-6053516-907-Beutel/dp/B07VLBWKWQ/ref=zg_bs_g_360376031_d_sccl_1/602-1478403-2286305?psc=1"
+                }
+                """);
+
+        assertThat(BazhuayuRowMapper.extractAsin(raw)).isEqualTo("B07VLBWKWQ");
+        assertThat(BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.PRICE_KEYS)).isEqualTo("9,99 €");
+        assertThat(BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.REVIEW_KEYS)).isEqualTo("37.205");
+        assertThat(BazhuayuRowMapper.pick(raw, BazhuayuRowMapper.TITLE_KEYS))
+                .isEqualTo("Kinetic Sand 907 g Naturbraun");
+    }
+
+    @Test
+    void extractAsin_supportsAmazonProductUrlVariants() {
+        assertThat(BazhuayuRowMapper.extractAsin(json("""
+                {"标题_链接":"https://www.amazon.com/gp/product/B07VLBWKWQ?psc=1"}
+                """))).isEqualTo("B07VLBWKWQ");
+        assertThat(BazhuayuRowMapper.extractAsin(json("""
+                {"标题_链接":"https://www.amazon.com/gp/aw/d/B07VLBWKWQ/ref=mp_s_a_1"}
+                """))).isEqualTo("B07VLBWKWQ");
+    }
+
+    @Test
+    void extractAsin_prefersExplicitAsinAndFallsBackWhenItIsInvalid() {
+        assertThat(BazhuayuRowMapper.extractAsin(json("""
+                {"ASIN":"B01ABCDEFG","标题_链接":"https://www.amazon.com/dp/B07VLBWKWQ"}
+                """))).isEqualTo("B01ABCDEFG");
+        assertThat(BazhuayuRowMapper.extractAsin(json("""
+                {"ASIN":"invalid","标题_链接":"https://www.amazon.com/dp/B07VLBWKWQ"}
+                """))).isEqualTo("B07VLBWKWQ");
+        assertThat(BazhuayuRowMapper.extractAsin(json("""
+                {"alinknormal_链接1":"","标题_链接":"https://www.amazon.com/dp/B07VLBWKWQ"}
+                """))).isEqualTo("B07VLBWKWQ");
+    }
+
+    @Test
+    void extractAsin_returnsNullWhenNoAsinAndNoLinkFields() {
+        // 普通榜单行：无显式 ASIN、无链接字段，必须安全返回 null，不能抛 NPE
+        assertThat(BazhuayuRowMapper.extractAsin(json("{\"标题\":\"Some Product\",\"价格\":\"9.99\"}")))
+                .isNull();
+        // 链接字段显式为 null
+        assertThat(BazhuayuRowMapper.extractAsin(json("{\"标题_链接\":null}"))).isNull();
+        // 链接字段为空白
+        assertThat(BazhuayuRowMapper.extractAsin(json("{\"标题_链接\":\"   \"}"))).isNull();
+        // 完全空对象
+        assertThat(BazhuayuRowMapper.extractAsin(json("{}"))).isNull();
+    }
+
+    @Test
+    void extractAsin_rejectsNonProductLinksAndInvalidUrlAsins() {
+        assertThat(BazhuayuRowMapper.extractAsin(json("""
+                {"标题_链接":"https://www.amazon.com/s?k=B07VLBWKWQ"}
+                """))).isNull();
+        assertThat(BazhuayuRowMapper.extractAsin(json("""
+                {"标题_链接":"https://example.com/dp/B07VLBWKWQ"}
+                """))).isNull();
+        assertThat(BazhuayuRowMapper.extractAsin(json("""
+                {"标题_链接":"https://www.amazon.com/dp/1234567890"}
+                """))).isNull();
+    }
+
+    @Test
     void pick_returnsFirstNonEmptyByFallbackOrder() {
         // 首选名空，回退到下一个候选
         assertThat(BazhuayuRowMapper.pick(json("{\"价格\":\"\",\"售价\":\"9.99\"}"),

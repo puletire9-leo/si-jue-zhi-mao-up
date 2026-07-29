@@ -7,6 +7,7 @@ import com.sjzm.common.PageResult;
 import com.sjzm.product.dto.CompetitorLookupRequest;
 import com.sjzm.product.dto.CompetitorProductResponse;
 import com.sjzm.product.dto.CompetitorQueryRequest;
+import com.sjzm.product.util.DayBatchSupport;
 import com.sjzm.product.entity.CompetitorProduct;
 import com.sjzm.product.entity.CompetitorSubcategory;
 import com.sjzm.product.mapper.CompetitorProductMapper;
@@ -113,6 +114,14 @@ public class CompetitorService {
                 request.getAsins() != null ? request.getAsins().size() : 0, month);
 
         String marketplace = request.getMarketplace();
+        Set<String> requestedAsins = request.getAsins() == null
+                ? Set.of()
+                : request.getAsins().stream()
+                        .filter(StringUtils::hasText)
+                        .map(value -> value.trim().toUpperCase(Locale.ROOT))
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> returnedAsins = new LinkedHashSet<>();
+        Set<String> writtenAsins = new LinkedHashSet<>();
         List<CompetitorProductResponse> results = new ArrayList<>();
         List<CompetitorProduct> savedProducts = new ArrayList<>();
         List<CompetitorSubcategory> allSubcategories = new ArrayList<>();
@@ -134,6 +143,10 @@ public class CompetitorService {
             for (JsonNode item : items) {
                 try {
                     String asin = item.path("asin").asText();
+                    String normalizedAsin = asin == null ? "" : asin.trim().toUpperCase(Locale.ROOT);
+                    if (StringUtils.hasText(normalizedAsin)) {
+                        returnedAsins.add(normalizedAsin);
+                    }
                     CompetitorProduct product = mapToEntity(item, marketplace, asin, month);
                     product.setCreatedAt(batchTime);
                     product.setUpdatedAt(batchTime);
@@ -143,6 +156,9 @@ public class CompetitorService {
                     productIdsForSubs.add(product.getId());
                     results.add(toResponse(product, subDtos));
                     savedProducts.add(product);
+                    if (StringUtils.hasText(normalizedAsin)) {
+                        writtenAsins.add(normalizedAsin);
+                    }
                 } catch (Exception e) {
                     log.warn("单条商品入库失败 (asin={}): {}", item.path("asin").asText(), e.getMessage());
                 }
@@ -209,8 +225,21 @@ public class CompetitorService {
         }
 
         Map<String, Object> summary = new LinkedHashMap<>();
+        List<String> missingAsins = requestedAsins.stream()
+                .filter(asin -> !writtenAsins.contains(asin))
+                .toList();
+        long returnedRequestedCount = requestedAsins.stream().filter(returnedAsins::contains).count();
+        long writtenRequestedCount = requestedAsins.size() - missingAsins.size();
         summary.put("products", results);
-        summary.put("total", results.size());
+        summary.put("total", requestedAsins.size());
+        summary.put("fetchedCount", Math.toIntExact(returnedRequestedCount));
+        summary.put("writtenCount", Math.toIntExact(writtenRequestedCount));
+        summary.put("failedCount", missingAsins.size());
+        summary.put("missingAsins", missingAsins);
+        summary.put("responseProductCount", results.size());
+        summary.put("warning", missingAsins.isEmpty()
+                ? null
+                : "卖家精灵未返回或未写入 " + missingAsins.size() + " 个请求 ASIN");
         summary.put("mode1", mode1);
         summary.put("mode2", mode2);
         summary.put("fail", fail);
@@ -608,15 +637,26 @@ public class CompetitorService {
         if (request.getFulfillment() != null && !request.getFulfillment().isEmpty()) {
             wrapper.in(CompetitorProduct::getFulfillment, request.getFulfillment());
         }
+        // 批次过滤统一按「单天导入日期」。前端回传值可能是新的 yyyy-MM-dd，
+        // 也可能是旧的 ISO 周（2026-W30）——一律经 DayBatchSupport 归一到日期后按 DATE(created_at) 过滤。
         if (request.getCreatedWeeks() != null && !request.getCreatedWeeks().isEmpty()) {
-            List<String> weeks = request.getCreatedWeeks();
-            String placeholders = IntStream.range(0, weeks.size())
-                    .mapToObj(i -> "{" + i + "}")
-                    .collect(Collectors.joining(","));
-            wrapper.apply("DATE_FORMAT(created_at,'%x-W%v') IN (" + placeholders + ")", weeks.toArray());
+            List<String> days = request.getCreatedWeeks().stream()
+                    .map(DayBatchSupport::normalizeToDate)
+                    .filter(StringUtils::hasText)
+                    .distinct()
+                    .collect(Collectors.toList());
+            if (!days.isEmpty()) {
+                String placeholders = IntStream.range(0, days.size())
+                        .mapToObj(i -> "{" + i + "}")
+                        .collect(Collectors.joining(","));
+                wrapper.apply("DATE(created_at) IN (" + placeholders + ")", days.toArray());
+            }
         } else if (StringUtils.hasText(request.getCreatedWeek())) {
-            // backward compatibility with single week
-            wrapper.apply("DATE_FORMAT(created_at,'%x-W%v') = {0}", request.getCreatedWeek());
+            // backward compatibility with single value（周或日期均归一到日期）
+            String day = DayBatchSupport.normalizeToDate(request.getCreatedWeek());
+            if (StringUtils.hasText(day)) {
+                wrapper.apply("DATE(created_at) = {0}", day);
+            }
         }
 
         // ── 灵活合格规则（规则间 OR：满足任一即合格，取代写死的 MODE1 过滤）──

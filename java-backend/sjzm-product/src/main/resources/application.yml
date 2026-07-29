@@ -85,6 +85,11 @@ lingxing:
   connect-timeout: 10s
   read-timeout: 30s
 
+features:
+  ai-selection:
+    # Java AI 选品仍是预留代码。完成表结构与迁移前禁止在生产开启。
+    enabled: ${AI_SELECTION_ENABLED:false}
+
 schema-guard:
   # 启动期扫描 @TableName 实体并核对 information_schema。
   # 新增 Entity/字段时必须同步提交 java-backend/sql/*.sql 迁移，否则生产启动会失败。

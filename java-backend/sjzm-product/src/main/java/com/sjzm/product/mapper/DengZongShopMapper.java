@@ -51,7 +51,7 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "  <if test='fulfillment != null and fulfillment.size > 0'> AND UPPER(ds.fulfillment) IN " +
         "    <foreach collection='fulfillment' item='method' open='(' separator=',' close=')'>UPPER(#{method})</foreach>" +
         "  </if>" +
-        "  <if test='batchDate != null'> AND (FIND_IN_SET(ds.batch_date, #{batchDate}) &gt; 0 OR ds.batch_date IS NULL)</if>" +
+        "  <if test='batchDate != null'> AND FIND_IN_SET(ds.batch_date, #{batchDate}) &gt; 0</if>" +
         ") t WHERE t.rn = 1" +
         "  <if test='maxVariantCount != null'> AND t.variantCount &lt;= #{maxVariantCount}</if>" +
         "<if test='sortBy != null and sortOrder != null'>" +
@@ -127,7 +127,7 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         "  <if test='fulfillment != null and fulfillment.size > 0'> AND UPPER(ds.fulfillment) IN " +
         "    <foreach collection='fulfillment' item='method' open='(' separator=',' close=')'>UPPER(#{method})</foreach>" +
         "  </if>" +
-        "  <if test='batchDate != null'> AND (FIND_IN_SET(ds.batch_date, #{batchDate}) &gt; 0 OR ds.batch_date IS NULL)</if>" +
+        "  <if test='batchDate != null'> AND FIND_IN_SET(ds.batch_date, #{batchDate}) &gt; 0</if>" +
         "  GROUP BY COALESCE(NULLIF(ds.parent_asin,''), ds.asin)" +
         ") g" +
         " <if test='maxVariantCount != null'> WHERE g.variantCount &lt;= #{maxVariantCount}</if>" +
@@ -156,7 +156,8 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
             @Param("batchDate") String batchDate);
 
     @Select("<script>" +
-        "SELECT batch_date AS batchDate, COUNT(*) AS count" +
+        "SELECT batch_date AS batchDate, " +
+        "COUNT(DISTINCT COALESCE(NULLIF(parent_asin,''), asin)) AS count" +
         " FROM deng_zong_shop" +
         " WHERE title IS NOT NULL" +
         " <if test='marketplace != null'> AND marketplace = #{marketplace}</if>" +
@@ -183,7 +184,7 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
         " LEFT JOIN deng_zong_shop ds" +
         "   ON ds.marketplace = s.marketplace AND ds.seller_name = s.seller_name" +
         "   AND ds.title IS NOT NULL" +
-        "   <if test='batchDate != null'> AND (ds.batch_date = #{batchDate} OR ds.batch_date IS NULL)</if>" +
+        "   <if test='batchDate != null'> AND ds.batch_date = #{batchDate}</if>" +
         " <where>" +
         "   <if test='marketplace != null'> s.marketplace = #{marketplace}</if>" +
         " </where>" +
@@ -198,7 +199,7 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
     @Select("<script>" +
         "SELECT DISTINCT seller_name FROM deng_zong_shop WHERE title IS NOT NULL" +
         " <if test='marketplace != null'> AND marketplace = #{marketplace}</if>" +
-        " <if test='batchDate != null'> AND (batch_date = #{batchDate} OR batch_date IS NULL)</if>" +
+        " <if test='batchDate != null'> AND batch_date = #{batchDate}</if>" +
         " <if test='sellerNames != null and sellerNames.size > 0'>" +
         "   AND seller_name IN " +
         "   <foreach collection='sellerNames' item='name' open='(' separator=',' close=')'>#{name}</foreach>" +
@@ -233,7 +234,7 @@ public interface DengZongShopMapper extends BaseMapper<DengZongShop> {
     @Select("<script>" +
         "SELECT seller_name, node_id, bsr_id, price FROM deng_zong_shop WHERE title IS NOT NULL" +
         " <if test='marketplace != null'> AND marketplace = #{marketplace}</if>" +
-        " <if test='batchDate != null'> AND (batch_date = #{batchDate} OR batch_date IS NULL)</if>" +
+        " <if test='batchDate != null'> AND batch_date = #{batchDate}</if>" +
         "</script>")
     List<java.util.Map<String, Object>> selectRatingData(
             @Param("marketplace") String marketplace,

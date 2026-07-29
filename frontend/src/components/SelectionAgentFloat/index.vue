@@ -178,9 +178,8 @@ const selectedNodeName = computed(() => {
 async function loadTree() {
   treeLoading.value = true;
   try {
-    const now = new Date();
-    const mo = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
-    const res: any = await getTree(marketplace.value, mo);
+    // 品线树跟随批次:不传 batchDates,后端自动取最新批次。
+    const res: any = await getTree(marketplace.value);
     const raw = res?.data?.productLines as any[] | undefined;
     lineOptions.value = (raw || []).map((g) => ({
       bsrId: g.bsrId,

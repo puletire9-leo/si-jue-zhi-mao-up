@@ -46,6 +46,7 @@ backend/
 | download_tasks.py | `/api/v1/download-tasks` | 下载任务 | ZIP 打包 |
 | lingxing.py | `/api/v1/lingxing` | 领星导入 | COS 上传 |
 | file_links.py | `/api/v1/file-links` | 文件链接 | CRUD |
+| ai_selection.py | `/api/v1/ai-selection` | AI Agent 投递 ASIN、实时查两张市场表并按用户会话展示 | 查询/会话逻辑在 `AiSelectionService`，写接口要求管理员/开发 |
 | product_sales.py | `/api/products` | 产品销量 | 独立路由前缀 |
 
 ## AI 核心服务

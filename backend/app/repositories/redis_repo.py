@@ -340,6 +340,34 @@ class RedisRepository:
             logger.error(f"Redis LPUSH失败 | 列表: {name} | 错误: {e}")
             return 0
     
+    async def lpush_capped(
+        self,
+        name: str,
+        value: Any,
+        max_length: int,
+        expire: Optional[int] = None,
+    ) -> int:
+        """原子左推、裁剪并续期列表，适合有界会话队列。"""
+        try:
+            serialized = value
+            if isinstance(value, (dict, list)):
+                serialized = json.dumps(
+                    value, ensure_ascii=False, cls=DateTimeEncoder
+                )
+
+            async with self.redis.pipeline(transaction=True) as pipe:
+                pipe.lpush(name, serialized)
+                pipe.ltrim(name, 0, max_length - 1)
+                if expire:
+                    pipe.expire(name, expire)
+                results = await pipe.execute()
+            return int(results[0])
+        except Exception as e:
+            logger.error(
+                "Redis LPUSH capped失败 | 列表: %s | 错误: %s", name, e
+            )
+            return 0
+
     async def rpush(self, name: str, *values: Any) -> int:
         """
         将值推入列表右侧

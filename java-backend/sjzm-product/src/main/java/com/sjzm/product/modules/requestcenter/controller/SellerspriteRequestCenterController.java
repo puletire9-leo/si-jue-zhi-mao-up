@@ -114,6 +114,12 @@ public class SellerspriteRequestCenterController {
         return Result.success(centerService.stop(runId));
     }
 
+    @DeleteMapping("/tasks/{runId}")
+    @Operation(summary = "删除终态任务及其子项（活跃任务须先停止并等待 worker 退出）")
+    public Result<Integer> delete(@PathVariable String runId) {
+        return Result.success(centerService.delete(runId));
+    }
+
     @GetMapping("/tasks")
     @Operation(summary = "任务分页查询")
     public Result<PageResult<SellerspriteRequestRun>> listTasks(
@@ -146,9 +152,12 @@ public class SellerspriteRequestCenterController {
     }
 
     @GetMapping("/tasks/{runId}/items")
-    @Operation(summary = "任务子项列表")
-    public Result<List<SellerspriteRequestItem>> listItems(@PathVariable String runId) {
-        return Result.success(centerService.listItems(runId));
+    @Operation(summary = "任务子项列表（分页，size 默认 20 上限 200）")
+    public Result<PageResult<SellerspriteRequestItem>> listItems(
+            @PathVariable String runId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return Result.success(centerService.listItems(runId, page, size));
     }
 
     @PostMapping("/items/{itemId}/retry")

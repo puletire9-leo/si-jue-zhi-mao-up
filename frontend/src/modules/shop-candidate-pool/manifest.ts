@@ -5,6 +5,8 @@ export default {
   name: '店铺请求中心',
   icon: 'CollectionTag',
   menuGroup: '店铺总览',
+  menuSection: '店铺池',
+  menuSectionOrder: 1,
   menuOrder: 16,
   route: {
     path: 'shop-candidates/pool',

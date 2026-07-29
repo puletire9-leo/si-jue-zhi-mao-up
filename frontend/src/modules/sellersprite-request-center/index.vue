@@ -17,7 +17,7 @@
           <el-option label="ASIN 批量查询" value="ASIN_BATCH_LOOKUP" />
           <el-option label="手动 ASIN 查询" value="MANUAL_ASIN_LOOKUP" />
           <el-option label="卖家名批量" value="SELLER_BATCH_LOOKUP" />
-          <el-option label="邓总店铺同步" value="DENG_ZONG_SHOP_SYNC" />
+          <el-option label="非标店铺上新" value="DENG_ZONG_SHOP_SYNC" />
           <el-option label="ASIN 查询（旧）" value="ASIN_LOOKUP" />
           <el-option label="候选批量抓取" value="CANDIDATE_BATCH" />
           <el-option label="精品池复抓" value="PREMIUM_REFRESH" />
@@ -64,7 +64,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" width="160" />
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="330" fixed="right">
           <template #default="{ row }">
             <el-button size="small" type="primary" link @click.stop="handleStart(row)"
                        :disabled="!canStart(row.status)">唤醒自动</el-button>
@@ -72,6 +72,8 @@
             <el-button size="small" link @click.stop="handleResume(row)" :disabled="!canResume(row.status)">恢复</el-button>
             <el-button size="small" type="danger" link @click.stop="handleStop(row)"
                        :disabled="!canStop(row.status)">停止</el-button>
+            <el-button size="small" type="danger" link @click.stop="handleDelete(row)"
+                       :disabled="!canDelete(row.status)">删除</el-button>
             <el-button size="small" link @click.stop="openDetail(row)">详情</el-button>
           </template>
         </el-table-column>
@@ -116,7 +118,7 @@
           </el-descriptions>
 
           <div class="section-title">子项明细</div>
-          <el-table :data="items" size="small" border max-height="420">
+          <el-table v-loading="itemLoading" :data="items" size="small" border max-height="420">
             <el-table-column prop="seq" label="#" width="50" />
             <el-table-column prop="marketplace" label="站点" width="70" />
             <el-table-column label="店铺名/批次" min-width="160" show-overflow-tooltip>
@@ -147,6 +149,15 @@
               </template>
             </el-table-column>
           </el-table>
+          <el-pagination
+            v-if="itemTotal > itemSize"
+            class="item-pagination"
+            layout="total, prev, pager, next"
+            :total="itemTotal"
+            :page-size="itemSize"
+            :current-page="itemPage"
+            @current-change="handleItemPageChange"
+          />
         </template>
       </div>
     </el-drawer>
@@ -154,7 +165,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, shallowRef, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute } from 'vue-router'
 import {
@@ -180,7 +191,13 @@ const total = ref(0)
 
 const drawerVisible = ref(false)
 const currentRun = ref<SellerspriteRequestRun | null>(null)
-const items = ref<SellerspriteRequestItem[]>([])
+// 子项可达数千条，shallowRef 避免 Vue 对大数组深度代理；配合分页只保留当前页。
+const items = shallowRef<SellerspriteRequestItem[]>([])
+const itemPage = ref(1)
+const itemSize = ref(20)
+const itemTotal = ref(0)
+const itemLoading = ref(false)
+let itemRequestSeq = 0
 const detailLoading = ref(false)
 const health = ref<Record<string, any> | null>(null)
 const monthlyUsage = ref<SellerspriteMonthlyUsageSummary>({
@@ -231,13 +248,40 @@ async function loadTasks(silentFlag: unknown = false) {
 async function openDetail(row: SellerspriteRequestRun) {
   drawerVisible.value = true
   detailLoading.value = true
+  itemPage.value = 1
   try {
     currentRun.value = await requestCenterApi.getTask(row.runId)
-    items.value = await requestCenterApi.listItems(row.runId)
+    await loadItems(row.runId)
   } catch (e: any) {
     ElMessage.error(e?.message || '加载详情失败')
   } finally {
     detailLoading.value = false
+  }
+}
+
+/** 拉当前页子项。大任务禁止全量拉取，只取 itemPage/itemSize 指定的一页。 */
+async function loadItems(runId: string, requestedPage = itemPage.value) {
+  const requestSeq = ++itemRequestSeq
+  itemLoading.value = true
+  try {
+    const res = await requestCenterApi.listItems(runId, { page: requestedPage, size: itemSize.value })
+    if (requestSeq !== itemRequestSeq
+      || currentRun.value?.runId !== runId
+      || itemPage.value !== requestedPage) return
+    items.value = res.list || []
+    itemTotal.value = res.total || 0
+  } finally {
+    if (requestSeq === itemRequestSeq) itemLoading.value = false
+  }
+}
+
+async function handleItemPageChange(p: number) {
+  itemPage.value = p
+  if (!currentRun.value) return
+  try {
+    await loadItems(currentRun.value.runId, p)
+  } catch (e: any) {
+    ElMessage.error(e?.message || '加载子项失败')
   }
 }
 
@@ -248,7 +292,7 @@ async function handleStart(row: SellerspriteRequestRun) {
     await loadTasks()
     if (drawerVisible.value && currentRun.value?.runId === row.runId) {
       currentRun.value = await requestCenterApi.getTask(row.runId)
-      items.value = await requestCenterApi.listItems(row.runId)
+      await loadItems(row.runId)
     }
   } catch (e: any) {
     ElMessage.error(e?.message || '唤醒自动执行失败')
@@ -285,13 +329,34 @@ async function handleStop(row: SellerspriteRequestRun) {
   }
 }
 
+async function handleDelete(row: SellerspriteRequestRun) {
+  try {
+    await ElMessageBox.confirm(
+      `确认永久删除任务 ${row.runId}？任务子项及该任务的请求次数记录也会一并删除，删除后可从来源页面重新创建任务。`,
+      '确认删除任务',
+      { type: 'error', confirmButtonText: '永久删除', cancelButtonText: '取消' }
+    )
+    await requestCenterApi.deleteTask(row.runId)
+    if (currentRun.value?.runId === row.runId) {
+      drawerVisible.value = false
+      currentRun.value = null
+      items.value = []
+      itemTotal.value = 0
+    }
+    ElMessage.success('任务已删除，可重新创建')
+    await loadTasks()
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') ElMessage.error(e?.message || '删除失败')
+  }
+}
+
 async function handleRetryItem(row: SellerspriteRequestItem) {
   try {
     await requestCenterApi.retryItem(row.id)
     ElMessage.success('子项已置回 PENDING，并自动继续执行')
     if (currentRun.value) {
       currentRun.value = await requestCenterApi.getTask(currentRun.value.runId)
-      items.value = await requestCenterApi.listItems(currentRun.value.runId)
+      await loadItems(currentRun.value.runId)
     }
     await loadTasks()
   } catch (e: any) {
@@ -307,6 +372,9 @@ function canResume(status: string) {
 }
 function canStop(status: string) {
   return ['RUNNING', 'PAUSED', 'PAUSED_SYSTEM', 'PENDING'].includes(status)
+}
+function canDelete(status: string) {
+  return ['STOPPED', 'SUCCESS', 'PARTIAL_SUCCESS', 'FAILED'].includes(status)
 }
 
 function statusLabel(s: string) {
@@ -350,11 +418,11 @@ function hasActiveTask() {
   return rows.value.some((r) => ['PENDING', 'RUNNING', 'PAUSED_SYSTEM'].includes(r.status))
 }
 
+// 轮询只刷新进度汇总(总数/成功/失败等计数),不重拉子项列表。
+// 大任务子项达数千条,每 3 秒整表重拉重渲染会卡死;子项状态改由翻页/手动重试时按需刷新。
 async function refreshCurrentDetail() {
   if (!drawerVisible.value || !currentRun.value) return
-  const runId = currentRun.value.runId
-  currentRun.value = await requestCenterApi.getTask(runId)
-  items.value = await requestCenterApi.listItems(runId)
+  currentRun.value = await requestCenterApi.getTask(currentRun.value.runId)
 }
 
 onMounted(async () => {
@@ -428,5 +496,9 @@ onUnmounted(() => {
 .muted {
   color: #909399;
   font-size: 12px;
+}
+.item-pagination {
+  margin-top: 10px;
+  justify-content: flex-end;
 }
 </style>

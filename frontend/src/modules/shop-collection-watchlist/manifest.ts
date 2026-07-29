@@ -5,6 +5,8 @@ export default {
   name: '正式观察池',
   icon: 'Aim',
   menuGroup: '店铺总览',
+  menuSection: '店铺池',
+  menuSectionOrder: 1,
   menuOrder: 17,
   route: {
     path: 'shop-collection/watchlist',

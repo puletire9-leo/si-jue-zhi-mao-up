@@ -1,184 +1,96 @@
-# 思觉智贸 - Python AI服务
+# python-ai — AI 能力层
 
-> 向量搜索、图像识别等AI能力服务
+## 服务索引
 
-## 功能特性
+| 目录 | 状态 | 说明 |
+|------|------|------|
+| [`ai-center/`](./ai-center/) | ✅ 生产 | 集中式 LLM 请求中心（OpenAI 兼容网关） |
+| `litellm-official/` | 📚 本地研究 | LiteLLM 上游源码副本，不纳入版本控制 |
+| `litellma请求中心/` | 📚 本地研究 | 早期研究目录，不纳入版本控制 |
 
-- **向量搜索**：基于CLIP模型的图片向量化与相似度搜索
-- **Qdrant集成**：向量数据库存储与检索
-- **Java API客户端**：与Java后端无缝对接
+---
 
-## 快速开始
+## ai-center — 集中式 LLM 请求中心
 
-### 本地开发
+**职责**：持有上游 LLM 密钥，提供统一的 OpenAI 兼容接口供内部服务调用。
 
-```bash
-# 创建虚拟环境
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 配置环境变量
-cp .env.example .env
-# 编辑 .env 文件配置 Qdrant 和 Java API 地址
-
-# 启动服务
-python -m app.main
+```
+调用方（任意内部 Agent）
+        │  Bearer AI_CENTER_INTERNAL_KEY
+        ▼
+  ai-center:8012
+  /v1/chat/completions
+        │  Bearer DEEPSEEK_API_KEY
+        ▼
+  DeepSeek API
 ```
 
-### Docker部署
+### 快速接入
 
-```bash
-# 构建镜像
-docker build -t sijue/python-ai:latest ./python-ai
+调用方只需：
 
-# 运行容器
-docker run -d \
-  --name sijue-python-ai \
-  -p 8000:8000 \
-  -e AI_QDRANT_HOST=qdrant \
-  -e AI_QDRANT_PORT=6333 \
-  -e AI_JAVA_API_URL=http://java-backend:8080 \
-  sijue/python-ai:latest
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key=os.environ["AI_CENTER_INTERNAL_KEY"],
+    base_url="http://ai-center:8012/v1",
+    max_retries=0,   # 由 Agent 自己控制重试
+)
+resp = client.chat.completions.create(
+    model="deepseek-v4-flash",
+    messages=[{"role": "user", "content": "..."}],
+)
 ```
 
-### docker-compose
+### 环境变量
+
+| 变量 | 持有方 | 说明 |
+|------|--------|------|
+| `DEEPSEEK_API_KEY` | ai-center 独有 | 上游 DeepSeek 密钥（`config/secrets/*.env`） |
+| `DEEPSEEK_BASE_URL` | ai-center | 默认 `https://api.deepseek.com` |
+| `AI_CENTER_INTERNAL_KEY` | ai-center + 调用方 | 内部鉴权凭据（`config/secrets/*.env`） |
+| `AI_CENTER_BASE_URL` | 调用方 | `http://ai-center:8012`（`config/public/*.env`） |
+| `AI_CENTER_ALLOWED_MODELS` | ai-center | 模型白名单，逗号分隔 |
+
+### 本地调试
+
+```bash
+# 本地端口临时开放（不提交 compose 修改）
+# docker-compose.dev.yml 中取消注释 ports: ["127.0.0.1:18012:8012"]
+
+curl http://localhost:18012/health
+curl http://localhost:18012/v1/chat/completions \
+  -H "Authorization: Bearer dev-ai-center-internal-key-change-me" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"hi"}]}'
+```
+
+### 接入 docker-compose
 
 ```yaml
-python-ai:
-  build:
-    context: ./python-ai
-    dockerfile: Dockerfile
-  container_name: sijue-python-ai
-  environment:
-    - AI_QDRANT_HOST=qdrant
-    - AI_QDRANT_PORT=6333
-    - AI_QDRANT_COLLECTION=images
-    - AI_JAVA_API_URL=http://java-backend:8080
-  ports:
-    - "8000:8000"
+your-new-agent:
+  env_file:
+    - ./config/public/dev.env     # 含 AI_CENTER_BASE_URL
+    - ./config/secrets/dev.env    # 含 AI_CENTER_INTERNAL_KEY
   depends_on:
-    qdrant:
+    ai-center:
       condition: service_healthy
-  networks:
-    - sijue-network
 ```
 
-## API文档
+### 测试
 
-启动服务后访问：http://localhost:8000/docs
-
-### 向量搜索 API
-
-```
-POST /api/v1/ai/vector/search
-```
-
-**请求体**：
-```json
-{
-  "image_url": "https://example.com/image.jpg",
-  "limit": 10,
-  "category": "electronics"
-}
+```bash
+# 在 Docker 环境（Python 3.11）中运行测试
+docker build -t ai-center:test ./python-ai/ai-center
+docker run --rm --user root -w //app \
+  -v "$(pwd)/python-ai/ai-center/tests:/app/tests:ro" \
+  ai-center:test \
+  sh -c "pip install --quiet 'pytest>=8.3' 'pytest-asyncio>=0.23' 'httpx>=0.27' 'asgi-lifespan>=2.1' && python -m pytest tests/ -v"
 ```
 
-**响应**：
-```json
-{
-  "results": [
-    {
-      "id": "uuid",
-      "score": 0.95,
-      "payload": {"image_id": 123}
-    }
-  ],
-  "total": 10,
-  "query_time_ms": 45.2
-}
-```
+### 支持的参数
 
-### 图片索引 API
-
-```
-POST /api/v1/ai/vector/index
-```
-
-**请求体**：
-```json
-{
-  "image_id": 123,
-  "image_url": "https://example.com/image.jpg",
-  "metadata": {
-    "category": "electronics",
-    "sku": "SKU001"
-  }
-}
-```
-
-### 健康检查
-
-```
-GET /api/v1/ai/vector/health
-```
-
-## 环境变量
-
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `AI_QDRANT_HOST` | localhost | Qdrant服务地址 |
-| `AI_QDRANT_PORT` | 6333 | Qdrant服务端口 |
-| `AI_QDRANT_COLLECTION` | images | 向量集合名称 |
-| `AI_QDRANT_API_KEY` | - | Qdrant API密钥 |
-| `AI_JAVA_API_URL` | http://localhost:8080 | Java后端地址 |
-| `AI_CLIP_MODEL` | clip-vit-base-patch32 | CLIP模型名称 |
-| `AI_HOST` | 0.0.0.0 | 服务监听地址 |
-| `AI_PORT` | 8000 | 服务监听端口 |
-
-## 项目结构
-
-```
-python-ai/
-├── app/
-│   ├── main.py              # FastAPI入口
-│   ├── config.py            # 配置管理
-│   ├── api/
-│   │   └── v1/
-│   │       ├── vector.py    # 向量搜索API
-│   │       └── health.py    # 健康检查
-│   ├── services/
-│   │   ├── vector_service.py    # 向量提取服务
-│   │   └── qdrant_service.py    # Qdrant封装
-│   ├── models/
-│   │   └── schemas.py       # Pydantic模型
-│   ├── clients/
-│   │   └── java_api_client.py   # Java API客户端
-│   └── repositories/
-│       └── qdrant_repo.py   # Qdrant仓库
-├── models/                   # AI模型文件
-├── tests/                    # 测试
-├── requirements.txt
-├── Dockerfile
-└── README.md
-```
-
-## 技术栈
-
-- **FastAPI**：高性能Web框架
-- **Qdrant**：向量数据库
-- **CLIP**：图像向量化模型
-- **Transformers**：Hugging Face模型库
-- **httpx**：异步HTTP客户端
-
-## 后续规划
-
-- [ ] 图像识别API（腾讯/百度）
-- [ ] 以图搜图API
-- [ ] RAG知识库
-- [ ] Agent编排
-
-## 许可证
-
-MIT License
+- 标准 OpenAI Chat Completions 字段（`messages`、`model`、`stream`、`tools`、`response_format` 等）
+- DeepSeek 特有字段通过 `extra_body` 透传：`thinking`、`reasoning_effort`、`user_id` 等
+- 流式：标准 SSE `data: {chunk}\n\n` + `data: [DONE]\n\n`，自动携带 `stream_options.include_usage`

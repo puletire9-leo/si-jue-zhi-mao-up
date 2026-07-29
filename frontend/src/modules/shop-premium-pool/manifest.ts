@@ -5,6 +5,8 @@ export default {
   name: '精品店铺池',
   icon: 'TrophyBase',
   menuGroup: '店铺总览',
+  menuSection: '店铺池',
+  menuSectionOrder: 1,
   menuOrder: 20,
   route: {
     path: 'shop-premium/pool',

@@ -18,6 +18,7 @@ import com.sjzm.product.modules.bazhuayu.service.BazhuayuScheduledService;
 import com.sjzm.product.modules.requestcenter.entity.SellerspriteRequestRun;
 import com.sjzm.product.modules.requestcenter.service.SellerspriteRequestCenterService;
 import com.sjzm.product.service.ScoringService;
+import com.sjzm.product.service.AsinImportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -54,6 +55,7 @@ public class BazhuayuController {
     private final BazhuayuWeeklyRawMapper rawMapper;
     private final AsinImportTaskMapper taskMapper;
     private final ScoringService scoringService;
+    private final AsinImportService asinImportService;
     private final SellerspriteRequestCenterService requestCenterService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -72,6 +74,7 @@ public class BazhuayuController {
             @RequestParam(required = false) String batchStartTime,
             @RequestParam(required = false) String batchEndTime,
             @RequestParam(defaultValue = "0") int batchCount) {
+        Map<String, Object> result = new LinkedHashMap<>();
         if (taskId != null && !taskId.isBlank() && marketplace != null && !marketplace.isBlank()) {
             // 兼容部署前已打开的旧前端：旧页面不会携带批次参数，后端自动锁定当前最新 Finished 批次。
             // 新前端仍携带页面显示的批次元数据，继续执行严格的“所见即所导”校验。
@@ -83,14 +86,24 @@ public class BazhuayuController {
                 expected = BazhuayuBatchSnapshot.expected(
                         batchNo, batchStartTime, batchEndTime, batchCount);
             }
-            scheduledService.triggerTaskAsync(function, marketplace, taskId, expected);
-            batchNo = expected.batchNo();
+            BazhuayuScheduledService.DirectTriggerResult accepted =
+                    scheduledService.triggerTaskAsync(function, marketplace, taskId, expected);
+            result.put("status", accepted.status());
+            result.put("marketplace", marketplace);
+            result.put("batchNo", accepted.batchNo() == null ? expected.batchNo() : accepted.batchNo());
+            result.put("taskId", accepted.taskId());
+            result.put("alreadyImported", accepted.alreadyImported());
+            result.put("submitted", accepted.submitted());
         } else {
             scheduledService.triggerAsync(marketplace);
+            result.put("status", "TRIGGERED");
+            result.put("marketplace", marketplace == null ? "ALL" : marketplace);
+            result.put("batchNo", batchNo == null ? "" : batchNo);
+            result.put("taskId", null);
+            result.put("alreadyImported", false);
+            result.put("submitted", true);
         }
-        return Result.success(Map.of("status", "TRIGGERED",
-                "marketplace", marketplace == null ? "ALL" : marketplace,
-                "batchNo", batchNo == null ? "" : batchNo));
+        return Result.success(result);
     }
 
     @PostMapping("/start-collect")
@@ -127,110 +140,160 @@ public class BazhuayuController {
         String weekTag = scoringService.getCurrentWeekTag();
         java.time.LocalDateTime weekStartDt = weekStartDateTime();
 
-        // 历史全量：一次拉齐；本周切片通过 createdAt >= weekStart 判定。
-        // asin_import_tasks 已按 (import_type, marketplace) 索引；BAZHUAYU_AUTO 数据量小(周级几十条)，全量扫描无压力。
+        // ── 聚合统计：全走 SQL GROUP BY，不在 Java 内存中加载实体 → 流式聚合 ──
+
+        // ① 本周原始采集行数 × 站点（不加载 rawJson 等大字段，节省数 MB 内存）
+        Map<String, Long> weeklyRawCountByMp = rawMapper.countByMarketplace(weekTag).stream()
+                .collect(Collectors.toMap(
+                        m -> String.valueOf(m.get("marketplace")),
+                        m -> ((Number) m.get("cnt")).longValue(),
+                        (a, b) -> a, LinkedHashMap::new));
+
+        // ② 全量任务状态统计 × 站点
+        List<Map<String, Object>> lifetimeStatusRows = taskMapper.countByMarketplaceAndStatus(IMPORT_TYPE);
+        Map<String, Map<String, Long>> lifetimeStatusByMp = new LinkedHashMap<>();
+        // ③ 本周任务状态统计 × 站点
+        List<Map<String, Object>> weekStatusRows = taskMapper.countByMarketplaceAndStatusSince(IMPORT_TYPE, weekStartDt);
+        Map<String, Map<String, Long>> weekStatusByMp = new LinkedHashMap<>();
+        // 把两层 index helper 提取为内联函数一样的逻辑
+        for (Map<String, Object> row : lifetimeStatusRows) {
+            String mp = String.valueOf(row.get("marketplace"));
+            String st = String.valueOf(row.get("task_status"));
+            long cnt = ((Number) row.get("cnt")).longValue();
+            lifetimeStatusByMp.computeIfAbsent(mp, k -> new LinkedHashMap<>()).merge(st, cnt, Long::sum);
+        }
+        for (Map<String, Object> row : weekStatusRows) {
+            String mp = String.valueOf(row.get("marketplace"));
+            String st = String.valueOf(row.get("task_status"));
+            long cnt = ((Number) row.get("cnt")).longValue();
+            weekStatusByMp.computeIfAbsent(mp, k -> new LinkedHashMap<>()).merge(st, cnt, Long::sum);
+        }
+
+        // 所有已出现站点（US/UK/DE + DB 中出现过的）
+        Set<String> marketplaces = new LinkedHashSet<>(List.of("US", "UK", "DE"));
+        marketplaces.addAll(weeklyRawCountByMp.keySet());
+        marketplaces.addAll(lifetimeStatusByMp.keySet());
+
+        // ── 任务列表（需要完整字段用于表格展示）──
+
+        // 本周任务（createdAt >= weekStart）：数据量小(周级几十条)，直接 load 全字
+        List<AsinImportTask> weekTasks = taskMapper.selectList(
+                new LambdaQueryWrapper<AsinImportTask>()
+                        .eq(AsinImportTask::getImportType, IMPORT_TYPE)
+                        .ge(AsinImportTask::getCreatedAt, weekStartDt)
+                        .orderByDesc(AsinImportTask::getId));
+        // 历史全量任务：数据存量可能数百条，但不含 rawJson 那种大字段，正常 load
         List<AsinImportTask> allTasks = taskMapper.selectList(
                 new LambdaQueryWrapper<AsinImportTask>()
                         .eq(AsinImportTask::getImportType, IMPORT_TYPE)
                         .orderByDesc(AsinImportTask::getId));
-        List<AsinImportTask> weekTasks = allTasks.stream()
-                .filter(t -> t.getCreatedAt() != null && !t.getCreatedAt().isBefore(weekStartDt))
-                .toList();
+
+        // ── 关联卖家精灵运行态 ──
+
         Map<Long, SellerspriteRequestRun> sellerspriteRuns = requestCenterService
                 .findLatestAsinRunsBySourceTaskIds(allTasks.stream().map(AsinImportTask::getId).toList());
-        List<BazhuayuWeeklyRaw> raws = rawMapper.selectList(
-                new LambdaQueryWrapper<BazhuayuWeeklyRaw>()
-                        .eq(BazhuayuWeeklyRaw::getWeekTag, weekTag));
 
-        Map<String, BazhuayuRunStateService.RunState> runStateMap = runStateService.all().stream()
+        // ── 内存运行态（六槽位），只调一次 all() ──
+
+        Collection<BazhuayuRunStateService.RunState> allRunStates = runStateService.all();
+        Map<String, BazhuayuRunStateService.RunState> runStateByKey = allRunStates.stream()
                 .collect(Collectors.toMap(
                         BazhuayuRunStateService.RunState::getTaskKey,
-                        state -> state,
-                        (left, right) -> left));
-        Map<String, Long> weeklyRawCountByMarketplace = raws.stream()
-                .collect(Collectors.groupingBy(BazhuayuWeeklyRaw::getMarketplace, LinkedHashMap::new, Collectors.counting()));
-        Map<String, List<AsinImportTask>> weekTasksByMp = weekTasks.stream()
-                .collect(Collectors.groupingBy(AsinImportTask::getMarketplace, LinkedHashMap::new, Collectors.toList()));
-        Map<String, List<AsinImportTask>> allTasksByMp = allTasks.stream()
-                .collect(Collectors.groupingBy(AsinImportTask::getMarketplace, LinkedHashMap::new, Collectors.toList()));
+                        s -> s, (left, right) -> left));
+        for (BazhuayuRunStateService.RunState rs : allRunStates) {
+            marketplaces.add(rs.getMarketplace());
+        }
 
-        Set<String> marketplaces = new LinkedHashSet<>();
-        marketplaces.addAll(List.of("US", "UK", "DE"));
-        marketplaces.addAll(weeklyRawCountByMarketplace.keySet());
-        marketplaces.addAll(allTasksByMp.keySet());
-        marketplaces.addAll(runStateMap.values().stream()
-                .map(BazhuayuRunStateService.RunState::getMarketplace)
-                .collect(Collectors.toCollection(LinkedHashSet::new)));
+        long currentRunningTotal = 0;
+        long cloudExtractTotal = 0;
+        for (BazhuayuRunStateService.RunState rs : allRunStates) {
+            if (isRunningPhase(rs.getPhase())) {
+                currentRunningTotal++;
+                cloudExtractTotal += rs.getCloudExtractCount();
+            }
+        }
+
+        // 最新任务按站点索引：allTasks 已按 id DESC 排序，首次出现即最新
+        Map<String, AsinImportTask> latestTaskByMp = new LinkedHashMap<>();
+        for (AsinImportTask t : allTasks) {
+            String mp = t.getMarketplace();
+            if (mp != null && !latestTaskByMp.containsKey(mp)) {
+                latestTaskByMp.put(mp, t);
+            }
+        }
+
+        // ── 组装站点行 ──
 
         List<Map<String, Object>> marketplaceRows = new ArrayList<>();
         for (String marketplace : marketplaces) {
-            BazhuayuRunStateService.RunState state = runStateMap.get(BazhuayuRunStateService.key("bangdan", marketplace));
-            List<AsinImportTask> mpWeekTasks = weekTasksByMp.getOrDefault(marketplace, List.of());
-            List<AsinImportTask> mpAllTasks = allTasksByMp.getOrDefault(marketplace, List.of());
-            AsinImportTask latestTask = mpAllTasks.isEmpty() ? null : mpAllTasks.get(0);
-
-            Map<String, Long> weekStatus = statusCounts(mpWeekTasks);
-            Map<String, Long> lifetimeStatus = statusCounts(mpAllTasks);
-
-            // 当前运行：只看内存态非终态（服务重启即清空，与 DB 中残留 RUNNING 无关）
-            boolean nowRunning = state != null && isRunningPhase(state.getPhase());
+            BazhuayuRunStateService.RunState state = runStateByKey.get(
+                    BazhuayuRunStateService.key("bangdan", marketplace));
+            Map<String, Long> weekSt = weekStatusByMp.getOrDefault(marketplace, Map.of());
+            Map<String, Long> lifeSt = lifetimeStatusByMp.getOrDefault(marketplace, Map.of());
 
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("marketplace", marketplace);
             // 当前运行段
             row.put("currentPhase", state != null ? state.getPhase() : BazhuayuRunStateService.Phase.IDLE);
-            row.put("currentRunning", nowRunning);
+            row.put("currentRunning", state != null && isRunningPhase(state.getPhase()));
             row.put("currentCloudExtractCount", state != null ? state.getCloudExtractCount() : 0);
             row.put("currentDrainedRows", state != null ? state.getDrainedRows() : 0);
             row.put("currentError", state != null ? state.getError() : null);
             // 本周段
-            row.put("weeklyRawCount", weeklyRawCountByMarketplace.getOrDefault(marketplace, 0L));
-            row.put("weekTaskCount", mpWeekTasks.size());
-            row.put("weekReadyCount", weekStatus.getOrDefault("READY", 0L));
-            row.put("weekRunningCount", weekStatus.getOrDefault("RUNNING", 0L));
-            row.put("weekDoneCount", weekStatus.getOrDefault("DONE", 0L));
-            row.put("weekErrorCount", weekStatus.getOrDefault("ERROR", 0L));
-            row.put("weekPausedCount", weekStatus.getOrDefault("PAUSED", 0L));
+            row.put("weeklyRawCount", weeklyRawCountByMp.getOrDefault(marketplace, 0L));
+            row.put("weekTaskCount", weekSt.values().stream().mapToLong(Long::longValue).sum());
+            row.put("weekReadyCount", weekSt.getOrDefault("READY", 0L));
+            row.put("weekQueuedCount", weekSt.getOrDefault("QUEUED", 0L));
+            row.put("weekRunningCount", weekSt.getOrDefault("RUNNING", 0L));
+            row.put("weekDoneCount", weekSt.getOrDefault("DONE", 0L));
+            row.put("weekErrorCount", weekSt.getOrDefault("ERROR", 0L));
+            row.put("weekPausedCount", weekSt.getOrDefault("PAUSED", 0L));
             // 历史累计段
-            row.put("lifetimeTaskCount", mpAllTasks.size());
-            row.put("lifetimeDoneCount", lifetimeStatus.getOrDefault("DONE", 0L));
-            row.put("lifetimeErrorCount", lifetimeStatus.getOrDefault("ERROR", 0L));
+            row.put("lifetimeTaskCount", lifeSt.values().stream().mapToLong(Long::longValue).sum());
+            row.put("lifetimeDoneCount", lifeSt.getOrDefault("DONE", 0L));
+            row.put("lifetimeErrorCount", lifeSt.getOrDefault("ERROR", 0L));
+            // 这个站点的最新一条任务（已按 id DESC 预索引在 latestTaskByMp 中）
+            AsinImportTask latestTask = latestTaskByMp.get(marketplace);
             row.put("latestTask", latestTask != null ? taskToMap(latestTask, sellerspriteRuns) : null);
-            // 云端行数快照（进程内缓存, 每小时定时刷 + 前端可手动刷）
-            // 榜单 taskId 一定接进了业务链路; 以图识图独立展示, 不参与其它段汇总
+            // 云端行数快照（进程内缓存）
             row.put("cloudStatsBangdan", cloudStatsService.get(BazhuayuConfigService.FUNC_BANGDAN, marketplace));
             row.put("cloudStatsYitushitu", cloudStatsService.get(BazhuayuConfigService.FUNC_YITUSHITU, marketplace));
             marketplaceRows.add(row);
         }
 
-        long currentRunningTotal = runStateService.all().stream()
-                .filter(s -> isRunningPhase(s.getPhase()))
-                .count();
-        long cloudExtractTotal = runStateService.all().stream()
-                .filter(s -> isRunningPhase(s.getPhase()))
-                .mapToInt(BazhuayuRunStateService.RunState::getCloudExtractCount)
-                .sum();
+        // ── 跨站点汇总 ──
+        long weekTotalCount = weekStatusByMp.values().stream()
+                .flatMap(m -> m.values().stream()).mapToLong(Long::longValue).sum();
+        long weekDoneCount = weekStatusByMp.values().stream()
+                .mapToLong(m -> m.getOrDefault("DONE", 0L)).sum();
+        long weekErrorCount = weekStatusByMp.values().stream()
+                .mapToLong(m -> m.getOrDefault("ERROR", 0L)).sum();
+        long lifetimeTotalCount = lifetimeStatusByMp.values().stream()
+                .flatMap(m -> m.values().stream()).mapToLong(Long::longValue).sum();
+        long lifetimeDoneCount = lifetimeStatusByMp.values().stream()
+                .mapToLong(m -> m.getOrDefault("DONE", 0L)).sum();
+        long lifetimeErrorCount = lifetimeStatusByMp.values().stream()
+                .mapToLong(m -> m.getOrDefault("ERROR", 0L)).sum();
+        long weeklyRawTotal = weeklyRawCountByMp.values().stream().mapToLong(Long::longValue).sum();
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("currentRunning", currentRunningTotal);
+        summary.put("currentCloudExtractCount", cloudExtractTotal);
+        summary.put("weeklyRawCount", weeklyRawTotal);
+        summary.put("weekTaskCount", weekTotalCount);
+        summary.put("weekDoneCount", weekDoneCount);
+        summary.put("weekErrorCount", weekErrorCount);
+        summary.put("lifetimeTaskCount", lifetimeTotalCount);
+        summary.put("lifetimeDoneCount", lifetimeDoneCount);
+        summary.put("lifetimeErrorCount", lifetimeErrorCount);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("weekTag", weekTag);
         data.put("weekStart", weekStartDt.toString());
-        data.put("currentStates", runStateService.all());
+        data.put("currentStates", allRunStates);
         data.put("marketplaces", marketplaceRows);
         data.put("weekTasks", weekTasks.stream().map(task -> taskToMap(task, sellerspriteRuns)).toList());
         data.put("lifetimeTasks", allTasks.stream().map(task -> taskToMap(task, sellerspriteRuns)).toList());
-        // 历史累计概览（跨站点汇总）
-        Map<String, Long> lifetimeStatusAll = statusCounts(allTasks);
-        Map<String, Long> weekStatusAll = statusCounts(weekTasks);
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("currentRunning", currentRunningTotal);
-        summary.put("currentCloudExtractCount", cloudExtractTotal);
-        summary.put("weeklyRawCount", (long) raws.size());
-        summary.put("weekTaskCount", (long) weekTasks.size());
-        summary.put("weekDoneCount", weekStatusAll.getOrDefault("DONE", 0L));
-        summary.put("weekErrorCount", weekStatusAll.getOrDefault("ERROR", 0L));
-        summary.put("lifetimeTaskCount", (long) allTasks.size());
-        summary.put("lifetimeDoneCount", lifetimeStatusAll.getOrDefault("DONE", 0L));
-        summary.put("lifetimeErrorCount", lifetimeStatusAll.getOrDefault("ERROR", 0L));
         data.put("summary", summary);
         data.put("datasource", parseDatasource(datasourceUrl, activeProfile));
         return Result.success(data);
@@ -270,12 +333,6 @@ public class BazhuayuController {
             ds.put("database", "?");
         }
         return ds;
-    }
-
-    private static Map<String, Long> statusCounts(List<AsinImportTask> tasks) {
-        return tasks.stream().collect(Collectors.groupingBy(
-                t -> t.getTaskStatus() == null ? "UNKNOWN" : t.getTaskStatus(),
-                Collectors.counting()));
     }
 
     private static boolean isRunningPhase(BazhuayuRunStateService.Phase phase) {
@@ -330,6 +387,18 @@ public class BazhuayuController {
                         .ge(AsinImportTask::getCreatedAt, weekStart())
                         .orderByDesc(AsinImportTask::getId));
         return Result.success(tasks);
+    }
+
+    @DeleteMapping("/tasks/{taskId}")
+    @Operation(summary = "删除八爪鱼导入任务及明细")
+    public Result<Void> deleteTask(@PathVariable Long taskId) {
+        SellerspriteRequestRun linked = requestCenterService
+                .findLatestAsinRunsBySourceTaskIds(List.of(taskId)).get(taskId);
+        if (linked != null) {
+            throw new IllegalStateException("任务已关联卖家精灵请求，不能删除；请先处理请求中心任务");
+        }
+        asinImportService.deleteBazhuayuTask(taskId);
+        return Result.success();
     }
 
     @PutMapping("/config/mapping")
@@ -517,9 +586,14 @@ public class BazhuayuController {
         item.put("parentAsinCount", task.getParentAsinCount() != null ? task.getParentAsinCount() : 0);
         item.put("variantAsinCount", task.getVariantAsinCount() != null ? task.getVariantAsinCount() : 0);
         item.put("dataMonth", task.getDataMonth());
+        item.put("bazhuayuBatchNo", task.getBazhuayuBatchNo());
+        item.put("bazhuayuBatchStartTime", task.getBazhuayuBatchStartTime());
+        item.put("bazhuayuBatchEndTime", task.getBazhuayuBatchEndTime());
+        item.put("bazhuayuBatchCount", task.getBazhuayuBatchCount());
+        item.put("bazhuayuLotNo", task.getBazhuayuLotNo());
         item.put("errorMessage", task.getErrorMessage());
         item.put("createdAt", task.getCreatedAt());
-        item.put("completedAt", task.getUpdatedAt());
+        item.put("completedAt", task.getCompletedAt());
         SellerspriteRequestRun run = sellerspriteRuns.get(task.getId());
         if (run != null) {
             Map<String, Object> summary = new LinkedHashMap<>();

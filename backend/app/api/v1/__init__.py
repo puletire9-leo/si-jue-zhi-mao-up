@@ -45,6 +45,7 @@ from .download_tasks import router as download_tasks_router
 from .lingxing import router as lingxing_router
 from .members import router as members_router
 from .announcement import router as announcement_router
+from .ai_selection import router as ai_selection_router
 
 api_router = APIRouter()
 
@@ -73,5 +74,6 @@ api_router.include_router(download_tasks_router)
 api_router.include_router(lingxing_router)
 api_router.include_router(members_router)
 api_router.include_router(announcement_router)
+api_router.include_router(ai_selection_router)
 
 __all__ = ["api_router"]

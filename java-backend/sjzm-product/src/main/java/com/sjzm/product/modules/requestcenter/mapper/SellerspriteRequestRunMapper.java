@@ -58,24 +58,24 @@ public interface SellerspriteRequestRunMapper extends BaseMapper<SellerspriteReq
     /**
      * 查询每个初筛任务最近一次 ASIN 批量查询运行记录，供来源页面展示真实执行状态。
      * 即使运行已结束也返回；新建任务的幂等判断仍使用 selectActiveAsinRunBySourceTaskId。
+     *
+     * 优化：用 ROW_NUMBER() 窗口函数代替 correlated subquery，避免 IN-list 内每 ID 一次子查询排序。
+     * MySQL 8.0 单次表扫描即完成全部 partition 排序，显著降低 IN(id1,id2,...,idN) 场景的 CPU 消耗。
      */
     @Select("""
             <script>
-            SELECT r.*
-            FROM sellersprite_request_run r
-            WHERE r.request_type IN ('ASIN_BATCH_LOOKUP','PREMIUM_ASIN_LOOKUP')
-              AND r.source_task_id IN
-              <foreach collection='taskIds' item='taskId' open='(' separator=',' close=')'>
-                #{taskId}
-              </foreach>
-              AND r.run_id = (
-                SELECT r2.run_id
-                FROM sellersprite_request_run r2
-                WHERE r2.source_task_id = r.source_task_id
-                  AND r2.request_type IN ('ASIN_BATCH_LOOKUP','PREMIUM_ASIN_LOOKUP')
-                ORDER BY r2.created_at DESC, r2.run_id DESC
-                LIMIT 1
-              )
+            SELECT r.* FROM (
+              SELECT r.*, ROW_NUMBER() OVER (
+                PARTITION BY r.source_task_id
+                ORDER BY r.created_at DESC, r.run_id DESC
+              ) AS rn
+              FROM sellersprite_request_run r
+              WHERE r.request_type IN ('ASIN_BATCH_LOOKUP','PREMIUM_ASIN_LOOKUP')
+                AND r.source_task_id IN
+                <foreach collection='taskIds' item='taskId' open='(' separator=',' close=')'>
+                  #{taskId}
+                </foreach>
+            ) r WHERE r.rn = 1
             </script>
             """)
     List<SellerspriteRequestRun> selectLatestAsinRunsBySourceTaskIds(@Param("taskIds") List<Long> taskIds);

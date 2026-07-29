@@ -44,6 +44,8 @@ export interface SellerspriteRequestRun {
   apiCalls: number
   status: string
   lastErrorMessage: string | null
+  systemPauseReason: string | null
+  systemResumeAt: string | null
   operator: string | null
   startedAt: string | null
   finishedAt: string | null
@@ -246,6 +248,10 @@ export const requestCenterApi = {
     return unwrap<number>(request({ url: `${RC_BASE}/tasks/${runId}/stop`, method: 'post' }))
   },
 
+  deleteTask(runId: string): Promise<number> {
+    return unwrap<number>(request({ url: `${RC_BASE}/tasks/${runId}`, method: 'delete' }))
+  },
+
   listTasks(params: { requestType?: string; triggerType?: string; status?: string; batchCode?: string; month?: string; page?: number; size?: number }): Promise<PageResult<SellerspriteRequestRun>> {
     return unwrap<PageResult<SellerspriteRequestRun>>(request({ url: `${RC_BASE}/tasks`, method: 'get', params }))
   },
@@ -287,8 +293,8 @@ export const requestCenterApi = {
     return unwrap<SellerspriteRequestRun>(request({ url: `${RC_BASE}/tasks/${runId}`, method: 'get' }))
   },
 
-  listItems(runId: string): Promise<SellerspriteRequestItem[]> {
-    return unwrap<SellerspriteRequestItem[]>(request({ url: `${RC_BASE}/tasks/${runId}/items`, method: 'get' }))
+  listItems(runId: string, params?: { page?: number; size?: number }): Promise<PageResult<SellerspriteRequestItem>> {
+    return unwrap<PageResult<SellerspriteRequestItem>>(request({ url: `${RC_BASE}/tasks/${runId}/items`, method: 'get', params }))
   },
 
   retryItem(itemId: number): Promise<number> {

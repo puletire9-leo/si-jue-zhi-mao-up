@@ -80,6 +80,10 @@ public class DengZongShopService {
         }
 
         log.info("同步完成: sellerName={}, total={}, inserted={}", sellerName, total, inserted);
+        sellerMapper.update(null, new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<DengZongShopSeller>()
+                .eq(DengZongShopSeller::getMarketplace, marketplace)
+                .eq(DengZongShopSeller::getSellerName, sellerName)
+                .set(DengZongShopSeller::getLastSyncedAt, LocalDateTime.now()));
         Map<String, Object> result = new HashMap<>();
         result.put("total", total);
         result.put("inserted", inserted);
@@ -224,6 +228,18 @@ public class DengZongShopService {
     }
 
     public int sellerInsert(DengZongShopSeller seller) {
+        if (seller == null || seller.getMarketplace() == null || seller.getMarketplace().isBlank()
+                || seller.getSellerName() == null || seller.getSellerName().isBlank()) {
+            throw new IllegalArgumentException("站点和卖家名称不能为空");
+        }
+        seller.setMarketplace(seller.getMarketplace().trim().toUpperCase(java.util.Locale.ROOT));
+        seller.setSellerName(seller.getSellerName().trim());
+        Long duplicate = sellerMapper.selectCount(new LambdaQueryWrapper<DengZongShopSeller>()
+                .eq(DengZongShopSeller::getMarketplace, seller.getMarketplace())
+                .eq(DengZongShopSeller::getSellerName, seller.getSellerName()));
+        if (duplicate != null && duplicate > 0) {
+            throw new IllegalArgumentException("该站点已登记此非标店铺");
+        }
         return sellerMapper.insert(seller);
     }
 

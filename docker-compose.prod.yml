@@ -73,7 +73,7 @@ services:
     image: prod-backend
     container_name: prod-backend
     ports:
-      - "7093:8090"
+      - "127.0.0.1:7093:8090"
     env_file:
       - ./config/public/prod.env
       - ./config/secrets/prod.env
@@ -113,6 +113,28 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    restart: unless-stopped
+
+  # ============================================
+  # AI 请求中心（集中式 LLM 网关，独立服务）
+  # ============================================
+
+  ai-center:
+    build:
+      context: ./python-ai/ai-center
+      dockerfile: Dockerfile
+    image: prod-ai-center
+    container_name: prod-ai-center
+    env_file:
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env     # 含 DEEPSEEK_API_KEY + AI_CENTER_INTERNAL_KEY
+    # 不发布宿主端口，仅容器内部访问 http://ai-center:8012
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8012/health')\""]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
   # ============================================
@@ -159,6 +181,10 @@ services:
       SERVICE_MODULE: product
       SPRING_PROFILES_ACTIVE: prod
       REDISSON_ADDRESS: redis://redis:6379
+      # 产品服务处理八爪鱼 overview 等大型聚合查询，需要更大的堆
+      JAVA_OPTS: "-Xms1024m -Xmx2048m"
+      # AI 选品功能开关：开启后注册 /api/v1/ai-selection-pool/** 接口（ai_selection 表）
+      AI_SELECTION_ENABLED: "true"
     depends_on:
       mysql:
         condition: service_healthy

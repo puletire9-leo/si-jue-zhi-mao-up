@@ -196,8 +196,8 @@ async def get_download_tasks(
             completed_files=task.completed_files,
             failed_files=task.failed_files,
             total_size=task.total_size,
-            created_at=task.created_at.strftime("%Y-%m-%d %H:%M:%S") if task.created_at else "",
-            completed_at=task.completed_at.strftime("%Y-%m-%d %H:%M:%S") if task.completed_at else None,
+            created_at=task.created_at.strftime("%Y-%m-%dT%H:%M:%S") if task.created_at else "",
+            completed_at=task.completed_at.strftime("%Y-%m-%dT%H:%M:%S") if task.completed_at else None,
             error_message=task.error_message
         ))
     
@@ -237,8 +237,8 @@ async def get_download_task(
         completed_files=task.completed_files,
         failed_files=task.failed_files,
         total_size=task.total_size,
-        created_at=task.created_at.strftime("%Y-%m-%d %H:%M:%S") if task.created_at else "",
-        completed_at=task.completed_at.strftime("%Y-%m-%d %H:%M:%S") if task.completed_at else None,
+        created_at=task.created_at.strftime("%Y-%m-%dT%H:%M:%S") if task.created_at else "",
+        completed_at=task.completed_at.strftime("%Y-%m-%dT%H:%M:%S") if task.completed_at else None,
         error_message=task.error_message
     )
 
@@ -317,10 +317,20 @@ async def download_task_file(
         user_info = await require_auth(request)
         _ensure_task_access(task, user_info)
 
+    # 根据实际文件扩展名决定 media_type 和 filename
+    ext = os.path.splitext(task.local_path)[1].lower() if task.local_path else ""
+    media_type_map = {
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".zip": "application/zip",
+        ".csv": "text/csv",
+        ".json": "application/json",
+    }
+    media_type = media_type_map.get(ext, "application/octet-stream")
+
     return FileResponse(
         path=task.local_path,
-        media_type="application/zip",
-        filename=f"{task.name}.zip",
+        media_type=media_type,
+        filename=f"{task.name}{ext}",
         headers={
             "Cache-Control": "no-store",
             "X-Accel-Buffering": "no",
@@ -416,6 +426,63 @@ async def retry_download_task(
         logger.warning(f"重试任务无文件数据，仅重置状态: {task_id}")
 
     return {"code": 200, "message": "任务已重置，开始重新下载"}
+
+
+@router.post("/export-xlsx", response_model=dict)
+async def create_xlsx_export_task(
+    request: Request,
+    request_data: dict,
+    background_tasks: BackgroundTasks,
+    user_info: dict = Depends(require_auth)
+):
+    """
+    创建 xlsx 导出下载任务
+
+    请求体:
+        marketplace: 站点
+        source: 数据源 (premium_products / competitor_clean / shop_products)
+        asins: 选中商品 ASIN 列表
+        name: 可选任务名称
+
+    返回:
+        { task_id, message }
+    """
+    asins = request_data.get("asins", [])
+    if not asins:
+        raise HTTPException(status_code=400, detail="ASIN 列表不能为空")
+
+    marketplace = request_data.get("marketplace", "UK")
+    source = request_data.get("source", "competitor_clean")
+    supported_sources = {
+        "premium_products",
+        "competitor_clean",
+        "competitor_raw",
+        "shop_products",
+    }
+    if source not in supported_sources:
+        raise HTTPException(status_code=400, detail="不支持的 XLSX 导出数据源")
+    name = request_data.get("name") or f"选品导出-{marketplace}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+    mysql_repo = get_mysql_from_request(request)
+    download_task_service.set_mysql_repo(mysql_repo)
+    user_id = get_current_user_id(user_info)
+
+    task_id = await download_task_service.create_task(
+        name=name,
+        source=DownloadTaskSource.SELECTION,
+        skus=[],  # 不需要 SKU
+        user_id=user_id,
+        request_data=[{"asin": a} for a in asins],  # 存 ASIN 列表用于重试
+    )
+
+    # 分发到 Celery
+    from ...tasks.download_tasks import execute_xlsx_export
+    execute_xlsx_export.delay(task_id, asins, source, marketplace)
+
+    return {
+        "task_id": task_id,
+        "message": "下载任务已创建，请到下载管理中心查看进度",
+    }
 
 
 @router.post("/cleanup")

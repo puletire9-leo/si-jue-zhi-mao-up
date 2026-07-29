@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { ref, watch, computed, onMounted } from "vue";
-import { QuestionFilled } from "@element-plus/icons-vue";
+import { ref, watch, computed, onMounted, onActivated } from "vue";
+import { QuestionFilled, Delete } from "@element-plus/icons-vue";
+import { ElMessage, ElMessageBox } from "element-plus";
 import {
   getCreatedWeeks,
   getDengZongBatchDates,
   getPremiumCreatedWeeks,
 } from "@/api/competitor";
 import shopCollectionApi from "@/api/shopCollection";
+import { formatDayBatchLabel } from "@/utils/batchLabel";
 
 export interface RangeFilterValue {
   priceMin: number | null;
@@ -43,7 +45,9 @@ const props = withDefaults(
       | "competitor_created_week"
       | "premium_created_week"
       | "deng_zong_batch"
-      | "shop_batch";
+      | "shop_batch"
+      | "ai_selection_batch"
+      | "merged_new_shop";
     /** 外部页面提供自己的周期选项时复用本组件，不再请求选品源批次接口。 */
     snapshotOptions?: RangeSnapshotOption[];
     snapshotLabelText?: string;
@@ -83,6 +87,8 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: "update:modelValue", val: RangeFilterValue): void;
+  /** 批次被删除后通知父组件刷新商品列表（仅 ai_selection_batch 场景触发） */
+  (e: "batch-deleted", batchId: string): void;
 }>();
 
 const CURRENCY_MAP: Record<string, string> = {
@@ -200,28 +206,18 @@ const availableSnapshots = ref<RangeSnapshotOption[]>([]);
 // 避免用户主动清空后又被填回。
 const autoFilledKeys = new Set<string>();
 
-/** 把某个日期(YYYY-MM-DD 等)转成 M/D */
-function toMd(d?: string): string {
-  if (!d) return "";
-  const date = new Date(d);
-  if (Number.isNaN(date.getTime())) return "";
-  return `${date.getMonth() + 1}/${date.getDate()}`;
-}
-
 /**
- * 批次下拉 label：周批次显示日期范围（如 7/6-7/12），比 ISO 周号（2026-W28）直观；
- * 非标批次日等无起止范围的，退回原 label。统一带条数。
+ * 批次下拉 label：统一收口到 utils/batchLabel。
+ * 按天分组后单天显示 `7/22（批次总数 1509）`；仅当起止不同(旧数据跨天)才显示范围。
  */
 function formatSnapshotLabel(item: {
+  value?: string;
   label: string;
   count: number;
   startDate?: string;
   endDate?: string;
 }): string {
-  const start = toMd(item.startDate);
-  const end = toMd(item.endDate);
-  const range = start && end ? `${start}-${end}` : item.label;
-  return `${range}（批次总数 ${item.count}）`;
+  return formatDayBatchLabel(item);
 }
 
 /** 最新一项摘要：日期范围 + 条数，让用户一眼看到最新导入了多少数据 */
@@ -250,6 +246,37 @@ async function loadAvailableWeeks() {
       startDate: item.startDate,
       endDate: item.endDate,
     }));
+  } else if (props.snapshotKind === "merged_new_shop") {
+    // 合并两源批次(新品榜 clean + 店铺):同一天 count 相加,按日期倒序。
+    // 注意:新品榜批次不能带 source 过滤 —— props.source 是 UI 展示文案(如"新品榜 + 店铺"),
+    // 若透传给 created-weeks 的 source LIKE 会把 7/22 等真实批次全部过滤掉。合并口径要全部批次。
+    const [newRes, shopRows] = await Promise.all([
+      getCreatedWeeks(props.country, undefined, undefined, true),
+      shopCollectionApi.selectionBatches(props.country),
+    ]);
+    const byDay = new Map<string, RangeSnapshotOption>();
+    const add = (
+      week: string,
+      count: number,
+      startDate?: string,
+      endDate?: string,
+    ) => {
+      const exist = byDay.get(week);
+      if (exist) {
+        exist.count = (exist.count ?? 0) + (count ?? 0);
+      } else {
+        byDay.set(week, { value: week, label: week, count, startDate, endDate });
+      }
+    };
+    (newRes?.data ?? []).forEach((it) =>
+      add(it.week, it.count, it.startDate, it.endDate),
+    );
+    (shopRows ?? []).forEach((it) =>
+      add(it.week, it.count, it.startDate, it.endDate),
+    );
+    availableSnapshots.value = Array.from(byDay.values()).sort((a, b) =>
+      String(b.value).localeCompare(String(a.value)),
+    );
   } else if (props.snapshotKind === "premium_created_week") {
     const res = await getPremiumCreatedWeeks(props.country);
     availableSnapshots.value = (res?.data ?? []).map((item) => ({
@@ -258,6 +285,14 @@ async function loadAvailableWeeks() {
       count: item.count,
       startDate: item.startDate,
       endDate: item.endDate,
+    }));
+  } else if (props.snapshotKind === "ai_selection_batch") {
+    const { getBatches } = await import("@/api/ai-selection-pool");
+    const batches = await getBatches(props.country);
+    availableSnapshots.value = batches.map((item) => ({
+      value: item.batchId,
+      label: item.batchLabel || item.batchId,
+      count: item.productCount,
     }));
   } else {
     const res = await getCreatedWeeks(
@@ -296,7 +331,49 @@ async function loadAvailableWeeks() {
   }
 }
 
+/** 仅 AI 选品批次支持删除（只有 ai-selection-pool 提供 deleteBatch 接口）。 */
+const canDeleteBatch = computed(() => props.snapshotKind === "ai_selection_batch");
+
+// 店铺选品(shop_batch)数据量大，批次最多选 2 个防全表扫卡死；其他场景 0=不限制。
+const batchSelectLimit = computed(() => (props.snapshotKind === "shop_batch" ? 2 : 0));
+
+/** 删除单个批次及其商品：确认→调接口→刷新批次列表→从已选中移除→通知父组件。
+ *  @click.stop 阻止冒泡，避免误触发下拉选中。 */
+async function handleDeleteBatch(item: RangeSnapshotOption) {
+  const batchId = item.value;
+  if (!batchId) return;
+  try {
+    await ElMessageBox.confirm(
+      `将永久删除批次「${item.label}」及其 ${item.count} 条商品，不可恢复。确定删除？`,
+      "删除批次",
+      { type: "warning", confirmButtonText: "删除", confirmButtonClass: "el-button--danger" },
+    );
+  } catch {
+    return;
+  }
+  try {
+    const { deleteBatch } = await import("@/api/ai-selection-pool");
+    await deleteBatch(batchId);
+    ElMessage.success("批次已删除");
+    // 从已选批次里剔除，避免残留过滤条件
+    local.value.createdWeeks = local.value.createdWeeks.filter((v) => v !== batchId);
+    await loadAvailableWeeks();
+    emit("batch-deleted", batchId);
+  } catch (e) {
+    ElMessage.error(`删除失败: ${e instanceof Error ? e.message : "未知错误"}`);
+  }
+}
+
 onMounted(loadAvailableWeeks);
+
+let activationCount = 0;
+onActivated(() => {
+  // KeepAlive 首次挂载已由 onMounted 加载；从请求中心返回时重新拉取最新 clean 批次。
+  activationCount += 1;
+  if (activationCount > 1) {
+    void loadAvailableWeeks();
+  }
+});
 
 watch(
   () => [props.country, props.source, props.snapshotKind, props.useCleanTable],
@@ -325,6 +402,7 @@ watch(
           multiple
           collapse-tags
           collapse-tags-tooltip
+          :multiple-limit="batchSelectLimit"
           :placeholder="snapshotPlaceholder"
           clearable
           style="width: 100%"
@@ -334,7 +412,20 @@ watch(
             :key="item.value"
             :label="formatSnapshotLabel(item)"
             :value="item.value"
-          />
+          >
+            <template v-if="canDeleteBatch">
+              <span class="rfp__opt-row">
+                <span class="rfp__opt-label">{{ formatSnapshotLabel(item) }}</span>
+                <el-icon
+                  class="rfp__opt-del"
+                  title="删除该批次"
+                  @click.stop="handleDeleteBatch(item)"
+                >
+                  <Delete />
+                </el-icon>
+              </span>
+            </template>
+          </el-option>
         </el-select>
       </div>
     </div>
@@ -703,6 +794,33 @@ watch(
   display: flex;
   gap: $space-xs;
   flex-wrap: wrap;
+}
+
+.rfp__opt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $space-sm;
+  width: 100%;
+}
+
+.rfp__opt-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rfp__opt-del {
+  flex-shrink: 0;
+  font-size: 14px;
+  color: $text-tertiary;
+  cursor: pointer;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: $danger-color;
+  }
 }
 
 .rfp__preset-label {

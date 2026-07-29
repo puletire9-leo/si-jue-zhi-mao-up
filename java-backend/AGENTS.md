@@ -148,13 +148,20 @@ com.sjzm.gateway/
 人工选品库管理员未显式指定目标开发人时，后端按有效用户记录匹配“刘淼”作为默认真实 owner；普通开发仍只能写入自己的 `user_id`。
 
 卖家精灵请求中心任务列表支持按 `yyyy-MM` 和 `created_at` 自然月边界筛选；月度请求次数汇总必须对整月全部 `sellersprite_request_run.api_calls` 求和，不得受分页影响。
+卖家精灵请求中心只有 `STOPPED/SUCCESS/PARTIAL_SUCCESS/FAILED` 终态任务可硬删除；必须先确认本进程 worker 已退出，再在同一事务内先删子项后删任务。删除会同步移除该任务的月度请求次数记录并解除来源幂等占用。
+写入 `competitor_products` 的卖家精灵任务必须在 `competitor_products_clean` 刷新成功后才能进入 `SUCCESS/PARTIAL_SUCCESS`；clean 收尾失败必须进入 `PAUSED_SYSTEM`、记录可见原因并定时幂等重试，禁止吞异常后显示请求成功。
+普通新品与精品 ASIN 请求都必须按“请求 ASIN 是否真实返回并写入”计算 `fetched_count/written_count/failed_count`；部分返回必须标记 `PARTIAL_SUCCESS`，禁止用 API 返回条数内部自洽冒充请求 ASIN 全部成功。
+Java `AiSelectionController/Service/Entity/Mapper` 当前仅为预留源码，默认由 `features.ai-selection.enabled=false` 禁用，实体故意不声明 `@TableName`。在 `ai_selection` 表结构、唯一键和迁移完善前禁止生产开启；正式启用时必须先恢复显式表映射并通过生产预检。
 
 店铺名称去除首尾空格后若忽略大小写精确等于 `Amazon`，请求中心必须标记跳过，执行网关必须在 HTTP 发出前硬拦截；不得增加卖家精灵使用次数。
 方法卡找店支持两条独立来源：`METHOD_CARD/M01` 只同步当前周批次中 `m01_active=1` 的通过店铺；`BATCH_ALL/ALL_PRODUCTS` 同步 `competitor_products_clean.effective_week_tag` 当前批次全部有效店铺，不得附加任何方法卡通过条件。两条来源必须在候选池中可区分，批次全量入口仍需排除名称精确为 `Amazon` 的店铺。
 请求中心店铺抓取必须分两个强语义接口：普通候选使用 `/shop-tasks/once`，按标准化 `(marketplace, seller_name)` 跨 M1、批次全量和其他来源永久去重；精品店铺池使用 `/shop-tasks/repeatable`，允许历史任务完成后按月/周期复抓，但存在活跃任务时不得并发重复。通用 `/tasks` 禁止创建 `SHOP_FULL_LOOKUP/CANDIDATE_BATCH/PREMIUM_REFRESH`，避免绕过去重策略。
+非标店铺上新使用第三条独立入口 `/api/v1/deng-zong-shop/sync/batch`：输入必须是 `deng_zong_shop_seller` 登记 ID，任务类型固定为 `DENG_ZONG_SHOP_SYNC`，结果固定写 `deng_zong_shop`。历史终态任务允许复抓，活跃同店任务必须跳过；禁止写入 `shop_candidate_pool`、`shop_products` 或普通店铺快照。
+旧单店 `/api/v1/deng-zong-shop/sync` 仅作兼容代理，必须先核验店铺已登记并转入同一专用创建服务；禁止接受任意店名直接绕过非标名单。
+非标商品查询只要显式传入 `batchDate`，列表、总数、卖家汇总和评分数据都必须严格限定该批次；禁止用 `OR batch_date IS NULL` 混入历史无批次数据。未传批次时才允许查询历史全集。批次选项的 `count` 必须与商品列表一致，按 `COALESCE(NULLIF(parent_asin,''), asin)` 去重。
 所有卖家名称驱动的店铺分页抓取，单店最多发出 10 次卖家精灵请求；达到上限后当前店铺按部分完成收口并继续下一个店铺，不得阻塞整批任务。
 
-八爪鱼榜单配置允许同站点多条平级命名任务，不存在主/附加任务。每条任务保存 `task_category` 和 `initial_filter`。“导入DB”只生成可见的 READY 任务，禁止自动调用卖家精灵；只有用户点击请求后才按任务元数据分流：精铺 `ASIN_BATCH_LOOKUP → competitor_products`，精品 `PREMIUM_ASIN_LOOKUP → premium_products`。精品链路禁止写新品榜表、`skip_asins` 或刷新 clean 层。
+八爪鱼榜单配置允许同站点多条平级命名任务，不存在主/附加任务。每条任务保存 `task_category` 和 `initial_filter`。“导入DB”必须同步创建可见 `QUEUED` 任务并返回 taskId，后台按 `QUEUED → RUNNING → READY/ERROR` 收口；禁止自动调用卖家精灵。只有用户点击请求后才按任务元数据分流：精铺 `ASIN_BATCH_LOOKUP → competitor_products`，精品 `PREMIUM_ASIN_LOOKUP → premium_products`。精品链路禁止写新品榜表、`skip_asins` 或刷新 clean 层。
 精品统一选品接口位于 `/api/v1/competitor/premium-*`，列表固定查询 `premium_products` 且强制 `deleted=0`。它复用竞品筛选字段，但始终是原始表，不查询 `competitor_subcategories`，变体统计也必须从 `premium_products` 计算。`methodId` 仅接受用户手动选择的 M01/M03，禁止 M02；CSV 白名单数据源为 `premium_products`，必须导出该表完整字段。
 精品页面、批次、类目、卖家、变体和页面 CSV 只允许读取 `sellersprite_raw_json` 非空的已补全记录；八爪鱼原始空壳仅作为请求中心暂存，禁止出现在用户选品页面。
 统一选品前端的“上架时间”排序参数为 `listingDate`，Java 查询必须映射到 `available_date`，空值固定置后并用 ASIN 作为稳定次排序；不得落入默认销量排序。
@@ -163,7 +170,7 @@ M01 一级分类统计与 M01 商品分页必须复用 `MethodCardMapper.M01Wher
 统一选品的新品榜周批次统计必须按页面 `useCleanTable` 选择 `competitor_products_clean` 或 `competitor_products`；店铺选品的 `shop_products.batch_date` 必须按 ISO 周聚合并允许商品分页按 `yyyy-Www` 周值过滤。
 选品详情响应必须返回决策面板所需的完整规格和追踪字段：`dimensionsType/pkgDimensions/pkgDimensionType/pkgWeight/lqs/updatedAt`；精品数据还要返回 `bazhuayuMappingId/bazhuayuTaskId/bazhuayuTaskName/sourceRunId`。`PremiumProductMapper.selectListForSelection` 必须映射为 `PremiumProduct`，否则子类任务元数据会在转 DTO 前丢失。
 精品请求必须按 `(marketplace, asin)` 跳过 `sellersprite_raw_json` 已存在的商品，禁止跨站点去重。卖家精灵只返回部分请求 ASIN 时，子项和任务必须标记 `PARTIAL_SUCCESS`，`failed_count` 记录未返回数量；不得用返回数量冒充请求数量并显示全成功。
-八爪鱼任务配置页必须通过 `/cloudextraction/statuses/v2` 自动展示最新云采集批次：批次号由 `startExecuteTime` 格式化为 `yyyyMMdd-HHmmss`，同时展示开始/结束时间、本批次数量和状态。“导入DB”请求必须携带页面显示的批次元数据，后端二次校验当前最新批次完全一致且状态为 Finished 后才能异步导入，禁止点击后静默切换到更新批次。系统自身启动云采集时使用 `/data/lotno/all` + start 返回的真实 `lotNo` 精确读取；八爪鱼网页手动或定时启动但开放接口不返回 `lotNo` 时，按 `/data/all` 的最新优先顺序只消费前 `currentTotalExtractCount` 行，到数立即停止，禁止继续扫描后面的历史累计数据；接口不足本批次数量必须拒绝。`/data/notexported` 只保留给无人值守的精铺增量 drain，不能用于精品人工导入。
+八爪鱼任务配置页必须通过 `/cloudextraction/statuses/v2` 自动展示最新云采集批次：批次号由 `startExecuteTime` 格式化为 `yyyyMMdd-HHmmss`，同时展示开始/结束时间、本批次数量和状态。“导入DB”请求必须携带页面显示的批次元数据，后端二次校验当前最新批次完全一致且状态为 Finished 后才能异步导入，禁止点击后静默切换到更新批次。系统自身启动云采集时使用 `/data/lotno/all` + start 返回的真实 `lotNo` 精确读取；八爪鱼网页手动或定时启动但开放接口不返回 `lotNo` 时，使用 `statuses/v2.currentTotalExtractCount` 锁定最新批次 N，只读取 `/data/all` 最前 N 行并立即停止，严禁按 `/data/all.total` 的历史累计量导入；接口总量少于 N 时拒绝按不完整批次收口。`/data/notexported` 只保留给无人值守的精铺增量 drain，不能用于精品人工导入。
 Amazon 以图识图任务构造 StyleSnap/Shop the Look URL 前必须移除 Amazon CDN 的 `US200/SX` 等缩略图修饰符、清理 Markdown 反斜杠转义并编码原图 URL，避免低分辨率图片被静默退回默认上传页。
 
 生产数据库保护：product Hikari 默认 min 3/max 15，user 默认 min 2/max 5，连接等待 5 秒；MySQL 硬上限 60。统一店铺聚合等大型查询必须通过 `DatabaseWorkloadGate`（并发 2），全量 CSV 并发 1，八爪鱼导入DB、文件导入、评分重算和 clean 层批量写入并发 1。普通分页/详情/小型 CRUD 不进入门禁；卖家精灵请求中心保持现有单线程。

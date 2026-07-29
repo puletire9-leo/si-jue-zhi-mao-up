@@ -1,4 +1,5 @@
-import { competitorApi, type SelectionCsvRowRef } from "@/api/competitor";
+import { competitorApi, type SelectionCsvRowRef, type SelectionCsvSource } from "@/api/competitor";
+import request from "@/utils/request";
 import type { SelectionQueryPlan } from "./queryPlan";
 import { resolveSelectionQueryPlan } from "./queryRuntime";
 
@@ -186,4 +187,60 @@ export async function downloadAllResultsCsv(input: AllResultsCsvInput) {
   anchor.remove();
   window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
   return { count: rows.length, filename };
+}
+
+/** 导出选中的商品为 CSV（复用后端 /export-current-page）。
+ *  products: 已按选中筛选的商品列表（仅当前页已加载的选中商品）。
+ *  跨页选中部分不在内存中，不会导出。 */
+export async function downloadSelectedCsv(
+  products: Record<string, any>[],
+  marketplace: string,
+  source: SelectionCsvSource,
+) {
+  if (products.length === 0) throw new Error("请先勾选商品");
+
+  const rows = products
+    .map(rowRef)
+    .filter((row): row is SelectionCsvRowRef => !!row);
+  if (rows.length === 0) throw new Error("选中的商品缺少有效 ASIN");
+
+  const blob = await competitorApi.exportSelectionCsv({
+    source,
+    marketplace,
+    rows,
+  });
+
+  const filename = `selection_selected_${source}_${marketplace}_${timestamp()}.csv`;
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
+  return { count: rows.length, filename };
+}
+
+/** 提交选中 ASIN 列表到后端下载中心，异步生成 xlsx 并追踪进度。
+ *  asins 来自 selectedIds Set（跨页选中均可），不再受当前页 60 条限制。
+ *  返回 task_id，前端可导航到下载管理中心查看进度。 */
+export async function exportXlsxViaTask(
+  asins: string[],
+  marketplace: string,
+  source: SelectionCsvSource,
+  taskName?: string,
+): Promise<{ task_id: string; message: string }> {
+  if (asins.length === 0) throw new Error("请先勾选商品");
+  const response = await request({
+    url: "/api/v1/download-tasks/export-xlsx",
+    method: "post",
+    data: {
+      asins,
+      marketplace,
+      source,
+      name: taskName || `选品导出-${marketplace}-${asins.length}条`,
+    },
+  });
+  return response?.data || response;
 }

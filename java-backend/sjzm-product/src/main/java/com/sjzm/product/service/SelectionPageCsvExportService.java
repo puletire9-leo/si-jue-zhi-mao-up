@@ -44,7 +44,9 @@ public class SelectionPageCsvExportService {
             "shop_products", new SourceSpec(
                     "shop_products", List.of("batch_date", "batch_code", "week_tag")),
             "premium_products", new SourceSpec(
-                    "premium_products", List.of("week_tag"))
+                    "premium_products", List.of("week_tag")),
+            "ai_selection", new SourceSpec(
+                    "ai_selection", List.of("batch_id", "batch_label"))
     );
 
     private final JdbcTemplate jdbcTemplate;

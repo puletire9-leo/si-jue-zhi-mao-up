@@ -141,3 +141,22 @@ rag参考设计/
 
 # 本地调试临时脚本 (SQL/curl/日志)
 .tmp/
+
+# LiteLLM 上游研究目录（仅本地参考，不纳入版本控制）
+/python-ai/litellm-official/
+/python-ai/litellma请求中心/
+
+# ai-center 测试文件豁免根目录 test_*.py 忽略规则
+!python-ai/ai-center/tests/test_*.py
+
+# 构建/依赖缓存（Maven 本地仓库、Codex 等工具运行时缓存）——绝不入库，体积大
+.cache/
+.m2/
+**/target/
+.playwright-mcp/
+
+# 工具/依赖运行时缓存与调试产物（勿入库）
+.pnpm-store/
+zcode/
+guapai-*.png
+.zcode/

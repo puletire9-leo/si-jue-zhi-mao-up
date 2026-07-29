@@ -35,6 +35,9 @@ class BazhuayuControllerTest {
                         + "\"startExecuteTime\":\"2026-07-15T16:43:55.243\","
                         + "\"endExecuteTime\":\"2026-07-15T16:46:50.700\"}"));
         when(client.getLatestBatchSnapshot("task-de")).thenReturn(latest);
+        when(scheduledService.triggerTaskAsync("bangdan", "DE", "task-de", latest))
+                .thenReturn(new BazhuayuScheduledService.DirectTriggerResult(
+                        321L, "QUEUED", false, true, latest.batchNo()));
 
         BazhuayuController controller = new BazhuayuController(
                 scheduledService,
@@ -46,12 +49,15 @@ class BazhuayuControllerTest {
                 mock(BazhuayuWeeklyRawMapper.class),
                 mock(AsinImportTaskMapper.class),
                 mock(ScoringService.class),
+                mock(com.sjzm.product.service.AsinImportService.class),
                 mock(SellerspriteRequestCenterService.class));
 
         Map<String, Object> data = controller.trigger(
                 "bangdan", "DE", "task-de", null, null, null, 0).getData();
 
         assertThat(data.get("batchNo")).isEqualTo("20260715-164355");
+        assertThat(data.get("taskId")).isEqualTo(321L);
+        assertThat(data.get("status")).isEqualTo("QUEUED");
         verify(scheduledService).triggerTaskAsync("bangdan", "DE", "task-de", latest);
     }
 
@@ -81,8 +87,17 @@ class BazhuayuControllerTest {
         state.setDrainedRows(45);
 
         when(scoringService.getCurrentWeekTag()).thenReturn("2026-W27");
-        when(taskMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(usDone, ukReady));
-        when(rawMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(raw1, raw2));
+        when(taskMapper.selectList(any(LambdaQueryWrapper.class)))
+                .thenReturn(List.of(usDone), List.of(usDone, ukReady));
+        when(rawMapper.countByMarketplace("2026-W27")).thenReturn(List.of(
+                Map.of("marketplace", "US", "cnt", 1L),
+                Map.of("marketplace", "UK", "cnt", 1L)));
+        when(taskMapper.countByMarketplaceAndStatus("BAZHUAYU_AUTO")).thenReturn(List.of(
+                Map.of("marketplace", "US", "task_status", "DONE", "cnt", 1L),
+                Map.of("marketplace", "UK", "task_status", "READY", "cnt", 1L)));
+        when(taskMapper.countByMarketplaceAndStatusSince(
+                eq("BAZHUAYU_AUTO"), any(LocalDateTime.class))).thenReturn(List.of(
+                Map.of("marketplace", "US", "task_status", "DONE", "cnt", 1L)));
         when(runStateService.all()).thenReturn(List.of(state));
 
         BazhuayuController controller = new BazhuayuController(
@@ -95,6 +110,7 @@ class BazhuayuControllerTest {
                 rawMapper,
                 taskMapper,
                 scoringService,
+                mock(com.sjzm.product.service.AsinImportService.class),
                 mock(SellerspriteRequestCenterService.class));
 
         Map<String, Object> overview = controller.overview().getData();
@@ -184,6 +200,7 @@ class BazhuayuControllerTest {
         task.setDataMonth(month);
         task.setCreatedAt(createdAt);
         task.setUpdatedAt(completedAt);
+        task.setCompletedAt(completedAt);
         return task;
     }
 

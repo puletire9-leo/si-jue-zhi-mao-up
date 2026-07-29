@@ -1,5 +1,17 @@
 <template>
   <div class="shop-candidate-pool">
+    <el-card shadow="never" class="mode-card">
+      <el-radio-group v-model="requestMode" size="large">
+        <el-radio-button label="NORMAL">正常店铺请求</el-radio-button>
+        <el-radio-button label="DENG_ZONG">非标店铺上新</el-radio-button>
+      </el-radio-group>
+      <span class="mode-description">
+        {{ requestMode === 'NORMAL'
+          ? '普通候选店铺：进入 shop_candidate_pool，抓取结果写入 shop_products。'
+          : '独立非标名单：读取 deng_zong_shop_seller，可重复抓取，结果只写 deng_zong_shop。' }}
+      </span>
+    </el-card>
+    <template v-if="requestMode === 'NORMAL'">
     <el-card shadow="never" class="header-card">
       <div class="toolbar">
         <el-select v-model="sourceTypeFilter" placeholder="来源" style="width: 130px" @change="handleSourceTypeChange">
@@ -191,18 +203,177 @@
         @size-change="loadList"
       />
     </el-card>
+    </template>
+
+    <template v-else>
+      <el-card shadow="never" class="deng-zong-card">
+        <div class="toolbar">
+          <el-select v-model="dengMarketplace" placeholder="全部站点" clearable style="width: 130px" @change="loadDengSellers">
+            <el-option label="UK" value="UK" />
+            <el-option label="DE" value="DE" />
+            <el-option label="US" value="US" />
+          </el-select>
+          <el-button type="primary" @click="openDengSellerEditor()">新增非标店铺</el-button>
+          <el-button @click="loadDengSellers">刷新名单</el-button>
+          <div class="spacer" />
+          <el-button
+            type="warning"
+            :disabled="dengSelectedRows.length === 0"
+            :loading="dengSubmitting"
+            @click="submitDengSync(dengSelectedRows)"
+          >批量请求所选店铺</el-button>
+        </div>
+        <el-alert
+          title="非标店铺专用请求线路"
+          description="这里登记的店铺就是“非标店铺上新”的来源名单。任务固定为 DENG_ZONG_SHOP_SYNC，历史完成后可再次抓取；活跃任务不会并发重复。不会进入正常候选池、观察池或精品店铺池。"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="deng-alert"
+        />
+        <el-table
+          :data="dengSellers"
+          v-loading="dengLoading"
+          stripe
+          height="calc(100vh - 285px)"
+          @selection-change="dengSelectedRows = $event"
+        >
+          <el-table-column type="selection" width="48" />
+          <el-table-column prop="marketplace" label="站点" width="80" />
+          <el-table-column prop="sellerName" label="卖家名称" min-width="210" />
+          <el-table-column label="店铺链接" min-width="180" show-overflow-tooltip>
+            <template #default="{ row }">
+              <a v-if="row.storeUrl" :href="row.storeUrl" target="_blank" rel="noopener">打开</a>
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="notes" label="备注" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="lastSyncedAt" label="最近抓取完成" width="180">
+            <template #default="{ row }">{{ row.lastSyncedAt || '尚未抓取' }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="260" fixed="right">
+            <template #default="{ row }">
+              <el-button type="warning" link :loading="dengSubmitting" @click="submitDengSync([row])">请求抓取</el-button>
+              <el-button type="primary" link @click="openDengSellerEditor(row)">编辑</el-button>
+              <el-button type="danger" link @click="deleteDengSeller(row)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-card>
+
+      <el-dialog v-model="dengEditorVisible" :title="dengEditor.id ? '编辑非标店铺' : '新增非标店铺'" width="480px">
+        <el-form label-width="90px">
+          <el-form-item label="站点" required>
+            <el-select v-model="dengEditor.marketplace" style="width: 100%">
+              <el-option label="UK" value="UK" />
+              <el-option label="DE" value="DE" />
+              <el-option label="US" value="US" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="卖家名称" required><el-input v-model="dengEditor.sellerName" /></el-form-item>
+          <el-form-item label="店铺链接"><el-input v-model="dengEditor.storeUrl" /></el-form-item>
+          <el-form-item label="备注"><el-input v-model="dengEditor.notes" type="textarea" /></el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="dengEditorVisible = false">取消</el-button>
+          <el-button type="primary" :loading="dengSaving" @click="saveDengSeller">保存</el-button>
+        </template>
+      </el-dialog>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, nextTick, onMounted } from 'vue'
+import { computed, ref, nextTick, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox, ElTable } from 'element-plus'
 import { ArrowDown } from '@element-plus/icons-vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { shopCandidateApi, type ShopCandidatePool, type ShopMethodBatchOption } from '@/api/shopCandidate'
+import { formatShopBatchLabel } from '@/utils/batchLabel'
 import { requestCenterApi, shopPremiumApi } from '@/api/shopPremium'
+import { dengZongShopApi, type DengZongShopSeller } from '@/api/dengZongShop'
 
 const router = useRouter()
+const route = useRoute()
+const requestMode = ref<'NORMAL' | 'DENG_ZONG'>(route.query.mode === 'deng-zong' ? 'DENG_ZONG' : 'NORMAL')
+const dengMarketplace = ref('')
+const dengSellers = ref<DengZongShopSeller[]>([])
+const dengSelectedRows = ref<DengZongShopSeller[]>([])
+const dengLoading = ref(false)
+const dengSubmitting = ref(false)
+const dengSaving = ref(false)
+const dengEditorVisible = ref(false)
+const dengEditor = ref({ id: 0, marketplace: 'UK', sellerName: '', storeUrl: '', notes: '' })
+
+async function loadDengSellers() {
+  dengLoading.value = true
+  try {
+    dengSellers.value = await dengZongShopApi.listSellers(dengMarketplace.value || undefined)
+  } catch (error: any) {
+    ElMessage.error(error?.message || '加载非标店铺名单失败')
+  } finally {
+    dengLoading.value = false
+  }
+}
+
+function openDengSellerEditor(row?: DengZongShopSeller) {
+  dengEditor.value = row
+    ? { id: row.id, marketplace: row.marketplace, sellerName: row.sellerName, storeUrl: row.storeUrl || '', notes: row.notes || '' }
+    : { id: 0, marketplace: dengMarketplace.value || 'UK', sellerName: '', storeUrl: '', notes: '' }
+  dengEditorVisible.value = true
+}
+
+async function saveDengSeller() {
+  const form = dengEditor.value
+  if (!form.marketplace || !form.sellerName.trim()) {
+    ElMessage.warning('站点和卖家名称不能为空')
+    return
+  }
+  dengSaving.value = true
+  try {
+    const data = { ...form, sellerName: form.sellerName.trim(), storeUrl: form.storeUrl.trim(), notes: form.notes.trim() }
+    if (form.id) await dengZongShopApi.updateSeller(form.id, data)
+    else await dengZongShopApi.createSeller(data)
+    dengEditorVisible.value = false
+    ElMessage.success(form.id ? '非标店铺已更新' : '非标店铺已登记')
+    await loadDengSellers()
+  } catch (error: any) {
+    ElMessage.error(error?.message || '保存非标店铺失败')
+  } finally {
+    dengSaving.value = false
+  }
+}
+
+async function deleteDengSeller(row: DengZongShopSeller) {
+  try {
+    await ElMessageBox.confirm(`确认从非标店铺名单删除「${row.sellerName}」？已抓取商品不会随之删除。`, '删除非标店铺', { type: 'warning' })
+    await dengZongShopApi.deleteSeller(row.id)
+    ElMessage.success('已从名单删除')
+    await loadDengSellers()
+  } catch (error: any) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '删除失败')
+  }
+}
+
+async function submitDengSync(rows: DengZongShopSeller[]) {
+  if (!rows.length) return
+  try {
+    await ElMessageBox.confirm(
+      `确认请求 ${rows.length} 家非标店铺？将消耗卖家精灵次数，结果只写入 deng_zong_shop。`,
+      '创建非标店铺抓取任务',
+      { type: 'warning', confirmButtonText: '确认创建' }
+    )
+    dengSubmitting.value = true
+    const result = await dengZongShopApi.createSyncTask(rows.map(row => row.id))
+    const skipped = result.skippedCount ? `，跳过活跃任务 ${result.skippedCount} 家` : ''
+    ElMessage.success(`已创建任务，入队 ${result.queuedCount} 家${skipped}`)
+    await router.push({ name: 'module-sellersprite-request-center-SellerspriteRequestCenter', query: { runId: result.runId } })
+  } catch (error: any) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '创建非标店铺任务失败')
+  } finally {
+    dengSubmitting.value = false
+  }
+}
 const FILTER_STORAGE_KEY = 'shop-request-center:filters:v1'
 type RequestState = 'UNREQUESTED' | 'REQUESTED'
 interface StoredFilters {
@@ -588,7 +759,12 @@ function compareCandidatePriority(a: ShopCandidatePool, b: ShopCandidatePool) {
 }
 
 function batchOptionLabel(item: ShopMethodBatchOption) {
-  return `${displayBatchDate(item.batchCode, item.latestCreatedAt)} · ${item.sellerCount} 店 / ${item.productCount} 品`
+  // 统一收口到 utils/batchLabel：按天分组下拉显示 `7/22 · 1691店 / 2190品`。
+  return formatShopBatchLabel({
+    value: item.batchCode,
+    sellerCount: item.sellerCount,
+    productCount: item.productCount,
+  })
 }
 
 function displayBatchDate(batchCode?: string | null, fallbackDate?: string | null) {
@@ -756,8 +932,17 @@ function readStoredFilters(): StoredFilters {
 }
 
 onMounted(async () => {
+  if (requestMode.value === 'DENG_ZONG') {
+    await loadDengSellers()
+    return
+  }
   await loadMethodBatches(false)
   await loadList()
+})
+
+watch(requestMode, async mode => {
+  await router.replace({ query: mode === 'DENG_ZONG' ? { ...route.query, mode: 'deng-zong' } : {} })
+  if (mode === 'DENG_ZONG') await loadDengSellers()
 })
 </script>
 
@@ -767,6 +952,22 @@ onMounted(async () => {
 }
 .header-card {
   margin-bottom: 12px;
+}
+.mode-card {
+  margin-bottom: 12px;
+}
+.mode-card :deep(.el-card__body) {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.mode-description {
+  color: #606266;
+  font-size: 13px;
+}
+.deng-zong-card .deng-alert {
+  margin: 12px 0;
 }
 .toolbar {
   display: flex;

@@ -115,10 +115,10 @@
     </select>
 
     <select id="selectCreatedWeeksWithCount" resultType="java.util.Map">
-        SELECT DATE_FORMAT(created_at, '%x-W%v') AS week,
+        SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS week,
                COUNT(*) AS count,
-               MIN(DATE(created_at)) AS startDate,
-               MAX(DATE(created_at)) AS endDate
+               DATE_FORMAT(created_at, '%Y-%m-%d') AS startDate,
+               DATE_FORMAT(created_at, '%Y-%m-%d') AS endDate
         FROM premium_products
         WHERE marketplace = #{marketplace}
           AND deleted = 0
@@ -126,8 +126,8 @@
           AND sellersprite_raw_json IS NOT NULL
           AND TRIM(sellersprite_raw_json) != ''
           AND created_at IS NOT NULL
-        GROUP BY week
-        ORDER BY week DESC
+        GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d')
+        ORDER BY DATE_FORMAT(created_at, '%Y-%m-%d') DESC
     </select>
 
     <select id="selectCategoriesWithCount" resultType="java.util.Map">

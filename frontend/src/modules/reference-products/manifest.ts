@@ -5,6 +5,8 @@ export default {
   name: '店铺选品',
   icon: 'Shop',
   menuGroup: '选品中心',
+  menuSection: '商品数据源',
+  menuSectionOrder: 2,
   menuOrder: 12,
   route: {
     path: 'reference-products',

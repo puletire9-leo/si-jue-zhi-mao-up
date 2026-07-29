@@ -5,6 +5,8 @@ export default {
   name: '新品榜',
   icon: 'Star',
   menuGroup: '选品中心',
+  menuSection: '商品数据源',
+  menuSectionOrder: 2,
   menuOrder: 11,
   route: {
     path: 'new-products',

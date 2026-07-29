@@ -5,6 +5,8 @@ export default {
   name: '店铺详情',
   icon: 'DataBoard',
   menuGroup: '店铺总览',
+  menuSection: '店铺分析',
+  menuSectionOrder: 2,
   menuOrder: 18,
   route: {
     path: 'shop-collection/shops',

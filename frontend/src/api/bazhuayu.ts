@@ -38,6 +38,11 @@ export interface BazhuayuTask {
   apiSuccess: number;
   apiFail: number;
   dataMonth: string | null;
+  bazhuayuBatchNo?: string | null;
+  bazhuayuBatchStartTime?: string | null;
+  bazhuayuBatchEndTime?: string | null;
+  bazhuayuBatchCount?: number | null;
+  bazhuayuLotNo?: string | null;
   createdAt: string;
 }
 
@@ -67,9 +72,14 @@ export interface BazhuayuTaskMapItem {
   parentAsinCount: number;
   variantAsinCount: number;
   dataMonth: string | null;
+  bazhuayuBatchNo?: string | null;
+  bazhuayuBatchStartTime?: string | null;
+  bazhuayuBatchEndTime?: string | null;
+  bazhuayuBatchCount?: number | null;
+  bazhuayuLotNo?: string | null;
   errorMessage?: string | null;
   createdAt: string;
-  completedAt: string;
+  completedAt: string | null;
   /** 关联的请求中心 ASIN 批量运行；存在时优先展示其真实执行状态。 */
   sellerSpriteRun?: SellerspriteRunSummary | null;
 }
@@ -101,6 +111,7 @@ export interface BazhuayuMarketplaceOverview {
   weeklyRawCount: number;
   weekTaskCount: number;
   weekReadyCount: number;
+  weekQueuedCount: number;
   weekRunningCount: number;
   weekDoneCount: number;
   weekErrorCount: number;
@@ -218,6 +229,15 @@ export interface StartCollectResp {
   missing: string[]; // 未配置 taskId
 }
 
+export interface TriggerImportResp {
+  status: "QUEUED" | "ALREADY_IMPORTED" | "TRIGGERED";
+  marketplace: string;
+  batchNo: string;
+  taskId: number | null;
+  alreadyImported: boolean;
+  submitted: boolean;
+}
+
 /** 以图识图结果行 */
 export interface ImageSearchResult {
   id: number;
@@ -252,7 +272,7 @@ export const bazhuayuApi = {
       | "latestBatchEndTime"
       | "latestBatchCount"
     >,
-  ): Promise<{ status: string; marketplace: string; batchNo: string }> {
+  ): Promise<TriggerImportResp> {
     return unwrap(
       request({
         url: "/api/v1/modules/bazhuayu/trigger",
@@ -358,6 +378,13 @@ export const bazhuayuApi = {
         method: "get",
       }),
     );
+  },
+
+  deleteTask(taskId: number): Promise<void> {
+    return unwrap<void>(request({
+      url: `/api/v1/modules/bazhuayu/tasks/${taskId}`,
+      method: "delete",
+    }));
   },
 
   createTaskEntry(data: {

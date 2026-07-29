@@ -67,7 +67,7 @@
     <section class="segment">
       <div class="segment-head">
         <span class="segment-title">本周（{{ weekTag || "—" }}）</span>
-        <span class="segment-sub" v-if="weekStart">自 {{ weekStart }} 起</span>
+        <span class="segment-sub" v-if="weekStart">自 {{ formatTs(weekStart) }} 起</span>
       </div>
       <el-row :gutter="12">
         <el-col
@@ -202,7 +202,19 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" width="170" />
+        <el-table-column label="创建时间" width="170">
+          <template #default="{ row }">
+            {{ formatTs((row as BazhuayuTaskMapItem).createdAt) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="八爪鱼批次" min-width="190">
+          <template #default="{ row }">
+            <div>{{ (row as BazhuayuTaskMapItem).bazhuayuBatchNo || "历史任务" }}</div>
+            <span v-if="(row as BazhuayuTaskMapItem).bazhuayuBatchCount" class="muted">
+              {{ (row as BazhuayuTaskMapItem).bazhuayuBatchCount?.toLocaleString() }} 条
+            </span>
+          </template>
+        </el-table-column>
         <el-table-column label="完成时间" width="170">
           <template #default="{ row }">
             {{ displayCompletedAt(row as BazhuayuTaskMapItem) }}
@@ -246,7 +258,7 @@
             >
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="140" fixed="right">
+        <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
             <!-- @click.stop 防止触发行点击 openDetail -->
             <el-button
@@ -266,6 +278,13 @@
               >请求卖家精灵</el-button
             >
             <span v-else class="muted">—</span>
+            <el-button
+              type="danger"
+              link
+              size="small"
+              :disabled="['QUEUED', 'RUNNING', 'DRAINING'].includes((row as BazhuayuTaskMapItem).status) || hasSellerSpriteRun(row as BazhuayuTaskMapItem)"
+              @click.stop="deleteImportTask(row as BazhuayuTaskMapItem)"
+            >删除任务</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -841,6 +860,7 @@ function statusText(status: string) {
   return (
     (
       {
+        QUEUED: "排队中",
         READY: "待确认",
         RUNNING: "运行中",
         DRAINING: "入库中",
@@ -859,7 +879,7 @@ function statusTag(
 ): "primary" | "success" | "warning" | "info" | "danger" {
   if (status === "DONE") return "success";
   if (status === "ERROR") return "danger";
-  if (status === "RUNNING") return "warning";
+  if (status === "RUNNING" || status === "QUEUED") return "warning";
   if (status === "DRAINING") return "primary";
   return "info";
 }
@@ -902,7 +922,10 @@ function displayStatusTag(
 }
 
 function displayCompletedAt(row: BazhuayuTaskMapItem) {
-  return sellerSpriteRun(row)?.finishedAt || row.completedAt || "-";
+  const runFinishedAt = sellerSpriteRun(row)?.finishedAt;
+  if (runFinishedAt) return formatTs(runFinishedAt);
+  const terminalStatuses = ["READY", "DONE", "ERROR", "REJECTED", "CANCELLED"];
+  return terminalStatuses.includes(row.status) ? formatTs(row.completedAt) : "—";
 }
 
 function displayApiSuccess(row: BazhuayuTaskMapItem) {
@@ -1018,6 +1041,32 @@ async function executeTask(row: BazhuayuTaskMapItem) {
   }
 }
 
+async function deleteImportTask(row: BazhuayuTaskMapItem) {
+  if (["QUEUED", "RUNNING", "DRAINING"].includes(row.status) || hasSellerSpriteRun(row)) return;
+  try {
+    await ElMessageBox.confirm(
+      `确定删除任务「${row.taskName || `#${row.id}`}」吗？\n\n将删除任务记录、ASIN 明细及该批次写入的八爪鱼原始/去重数据，使对应批次可以真正重新导入；已关联卖家精灵请求的任务不能删除。`,
+      "删除导入任务",
+      {
+        type: "warning",
+        confirmButtonText: "删除",
+        cancelButtonText: "取消",
+        confirmButtonClass: "el-button--danger",
+      },
+    );
+  } catch {
+    return;
+  }
+  try {
+    await bazhuayuApi.deleteTask(row.id);
+    ElMessage.success("任务已删除，可以重新导入该批次");
+    if (detailRow.value?.id === row.id) detailVisible.value = false;
+    await loadOverview();
+  } catch (e: any) {
+    ElMessage.error(e?.message || "删除任务失败");
+  }
+}
+
 function openDetail(row: BazhuayuTaskMapItem) {
   detailRow.value = row;
   detailVisible.value = true;
@@ -1063,9 +1112,51 @@ function hasActiveWork(): boolean {
   return taskActive || stateActive;
 }
 
-/** 有处理中任务时开轮询，全部结束则停，避免空轮询 */
+const POST_TRIGGER_POLL_MS = 60_000;
+let postTriggerPollUntil = 0;
+let postTriggerTaskId: number | null = null;
+let postTriggerStopTimer: ReturnType<typeof setTimeout> | null = null;
+
+function recentlyQueuedTask(): boolean {
+  const now = Date.now();
+  return (overview.value?.lifetimeTasks ?? []).some((task) => {
+    if (task.status !== "QUEUED") return false;
+    const createdAt = Date.parse(task.createdAt);
+    return Number.isFinite(createdAt) && now - createdAt < POST_TRIGGER_POLL_MS;
+  });
+}
+
+function hasPostTriggerPolling(): boolean {
+  if (!postTriggerTaskId || Date.now() >= postTriggerPollUntil) {
+    postTriggerTaskId = null;
+    postTriggerPollUntil = 0;
+    return recentlyQueuedTask();
+  }
+  const task = overview.value?.lifetimeTasks.find((t) => t.id === postTriggerTaskId);
+  if (task && task.status !== "QUEUED") {
+    postTriggerTaskId = null;
+    postTriggerPollUntil = 0;
+    return false;
+  }
+  return true;
+}
+
+function startPostTriggerPolling(taskId: number) {
+  postTriggerTaskId = taskId;
+  postTriggerPollUntil = Date.now() + POST_TRIGGER_POLL_MS;
+  if (postTriggerStopTimer) clearTimeout(postTriggerStopTimer);
+  postTriggerStopTimer = setTimeout(() => {
+    postTriggerTaskId = null;
+    postTriggerPollUntil = 0;
+    postTriggerStopTimer = null;
+    syncPolling();
+  }, POST_TRIGGER_POLL_MS);
+  syncPolling();
+}
+
+/** 有处理中任务或刚提交的目标任务时开轮询，结束或超过等待上限则停。 */
 function syncPolling() {
-  if (hasActiveWork()) {
+  if (hasActiveWork() || hasPostTriggerPolling()) {
     if (!pollTimer) {
       pollTimer = setInterval(loadOverview, POLL_INTERVAL_MS);
     }
@@ -1096,15 +1187,18 @@ function cloudStatusTone(status: string) {
   return "muted";
 }
 
-function formatTs(iso: string | null) {
+function formatTs(iso: string | null | undefined) {
   if (!iso) return "—";
-  // 后端返回 java LocalDateTime.toString() 无时区，直接切成 yyyy-MM-dd HH:mm 展示
-  return iso.replace("T", " ").slice(0, 16);
+  // 后端返回无时区 LocalDateTime，保持现有时区语义，仅统一到秒。
+  const normalized = iso.replace("T", " ");
+  return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(normalized)
+    ? `${normalized}:00`
+    : normalized.slice(0, 19);
 }
 
 function formatBatchEnd(iso: string | null) {
   if (!iso) return "进行中";
-  return iso.replace("T", " ").slice(11, 16);
+  return iso.replace("T", " ").slice(11, 19);
 }
 
 function canImportBatch(row: MappingRow) {
@@ -1350,10 +1444,13 @@ async function importToDb(row: MappingRow) {
       row.function,
       batch,
     );
-    ElMessage.success(
-      `已触发 ${resp.marketplace} 批次 ${resp.batchNo} 导入，稍后到主页面看进度`,
-    );
-    // 主页面 overview 会显示 currentPhase=DRAINING / weekTasks 新增
+    if (resp.alreadyImported) {
+      ElMessage.info(`批次 ${resp.batchNo} 已存在，已定位任务 #${resp.taskId}`);
+    } else {
+      ElMessage.success(`导入请求已提交，正在创建任务 #${resp.taskId}`);
+      if (resp.taskId) startPostTriggerPolling(resp.taskId);
+    }
+    scope.value = "week";
     await loadOverview();
   } catch (e: any) {
     ElMessage.error(e?.message || "导入失败");
@@ -1444,6 +1541,10 @@ onUnmounted(() => {
   if (pollTimer) {
     clearInterval(pollTimer);
     pollTimer = null;
+  }
+  if (postTriggerStopTimer) {
+    clearTimeout(postTriggerStopTimer);
+    postTriggerStopTimer = null;
   }
 });
 </script>

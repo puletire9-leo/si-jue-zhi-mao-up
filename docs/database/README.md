@@ -99,17 +99,21 @@ Java product 已启用启动期 `SchemaGuard`：
 
 | 文件 | 说明 |
 |------|------|
+| `add_ai_selection_asin_index.sql` | AI 选品为 `shop_products` / `competitor_products_clean` 增加 `(asin, marketplace)` 查询索引 |
+| `improve_guapai_recall_20260728.sql` | 非标载体增加条件排除词和成品保护词，并补齐亚克力/玻璃挂牌召回词 |
 | `add_batch_code_to_shop_products.sql` | 店铺全集增加 ISO 周批次 |
 | `add_competitor_lookup_log_pages_total.sql` | 竞品查询日志补齐 `pages` / `total` |
 | `add_bazhuayu_task_initial_filter.sql` | 八爪鱼命名任务增加是否初筛开关；历史精品任务默认关闭 |
 | `add_bazhuayu_task_category_and_import_metadata.sql` | 八爪鱼任务增加分类；导入任务记录来源、初筛和目标表 |
+| `add_asin_import_completed_at.sql` | 导入任务增加真实终态完成时间；必须在发布新 Java 实体前执行 |
 
 ### 八爪鱼榜单任务分流
 
 - 所有八爪鱼命名任务平级，不存在主任务/附加任务；`task_category` 由用户维护，例如精铺、精品。
 - `initial_filter=1`：保持精铺现有流程，八爪鱼原始数据进入 `bazhuayu_weekly_raw`，生成初筛任务。
 - `initial_filter=0`：不做价格、评论、主表或黑名单筛选，全部合法唯一 ASIN 作为 PASS 生成可见导入任务。
-- “导入DB”只生成 `READY` 任务，绝不自动调用卖家精灵。用户在任务列表点击“请求卖家精灵”后，才创建请求中心任务。
+- “导入DB”同步生成 `QUEUED` 任务并立即返回 taskId，后台按 `QUEUED → RUNNING → READY/ERROR` 执行；绝不自动调用卖家精灵。用户在任务列表点击“请求卖家精灵”后，才创建请求中心任务。
+- `updated_at` 表示最近更新时间；`completed_at` 只在 `READY/DONE/ERROR/REJECTED/CANCELLED` 等终态写入，前端不得用 `updated_at` 冒充完成时间。
 - 手动请求时按任务的 `target_table` 分流：精铺使用 `ASIN_BATCH_LOOKUP → competitor_products`，精品使用 `PREMIUM_ASIN_LOOKUP → premium_products`。
 - 精品链路不写 `competitor_products`、不写 `skip_asins`、不刷新 `competitor_products_clean`，因此不会污染新品榜或影响后续精铺去重。
 

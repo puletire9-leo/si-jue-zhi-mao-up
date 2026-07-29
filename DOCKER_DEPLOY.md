@@ -6,7 +6,7 @@
 
 ```bash
 # 生产环境
-docker compose -f docker-compose.prod.yml -p sijuelishi-prod up -d
+docker compose -f docker-compose.prod.yml up -d
 
 # 开发环境
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d

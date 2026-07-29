@@ -21,6 +21,10 @@ import {
 } from "@/views/AllSelection/composables/queryPlan";
 import { resolveSelectionQueryPlan } from "@/views/AllSelection/composables/queryRuntime";
 import { downloadAllResultsCsv } from "@/views/AllSelection/composables/selectionCsv";
+import {
+  mergeSelectionResults,
+  type SelectionSourceTag,
+} from "./mergeSelection";
 
 function emptyRangeFilter(): RangeFilterValue {
   return createEmptyRangeFilter();
@@ -49,10 +53,8 @@ export const useProductLineSelectionStore = defineStore(
   () => {
     // ---- 状态 ----
     const marketplace = ref("UK");
-    const now = new Date();
-    const month = ref(
-      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
-    );
+    // 数据源:all=合并新品榜+店铺(默认) / new=仅新品榜 / shop=仅店铺
+    const dataSource = ref<"all" | "new" | "shop">("all");
     const batchVersion = ref("v3");
     const selectedNodeId = ref("");
     const selectedNodeName = ref("");
@@ -135,9 +137,14 @@ export const useProductLineSelectionStore = defineStore(
       return group?.children ?? [];
     });
 
+    /** 当前选中的批次日期数组(单天 yyyy-MM-dd);为空表示"最新批次",由后端兜底。 */
+    function currentBatchDates(): string[] {
+      return [...(rangeFilter.value.createdWeeks ?? [])];
+    }
+
     // ---- 数据初始化 ----
     async function initData() {
-      // 切换站点/月份时重置区间筛选（周批次由面板按站点重新拉取并默认最新）
+      // 切换站点时重置区间筛选（批次由面板按站点重新拉取并默认最新）
       rangeFilter.value = emptyRangeFilter();
       await Promise.all([fetchTree(), refreshMethodEvidence()]);
 
@@ -152,10 +159,14 @@ export const useProductLineSelectionStore = defineStore(
       treeLoading.value = true;
       try {
         const mkp = marketplace.value;
-        const mo = month.value.replace("-", "");
-        // 应用 M01 时后端按 M01 硬筛口径重算 productCount, 保证树数量=列表数量;
-        // 未应用方法卡时保持全量竞品口径
-        const res = await getTree(mkp, mo, activeMethodCard.value?.id);
+        // 品线树跟随批次 + 数据源 + 方法卡(三者同步):
+        //  - methodId + dataSource 组合:后端对每个源按 M01/M03 硬筛口径重算 productCount,
+        //    保证树数量=列表数量;数据源不再被方法卡屏蔽,与页面选择一致。
+        const res = await getTree(mkp, {
+          batchDates: currentBatchDates(),
+          methodId: activeMethodCard.value?.id,
+          dataSource: dataSource.value,
+        });
         const raw = res?.data?.productLines as ProductLineGroup[] | undefined;
         if (!raw) {
           treeData.value = [];
@@ -241,11 +252,8 @@ export const useProductLineSelectionStore = defineStore(
     }
 
     async function refreshMethodEvidence() {
-      if (activeMethodCard.value?.id === "M02") {
-        await fetchCompleteness();
-      } else {
-        completeness.value = null;
-      }
+      // 当前品线选品页仅保留 M01 / M03,均无需非标证据完整性校验
+      completeness.value = null;
     }
 
     async function reloadCurrentProducts() {
@@ -270,7 +278,7 @@ export const useProductLineSelectionStore = defineStore(
 
     async function applyM01MethodCard() {
       activeMethodCard.value = { id: "M01", name: "新品榜加速法" };
-      // M01 走 competitor_clean 表,不需要非标证据批次
+      // M01=规则,叠加在当前 dataSource(新品榜/店铺/全部)上;不重置数据源,不需要非标证据批次
       zhengBatchDate.value = "";
       completeness.value = null;
       await fetchTree();
@@ -278,9 +286,12 @@ export const useProductLineSelectionStore = defineStore(
       await reloadCurrentProducts();
     }
 
-    async function applyM02MethodCard() {
-      activeMethodCard.value = { id: "M02", name: "非标同行品线跟随法" };
-      await Promise.all([fetchTree(), refreshMethodEvidence()]);
+    async function applyM03MethodCard() {
+      activeMethodCard.value = { id: "M03", name: "FBM 自发货简单道" };
+      // M03 走 clean 表叠加 FBM 规则,不需要非标证据批次
+      zhengBatchDate.value = "";
+      completeness.value = null;
+      await fetchTree();
       ensureCategorySelected();
       await reloadCurrentProducts();
     }
@@ -338,65 +349,134 @@ export const useProductLineSelectionStore = defineStore(
             ? `${kw} ${comboFilters.map((f) => f.value).join(" ")}`
             : comboFilters.map((f) => f.value).join(" ");
 
-        // scene 按方法卡分派: M01=新品榜, M02=非标同行, 无卡=全量
-        const methodScene: SelectionScene =
-          activeMethodCard.value?.id === "M01"
-            ? "new"
-            : activeMethodCard.value?.id === "M03"
-              ? "fbm"
-              : activeMethodCard.value?.id === "M02"
-                ? "zheng"
-                : "all";
-        const intent = buildSelectionFilterIntent({
-          scene: methodScene,
-          methodId: activeMethodCard.value?.id ?? null,
-          queryParams: undefined,
-          activeFilters: {
-            country: marketplace.value,
-            sellerSelect: searchSellerName.value,
-            category: [],
-            sortField,
-            sortOrder,
-            range: {
-              ...rangeFilter.value,
-              createdWeeks: [...(rangeFilter.value.createdWeeks ?? [])].sort(),
+        // 构建某个 scene 的查询意图,共享上面的筛选/排序/关键词准备。
+        const makeIntent = (scene: SelectionScene) =>
+          buildSelectionFilterIntent({
+            scene,
+            methodId: activeMethodCard.value?.id ?? null,
+            queryParams: undefined,
+            activeFilters: {
+              country: marketplace.value,
+              sellerSelect: searchSellerName.value,
+              category: [],
+              sortField,
+              sortOrder,
+              range: {
+                ...rangeFilter.value,
+                createdWeeks: [...(rangeFilter.value.createdWeeks ?? [])].sort(),
+              },
+            } satisfies SelectionFilterState,
+            useCleanTable: true,
+            qualifyRules: qualifyRules.value,
+            qualifyRulesMode: "always",
+            overrides: {
+              marketplace: marketplace.value,
+              bsrId: filter.bsrId,
+              nodeId: filter.nodeId,
+              brand: searchBrand.value,
+              keywords: kw || undefined,
+              groupByParent: false,
+              title: keywordTitle || undefined,
+              sellerName: searchSellerName.value || undefined,
             },
-          } satisfies SelectionFilterState,
-          useCleanTable: true,
-          qualifyRules: qualifyRules.value,
-          qualifyRulesMode: "always",
-          overrides: {
-            marketplace: marketplace.value,
-            bsrId: filter.bsrId,
-            nodeId: filter.nodeId,
-            brand: searchBrand.value,
-            keywords: kw || undefined,
-            groupByParent: false,
-            title: keywordTitle || undefined,
-            sellerName: searchSellerName.value || undefined,
-          },
-        });
+          });
 
-        if (activeMethodCard.value?.id === "M02" && zhengBatchDate.value) {
-          intent.freshness.snapshotKeys = [zhengBatchDate.value];
+        const resolveScene = async (scene: SelectionScene) => {
+          const intent = makeIntent(scene);
+          const plan = buildSelectionQueryPlan({
+            intent,
+            page: competitorPage.value,
+            size: competitorPageSize.value,
+          });
+          return resolveSelectionQueryPlan(plan);
+        };
+
+        // 打来源标签,供合并去重与卡片角标使用。
+        const tag = (list: any[], source: SelectionSourceTag) =>
+          (list ?? []).map((item) => ({ ...item, dataSource: source }));
+
+        let mergedList: CompetitorProductRaw[];
+        let total: number;
+        let primaryPlan: SelectionQueryPlan;
+
+        if (activeMethodCard.value) {
+          // 方法卡=规则,数据源=表。规则叠加在当前数据源上,与页面数据源选择同步:
+          //   新品榜源→M01 走 scene"new"、M03 走 scene"fbm"(competitor_products_clean);
+          //   店铺源→scene"reference"+methodId(路由到 shop_products 并套用同口径硬筛);
+          //   全部→两源并行,各自套 methodId,再按排序键归并去重。
+          const newScene: SelectionScene =
+            activeMethodCard.value.id === "M03" ? "fbm" : "new";
+          if (dataSource.value === "new") {
+            const resolved = await resolveScene(newScene);
+            if (reqId !== _productsReqId) return;
+            primaryPlan = resolved.plan;
+            mergedList = tag(
+              resolved.result.list,
+              "new",
+            ) as CompetitorProductRaw[];
+            total = resolved.result.total ?? 0;
+          } else if (dataSource.value === "shop") {
+            const resolved = await resolveScene("reference");
+            if (reqId !== _productsReqId) return;
+            primaryPlan = resolved.plan;
+            mergedList = tag(
+              resolved.result.list,
+              "shop",
+            ) as CompetitorProductRaw[];
+            total = resolved.result.total ?? 0;
+          } else {
+            // all: 新品榜(方法卡 scene) + 店铺(reference+methodId) 并行合并。
+            const [newRes, shopRes] = await Promise.all([
+              resolveScene(newScene),
+              resolveScene("reference"),
+            ]);
+            if (reqId !== _productsReqId) return;
+            primaryPlan = newRes.plan;
+            mergedList = mergeSelectionResults(
+              tag(newRes.result.list, "new"),
+              tag(shopRes.result.list, "shop"),
+              { sortField, sortOrder },
+            );
+            total = (newRes.result.total ?? 0) + (shopRes.result.total ?? 0);
+          }
+        } else if (dataSource.value === "new") {
+          const resolved = await resolveScene("all");
+          if (reqId !== _productsReqId) return;
+          primaryPlan = resolved.plan;
+          mergedList = tag(
+            resolved.result.list,
+            "new",
+          ) as CompetitorProductRaw[];
+          total = resolved.result.total ?? 0;
+        } else if (dataSource.value === "shop") {
+          const resolved = await resolveScene("reference");
+          if (reqId !== _productsReqId) return;
+          primaryPlan = resolved.plan;
+          mergedList = tag(
+            resolved.result.list,
+            "shop",
+          ) as CompetitorProductRaw[];
+          total = resolved.result.total ?? 0;
+        } else {
+          // all: 并行查两源,合并当前页并按排序键归并去重。
+          const [newRes, shopRes] = await Promise.all([
+            resolveScene("all"),
+            resolveScene("reference"),
+          ]);
+          if (reqId !== _productsReqId) return;
+          primaryPlan = newRes.plan;
+          mergedList = mergeSelectionResults(
+            tag(newRes.result.list, "new"),
+            tag(shopRes.result.list, "shop"),
+            { sortField, sortOrder },
+          ) as CompetitorProductRaw[];
+          // 合并模式总数 = 两源之和(近似;跨页全局排序非严格精确,见方案已知取舍)。
+          total = (newRes.result.total ?? 0) + (shopRes.result.total ?? 0);
         }
 
-        const plan = buildSelectionQueryPlan({
-          intent,
-          page: competitorPage.value,
-          size: competitorPageSize.value,
-        });
-        const resolved = await resolveSelectionQueryPlan(plan);
-        const res = resolved.result;
-        if (reqId !== _productsReqId) return; // R3.2: 过时请求丢弃
-        currentQueryPlan.value = resolved.plan;
-        competitorResults.value = (res.list ?? []) as CompetitorProductRaw[];
-        competitorTotal.value = res.total ?? 0;
-        if (activeMethodCard.value?.id === "M02") {
-          const firstSnapshot = res.list?.[0]?.ruleSnapshot;
-          zhengBatchDate.value =
-            firstSnapshot?.batchDate || zhengBatchDate.value;
-        }
+        currentQueryPlan.value = primaryPlan;
+        competitorResults.value = mergedList;
+        competitorTotal.value = total;
       } catch (err) {
         if (reqId !== _productsReqId) return; // R3.2: 过时请求不弹错
         ElMessage.error("商品数据加载失败，请重试");
@@ -581,6 +661,8 @@ export const useProductLineSelectionStore = defineStore(
     async function applyRangeFilter(val: RangeFilterValue) {
       rangeFilter.value = val;
       competitorPage.value = 1;
+      // 品线树跟随批次:批次变化时同步刷新树,再刷当前类目商品。
+      await fetchTree();
       if (selectedNodeId.value || selectedBsrId.value) {
         await loadProducts({
           nodeId: selectedNodeId.value
@@ -634,8 +716,15 @@ export const useProductLineSelectionStore = defineStore(
     function setMarketplace(val: string) {
       marketplace.value = val;
     }
-    function setMonth(val: string) {
-      month.value = val;
+    /** 切换数据源(all/new/shop),刷新树与当前类目商品。 */
+    async function setDataSource(val: "all" | "new" | "shop") {
+      if (dataSource.value === val) return;
+      dataSource.value = val;
+      competitorPage.value = 1;
+      // 数据源切换后树按新源重拉(两源同等),再刷新当前类目商品。
+      await fetchTree();
+      ensureCategorySelected();
+      await reloadCurrentProducts();
     }
     function setVersion(val: string) {
       batchVersion.value = val;
@@ -658,7 +747,7 @@ export const useProductLineSelectionStore = defineStore(
 
     return {
       marketplace,
-      month,
+      dataSource,
       batchVersion,
       selectedNodeId,
       selectedNodeName,
@@ -695,7 +784,7 @@ export const useProductLineSelectionStore = defineStore(
       loadProducts,
       FILTER_LABEL,
       setMarketplace,
-      setMonth,
+      setDataSource,
       setVersion,
       // ---- 新增状态 ----
       searchKeyword,
@@ -711,7 +800,7 @@ export const useProductLineSelectionStore = defineStore(
       applyQualifyRules,
       activeMethodCard,
       applyM01MethodCard,
-      applyM02MethodCard,
+      applyM03MethodCard,
       clearMethodCard,
       // ---- 统一区间筛选面板 ----
       rangeFilter,

@@ -5,6 +5,8 @@ export default {
   name: '人工选品库',
   icon: 'Collection',
   menuGroup: '选品中心',
+  menuSection: '选品工作台',
+  menuSectionOrder: 1,
   menuOrder: 13,
   route: {
     path: 'developer-selection-library',

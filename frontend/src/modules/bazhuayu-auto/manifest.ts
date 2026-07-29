@@ -5,6 +5,8 @@ export default {
   name: '八爪鱼自动采集',
   icon: 'Refresh',
   menuGroup: '选品中心',
+  menuSection: '数据采集',
+  menuSectionOrder: 3,
   menuOrder: 13,
   route: {
     path: 'bazhuayu-auto',

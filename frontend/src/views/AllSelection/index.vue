@@ -54,6 +54,16 @@
                 >
                   下载全部 CSV
                 </el-button>
+                <el-button
+                  v-if="isDownloadCenterXlsxScene"
+                  type="success"
+                  :icon="Download"
+                  :loading="exportingSelectedXlsx"
+                  :disabled="loading || selectedIds.length === 0"
+                  @click="handleExportSelectedXlsx"
+                >
+                  下载 XLSX{{ selectedIds.length > 0 ? ` (${selectedIds.length})` : "" }}
+                </el-button>
 
                 <el-button
                   v-if="isManualLibrarySourceScene"
@@ -106,9 +116,45 @@
                   v-if="activeTab === 'zheng'"
                   type="primary"
                   :icon="Shop"
-                  @click="openSellerDialog"
+                  @click="openDengZongRequestCenter"
                 >
-                  查看店铺
+                  管理非标店铺
+                </el-button>
+                <!-- AI 选品：载体多选筛选（选挂牌只出挂牌，可多选一起看） -->
+                <el-select
+                  v-if="isAiSelectionScene"
+                  v-model="carrierFilter"
+                  multiple
+                  collapse-tags
+                  collapse-tags-tooltip
+                  clearable
+                  placeholder="载体筛选"
+                  style="width: 200px;"
+                  @change="handleCarrierFilterChange"
+                >
+                  <el-option
+                    v-for="c in carrierList"
+                    :key="c.carrierKey"
+                    :label="c.name"
+                    :value="c.carrierKey"
+                  />
+                </el-select>
+                <el-button
+                  v-if="isAiSelectionScene"
+                  :icon="Setting"
+                  text
+                  @click="openCarrierManage"
+                >
+                  管理载体
+                </el-button>
+                <!-- AI 选品：导入 ASIN -->
+                <el-button
+                  v-if="isAiSelectionScene"
+                  type="primary"
+                  :icon="Upload"
+                  @click="aiImportDialogVisible = true"
+                >
+                  导入 ASIN
                 </el-button>
               </div>
             </div>
@@ -131,7 +177,49 @@
             @search="handleSearch"
             @reset="handleReset"
             @image-search="handleSearchByImage"
-          />
+          >
+            <template v-if="isShopProductsScene" #compact-actions>
+              <el-button
+                type="primary"
+                :icon="Shop"
+                @click="openShopRequestDialog"
+              >
+                店铺请求
+              </el-button>
+            </template>
+          </SelectionQueryForm>
+
+          <el-dialog
+            v-model="shopRequestDialogVisible"
+            title="店铺请求"
+            width="420px"
+            destroy-on-close
+            @closed="shopRequestForm.sellerName = ''"
+          >
+            <el-form label-width="72px" @submit.prevent>
+              <el-form-item label="国家" required>
+                <el-select v-model="shopRequestForm.marketplace" style="width: 100%">
+                  <el-option label="英国 UK" value="UK" />
+                  <el-option label="德国 DE" value="DE" />
+                  <el-option label="美国 US" value="US" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="店铺名" required>
+                <el-input
+                  v-model="shopRequestForm.sellerName"
+                  clearable
+                  placeholder="请输入 Amazon 店铺名"
+                  @keyup.enter="submitShopRequest"
+                />
+              </el-form-item>
+            </el-form>
+            <template #footer>
+              <el-button @click="shopRequestDialogVisible = false">取消</el-button>
+              <el-button type="primary" :loading="shopRequestSubmitting" @click="submitShopRequest">
+                请求店铺
+              </el-button>
+            </template>
+          </el-dialog>
 
           <!-- 统一筛选入口：站点/大类常驻 + 筛选按钮 + 已选条件标签 -->
           <div class="unified-filter-bar">
@@ -280,14 +368,16 @@
             <div
               v-for="product in virtualVisibleProducts"
               :key="product.id"
+              v-memo="[
+                product.id,
+                selectedIds.includes(product.asin),
+                mySelections.has(product.asin),
+                selectionUsersMap[product.asin],
+                cardSelectionEnabled,
+              ]"
               class="product-card-scale-wrapper"
-              :style="cardWrapperStyle(product)"
             >
-              <div
-                :ref="(element) => setCardScaleCanvasRef(productCardKey(product), element)"
-                class="product-card-scale-canvas"
-                :data-card-key="productCardKey(product)"
-              >
+              <div class="product-card-scale-canvas">
                 <UniversalCard
                   :product="product"
                   :selected="selectedIds.includes(product.asin)"
@@ -322,7 +412,7 @@
             :current-page="pagination.page"
             :page-size="pagination.size"
             :total="pagination.total"
-            :page-sizes="[60, 100, 200, 500]"
+            :page-sizes="[60, 100, 200]"
             layout="total, sizes, prev, pager, next, jumper"
             @size-change="handleSizeChange"
             @current-change="handlePageChange"
@@ -492,25 +582,9 @@
             </div>
           </div>
 
-          <!-- 卖家 -->
-          <div class="fd-section">
-            <div class="fd-label">卖家</div>
-            <el-select
-              v-model="draftFilters.sellerSelect"
-              placeholder="全部卖家"
-              clearable
-              filterable
-              style="width: 100%"
-              :loading="drawerSellerLoading"
-            >
-              <el-option
-                v-for="seller in drawerSellerOptions"
-                :key="seller.id"
-                :label="seller.sellerName"
-                :value="seller.sellerName"
-              />
-            </el-select>
-          </div>
+          <!-- 卖家下拉已移除：上千卖家灌进 filterable el-select 会触发 Element Plus
+               海量响应式 getter，打开抽屉卡死 ~11s（CDP profiler 实测）。
+               按店铺名查找改用顶部搜索框（sellerName 链路，跨批次全库搜，见 loadProducts）。 -->
 
           <!-- 排序 -->
           <div class="fd-section">
@@ -551,6 +625,7 @@
               :use-clean-table="useCleanTable"
               :auto-select-latest-week="!activeMethodCard"
               embedded
+              @batch-deleted="handleBatchDeleted"
             />
           </div>
 
@@ -913,124 +988,6 @@
           </template>
         </el-dialog>
 
-        <!-- 卖家管理对话框 -->
-        <el-dialog
-          v-model="sellerDialogVisible"
-          title="邓总店铺卖家管理"
-          width="800px"
-          destroy-on-close
-        >
-          <div class="seller-dialog-content">
-            <div class="seller-toolbar">
-              <el-select
-                v-model="sellerFilterMarketplace"
-                placeholder="按站点筛选"
-                clearable
-                style="width: 150px"
-                @change="loadSellerList"
-              >
-                <el-option label="UK" value="UK" />
-                <el-option label="DE" value="DE" />
-              </el-select>
-              <el-button type="primary" :icon="Plus" @click="handleAddSeller"
-                >新增卖家</el-button
-              >
-            </div>
-            <el-table
-              :data="sellerList"
-              border
-              stripe
-              style="width: 100%"
-              max-height="500"
-            >
-              <el-table-column prop="marketplace" label="站点" width="80" />
-              <el-table-column
-                prop="sellerName"
-                label="卖家名称"
-                min-width="200"
-                show-overflow-tooltip
-              >
-                <template #default="{ row }">
-                  <el-input
-                    v-if="row._editing"
-                    v-model="row.sellerName"
-                    size="small"
-                    @keyup.enter="handleSaveSeller(row)"
-                  />
-                  <span v-else>{{ row.sellerName }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="店铺链接" min-width="220">
-                <template #default="{ row }">
-                  <el-input
-                    v-if="row._editing"
-                    v-model="row.storeUrl"
-                    size="small"
-                    placeholder="店铺链接"
-                    @keyup.enter="handleSaveSeller(row)"
-                  />
-                  <el-link
-                    v-else-if="row.storeUrl"
-                    :href="row.storeUrl"
-                    target="_blank"
-                    type="primary"
-                  >
-                    打开
-                  </el-link>
-                  <span v-else style="color: #909399">无</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="备注" min-width="180">
-                <template #default="{ row }">
-                  <el-input
-                    v-if="row._editing"
-                    v-model="row.notes"
-                    size="small"
-                    placeholder="备注"
-                    @keyup.enter="handleSaveSeller(row)"
-                  />
-                  <span v-else>{{ row.notes || "" }}</span>
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="260" fixed="right">
-                <template #default="{ row }">
-                  <template v-if="row._editing">
-                    <el-button
-                      type="success"
-                      size="small"
-                      @click="handleSaveSeller(row)"
-                      >保存</el-button
-                    >
-                    <el-button size="small" @click="row._editing = false"
-                      >取消</el-button
-                    >
-                  </template>
-                  <template v-else>
-                    <el-button
-                      type="primary"
-                      size="small"
-                      @click="row._editing = true"
-                      >编辑</el-button
-                    >
-                    <el-button
-                      type="warning"
-                      size="small"
-                      :loading="row._syncing"
-                      @click="handleSyncSeller(row)"
-                      >同步数据</el-button
-                    >
-                    <el-button
-                      type="danger"
-                      size="small"
-                      @click="handleDeleteSeller(row)"
-                      >删除</el-button
-                    >
-                  </template>
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </el-dialog>
       </div>
     </div>
 
@@ -1064,6 +1021,99 @@
       :marketplace="activeFilters.country || 'UK'"
       @rule-saved="onM01RuleSaved"
     />
+
+    <!-- AI 选品：导入 ASIN 弹窗 -->
+    <el-dialog v-model="aiImportDialogVisible" title="导入 ASIN" width="520px" @close="aiImportAsinInput = ''">
+      <el-input
+        v-model="aiImportAsinInput"
+        type="textarea"
+        :rows="8"
+        :disabled="aiImportLoading"
+        placeholder="粘贴 ASIN，每行一个或用空格/逗号分隔&#10;示例：&#10;B0GT4SCSDL&#10;B0H33FYNHY"
+      />
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px; font-size: 13px; color: #64748b;">
+        <span v-if="aiImportParsedCount > 0">识别到 <strong>{{ aiImportParsedCount }}</strong> 个 ASIN</span>
+        <span v-else>输入 ASIN 后将自动识别</span>
+        <el-select v-model="aiImportMarketplace" size="small" placeholder="站点（可选）" clearable style="width: 130px">
+          <el-option label="美国 US" value="US" />
+          <el-option label="英国 UK" value="UK" />
+          <el-option label="德国 DE" value="DE" />
+        </el-select>
+      </div>
+      <template #footer>
+        <el-button @click="aiImportDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="aiImportLoading" :disabled="aiImportParsedCount === 0" @click="handleAiImport">
+          查询并导入
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 非标载体：管理 -->
+    <el-dialog v-model="carrierManageVisible" title="载体管理" width="820px">
+      <div style="font-size: 12px; color: #94a3b8; margin-bottom: 10px;">
+        载体定义「一类非标品用哪套检索词」。首次使用或补充数据时，选站点点「同步数据」把该载体的商品灌入选品库，之后即可在顶部按载体筛选。
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+        <span style="font-size: 13px; color: #64748b;">同步站点：</span>
+        <el-select v-model="carrierSyncMarketplaces" multiple collapse-tags collapse-tags-tooltip size="small" style="width: 220px;" placeholder="默认三国全选">
+          <el-option label="英国 UK" value="UK" />
+          <el-option label="德国 DE" value="DE" />
+          <el-option label="美国 US" value="US" />
+        </el-select>
+        <span style="font-size: 12px; color: #94a3b8;">（多选，一次增量同步多国，合并为一个批次，仅灌新增）</span>
+      </div>
+      <el-table :data="carrierList" size="small" border style="margin-bottom: 16px;">
+        <el-table-column prop="name" label="名称" width="80" />
+        <el-table-column prop="carrierKey" label="键" width="80" />
+        <el-table-column prop="titleKeywords" label="标题主词" show-overflow-tooltip />
+        <el-table-column prop="categoryPaths" label="类目词" width="120" show-overflow-tooltip />
+        <el-table-column prop="excludeKeywords" label="硬排除词" width="120" show-overflow-tooltip />
+        <el-table-column prop="conditionalExcludeKeywords" label="条件排除词" width="120" show-overflow-tooltip />
+        <el-table-column prop="includeKeywords" label="成品保护词" width="120" show-overflow-tooltip />
+        <el-table-column label="操作" width="190">
+          <template #default="{ row }">
+            <el-button link type="success" size="small" :loading="carrierSyncing === row.carrierKey" @click="handleCarrierSync(row)">同步数据</el-button>
+            <el-button link type="primary" size="small" @click="editCarrier(row)">编辑</el-button>
+            <el-button link type="danger" size="small" @click="removeCarrier(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-divider content-position="left">{{ carrierEditForm.id ? "编辑载体" : "新增载体" }}</el-divider>
+      <el-form :model="carrierEditForm" label-width="90px" size="small">
+        <el-form-item label="载体键">
+          <el-input v-model="carrierEditForm.carrierKey" placeholder="英文键，如 guapai" />
+        </el-form-item>
+        <el-form-item label="名称">
+          <el-input v-model="carrierEditForm.name" placeholder="中文名，如 挂牌" />
+        </el-form-item>
+        <el-form-item label="标题主词">
+          <el-input v-model="carrierEditForm.titleKeywords" type="textarea" :rows="2" placeholder="逗号分隔：suncatcher,stained glass%window hanging,..." />
+          <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">支持 SQL LIKE 的 % 表示有序插词，不能使用裸 window hanging 等过宽主词。</div>
+        </el-form-item>
+        <el-form-item label="类目词">
+          <el-input v-model="carrierEditForm.categoryPaths" placeholder="逗号分隔：Sun Catchers,Sonnenfänger" />
+        </el-form-item>
+        <el-form-item label="硬排除词">
+          <el-input v-model="carrierEditForm.excludeKeywords" type="textarea" :rows="2" placeholder="逗号分隔：sticker,window hanging chain,..." />
+          <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">标题或类目召回的商品都会过滤，成品保护词不能覆盖。</div>
+        </el-form-item>
+        <el-form-item label="条件排除词">
+          <el-input v-model="carrierEditForm.conditionalExcludeKeywords" type="textarea" :rows="2" placeholder="逗号分隔：diy set,bastelset,crystal pendant,..." />
+          <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">通常排除；标题同时命中成品保护词时救回。</div>
+        </el-form-item>
+        <el-form-item label="成品保护词">
+          <el-input v-model="carrierEditForm.includeKeywords" type="textarea" :rows="2" placeholder="逗号分隔：acrylic puzzle,stained glass window hanging,..." />
+          <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">只覆盖条件排除，不能救回珠子、贴纸、链条等硬污染。</div>
+        </el-form-item>
+        <el-form-item label="说明">
+          <el-input v-model="carrierEditForm.note" placeholder="定锚说明（可选）" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button v-if="carrierEditForm.id" @click="resetCarrierForm">取消编辑</el-button>
+        <el-button type="primary" @click="saveCarrierForm">{{ carrierEditForm.id ? "更新" : "新增" }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -1071,6 +1121,8 @@
 defineOptions({ name: "AllSelection" });
 import {
   ref,
+  shallowRef,
+  markRaw,
   reactive,
   onMounted,
   onUnmounted,
@@ -1095,6 +1147,7 @@ import {
   Select,
   CircleClose,
   Collection,
+  Setting,
   TrendCharts,
   Shop,
   Trophy,
@@ -1138,7 +1191,10 @@ import {
   type SelectionQueryPlan,
 } from "./composables/queryPlan";
 import { resolveSelectionQueryPlan } from "./composables/queryRuntime";
-import { downloadAllResultsCsv } from "./composables/selectionCsv";
+import {
+  downloadAllResultsCsv,
+  exportXlsxViaTask,
+} from "./composables/selectionCsv";
 import { emptyRange, useSelectionFilterState } from "./composables/filterState";
 import MethodDetailDrawer from "@/components/MethodDetailDrawer/index.vue";
 import {
@@ -1152,15 +1208,27 @@ import {
   type DeveloperLibraryBucket,
   type DeveloperSelectionSnapshot,
 } from "@/api/developerSelectionLibrary";
+import { requestCenterApi } from "@/api/shopPremium";
 
 const router = useRouter();
 const route = useRoute();
 /** 店铺选品与新品榜共用页面外壳，只在查询计划中替换为 shop_products 数据源。 */
 const isShopProductsScene = computed(() => route.path === "/reference-products");
+const shopRequestDialogVisible = ref(false);
+const shopRequestSubmitting = ref(false);
+const shopRequestForm = reactive({ marketplace: "UK", sellerName: "" });
 /** 精品复用同一页面外壳，但始终读取 premium_products 原始表。 */
 const isPremiumProductsScene = computed(() => route.path === "/premium-products");
+/** 这三个业务页共用下载中心的异步 XLSX 导出。 */
+const isDownloadCenterXlsxScene = computed(() =>
+  ["/new-products", "/reference-products", "/premium-products"].includes(
+    route.path,
+  ),
+);
+/** AI 选品复用同一页面外壳，读取 ai_selection 持久表。 */
+const isAiSelectionScene = computed(() => route.path === "/ai-selection");
 const isFixedSelectionSourceScene = computed(
-  () => isShopProductsScene.value || isPremiumProductsScene.value,
+  () => isShopProductsScene.value || isPremiumProductsScene.value || isAiSelectionScene.value,
 );
 const isReadOnlySourceScene = isFixedSelectionSourceScene;
 const isManualLibrarySourceScene = computed(() =>
@@ -1169,8 +1237,44 @@ const isManualLibrarySourceScene = computed(() =>
     "/new-products",
     "/reference-products",
     "/premium-products",
+    "/ai-selection",
   ].includes(route.path),
 );
+
+function openShopRequestDialog() {
+  shopRequestForm.marketplace = activeFilters.country || queryParamsState.value.country || "UK";
+  shopRequestForm.sellerName = "";
+  shopRequestDialogVisible.value = true;
+}
+
+async function submitShopRequest() {
+  const sellerName = shopRequestForm.sellerName.trim();
+  if (!shopRequestForm.marketplace || !sellerName) {
+    ElMessage.warning("请选择国家并填写店铺名");
+    return;
+  }
+
+  shopRequestSubmitting.value = true;
+  try {
+    const result = await requestCenterApi.createShopTaskOnce({
+      marketplace: shopRequestForm.marketplace,
+      triggerType: "MANUAL",
+      triggerRef: JSON.stringify({ source: "reference-products" }),
+      fetchReason: "店铺选品页手动请求店铺全集",
+      items: [{ marketplace: shopRequestForm.marketplace, sellerName }],
+    });
+    shopRequestDialogVisible.value = false;
+    if (result.queuedCount > 0) {
+      ElMessage.success("请求成功，请搜索店铺查看");
+    } else {
+      ElMessage.info("该店铺已请求过或已有数据，请搜索店铺查看");
+    }
+  } catch (error: any) {
+    ElMessage.error(error?.message || "店铺请求失败");
+  } finally {
+    shopRequestSubmitting.value = false;
+  }
+}
 const detailDataSource = computed(() =>
   isPremiumProductsScene.value ? "premium" : "selection",
 );
@@ -1291,11 +1395,15 @@ const getSectionTitle = (): string => {
     premium: "精品",
     zheng: "非标店铺上新",
     fbm: "FBM 自发货",
+    ai_selection: "AI 选品",
   };
   return titles[activeTab.value as keyof typeof titles] || "选品管理";
 };
 
-const productList = ref([]);
+// 商品列表用 shallowRef + markRaw：商品是「只读展示数据」，卡片不修改其字段，
+// 无需深层响应式。避免几百条 × 数十字段的 reactive 深代理开销（前端卡顿主因之一）。
+// 整表替换（productList.value = [...]）仍触发视图更新，满足翻页/搜索刷新。
+const productList = shallowRef<Record<string, any>[]>([]);
 const selectedIds = ref([]);
 const libraryAddingBucket = ref<DeveloperLibraryBucket | null>(null);
 const DEFAULT_ADMIN_LIBRARY_DEVELOPER_NAME = "刘淼";
@@ -1321,6 +1429,7 @@ const currentSource = computed(() => {
     reference: "店铺商品",
     premium: "精品榜",
     zheng: "非标店铺",
+    ai_selection: "AI 选品",
     all: "",
   };
   return m[effectiveScene.value] || "";
@@ -1330,6 +1439,8 @@ const effectiveScene = computed(() => {
   if (isShopProductsScene.value) return "reference";
   // 精品同样固定数据源；方法卡只叠加规则，不得切换回 competitor clean。
   if (isPremiumProductsScene.value) return "premium";
+  // AI 选品固定数据源，不支持方法卡。
+  if (isAiSelectionScene.value) return "ai_selection";
   if (activeMethodCard.value?.id === "M01") return "new";
   if (activeMethodCard.value?.id === "M02") return "zheng";
   if (activeMethodCard.value?.id === "M03") return "fbm";
@@ -1350,6 +1461,7 @@ const currentSnapshotKind = computed<
   | "premium_created_week"
   | "deng_zong_batch"
   | "shop_batch"
+  | "ai_selection_batch"
 >(() =>
   effectiveScene.value === "premium"
     ? "premium_created_week"
@@ -1357,7 +1469,9 @@ const currentSnapshotKind = computed<
     ? "shop_batch"
     : effectiveScene.value === "zheng"
       ? "deng_zong_batch"
-      : "competitor_created_week",
+      : effectiveScene.value === "ai_selection"
+        ? "ai_selection_batch"
+        : "competitor_created_week",
 );
 const mySelections = ref<Set<string>>(new Set());
 const selectionUsersMap = ref<
@@ -1391,15 +1505,170 @@ const searchByImageDialogVisible = ref(false);
 const importing = ref(false);
 const searching = ref(false);
 const exportingAllResults = ref(false);
+const exportingSelectedXlsx = ref(false);
+
+// AI 选品导入 ASIN 状态
+const aiImportDialogVisible = ref(false);
+const aiImportAsinInput = ref("");
+const aiImportMarketplace = ref("");
+const aiImportLoading = ref(false);
+const aiImportParsed = computed(() =>
+  [...new Set(aiImportAsinInput.value.split(/[,;\s\n]+/).map((s) => s.trim()).filter(Boolean))],
+);
+const aiImportParsedCount = computed(() => aiImportParsed.value.length);
+
+// 非标载体：多选筛选 + 管理
+const carrierList = ref<any[]>([]);
+const carrierFilter = ref<string[]>([]); // 顶部多选筛选：选中的载体键
+const carrierManageVisible = ref(false);
+// 管理弹窗内同步数据的站点（多选，默认三国全选，一次同步多国）
+const carrierSyncMarketplaces = ref<string[]>(["UK", "DE", "US"]);
+const carrierSyncing = ref(""); // 正在同步的载体键
+const carrierEditForm = reactive({
+  id: undefined as number | undefined,
+  carrierKey: "",
+  name: "",
+  titleKeywords: "",
+  categoryPaths: "",
+  excludeKeywords: "",
+  conditionalExcludeKeywords: "",
+  includeKeywords: "",
+  note: "",
+});
+
+const loadCarriers = async () => {
+  try {
+    const { getCarriers } = await import("@/api/nonstandard-carrier");
+    carrierList.value = await getCarriers();
+  } catch (e) {
+    ElMessage.error(`载体列表加载失败: ${e instanceof Error ? e.message : "未知错误"}`);
+  }
+};
+
+/** 载体多选筛选变化：重置到第一页并按载体重查 */
+const handleCarrierFilterChange = () => {
+  pagination.page = 1;
+  loadProducts();
+  loadCategories();
+};
+
+const openCarrierManage = async () => {
+  carrierManageVisible.value = true;
+  await loadCarriers();
+};
+
+/** RangeFilterPanel 删除某 AI 选品批次后：重拉商品列表与类目统计。
+ *  批次下拉自身已在组件内刷新，这里只需同步主列表。 */
+const handleBatchDeleted = (_batchId: string) => {
+  if (!isAiSelectionScene.value) return;
+  pagination.page = 1;
+  loadProducts();
+  loadCategories();
+};
+
+/** 管理弹窗内：把某载体的商品从两表全批次增量同步进选品库（数据入口，非主筛选流程）。
+ *  一次请求带多站点：后端合并为「一个批次」，相对 载体+站点+ASIN 历史去重，只灌新增。
+ *  卖家精灵/库容无关，纯库内 INSERT SELECT。 */
+const handleCarrierSync = async (row: any) => {
+  const markets = carrierSyncMarketplaces.value;
+  if (!markets || markets.length === 0) {
+    ElMessage.warning("请先选择至少一个同步站点");
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `将从 shop_products + 新品榜全批次按「${row.name}」检索词增量捞取 ${markets.join(" / ")} 站点商品：仅导入历史未出现过的新增商品，合并生成「一个」同步批次。确定继续？`,
+      "增量同步载体数据",
+      { type: "warning" },
+    );
+  } catch {
+    return;
+  }
+  carrierSyncing.value = row.carrierKey;
+  try {
+    const { harvest } = await import("@/api/ai-selection-pool");
+    // 一次请求带三国数组，后端合并为一个增量批次
+    const resp = await harvest(row.carrierKey, markets);
+    const added = resp.total ?? 0;
+    if (added > 0) {
+      ElMessage.success(
+        `增量同步完成，${markets.join("/")} 共新增 ${added} 条商品（1 个批次）`,
+      );
+    } else {
+      ElMessage.info("增量同步完成，无新增商品（历史已覆盖）");
+    }
+    if (isAiSelectionScene.value) {
+      pagination.page = 1;
+      loadProducts();
+      loadCategories();
+    }
+  } catch (e) {
+    ElMessage.error(`同步失败: ${e instanceof Error ? e.message : "未知错误"}`);
+  } finally {
+    carrierSyncing.value = "";
+  }
+};
+
+const resetCarrierForm = () => {
+  carrierEditForm.id = undefined;
+  carrierEditForm.carrierKey = "";
+  carrierEditForm.name = "";
+  carrierEditForm.titleKeywords = "";
+  carrierEditForm.categoryPaths = "";
+  carrierEditForm.excludeKeywords = "";
+  carrierEditForm.conditionalExcludeKeywords = "";
+  carrierEditForm.includeKeywords = "";
+  carrierEditForm.note = "";
+};
+
+const editCarrier = (row: any) => {
+  carrierEditForm.id = row.id;
+  carrierEditForm.carrierKey = row.carrierKey;
+  carrierEditForm.name = row.name;
+  carrierEditForm.titleKeywords = row.titleKeywords ?? "";
+  carrierEditForm.categoryPaths = row.categoryPaths ?? "";
+  carrierEditForm.excludeKeywords = row.excludeKeywords ?? "";
+  carrierEditForm.conditionalExcludeKeywords = row.conditionalExcludeKeywords ?? "";
+  carrierEditForm.includeKeywords = row.includeKeywords ?? "";
+  carrierEditForm.note = row.note ?? "";
+};
+
+const saveCarrierForm = async () => {
+  if (!carrierEditForm.carrierKey || !carrierEditForm.name) {
+    ElMessage.warning("载体键和名称必填");
+    return;
+  }
+  try {
+    const { saveCarrier } = await import("@/api/nonstandard-carrier");
+    await saveCarrier({ ...carrierEditForm });
+    ElMessage.success("已保存");
+    resetCarrierForm();
+    await loadCarriers();
+  } catch (e) {
+    ElMessage.error(`保存失败: ${e instanceof Error ? e.message : "未知错误"}`);
+  }
+};
+
+const removeCarrier = async (row: any) => {
+  try {
+    await ElMessageBox.confirm(`确定删除载体「${row.name}」？`, "提示", { type: "warning" });
+  } catch {
+    return;
+  }
+  try {
+    const { deleteCarrier } = await import("@/api/nonstandard-carrier");
+    await deleteCarrier(row.id);
+    ElMessage.success("已删除");
+    await loadCarriers();
+  } catch (e) {
+    ElMessage.error(`删除失败: ${e instanceof Error ? e.message : "未知错误"}`);
+  }
+};
 
 /** 首屏是否已完成首次加载（用于骨架屏/loading切换） */
 const hasLoaded = ref(false);
 const refreshing = computed(() => loading.value && hasLoaded.value);
 
-// 卖家管理弹窗
-const sellerDialogVisible = ref(false);
-const sellerList = ref<any[]>([]);
-const sellerFilterMarketplace = ref("");
 const adding = ref(false);
 const uploadRef = ref(null);
 const imageUploadRef = ref(null);
@@ -1411,10 +1680,6 @@ const categories = ref([]);
 
 // ===== 统一筛选状态：activeFilters(已生效) + draftFilters(抽屉草稿) =====
 type FilterState = QueryPlanFilterState;
-const drawerSellerOptions = ref<
-  { id: number; marketplace: string; sellerName: string; storeUrl: string }[]
->([]);
-const drawerSellerLoading = ref(false);
 
 const addForm = reactive({
   asin: "",
@@ -1518,108 +1783,37 @@ const productGridStyle = computed(() => ({
     Math.max(8, Math.round(BASE_CARD_GAP * cardScale.value)) + "px",
 }));
 
-const cardBaseHeights = ref<Record<string, number>>({});
-const cardScaleCanvases = new Map<string, HTMLElement>();
-let cardHeightObserver: ResizeObserver | null = null;
-
 const productCardKey = (product: Record<string, unknown>): string =>
   String(product.id ?? product.asin ?? "");
 
-let visibleCardKeys = new Set<string>();
-
-const resetVisibleCardMetrics = (products: Record<string, unknown>[]) => {
-  visibleCardKeys = new Set(products.map(productCardKey).filter(Boolean));
-  cardBaseHeights.value = Object.fromEntries(
-    Object.entries(cardBaseHeights.value).filter(([key]) =>
-      visibleCardKeys.has(key),
-    ),
-  );
-  if (pendingHeightUpdates) {
-    pendingHeightUpdates = Object.fromEntries(
-      Object.entries(pendingHeightUpdates).filter(([key]) =>
-        visibleCardKeys.has(key),
-      ),
-    );
-  }
-};
-
-// 批量高度更新：ResizeObserver 首次挂载会为当前页 N 张卡片同时回调，
-// 旧实现每张卡都做一次 {...spread} 整体替换 → O(N²) 拷贝 + N 次全量重渲染，
-// 数据量大时严重卡顿。改为累积到 pending，用 rAF 每帧只提交一次 reactive 写。
-let pendingHeightUpdates: Record<string, number> | null = null;
-let heightFlushHandle: number | null = null;
-
-const flushCardBaseHeights = () => {
-  heightFlushHandle = null;
-  if (!pendingHeightUpdates) return;
-  const pending = pendingHeightUpdates;
-  pendingHeightUpdates = null;
-  let changed = false;
-  const next = { ...cardBaseHeights.value };
-  for (const [key, height] of Object.entries(pending)) {
-    if (next[key] !== height) {
-      next[key] = height;
-      changed = true;
-    }
-  }
-  if (changed) cardBaseHeights.value = next; // 每帧仅一次响应式写入
-};
-
-const updateCardBaseHeight = (key: string, canvas: HTMLElement) => {
-  if (!visibleCardKeys.has(key)) return;
-  const height = canvas.offsetHeight;
-  if (height > 0 && cardBaseHeights.value[key] !== height) {
-    if (!pendingHeightUpdates) pendingHeightUpdates = {};
-    pendingHeightUpdates[key] = height;
-    if (heightFlushHandle === null) {
-      heightFlushHandle = requestAnimationFrame(flushCardBaseHeights);
-    }
-  }
-};
-
-const setCardScaleCanvasRef = (key: string, element: unknown) => {
-  const previous = cardScaleCanvases.get(key);
-  if (previous && previous !== element) {
-    cardHeightObserver?.unobserve(previous);
-    cardScaleCanvases.delete(key);
-  }
-
-  if (!(element instanceof HTMLElement)) return;
-
-  cardScaleCanvases.set(key, element);
-  cardHeightObserver?.observe(element);
-  nextTick(() => updateCardBaseHeight(key, element));
-};
-
-const cardWrapperStyle = (product: Record<string, unknown>) => {
-  const baseHeight = cardBaseHeights.value[productCardKey(product)];
-  return baseHeight
-    ? { height: Math.ceil(baseHeight * cardScale.value) + "px" }
-    : undefined;
-};
+// 卡片缩放改用 CSS zoom（见 .product-card-scale-canvas 样式）：卡片在正常文档流中
+// 自然撑高，无需再用 ResizeObserver 测量 canvas 高度回填 wrapper。原先那套
+// cardBaseHeights + cardHeightObserver + cardWrapperStyle 在滚动时会因 200 张卡进出
+// 视口触发 observer 回调风暴 → 越滚越卡直至卡死，现已整体删除。
+const resetVisibleCardMetrics = (_products: Record<string, unknown>[]) => {};
 
 // ============================================================
-// 网格行虚拟化：只渲染可视区域附近的卡片，避免一次性挂载整页
-// （最多 500 个 UniversalCard 重组件）导致主线程长时间阻塞卡顿。
-// 按 cols 列分行，行高取行内实测卡片高度最大值（缩放后），未测量用 fallback，
-// 用 grid 的上下 padding 撑起被虚拟化掉的行空间，保证滚动条与列布局正确。
+// 网格行虚拟化（当前阈值下常用 page size 走全量渲染，保留逻辑供大列表兜底）。
+// zoom 缩放后卡片高度由 CSS 自然决定，虚拟化行高估算仅用 fallback 近似。
 // ============================================================
 const productsGridRef = ref<HTMLElement | null>(null);
 const gridScrollTop = ref(0);
 const gridViewportHeight = ref(0);
 const gridColumns = ref(1);
 const VIRT_ROW_BUFFER = 3; // 可视区上下各多渲染的缓冲行数
-const VIRT_MIN_COUNT = 80; // 低于此数量直接全量渲染，避免小页面额外开销
+// 阈值 600：覆盖常用每页规模(60/100/200)走全量渲染。全量渲染用原生滚动，
+// 配合 zoom(CSS 自然高度) + v-memo + shallowRef + markRaw + content-visibility 视口裁剪，
+// 无 JS 高度测量/回调风暴。500 选项已从前端移除。
+const VIRT_MIN_COUNT = 600;
 
 const scaledFallbackRowHeight = computed(
   () => Math.round(BASE_CARD_HEIGHT * cardScale.value),
 );
 const scaledGap = computed(() => Math.max(8, Math.round(BASE_CARD_GAP * cardScale.value)));
 
-// 单张卡片缩放后的实际渲染高度（与 cardWrapperStyle 同口径）。
-const scaledCardHeight = (product: Record<string, unknown>): number => {
-  const base = cardBaseHeights.value[productCardKey(product)];
-  return base ? Math.ceil(base * cardScale.value) : scaledFallbackRowHeight.value;
+// 虚拟化行高估算（仅超大列表兜底用）：zoom 后无逐卡实测高度，统一用 fallback 近似。
+const scaledCardHeight = (_product: Record<string, unknown>): number => {
+  return scaledFallbackRowHeight.value;
 };
 
 // 依据容器宽度与卡片最小宽度推算每行列数。
@@ -1792,6 +1986,16 @@ const loadCategories = async () => {
       categories.value = response.data || [];
       return;
     }
+    if (isAiSelectionScene.value) {
+      const { getCategories } = await import("@/api/ai-selection-pool");
+      const nextCategories = await getCategories(
+        activeFilters.value.country || "UK",
+        activeFilters.value.range.createdWeeks,
+      );
+      if (reqId !== categoriesReqId) return;
+      categories.value = nextCategories;
+      return;
+    }
     if (activeMethodCard.value?.id === "M01") {
       const categoryFilters = {
         ...activeFilters.value,
@@ -1841,6 +2045,9 @@ const loadProducts = async (params?: SelectionQueryParams) => {
       activeFilters: activeFilters.value,
       useCleanTable: useCleanTable.value,
       qualifyRules: newQualifyRules.value,
+      overrides: isAiSelectionScene.value && carrierFilter.value.length > 0
+        ? { carriers: [...carrierFilter.value] }
+        : undefined,
     });
     const plan = buildSelectionQueryPlan({
       intent,
@@ -1859,9 +2066,13 @@ const loadProducts = async (params?: SelectionQueryParams) => {
     if (reqId !== productsReqId) return;
     lastQueryPlan.value = resolved.plan;
 
-    const nextProducts = resolved.result.list as Record<string, unknown>[];
+    // markRaw 每个商品对象：明确标记为非响应式，杜绝进入任何 reactive 代理，
+    // 配合 shallowRef 的 productList，几百条数据只有一层浅响应（整表引用）。
+    const nextProducts = (resolved.result.list as Record<string, any>[]).map((p) =>
+      markRaw(p),
+    );
     resetVisibleCardMetrics(nextProducts);
-    productList.value = resolved.result.list;
+    productList.value = nextProducts;
     pagination.total = resolved.result.total;
     // 商品列表已就位，先结束 loading 让卡片立即渲染；选中态（我的选品 + 多人选中）
     // 与列表渲染无关，改为异步补齐，不再串在首屏关键路径上拖长转圈时间。
@@ -1897,14 +2108,14 @@ const createMethodFilterState = (country: string): FilterState => ({
 
 const resetFiltersForMethodCard = () => {
   const country = normalizeM01Marketplace(activeFilters.value.country);
-  const premiumWeeks = isPremiumProductsScene.value
+  const fixedSourceWeeks = isPremiumProductsScene.value || isShopProductsScene.value
     ? [...activeFilters.value.range.createdWeeks]
     : [];
   activeFilters.value = createMethodFilterState(country);
   draftFilters.value = createMethodFilterState(country);
-  if (premiumWeeks.length > 0) {
-    activeFilters.value.range.createdWeeks = premiumWeeks;
-    draftFilters.value.range.createdWeeks = [...premiumWeeks];
+  if (fixedSourceWeeks.length > 0) {
+    activeFilters.value.range.createdWeeks = fixedSourceWeeks;
+    draftFilters.value.range.createdWeeks = [...fixedSourceWeeks];
   }
   applyQueryParams({
     country,
@@ -1921,11 +2132,14 @@ const resetFiltersForMethodCard = () => {
 
 const applyM01Method = () => {
   activeMethodCard.value = { id: "M01", name: "新品榜加速法" };
-  activeTab.value = isPremiumProductsScene.value
-    ? "premium"
-    : isShopProductsScene.value
-      ? "reference"
-      : "new";
+  // AI 选品页保持在 ai_selection 场景（门槛作用在 ai_selection 表），不切走
+  if (!isAiSelectionScene.value) {
+    activeTab.value = isPremiumProductsScene.value
+      ? "premium"
+      : isShopProductsScene.value
+        ? "reference"
+        : "new";
+  }
   resetFiltersForMethodCard();
   filterDrawerVisible.value = false;
   pagination.page = 1;
@@ -1952,11 +2166,14 @@ const applyM02Method = () => {
 // M03 FBM 自发货简单道 - 独立 handler, 不共用 M01/new 视角逻辑
 const applyM03Method = () => {
   activeMethodCard.value = { id: "M03", name: "FBM 自发货简单道" };
-  activeTab.value = isPremiumProductsScene.value
-    ? "premium"
-    : isShopProductsScene.value
-      ? "reference"
-      : "fbm";
+  // AI 选品页保持在 ai_selection 场景（门槛作用在 ai_selection 表），不切走
+  if (!isAiSelectionScene.value) {
+    activeTab.value = isPremiumProductsScene.value
+      ? "premium"
+      : isShopProductsScene.value
+        ? "reference"
+        : "fbm";
+  }
   resetFiltersForMethodCard();
   filterDrawerVisible.value = false;
   pagination.page = 1;
@@ -2154,40 +2371,6 @@ const handleSearch = (params: SelectionQueryParams) => {
   loadProducts(params);
 };
 
-const loadDrawerSellers = async (marketplace?: string) => {
-  drawerSellerLoading.value = true;
-  try {
-    if (isShopProductsScene.value) {
-      const rows = await shopCollectionApi.selectionShops({
-        marketplace: marketplace || activeFilters.value.country || "UK",
-        limit: 1000,
-      });
-      drawerSellerOptions.value = rows.map((row, index) => ({
-        id: index + 1,
-        marketplace: row.marketplace,
-        sellerName: row.sellerName,
-        storeUrl: "",
-      }));
-      return;
-    }
-    if (isPremiumProductsScene.value) {
-      const res = await competitorApi.getPremiumSellers(
-        marketplace || activeFilters.value.country || "UK",
-      );
-      drawerSellerOptions.value = res.data || [];
-      return;
-    }
-    const res = await competitorApi.getDengZongShopSellers(
-      marketplace ? { marketplace } : undefined,
-    );
-    drawerSellerOptions.value = res.data || [];
-  } catch {
-    drawerSellerOptions.value = [];
-  } finally {
-    drawerSellerLoading.value = false;
-  }
-};
-
 const triggerFilterQuery = () => {
   pagination.page = 1;
   loadCategories();
@@ -2218,8 +2401,8 @@ const {
       : [];
   },
   applyQuery: triggerFilterQuery,
-  syncMarketplaceScope: (marketplace) => {
-    loadDrawerSellers(marketplace);
+  syncMarketplaceScope: (_marketplace) => {
+    // 卖家下拉已移除，不再预拉取上千卖家（曾致抽屉卡死）；仅刷新类目统计。
     loadCategories();
   },
   normalizeMethodMarketplace: normalizeM01Marketplace,
@@ -2229,10 +2412,21 @@ const {
   initialCountry: "UK",
 });
 
-const resetPremiumToLatestBatch = async () => {
+const getLatestFixedSourceBatch = async (country: string) => {
+  if (isPremiumProductsScene.value) {
+    const weeks = await getPremiumCreatedWeeks(country);
+    return weeks.data?.[0]?.week;
+  }
+  if (isShopProductsScene.value) {
+    const weeks = await shopCollectionApi.selectionBatches(country);
+    return weeks?.[0]?.week;
+  }
+  return undefined;
+};
+
+const resetFixedSourceToLatestBatch = async () => {
   const country = activeFilters.value.country || "UK";
-  const weeks = await getPremiumCreatedWeeks(country);
-  const latestWeek = weeks.data?.[0]?.week;
+  const latestWeek = await getLatestFixedSourceBatch(country);
   activeMethodCard.value = null;
   activeFilters.value = createMethodFilterState(country);
   draftFilters.value = createMethodFilterState(country);
@@ -2241,35 +2435,34 @@ const resetPremiumToLatestBatch = async () => {
     draftFilters.value.range.createdWeeks = [latestWeek];
   }
   pagination.page = 1;
+  loadCategories();
   loadProducts();
 };
 
 const handleReset = () => {
-  if (!isPremiumProductsScene.value) {
+  if (!isPremiumProductsScene.value && !isShopProductsScene.value) {
     baseHandleReset();
     return;
   }
-  resetPremiumToLatestBatch().catch((error) => {
-    console.error("重置精品最新批次失败:", error);
-    ElMessage.error("重置精品筛选失败");
+  resetFixedSourceToLatestBatch().catch((error) => {
+    console.error("重置固定选品源最新批次失败:", error);
+    ElMessage.error("重置筛选失败");
   });
 };
 
 const clearAllFilters = handleReset;
 
 const onBarCountryChange = (country: string) => {
-  if (!isPremiumProductsScene.value) {
+  if (!isPremiumProductsScene.value && !isShopProductsScene.value) {
     baseOnBarCountryChange(country);
     return;
   }
   activeFilters.value.country = country || "UK";
   activeFilters.value.sellerSelect = "";
   draftFilters.value.country = activeFilters.value.country;
-  loadDrawerSellers(activeFilters.value.country);
-  loadCategories();
-  getPremiumCreatedWeeks(activeFilters.value.country)
-    .then((weeks) => {
-      const latestWeek = weeks.data?.[0]?.week;
+  // 卖家下拉已移除，切站点不再预拉取卖家列表
+  getLatestFixedSourceBatch(activeFilters.value.country)
+    .then((latestWeek) => {
       activeFilters.value.range.createdWeeks = latestWeek ? [latestWeek] : [];
       draftFilters.value = {
         ...activeFilters.value,
@@ -2283,96 +2476,18 @@ const onBarCountryChange = (country: string) => {
         },
       };
       pagination.page = 1;
+      loadCategories();
       loadProducts();
     })
     .catch((error) => {
-      console.error("切换精品站点最新批次失败:", error);
+      console.error("切换固定选品源站点最新批次失败:", error);
       ElMessage.error("切换站点失败");
     });
 };
 
-// ========== 卖家管理 ==========
-const openSellerDialog = () => {
-  sellerDialogVisible.value = true;
-  loadSellerList();
-};
-
-const loadSellerList = async () => {
-  try {
-    const params = sellerFilterMarketplace.value
-      ? { marketplace: sellerFilterMarketplace.value }
-      : undefined;
-    const res = await competitorApi.getDengZongShopSellers(params);
-    sellerList.value = (res.data || []).map((s: any) => ({
-      ...s,
-      _editing: false,
-    }));
-  } catch {
-    sellerList.value = [];
-  }
-};
-
-const handleAddSeller = async () => {
-  try {
-    const { value } = await ElMessageBox.prompt("请输入卖家名称", "新增卖家", {
-      inputPlaceholder: "卖家名称",
-      inputValidator: (v) => !!v?.trim() || "卖家名称不能为空",
-    });
-    const marketplace = sellerFilterMarketplace.value || "UK";
-    await competitorApi.createDengZongShopSeller({
-      sellerName: value.trim(),
-      marketplace,
-    });
-    ElMessage.success("新增成功");
-    loadSellerList();
-  } catch {}
-};
-
-const handleSaveSeller = async (row: any) => {
-  if (!row.sellerName?.trim()) {
-    ElMessage.warning("卖家名称不能为空");
-    return;
-  }
-  try {
-    await competitorApi.updateDengZongShopSeller(row.id, {
-      sellerName: row.sellerName,
-      marketplace: row.marketplace,
-      storeUrl: row.storeUrl,
-      notes: row.notes,
-    });
-    row._editing = false;
-    ElMessage.success("保存成功");
-  } catch {
-    ElMessage.error("保存失败");
-  }
-};
-
-const handleDeleteSeller = async (row: any) => {
-  try {
-    await ElMessageBox.confirm(`确定删除卖家「${row.sellerName}」？`, "提示", {
-      type: "warning",
-    });
-    await competitorApi.deleteDengZongShopSeller(row.id);
-    ElMessage.success("删除成功");
-    loadSellerList();
-  } catch {}
-};
-
-const handleSyncSeller = async (row: any) => {
-  row._syncing = true;
-  try {
-    const res = await competitorApi.syncDengZongShop({
-      sellerName: row.sellerName,
-      marketplace: row.marketplace,
-    });
-    const task = res?.data || res;
-    ElMessage.success('请求任务已创建，正在跳转请求中心');
-    await router.push({ name: 'module-sellersprite-request-center-SellerspriteRequestCenter', query: { runId: task.runId } });
-  } catch (e: any) {
-    ElMessage.error("同步失败：" + (e.message || "未知错误"));
-  } finally {
-    row._syncing = false;
-  }
+// 非标商品页只展示 deng_zong_shop，店铺登记和请求统一由店铺请求中心负责。
+const openDengZongRequestCenter = () => {
+  router.push({ name: 'module-shop-candidate-pool-ShopCandidatePool', query: { mode: 'deng-zong' } });
 };
 
 const handleAdd = () => {
@@ -2557,6 +2672,42 @@ const handleDelete = async (product) => {
     if (error !== "cancel") {
       ElMessage.error("删除失败");
     }
+  }
+};
+
+/** AI 选品：手动导入 ASIN */
+const handleAiImport = async () => {
+  const asins = aiImportParsed.value;
+  if (asins.length === 0) {
+    ElMessage.warning("请先输入 ASIN");
+    return;
+  }
+  aiImportLoading.value = true;
+  try {
+    const { importAsins } = await import("@/api/ai-selection-pool");
+    const resp = await importAsins({
+      asins,
+      marketplace: aiImportMarketplace.value || "UK",
+      batchLabel: `手动导入 ${aiImportMarketplace.value || "UK"} ${new Date().toLocaleDateString("zh-CN")}`,
+    });
+    if (resp.invalidAsins && resp.invalidAsins.length > 0) {
+      ElMessage.warning(`已忽略 ${resp.invalidAsins.length} 个未找到数据的 ASIN`);
+    }
+    if (resp.total > 0) {
+      ElMessage.success(`成功导入 ${resp.total} 件商品`);
+      aiImportDialogVisible.value = false;
+      aiImportAsinInput.value = "";
+      // 刷新列表
+      pagination.page = 1;
+      loadProducts();
+      loadCategories();
+    } else {
+      ElMessage.info("未在这些 ASIN 的商品数据");
+    }
+  } catch (e) {
+    ElMessage.error(`导入失败: ${e instanceof Error ? e.message : "未知错误"}`);
+  } finally {
+    aiImportLoading.value = false;
   }
 };
 
@@ -2831,6 +2982,52 @@ const handleExportAllResultsCsv = async () => {
   }
 };
 
+const handleExportSelectedXlsx = async () => {
+  const source = lastQueryPlan.value?.targetSource;
+  const supportedSources = new Set([
+    "competitor_clean",
+    "competitor_raw",
+    "shop_products",
+    "premium_products",
+  ]);
+  if (!source || !supportedSources.has(source)) {
+    ElMessage.error("当前页面的数据源不支持 XLSX 导出");
+    return;
+  }
+
+  exportingSelectedXlsx.value = true;
+  try {
+    const marketplace = String(
+      activeFilters.value.country || productList.value[0]?.marketplace || "UK",
+    ).toUpperCase();
+    await exportXlsxViaTask(
+      [...selectedIds.value],
+      marketplace,
+      source,
+      `${getSectionTitle()}-${marketplace}-${selectedIds.value.length}条`,
+    );
+    try {
+      await ElMessageBox.confirm(
+        "XLSX 任务已创建，可前往下载中心查看进度并下载。",
+        "导出任务已提交",
+        {
+          confirmButtonText: "前往下载中心",
+          cancelButtonText: "留在当前页",
+          type: "success",
+        },
+      );
+      await router.push("/download-manager");
+    } catch (action) {
+      if (action !== "cancel" && action !== "close") throw action;
+    }
+  } catch (error: any) {
+    console.error("创建 XLSX 导出任务失败:", error);
+    ElMessage.error(error?.message || "创建 XLSX 导出任务失败，请稍后重试");
+  } finally {
+    exportingSelectedXlsx.value = false;
+  }
+};
+
 const optionalNumber = (value: unknown): number | undefined => {
   if (value === null || value === undefined || value === "") return undefined;
   const parsed = Number(value);
@@ -2849,6 +3046,8 @@ const toDeveloperSelectionSnapshot = (
       ? "PREMIUM_PRODUCTS"
       : route.path === "/reference-products"
       ? "REFERENCE_PRODUCTS"
+      : route.path === "/ai-selection"
+      ? "AI_SELECTION"
       : "NEW_PRODUCTS",
   originSource: product.source || currentSource.value || undefined,
   snapshotKey: String(product.snapshotKey || product.id || "") || undefined,
@@ -2979,17 +3178,6 @@ const handlePageChange = (page) => {
 };
 
 onMounted(async () => {
-  cardHeightObserver = new ResizeObserver((entries) => {
-    entries.forEach((entry) => {
-      const key = (entry.target as HTMLElement).dataset.cardKey;
-      if (key) updateCardBaseHeight(key, entry.target as HTMLElement);
-    });
-  });
-  cardScaleCanvases.forEach((canvas, key) => {
-    cardHeightObserver?.observe(canvas);
-    updateCardBaseHeight(key, canvas);
-  });
-
   // 初始化网格虚拟化：测量列数/视口，并监听容器尺寸变化。
   nextTick(() => {
     recomputeGridColumns();
@@ -3005,10 +3193,16 @@ onMounted(async () => {
     "/new-products": "new",
     "/reference-products": "reference",
     "/premium-products": "premium",
+    "/ai-selection": "ai_selection",
     "/all-selection": "all",
   };
   const tab = pathTabMap[route.path] || "all";
   activeTab.value = tab;
+
+  // AI 选品场景：预载非标载体列表，供顶部多选筛选下拉使用
+  if (tab === "ai_selection") {
+    loadCarriers();
+  }
 
   // 自动应用方法卡的路由白名单 (只有以下两个入口自动绑 M01):
   //   /new-products       → M01 (新品榜加速法)
@@ -3036,18 +3230,17 @@ onMounted(async () => {
   setCountry(initParams.country || "UK");
   initParams.country = activeFilters.value.country;
   applyQueryParams(initParams);
-  // 精品默认不套方法卡，但必须先锁定最新入库周，再发出首个列表查询。
-  if (isPremiumProductsScene.value) {
+  // 精品与店铺首屏必须先锁定最新入库批次，再发出首个列表/分类查询，禁止空批次查全历史。
+  if (isPremiumProductsScene.value || isShopProductsScene.value) {
     try {
-      const weeks = await getPremiumCreatedWeeks(activeFilters.value.country || "UK");
-      const latestWeek = weeks.data?.[0]?.week;
+      const latestWeek = await getLatestFixedSourceBatch(activeFilters.value.country || "UK");
       if (latestWeek) {
         activeFilters.value.range.createdWeeks = [latestWeek];
         draftFilters.value.range.createdWeeks = [latestWeek];
       }
     } catch (error) {
-      console.error("加载精品最新批次失败:", error);
-      ElMessage.warning("精品最新批次加载失败，暂时展示原始数据");
+      console.error("加载固定选品源最新批次失败:", error);
+      ElMessage.warning("最新批次加载失败，请稍后重试");
     }
   }
   // 加载大类榜单列表
@@ -3081,14 +3274,6 @@ onActivated(startSelectionPolling);
 onDeactivated(stopSelectionPolling);
 
 onUnmounted(() => {
-  cardHeightObserver?.disconnect();
-  cardHeightObserver = null;
-  cardScaleCanvases.clear();
-  if (heightFlushHandle !== null) {
-    cancelAnimationFrame(heightFlushHandle);
-    heightFlushHandle = null;
-  }
-  pendingHeightUpdates = null;
   if (gridScrollHandle !== null) {
     cancelAnimationFrame(gridScrollHandle);
     gridScrollHandle = null;
@@ -3287,12 +3472,12 @@ onUnmounted(() => {
   .product-card-scale-wrapper {
     position: relative;
     min-width: 0;
-    min-height: var(--selection-card-fallback-height, 560px);
-    // 第一阶段视口裁剪：跳过视口外卡片的布局/绘制，仍会创建 Vue 组件与 DOM。
-    // intrinsic size 为尚未测量的变高卡片预留空间；真实高度由 ResizeObserver 回填。
-    content-visibility: auto;
-    contain-intrinsic-size: auto var(--selection-card-min-width, 280px)
-      auto var(--selection-card-fallback-height, 560px);
+    // 固定高度（缩放后 fallback 高）：选品卡片结构统一，等高完全可接受。
+    // 放弃逐卡精确测高——原先 ResizeObserver 测高在滚动时 200 张卡回调风暴致卡死；
+    // zoom 方案则触发 Chrome 对 zoom 元素的滚动重绘性能问题（实测滚动 JS 忙 37s）。
+    // 用固定高度 + transform:scale，零 JS 测量、零 zoom，滚动走浏览器原生（实测 JS 忙 28ms）。
+    height: var(--selection-card-fallback-height, 560px);
+    overflow: hidden;
   }
 
   .product-card-scale-canvas {

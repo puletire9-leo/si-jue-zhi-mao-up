@@ -4,13 +4,14 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.sjzm.common.Result;
 import com.sjzm.product.entity.DengZongShop;
 import com.sjzm.product.entity.DengZongShopSeller;
+import com.sjzm.product.dto.DengZongShopSyncBatchRequest;
 import com.sjzm.product.service.DengZongShopService;
-import com.sjzm.product.modules.requestcenter.entity.SellerspriteRequestRun;
 import com.sjzm.product.modules.requestcenter.service.SellerspriteRequestCenterService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
@@ -210,7 +211,8 @@ public class DengZongShopController {
     // ========== 同步 ==========
 
     @PostMapping("/sync")
-    @Operation(summary = "创建邓总店铺同步任务", description = "异步返回请求中心 runId，不在 HTTP 请求线程调用卖家精灵")
+    @Operation(summary = "创建单店非标店铺上新任务（兼容入口）",
+            description = "只允许已登记在 deng_zong_shop_seller 的店铺，并代理到非标店铺专用批量入口")
     public Result<Map<String, Object>> sync(@RequestBody Map<String, String> body) {
         String sellerName = body.get("sellerName");
         String marketplace = body.get("marketplace");
@@ -220,11 +222,25 @@ public class DengZongShopController {
         if (marketplace == null || marketplace.isBlank()) {
             return Result.error("marketplace 不能为空");
         }
-        SellerspriteRequestRun run = requestCenterService.createTask("DENG_ZONG_SHOP_SYNC", marketplace.trim(),
-                "MANUAL", null, "邓总店铺同步",
-                List.of(new SellerspriteRequestCenterService.RequestItemInput(marketplace.trim(), sellerName.trim(), null)),
-                "DENG_ZONG_API");
-        return Result.success(Map.of("runId", run.getRunId(), "status", run.getStatus()));
+        String normalizedMarketplace = marketplace.trim().toUpperCase(java.util.Locale.ROOT);
+        String normalizedSellerName = sellerName.trim();
+        List<DengZongShopSeller> registered = dengZongShopService.sellerSelectList(
+                new LambdaQueryWrapper<DengZongShopSeller>()
+                        .eq(DengZongShopSeller::getMarketplace, normalizedMarketplace)
+                        .eq(DengZongShopSeller::getSellerName, normalizedSellerName));
+        if (registered.isEmpty()) {
+            return Result.error("该店铺未登记在非标店铺名单，请先到店铺请求中心登记");
+        }
+        return Result.success(requestCenterService.createDengZongShopTask(
+                List.of(registered.get(0).getId()), "DENG_ZONG_COMPAT_API"));
+    }
+
+    @PostMapping("/sync/batch")
+    @Operation(summary = "批量创建非标店铺上新任务",
+            description = "只读取 deng_zong_shop_seller 登记名单，固定创建 DENG_ZONG_SHOP_SYNC，结果只写 deng_zong_shop")
+    public Result<Map<String, Object>> syncBatch(@Valid @RequestBody DengZongShopSyncBatchRequest request) {
+        return Result.success(requestCenterService.createDengZongShopTask(
+                request.getSellerIds(), "DENG_ZONG_REQUEST_CENTER"));
     }
 
     private Map<String, Object> toResponse(DengZongShop d) {

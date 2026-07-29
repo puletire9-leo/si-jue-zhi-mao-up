@@ -100,9 +100,10 @@ class BazhuayuClientDrainTest {
     }
 
     @Test
-    void batchWithoutLotNo_readsOnlyLatestPrefixFromCumulativeData() {
+    void batchWithoutLotNo_stopsAtLatestBatchCountInsteadOfHistoricalTotal() {
         BazhuayuClient client = spyClient(1000);
-        doReturn(dataPage(2500, 1500, 1000, 1000), dataPage(2500, 500, 2000, 1000))
+        // /data/all 的 total 是历史累计量；最新批次只有 1321 条，第二页只消费剩余 321 条。
+        doReturn(dataPage(287753, 286753, 1000, 1000), dataPage(287753, 286253, 1500, 500))
                 .when(client).fetchDataPage(anyString());
         doNothing().when(client).sleep2s();
 
@@ -116,31 +117,59 @@ class BazhuayuClientDrainTest {
         assertThat(processed).isEqualTo(1321);
         assertThat(handled.get()).isEqualTo(1321);
         verify(client, times(2)).fetchDataPage(anyString());
+        verify(client, times(2)).fetchDataPage(contains("/data/all?taskId=task-1"));
     }
 
     @Test
-    void batchWithoutLotNo_rejectsWhenSourceHasFewerRowsThanStatus() {
+    void batchWithoutLotNo_rejectsWhenSourceTotalIsSmallerThanBatchCount() {
         BazhuayuClient client = spyClient(1000);
-        doReturn(dataPage(1200, 200, 1000, 1000)).when(client).fetchDataPage(anyString());
+        doReturn(dataPage(1200, 200, 1000, 1000))
+                .when(client).fetchDataPage(anyString());
+        doNothing().when(client).sleep2s();
+
+        AtomicInteger handled = new AtomicInteger();
         BazhuayuBatchSnapshot batch = BazhuayuBatchSnapshot.expected(
                 "20260720-103833", "2026-07-20T10:38:33.147", "2026-07-20T10:41:15.663", 1321);
 
-        assertThatThrownBy(() -> client.fetchBatchDataStreaming("task-1", batch, page -> {}))
+        assertThatThrownBy(() -> client.fetchBatchDataStreaming(
+                "task-1", batch, page -> handled.addAndGet(page.size())))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("仅返回 1200 条");
+                .hasMessageContaining("预计 1321 条")
+                .hasMessageContaining("总量仅 1200 条");
+        assertThat(handled.get()).isZero();
     }
 
     @Test
-    void exactLotNo_rejectsMismatchedBatchTotal() {
+    void batchWithoutLotNo_rejectsWhenSourceIsEmpty() {
         BazhuayuClient client = spyClient(1000);
-        doReturn(dataPage(1322, 322, 1000, 1000)).when(client).fetchDataPage(anyString());
+        doReturn(dataPage(0, 0, 0, 0)).when(client).fetchDataPage(anyString());
         BazhuayuBatchSnapshot batch = BazhuayuBatchSnapshot.expected(
-                        "20260720-103833", "2026-07-20T10:38:33.147", "2026-07-20T10:41:15.663", 1321)
-                .withLotNo("639201407131476393");
+                "20260720-103833", "2026-07-20T10:38:33.147", "2026-07-20T10:41:15.663", 1321);
 
-        assertThatThrownBy(() -> client.fetchBatchDataStreaming("task-1", batch, page -> {}))
+        AtomicInteger handled = new AtomicInteger();
+        assertThatThrownBy(() -> client.fetchBatchDataStreaming(
+                "task-1", batch, page -> handled.addAndGet(page.size())))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("lotNo 数据量 1322");
+                .hasMessageContaining("数据接口总量仅 0 条");
+        assertThat(handled.get()).isZero();
+        verify(client, times(1)).fetchDataPage(anyString());
+    }
+
+    @Test
+    void batchWithLotNo_usesExactBatchTotal() {
+        BazhuayuClient client = spyClient(1000);
+        doReturn(dataPage(1200, 200, 1000, 1000), dataPage(1200, 0, 1200, 200))
+                .when(client).fetchDataPage(anyString());
+        doNothing().when(client).sleep2s();
+        BazhuayuBatchSnapshot batch = BazhuayuBatchSnapshot.expected(
+                "20260720-103833", "2026-07-20T10:38:33.147", "2026-07-20T10:41:15.663", 1321)
+                .withLotNo("638755274101861606");
+
+        int processed = client.fetchBatchDataStreaming("task-1", batch, page -> {});
+
+        assertThat(processed).isEqualTo(1200);
+        verify(client, times(2)).fetchDataPage(
+                contains("/data/lotno/all?taskId=task-1&lotno=638755274101861606"));
     }
 
     @Test

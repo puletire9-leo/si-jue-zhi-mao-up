@@ -377,7 +377,10 @@ const productLink = computed(() => {
   return "";
 });
 
-const similarProductsLink = computed(() => {
+// 懒计算：仅在点击"一键打开"时构造 Amazon 以图搜索 URL。
+// 原为 computed，会在每张卡挂载/更新时都跑一遍 buildAmazonImageSearchUrl，
+// 卡片流一页数十张时累积成明显开销，改为按需调用。
+const resolveSimilarProductsLink = (): string => {
   const sourceImage = props.product.imageUrl || props.product.image || "";
   const marketplace = props.product.marketplace || props.product.country || "UK";
   return (
@@ -386,7 +389,7 @@ const similarProductsLink = computed(() => {
     props.product.similarUrl ||
     ""
   );
-});
+};
 
 const visibleTags = computed(() => (props.product.tags || []).slice(0, 3));
 const extraTagsCount = computed(() =>
@@ -604,7 +607,7 @@ const handleOpenProductLink = (): void => {
     window.open(productLink.value, "_blank");
   }
   // 同时打开所有相似链接
-  const raw = similarProductsLink.value;
+  const raw = resolveSimilarProductsLink();
   if (raw) {
     raw
       .split(",")

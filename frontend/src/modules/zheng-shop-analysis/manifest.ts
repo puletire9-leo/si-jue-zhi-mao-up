@@ -5,6 +5,8 @@ export default {
   name: '总览',
   icon: 'Shop',
   menuGroup: '店铺总览',
+  menuSection: '店铺分析',
+  menuSectionOrder: 2,
   menuOrder: 15,
   route: {
     path: 'zheng-shop-overview',

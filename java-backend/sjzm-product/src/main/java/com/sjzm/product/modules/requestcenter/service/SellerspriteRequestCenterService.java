@@ -9,6 +9,7 @@ import com.sjzm.common.PageResult;
 import com.sjzm.product.dto.CompetitorLookupRequest;
 import com.sjzm.product.entity.AsinImportResult;
 import com.sjzm.product.entity.AsinImportTask;
+import com.sjzm.product.entity.DengZongShopSeller;
 import com.sjzm.product.entity.SkipAsin;
 import com.sjzm.product.mapper.AsinImportResultMapper;
 import com.sjzm.product.mapper.AsinImportTaskMapper;
@@ -23,6 +24,7 @@ import com.sjzm.product.modules.requestcenter.model.SellerspriteSellerNamePolicy
 import com.sjzm.product.modules.requestcenter.mapper.SellerspriteRequestItemMapper;
 import com.sjzm.product.modules.requestcenter.mapper.SellerspriteRequestRunMapper;
 import com.sjzm.product.modules.shopcandidate.service.ShopCandidateService;
+import com.sjzm.product.modules.shopcollection.service.ShopCollectionService;
 import com.sjzm.product.modules.shopcollection.service.ShopProductSyncService;
 import com.sjzm.product.service.CompetitorService;
 import com.sjzm.product.service.DengZongShopService;
@@ -70,6 +72,7 @@ public class SellerspriteRequestCenterService {
     private final SellerspriteRequestRunMapper runMapper;
     private final SellerspriteRequestItemMapper itemMapper;
     private final ShopProductSyncService productSyncService;
+    private final ShopCollectionService shopCollectionService;
     private final ShopCandidateService candidateService;
     private final WeekTagUtil weekTagUtil;
     private final TransactionTemplate transactionTemplate;
@@ -93,6 +96,8 @@ public class SellerspriteRequestCenterService {
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
     private static final int DEFAULT_BATCH_SIZE = 5;
     private static final int ASIN_BATCH_SIZE = 40;
+    private static final int CLEAN_FINALIZATION_RETRY_SECONDS = 30;
+    private static final String CLEAN_FINALIZATION_REASON_PREFIX = "新品清洗收尾失败: ";
     private static final Set<String> RUNNABLE_STATUS = Set.of("PENDING", "RUNNING");
     private static final Set<String> TERMINAL_STATUS = Set.of("SUCCESS", "FAILED", "PARTIAL_SUCCESS", "STOPPED");
     private final Set<String> activeAutoRuns = ConcurrentHashMap.newKeySet();
@@ -100,25 +105,27 @@ public class SellerspriteRequestCenterService {
     private final Set<String> consumingRuns = ConcurrentHashMap.newKeySet();
 
     public SellerspriteRequestCenterService(SellerspriteRequestRunMapper runMapper,
-                                            SellerspriteRequestItemMapper itemMapper,
-                                            ShopProductSyncService productSyncService,
-                                            ShopCandidateService candidateService,
-                                            WeekTagUtil weekTagUtil,
-                                            TransactionTemplate transactionTemplate,
-                                            @Qualifier("sellerspriteRequestExecutor") Executor sellerspriteRequestExecutor,
-                                            com.sjzm.product.modules.shoppremium.mapper.ShopPremiumPoolMapper premiumMapper,
-                                            AsinImportTaskMapper asinImportTaskMapper,
-                                            AsinImportResultMapper asinImportResultMapper,
-                                            CompetitorService competitorService,
-                                            SellerspriteExecutionGateway executionGateway,
-                                            DengZongShopService dengZongShopService,
-                                            org.redisson.api.RedissonClient redissonClient,
-                                            com.sjzm.product.service.ScoringService scoringService,
-                                            com.sjzm.product.service.CleanLayerService cleanLayerService,
-                                            com.sjzm.product.mapper.SkipAsinMapper skipAsinMapper) {
+                                             SellerspriteRequestItemMapper itemMapper,
+                                             ShopProductSyncService productSyncService,
+                                             ShopCollectionService shopCollectionService,
+                                             ShopCandidateService candidateService,
+                                             WeekTagUtil weekTagUtil,
+                                             TransactionTemplate transactionTemplate,
+                                             @Qualifier("sellerspriteRequestExecutor") Executor sellerspriteRequestExecutor,
+                                             com.sjzm.product.modules.shoppremium.mapper.ShopPremiumPoolMapper premiumMapper,
+                                             AsinImportTaskMapper asinImportTaskMapper,
+                                             AsinImportResultMapper asinImportResultMapper,
+                                             CompetitorService competitorService,
+                                             SellerspriteExecutionGateway executionGateway,
+                                             DengZongShopService dengZongShopService,
+                                             org.redisson.api.RedissonClient redissonClient,
+                                             com.sjzm.product.service.ScoringService scoringService,
+                                             com.sjzm.product.service.CleanLayerService cleanLayerService,
+                                             com.sjzm.product.mapper.SkipAsinMapper skipAsinMapper) {
         this.runMapper = runMapper;
         this.itemMapper = itemMapper;
         this.productSyncService = productSyncService;
+        this.shopCollectionService = shopCollectionService;
         this.candidateService = candidateService;
         this.weekTagUtil = weekTagUtil;
         this.transactionTemplate = transactionTemplate;
@@ -214,8 +221,15 @@ public class SellerspriteRequestCenterService {
             if (queued.isEmpty()) {
                 throw new IllegalArgumentException("所选店铺均已抓取或已有进行中的任务，无需重复请求卖家精灵");
             }
+            // 按 item 是否带 triggerId(candidateId) 分流任务类型：
+            //   全部带 → CANDIDATE_BATCH：候选池点选确认抓取，执行器按 candidateId 从候选池抓（原逻辑）
+            //   存在不带 → SHOP_FULL_LOOKUP：手输店铺名（如店铺选品页「店铺请求」），
+            //             执行器落默认分支 syncBySellerName 按店铺名抓全量写 shop_products。
+            // CANDIDATE_BATCH 执行器强制要 triggerId，手输店铺无 candidateId 会必然失败——故必须分流。
+            boolean allHaveTriggerId = queued.stream().allMatch(item -> item.triggerId() != null);
+            String requestType = allHaveTriggerId ? "CANDIDATE_BATCH" : "SHOP_FULL_LOOKUP";
             SellerspriteRequestRun run = createTaskInternal(
-                    "CANDIDATE_BATCH", marketplace, triggerType, triggerRef, fetchReason, queued, operator);
+                    requestType, marketplace, triggerType, triggerRef, fetchReason, queued, operator);
             return buildShopTaskResult(run, "ONCE", requested, queued, unavailable,
                     "同站点同店铺仅首次抓取；跨 M1、批次全量及其他普通来源不重复请求");
         });
@@ -243,6 +257,47 @@ public class SellerspriteRequestCenterService {
                     fetchReason, queued, operator);
             return buildShopTaskResult(run, "REPEATABLE", requested, queued, unavailable,
                     "仅精品店铺池使用；允许按周期再次抓取，但同一时间只允许一个活跃任务");
+        });
+    }
+
+    /**
+     * 非标店铺上新专用复抓入口。
+     *
+     * <p>名单只读取 {@code deng_zong_shop_seller}，任务类型固定为
+     * {@code DENG_ZONG_SHOP_SYNC}，消费者固定写入 {@code deng_zong_shop}。
+     * 历史终态任务不阻止再次抓取，但同站点同店铺存在活跃任务时跳过，
+     * 绝不进入普通候选池或 {@code shop_products}。</p>
+     */
+    @Transactional
+    public Map<String, Object> createDengZongShopTask(List<Long> sellerIds, String operator) {
+        return withCreateLock("DENG_ZONG_REPEATABLE_GLOBAL", () -> {
+            if (sellerIds == null || sellerIds.isEmpty()) {
+                throw new IllegalArgumentException("至少选择一个非标店铺");
+            }
+            List<Long> distinctIds = sellerIds.stream().filter(Objects::nonNull).distinct().toList();
+            List<DengZongShopSeller> sellers = dengZongShopService.sellerSelectList(
+                    new LambdaQueryWrapper<DengZongShopSeller>().in(DengZongShopSeller::getId, distinctIds));
+            if (sellers.size() != distinctIds.size()) {
+                throw new IllegalArgumentException("部分非标店铺不存在或已被删除，请刷新名单后重试");
+            }
+
+            List<RequestItemInput> requested = normalizeShopItems(sellers.stream()
+                    .map(seller -> new RequestItemInput(
+                            seller.getMarketplace(), seller.getSellerName(), seller.getId()))
+                    .toList());
+            Set<String> unavailable = findShopKeys(requested, false);
+            List<RequestItemInput> queued = requested.stream()
+                    .filter(item -> !unavailable.contains(shopKey(item)))
+                    .toList();
+            if (queued.isEmpty()) {
+                throw new IllegalArgumentException("所选非标店铺均有进行中的抓取任务，请勿并发重复创建");
+            }
+
+            SellerspriteRequestRun run = createTaskInternal(
+                    "DENG_ZONG_SHOP_SYNC", null, "DENG_ZONG_REQUEST_CENTER", null,
+                    "非标店铺上新重复抓取", queued, operator);
+            return buildShopTaskResult(run, "DENG_ZONG_REPEATABLE", requested, queued, unavailable,
+                    "仅写 deng_zong_shop；历史任务完成后允许复抓，活跃任务不并发重复");
         });
     }
 
@@ -671,6 +726,29 @@ public class SellerspriteRequestCenterService {
         return affected;
     }
 
+    /**
+     * 删除终态任务及其子项。活跃任务必须先停止，且当前 worker 完全退出后才能删除，
+     * 避免外部请求完成时回写一条已被删除的 run。
+     */
+    @Transactional
+    public int delete(String runId) {
+        SellerspriteRequestRun run = getRun(runId);
+        if (!TERMINAL_STATUS.contains(run.getStatus())) {
+            throw new IllegalStateException("删除失败：请先停止任务，当前状态为 " + run.getStatus());
+        }
+        if (activeAutoRuns.contains(runId) || consumingRuns.contains(runId)) {
+            throw new IllegalStateException("删除失败：当前已发出的请求仍在收尾，请稍后重试");
+        }
+
+        itemMapper.delete(new LambdaQueryWrapper<SellerspriteRequestItem>()
+                .eq(SellerspriteRequestItem::getRunId, runId));
+        int affected = runMapper.deleteById(runId);
+        if (affected == 0) {
+            throw new IllegalStateException("删除失败：run " + runId + " 不存在或已被删除");
+        }
+        return affected;
+    }
+
     // ── consume ──────────────────────────────────────────────────
 
     /**
@@ -733,10 +811,18 @@ public class SellerspriteRequestCenterService {
         }
     }
 
-    /** 仅恢复确认未发出的瞬时故障；结果未知请求必须保留给人工确认。 */
+    /** 恢复确认未发出的瞬时故障以及 clean 收尾；结果未知请求必须保留给人工确认。 */
     @Scheduled(fixedDelayString = "${sellersprite.retry-recovery-delay-ms:10000}")
     public void recoverDueSafeRetries() {
         for (String runId : runMapper.selectDueSystemRetryRunIds()) {
+            SellerspriteRequestRun run = runMapper.selectById(runId);
+            if (isCleanFinalizationRetry(run)) {
+                if (runMapper.resume(runId) > 0) {
+                    startAutoConsume(runId);
+                    log.info("恢复新品清洗层收尾重试: runId={}", runId);
+                }
+                continue;
+            }
             int released = itemMapper.releaseDueSafeRetries(runId);
             if (released <= 0) continue;
             if (runMapper.resume(runId) > 0) {
@@ -846,10 +932,14 @@ public class SellerspriteRequestCenterService {
         if (pending.isEmpty()) {
             // 没有待处理子项——完结 run
             finalizeRun(runId);
+            SellerspriteRequestRun finalized = runMapper.selectById(runId);
+            boolean finished = finalized != null && TERMINAL_STATUS.contains(finalized.getStatus());
             Map<String, Object> r = new LinkedHashMap<>();
             r.put("runId", runId);
             r.put("consumed", 0);
-            r.put("message", "无待处理子项，任务已完结");
+            r.put("status", finalized == null ? status : finalized.getStatus());
+            r.put("finished", finished);
+            r.put("message", finished ? "无待处理子项，任务已完结" : "请求已完成，清洗层收尾等待自动重试");
             return r;
         }
 
@@ -1110,7 +1200,7 @@ public class SellerspriteRequestCenterService {
                 null, null, run.getBatchCode(), () -> {
                     SellerspriteRequestRun fresh = runMapper.selectById(run.getRunId());
                     return fresh != null && "RUNNING".equals(fresh.getStatus());
-                });
+                }, false);
     }
 
     // ── list / detail ────────────────────────────────────────────
@@ -1156,10 +1246,19 @@ public class SellerspriteRequestCenterService {
         return run;
     }
 
-    public List<SellerspriteRequestItem> listItems(String runId) {
-        return itemMapper.selectList(new LambdaQueryWrapper<SellerspriteRequestItem>()
+    /**
+     * 任务子项分页查询（按 seq 升序）。大任务子项可达数千条，禁止一次性全量返回给前端渲染，
+     * 否则详情抽屉会一次渲染上万 DOM 导致卡死。size 默认 20、上限 200。
+     */
+    public PageResult<SellerspriteRequestItem> listItems(String runId, Integer page, Integer size) {
+        int p = Math.max(1, page == null ? 1 : page);
+        int s = Math.max(1, Math.min(size == null ? 20 : size, 200));
+        LambdaQueryWrapper<SellerspriteRequestItem> qw = new LambdaQueryWrapper<SellerspriteRequestItem>()
                 .eq(SellerspriteRequestItem::getRunId, runId)
-                .orderByAsc(SellerspriteRequestItem::getSeq));
+                .orderByAsc(SellerspriteRequestItem::getSeq);
+        Page<SellerspriteRequestItem> mpPage = new Page<>(p, s);
+        Page<SellerspriteRequestItem> result = itemMapper.selectPage(mpPage, qw);
+        return PageResult.of(result.getRecords(), result.getTotal(), (long) p, (long) s);
     }
 
     /** 重试单条 FAILED item：置回 PENDING，run 重新打开为 RUNNING（若已完结）。 */
@@ -1293,17 +1392,41 @@ public class SellerspriteRequestCenterService {
         } else {
             finalStatus = "PARTIAL_SUCCESS";
         }
-        run.setStatus(finalStatus);
-        run.setFinishedAt(LocalDateTime.now());
-        runMapper.updateById(run);
-        log.info("请求中心任务完结: runId={}, status={}, success={}, failed={}, apiCalls={}",
-                runId, finalStatus, success, failed, run.getApiCalls());
-
         // ASIN 批量查询写入 competitor_products 后，补做旧链路同款收尾：打周标 + 刷清洗层，
         // 否则新品榜/方法卡（读 competitor_products_clean）看不到本批数据。店铺类任务走 shop_products
         // 独立链路，不触发此收尾。
         if (success > 0 && writesCompetitorProducts(run.getRequestType())) {
-            finalizeCompetitorCleanLayer(run);
+            if (!finalizeCompetitorCleanLayer(run)) {
+                return;
+            }
+        }
+
+        // 只有业务落表以及必须的 clean 收尾都成功后，任务才能进入成功终态。
+        run.setStatus(finalStatus);
+        run.setFinishedAt(LocalDateTime.now());
+        run.setSystemPauseReason(null);
+        run.setSystemResumeAt(null);
+        runMapper.updateById(run);
+        log.info("请求中心任务完结: runId={}, status={}, success={}, failed={}, apiCalls={}",
+                runId, finalStatus, success, failed, run.getApiCalls());
+
+        if (success > 0 && writesShopProducts(run.getRequestType())) {
+            finalizeShopSummarySnapshot(run);
+        }
+    }
+
+    private boolean writesShopProducts(String requestType) {
+        return Set.of("SHOP_FULL_LOOKUP", "CANDIDATE_BATCH", "PREMIUM_REFRESH").contains(requestType);
+    }
+
+    private void finalizeShopSummarySnapshot(SellerspriteRequestRun run) {
+        try {
+            int count = shopCollectionService.refreshSellerSummarySnapshot(run.getMarketplace());
+            log.info("请求中心任务完结后店铺聚合画像快照已刷新: runId={}, marketplace={}, shops={}",
+                    run.getRunId(), run.getMarketplace(), count);
+        } catch (Exception e) {
+            log.error("请求中心任务完结后店铺聚合画像快照刷新失败(不影响任务完结): runId={}, marketplace={}, err={}",
+                    run.getRunId(), run.getMarketplace(), e.getMessage(), e);
         }
     }
 
@@ -1342,17 +1465,31 @@ public class SellerspriteRequestCenterService {
         }
     }
 
-    /** 打周标 + 增量刷清洗层，与 AsinImportService 导入后收尾一致。异常不影响任务完结。 */
-    private void finalizeCompetitorCleanLayer(SellerspriteRequestRun run) {
+    /** 打周标 + 增量刷清洗层。失败时暂停任务并自动重试，禁止带病进入成功终态。 */
+    private boolean finalizeCompetitorCleanLayer(SellerspriteRequestRun run) {
         try {
             String weekTag = scoringService.updateWeekTags();
             Map<String, Object> cleanResult = cleanLayerService.cleanWeekBatch(run.getMarketplace(), weekTag);
             log.info("请求中心任务完结后清洗层刷新: runId={}, marketplace={}, weekTag={}, affected={}",
                     run.getRunId(), run.getMarketplace(), weekTag, cleanResult.get("affectedRows"));
+            return true;
         } catch (Exception e) {
-            log.error("请求中心任务完结后清洗层刷新失败(不影响任务完结): runId={}, marketplace={}, err={}",
-                    run.getRunId(), run.getMarketplace(), e.getMessage(), e);
+            String reason = CLEAN_FINALIZATION_REASON_PREFIX
+                    + truncate(e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName(), 400);
+            LocalDateTime retryAt = LocalDateTime.now().plusSeconds(CLEAN_FINALIZATION_RETRY_SECONDS);
+            int paused = runMapper.pauseSystem(run.getRunId(), reason, retryAt);
+            log.error("请求中心任务清洗层刷新失败，已暂停并等待自动重试: runId={}, marketplace={}, retryAt={}, paused={}, err={}",
+                    run.getRunId(), run.getMarketplace(), retryAt, paused, e.getMessage(), e);
+            return false;
         }
+    }
+
+    private boolean isCleanFinalizationRetry(SellerspriteRequestRun run) {
+        return run != null
+                && "PAUSED_SYSTEM".equals(run.getStatus())
+                && run.getSystemPauseReason() != null
+                && run.getSystemPauseReason().startsWith(CLEAN_FINALIZATION_REASON_PREFIX)
+                && nvl(run.getPendingCount()) == 0;
     }
 
     private int getInt(Map<String, Object> map, String key, int def) {

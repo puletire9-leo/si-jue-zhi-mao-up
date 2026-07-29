@@ -7,10 +7,23 @@ defineProps<{
 <template>
   <div class="lay-content">
     <router-view v-slot="{ Component, route }">
+      <!-- 只缓存显式标记 meta.keepAlive 的页面（如品线选品/店铺画像）。 -->
+      <!-- 店铺选品等图片密集的重页面切走即销毁、释放内存，避免整个标签页因缓存堆积变卡。 -->
       <transition name="fade-transform" mode="out-in">
-        <keep-alive :max="30">
-          <component :is="Component" :key="route.path" />
+        <keep-alive :max="10">
+          <component
+            v-if="route.meta.keepAlive"
+            :is="Component"
+            :key="route.path"
+          />
         </keep-alive>
+      </transition>
+      <transition name="fade-transform" mode="out-in">
+        <component
+          v-if="!route.meta.keepAlive"
+          :is="Component"
+          :key="route.path"
+        />
       </transition>
     </router-view>
   </div>

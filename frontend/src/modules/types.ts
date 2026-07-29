@@ -9,6 +9,10 @@ export interface ModuleManifest {
   icon?: string
   /** 菜单分组名，有则归入子菜单，无则顶级 */
   menuGroup?: string
+  /** 菜单三级分组名；仅在 menuGroup 存在时生效 */
+  menuSection?: string
+  /** 三级分组排序权重，越小越靠前 */
+  menuSectionOrder?: number
   /** 排序权重，越小越靠前 */
   menuOrder?: number
   /** 权限标识，预留 */

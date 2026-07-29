@@ -189,6 +189,13 @@ public class ShopCollectionController {
                 minGoodTendencyCount, maxAttentionStrongCount, limit, sourceRunId));
     }
 
+    @PostMapping("/selection-shops/refresh")
+    @Operation(summary = "刷新店铺聚合画像物化快照",
+            description = "跑一次实时聚合并整站落库 shop_seller_summary，用于首次建快照或手动重建；日常由店铺抓取写库后自动触发")
+    public Result<Integer> refreshSellerSummary(@RequestParam String marketplace) {
+        return Result.success(collectionService.refreshSellerSummarySnapshot(marketplace));
+    }
+
     @GetMapping("/{marketplace}/{sellerName}")
     @Operation(summary = "单店全景详情", description = "为什么进观察池 + 全集 A/B/C/D 画像 + 类目结构")
     public Result<ShopCollectionDetail> detail(

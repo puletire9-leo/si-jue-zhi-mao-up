@@ -5,6 +5,8 @@ export default {
   name: '非标店铺上新',
   icon: 'Star',
   menuGroup: '选品中心',
+  menuSection: '商品数据源',
+  menuSectionOrder: 2,
   menuOrder: 13,
   route: {
     path: 'zheng-products',

@@ -46,6 +46,7 @@ frontend/src/
 | 下载管理 | /download-manager | downloadTask.ts |
 | 用户管理 | /user-management | user.ts |
 | 设置 | /settings | systemConfig.ts |
+| AI 选品 | /ai-selection | ai-selection.ts |
 | 产品回收站 | /product-recycle | product.ts |
 | 选品回收站 | /selection-recycle | selection.ts |
 | 定稿回收站 | /final-draft-recycle | finalDrafts.ts |
@@ -67,9 +68,12 @@ frontend/src/
 | category.ts | `/api/v1/categories/` | Python |
 | tag.ts | `/api/v1/tags/` | Python |
 | systemConfig.ts | `/api/v1/system-config/`、`/api/v1/sellersprite-config` | 混合：Python 为主，`sellersprite-config` 走 Java |
+| ai-selection.ts | `/api/v1/ai-selection/` | Python；JWT 鉴权，按用户隔离的 Redis 投递会话 |
 | product-line.ts | `/api/v1/product-line/` | 混合：Java 与 Selection Agent 共存，必须结合代理规则判断 |
 
 统一选品框架的“下载全部 CSV”会按当前筛选遍历所有分页，再通过 `competitor.ts` 调用 `/api/v1/competitor/export-current-page`；后端按查询计划回查 `competitor_products_clean` / `competitor_products` / `deng_zong_shop` / `shop_products`，不要从前端展示字段自行拼 CSV。
+统一选品页面由 `KeepAlive` 缓存；批次筛选组件在页面重新激活时必须刷新批次选项，确保卖家精灵任务完成并写入 clean 后无需整页刷新即可看到新批次。
+店铺选品首屏、切站点、重置和切换方法卡时必须先把 `shop_products` 最新周批次写入 `activeFilters.range.createdWeeks`，再请求分类和商品；禁止只更新筛选抽屉 draft 后用空批次查询全部历史数据。
 
 布局内容区使用 `KeepAlive` 按路由缓存页面实例；新品榜、店铺选品等列表页切换后不得在 `onActivated` 中自动重查，用户显式搜索、筛选、刷新时才更新。
 
@@ -88,9 +92,11 @@ frontend/src/
 管理员进入人工选品库时默认选择“刘淼”，从新品榜/店铺选品加入好品或差品时也默认真实归属刘淼账号；不得只改显示标签而仍写入系统管理员账号。
 
 卖家精灵请求中心位于 `src/modules/sellersprite-request-center/`。任务列表支持按 `yyyy-MM` 创建月份筛选，页面默认当前月；月度请求次数必须读取后端整月汇总，禁止用当前分页的 `apiCalls` 前端相加。
+卖家精灵请求中心只有 `STOPPED/SUCCESS/PARTIAL_SUCCESS/FAILED` 终态任务可删除；活跃任务必须先停止并等待 worker 退出。删除会同时移除任务、子项和该任务的月度请求次数记录，以解除来源幂等占用并允许重新创建。
 
-八爪鱼自动采集配置页允许同功能同站点保存多条平级命名任务，不显示主/附加概念。每条任务必须可维护分类和“初筛”开关。配置表必须明显展示自动读取的最新云采集批次号、开始/结束时间、本批次数量和状态；只有 Finished 批次允许“导入DB”。导入请求必须携带页面当前显示的批次元数据，确认框明确写出批次号、时间和数量，禁止后端静默切换批次。导入任务列表显示任务名称、分类、是否初筛、请求次数和批次；“导入DB”不得自动请求卖家精灵，只有用户点击“请求卖家精灵”并确认后才调用，确认文案需明确目标数据表。
+八爪鱼自动采集配置页允许同功能同站点保存多条平级命名任务，不显示主/附加概念。每条任务必须可维护分类和“初筛”开关。配置表必须明显展示自动读取的最新云采集批次号、开始/结束时间、本批次数量和状态；只有 Finished 批次允许“导入DB”。导入请求必须携带页面当前显示的批次元数据，确认框明确写出批次号、时间和数量，禁止后端静默切换批次。后端同步返回可见 `QUEUED` 任务及 taskId 后，页面必须进行有上限轮询并展示 `QUEUED → RUNNING → READY/ERROR`；导入任务列表显示任务名称、分类、是否初筛、请求次数和批次；“导入DB”不得自动请求卖家精灵，只有用户点击“请求卖家精灵”并确认后才调用，确认文案需明确目标数据表。
 生产 Nginx 必须对 `/index.html` 和 SPA history fallback 返回 `Cache-Control: no-store, no-cache`；带 hash 的 JS/CSS 静态资源继续使用 immutable 长缓存。发布后普通刷新必须能加载新入口，避免旧页面继续调用过期 API 参数。
+Vite 自动导入的 `auto-import.d.ts` 和 `components.d.ts` 只在 development 模式生成；production 构建禁止重写声明文件，避免 Windows 文件占用导致发布构建随机失败。
 
 非标店铺上新（`/zheng-products`，数据源 `deng_zong_shop`）必须真实支持页面暴露的 ASIN、销量、上架天数、价格、BSR、重量、变体、配送、卖家、类目、批次与排序；不得只显示筛选控件却在查询计划中标记 unsupported。
 
@@ -119,6 +125,10 @@ frontend/src/
 下载中心禁止使用 XHR/fetch 将完整 ZIP 转成 Blob；必须先申请短时下载会话，再用原生 `<a>` 下载，让浏览器负责流式落盘。下载按钮需有短时 loading/禁用状态，避免用户重复点击生成并发大文件请求。
 
 ## Agent 修改规则
+
+侧边栏模块通过 `manifest.ts` 的 `menuGroup` 组织二级目录；长业务分组使用 `menuSection` 和 `menuSectionOrder` 组织三级目录。三级目录只改变菜单信息架构，不得改变模块 URL、路由名称或权限标识。
+侧边栏允许多个一级目录和三级分组同时展开，禁止启用 Element Plus 菜单的 `unique-opened` 单展开限制。
+店铺请求中心必须把“正常店铺请求”和“非标店铺上新”作为独立模式：正常模式读取 `shop_candidate_pool` 并写 `shop_products`；非标模式读取 `deng_zong_shop_seller`，只通过 `/api/v1/deng-zong-shop/sync/batch` 创建 `DENG_ZONG_SHOP_SYNC`，结果只写 `deng_zong_shop`。非标商品页只读展示，不得再维护第二套卖家管理弹窗。
 
 统一选品框架中，ASIN 搜索（单条或多条）都是精准直查：只保留当前站点和业务数据源，必须移除方法卡、周批次、类目及区间筛选后再生成查询计划。禁止仅对多条 ASIN 启用精准模式，否则新品榜默认 M01 会吞掉单条 ASIN，而店铺选品表现正常，造成模块语义不一致。
 

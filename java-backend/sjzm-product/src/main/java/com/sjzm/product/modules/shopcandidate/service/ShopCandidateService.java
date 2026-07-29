@@ -14,7 +14,7 @@ import com.sjzm.product.modules.shopcollection.service.ShopProductSyncService;
 import com.sjzm.product.modules.shoprating.dto.ShopMethodBatchOption;
 import com.sjzm.product.modules.shoprating.dto.ShopMethodRankItem;
 import com.sjzm.product.modules.shoprating.service.ShopMethodRankService;
-import com.sjzm.product.util.WeekTagUtil;
+import com.sjzm.product.util.DayBatchSupport;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -50,11 +50,12 @@ public class ShopCandidateService {
     private final ShopMethodRankService methodRankService;
     private final ShopProductSyncService productSyncService;
     private final ShopWatchlistMapper watchlistMapper;
-    private final WeekTagUtil weekTagUtil;
     private final TransactionTemplate transactionTemplate;
     private final DatabaseWorkloadGate workloadGate;
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
+    /** 单天批次值格式 yyyy-MM-dd，与全站 DayBatchOption / 前端下拉 value 对齐。 */
+    private static final DateTimeFormatter DAY_BATCH_FMT = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final int UPSERT_BATCH_SIZE = 500;
     private static final Set<String> VALID_STATUSES = Set.of(
             "PENDING", "SELECTED", "FETCHING", "FETCHED", "FETCH_FAILED", "IGNORED", "PROMOTED");
@@ -80,14 +81,21 @@ public class ShopCandidateService {
      * @param methodId    方法卡（当前仅支持 M01）
      * @param marketplace 站点，null=全站点
      * @param minCount    命中数下限
-     * @param batchCode   ISO 周批次，null=当前周
+     * @param batchCode   单天导入日期批次（yyyy-MM-dd），null=今天
      * @return 同步结果
      */
     public Map<String, Object> syncFromMethodRank(String methodId, String marketplace,
                                                    Integer minCount, String batchCode, Integer limit) {
         String method = normalizeMethodId(methodId);
         int min = minCount == null || minCount < 1 ? 1 : minCount;
-        String batch = StringUtils.hasText(batchCode) ? batchCode.trim() : weekTagUtil.currentWeekTag();
+        // 批次回落默认值走「今天单天日期」，与 DayBatchOption 粒度一致；空值时 rankByMethod 会再归一。
+        String batch;
+        if (StringUtils.hasText(batchCode)) {
+            String normalized = DayBatchSupport.normalizeToDate(batchCode);
+            batch = StringUtils.hasText(normalized) ? normalized : batchCode.trim();
+        } else {
+            batch = LocalDate.now().format(DAY_BATCH_FMT);
+        }
         int lim = limit == null || limit < 1 ? 1000 : Math.min(limit, 5000);
         return workloadGate.runHeavyWrite(() -> doSyncFromMethodRank(method, marketplace, min, batch, lim));
     }
@@ -141,7 +149,9 @@ public class ShopCandidateService {
     }
 
     private Map<String, Object> doSyncAllFromBatch(String marketplace, String batchCode) {
-        String batch = batchCode.trim();
+        // 批次值归一到单天日期后再落库，兼容前端传来的旧 ISO 周值，保证 batch_code 与下拉粒度一致。
+        String normalized = DayBatchSupport.normalizeToDate(batchCode);
+        String batch = StringUtils.hasText(normalized) ? normalized : batchCode.trim();
         String batchDate = LocalDate.now().format(DATE_FMT);
         List<ShopMethodRankItem> ranking = workloadGate.runHeavyQuery(
                 () -> methodRankService.rankAllByBatch(marketplace, batch));
@@ -261,7 +271,7 @@ public class ShopCandidateService {
         if (preparation == null) {
             throw new IllegalStateException("创建抓取任务失败: " + candidateId);
         }
-        return executePreparedFetch(candidateId, preparation);
+        return executePreparedFetch(candidateId, preparation, true);
     }
 
     /**
@@ -277,10 +287,11 @@ public class ShopCandidateService {
         if (preparation == null) {
             throw new IllegalStateException("创建请求中心候选抓取任务失败: " + candidateId);
         }
-        return executePreparedFetch(candidateId, preparation);
+        return executePreparedFetch(candidateId, preparation, false);
     }
 
-    private Map<String, Object> executePreparedFetch(Long candidateId, FetchPreparation preparation) {
+    private Map<String, Object> executePreparedFetch(Long candidateId, FetchPreparation preparation,
+                                                     boolean refreshSummaryAfterWrite) {
         ShopCandidatePool candidate = preparation.candidate();
         ShopWatchlist watchlist = preparation.watchlist();
         ShopFetchRun run = preparation.run();
@@ -293,7 +304,8 @@ public class ShopCandidateService {
         Map<String, Object> syncResult;
         try {
             syncResult = productSyncService.syncBySellerName(
-                    sellerName, marketplace, candidate.getReason(), watchlist.getId(), runId, batchCode);
+                    sellerName, marketplace, candidate.getReason(), watchlist.getId(), runId, batchCode,
+                    () -> true, refreshSummaryAfterWrite);
         } catch (Exception e) {
             log.error("店铺全集抓取失败: candidateId={}, sellerName={}, error={}", candidateId, sellerName, e.getMessage(), e);
             String errMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
@@ -403,7 +415,7 @@ public class ShopCandidateService {
         entity.setSellerName(sellerName.trim());
         entity.setSourceType("MANUAL");
         entity.setSourceCode("");
-        entity.setBatchCode(weekTagUtil.currentWeekTag());
+        entity.setBatchCode(LocalDate.now().format(DAY_BATCH_FMT));
         entity.setBatchDate(LocalDate.now().format(DATE_FMT));
         entity.setReason(StringUtils.hasText(reason) ? reason.trim() : "人工加入");
         entity.setNote(StringUtils.hasText(note) ? note.trim() : null);
@@ -465,7 +477,7 @@ public class ShopCandidateService {
 
         String runId = "FETCH_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         String effectiveTriggerType = normalizeFetchTriggerType(triggerType);
-        String effectiveBatchCode = StringUtils.hasText(batchCode) ? batchCode.trim() : weekTagUtil.currentWeekTag();
+        String effectiveBatchCode = StringUtils.hasText(batchCode) ? batchCode.trim() : LocalDate.now().format(DAY_BATCH_FMT);
         ShopFetchRun run = new ShopFetchRun();
         run.setRunId(runId);
         run.setMarketplace(candidate.getMarketplace());

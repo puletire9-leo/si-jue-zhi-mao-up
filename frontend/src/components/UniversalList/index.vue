@@ -38,6 +38,7 @@
               回收站
             </el-button>
             <el-button
+              v-if="showBatchDelete"
               type="danger"
               :icon="Delete"
               :disabled="selectedIds.length === 0"
@@ -45,6 +46,7 @@
             >
               批量删除 ({{ selectedIds.length }})
             </el-button>
+            <slot name="header-extra"></slot>
           </div>
         </div>
       </template>
@@ -63,6 +65,9 @@
           :product="item"
           :selected="selectedIds.includes(getItemId(item))"
           :mode="cardMode"
+          :selectable="cardSelectable"
+          :show-delete="cardShowDelete"
+          :show-image-search="cardShowImageSearch"
           @click="handleCardClick"
           @select="handleSelect"
           @view="handleView"
@@ -90,7 +95,7 @@
           :current-page="pagination.page"
           :page-size="pagination.size"
           :total="pagination.total"
-          :page-sizes="[60, 100, 200, 500]"
+          :page-sizes="[60, 100, 200]"
           layout="total, sizes, prev, pager, next, jumper"
           @size-change="handleSizeChange"
           @current-change="handlePageChange"
@@ -174,6 +179,10 @@ interface Props {
   showImportButton?: boolean
   showDownloadButton?: boolean
   showRecycleBinButton?: boolean
+  showBatchDelete?: boolean
+  cardSelectable?: boolean
+  cardShowDelete?: boolean
+  cardShowImageSearch?: boolean
 }
 
 interface Emits {
@@ -199,7 +208,11 @@ const props = withDefaults(defineProps<Props>(), {
   addButtonText: '添加',
   showImportButton: true,
   showDownloadButton: true,
-  showRecycleBinButton: false
+  showRecycleBinButton: false,
+  showBatchDelete: true,
+  cardSelectable: true,
+  cardShowDelete: true,
+  cardShowImageSearch: true
 })
 
 const emit = defineEmits<Emits>()

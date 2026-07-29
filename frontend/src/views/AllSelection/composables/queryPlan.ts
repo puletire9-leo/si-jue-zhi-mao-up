@@ -1,6 +1,7 @@
 import type { CompetitorListParams, QualifyRule } from "@/api/competitor";
 import type { MethodCardListParams } from "@/api/methodCards";
 import type { ShopProductSelectionParams } from "@/api/shopCollection";
+import type { AiSelectionPoolListParams } from "@/api/ai-selection-pool";
 import type { RangeFilterValue } from "@/components/RangeFilterPanel/index.vue";
 import type { SelectionQueryParams } from "@/components/SelectionQueryForm/types";
 
@@ -10,7 +11,8 @@ export type SelectionScene =
   | "reference"
   | "premium"
   | "zheng"
-  | "fbm";
+  | "fbm"
+  | "ai_selection";
 export type SelectionMethodId = "M01" | "M02" | "M03";
 export type SelectionDataView = "clean" | "raw";
 export type SelectionLensId = "default" | SelectionMethodId;
@@ -19,18 +21,21 @@ export type SelectionExecutor =
   | "premium_products"
   | "deng_zong"
   | "shop_products"
-  | "method_card";
+  | "method_card"
+  | "ai_selection";
 export type SelectionSnapshotKind =
   | "competitor_created_week"
   | "premium_created_week"
   | "deng_zong_batch"
-  | "shop_batch";
+  | "shop_batch"
+  | "ai_selection_batch";
 export type SelectionTargetSource =
   | "competitor_clean"
   | "competitor_raw"
   | "premium_products"
   | "deng_zong"
-  | "shop_products";
+  | "shop_products"
+  | "ai_selection";
 export type SelectionSemanticFilterKey =
   | "asin"
   | "title"
@@ -72,6 +77,8 @@ export interface SelectionFilterIntent {
     bsrId?: string;
     nodeId?: number;
     groupByParent?: boolean;
+    /** 非标载体多选（仅 AI 选品场景使用） */
+    carriers?: string[];
   };
   search: {
     asin: string[];
@@ -158,6 +165,12 @@ export interface ShopProductsQueryPlan extends SelectionQueryPlanBase {
   params: ShopProductSelectionParams;
 }
 
+export interface AiSelectionQueryPlan extends SelectionQueryPlanBase {
+  executor: "ai_selection";
+  targetSource: "ai_selection";
+  params: AiSelectionPoolListParams;
+}
+
 export interface MethodCardQueryPlan extends SelectionQueryPlanBase {
   executor: "method_card";
   targetSource: "competitor_clean" | "deng_zong";
@@ -169,6 +182,7 @@ export type SelectionQueryPlan =
   | PremiumProductsQueryPlan
   | DengZongQueryPlan
   | ShopProductsQueryPlan
+  | AiSelectionQueryPlan
   | MethodCardQueryPlan;
 
 interface SelectionMethodLensDefinition {
@@ -265,6 +279,18 @@ export const SOURCE_CAPABILITIES: Record<
       filterMode: "unsupported",
       weekTag: "unsupported",
       createdAtRange: "unsupported",
+      qualifyRules: "unsupported",
+    }),
+  },
+  ai_selection: {
+    targetSource: "ai_selection",
+    executor: "ai_selection",
+    snapshotKind: "ai_selection_batch",
+    supports: createSupportMap({
+      filterMode: "unsupported",
+      weekTag: "unsupported",
+      createdAtRange: "unsupported",
+      grade: "unsupported",
       qualifyRules: "unsupported",
     }),
   },
@@ -518,6 +544,9 @@ function resolveDefaultTargetSource(
   if (intent.scene === "zheng") {
     return "deng_zong";
   }
+  if (intent.scene === "ai_selection") {
+    return "ai_selection";
+  }
   return intent.scope.dataView === "clean"
     ? "competitor_clean"
     : "competitor_raw";
@@ -669,6 +698,9 @@ function buildShopProductsQueryPlan(input: {
   if (intent.search.categories.length > 0) {
     params.categories = [...intent.search.categories];
   }
+  // 品线树精确筛选：把大类/小类透传给店铺选品，与新品榜口径一致。
+  if (intent.scope.bsrId) params.bsrId = intent.scope.bsrId;
+  if (intent.scope.nodeId != null) params.nodeId = intent.scope.nodeId;
   if (intent.freshness.snapshotKeys.length > 0) {
     params.batchDates = [...intent.freshness.snapshotKeys];
   }
@@ -855,6 +887,75 @@ function buildPremiumProductsQueryPlan(input: {
   };
 }
 
+function buildAiSelectionQueryPlan(input: {
+  intent: SelectionFilterIntent;
+  page: number;
+  size: number;
+}): AiSelectionQueryPlan {
+  const { intent, page, size } = input;
+  const marketplace = intent.scope.marketplace || "UK";
+  const params: AiSelectionPoolListParams = {
+    page,
+    size,
+    marketplace,
+    sortBy: intent.sort.field || "pushedAt",
+    sortOrder: intent.sort.order || "desc",
+  };
+
+  // 方法卡快筛（M01/M03）：透传给后端，套用同口径门槛到 ai_selection 表。
+  // M02 是郑总盘专属，AI 选品页不显示该卡，后端也会忽略。
+  if (intent.methodId === "M01" || intent.methodId === "M03") {
+    params.methodId = intent.methodId;
+  }
+
+  if (intent.search.asin.length > 0) params.asin = [...intent.search.asin];
+  if (intent.search.title) params.title = intent.search.title;
+  if (intent.search.sellerName) params.sellerName = intent.search.sellerName;
+  if (intent.search.brand) params.brand = intent.search.brand;
+  if (intent.search.categories.length > 0) {
+    params.category = intent.search.categories.join(",");
+  }
+  if (intent.scope.bsrId) params.bsrId = intent.scope.bsrId;
+  if (intent.scope.nodeId != null) params.nodeId = intent.scope.nodeId;
+  if (intent.freshness.snapshotKeys.length > 0) {
+    params.batchIds = [...intent.freshness.snapshotKeys];
+  }
+  if (intent.scope.carriers && intent.scope.carriers.length > 0) {
+    params.carriers = [...intent.scope.carriers];
+  }
+  if (intent.metrics.priceMin != null) params.priceMin = intent.metrics.priceMin;
+  if (intent.metrics.priceMax != null) params.priceMax = intent.metrics.priceMax;
+  if (intent.metrics.unitsMin != null) params.unitsMin = intent.metrics.unitsMin;
+  if (intent.metrics.unitsMax != null) params.unitsMax = intent.metrics.unitsMax;
+  if (intent.metrics.listingDaysMin != null) {
+    params.listingDaysMin = intent.metrics.listingDaysMin;
+  }
+  if (intent.metrics.listingDaysMax != null) {
+    params.listingDaysMax = intent.metrics.listingDaysMax;
+  }
+  if (intent.metrics.bsrMax != null) params.bsrMax = intent.metrics.bsrMax;
+  if (intent.metrics.weightMax != null) params.weightMax = intent.metrics.weightMax;
+  if (intent.metrics.variantCountMax != null) {
+    params.maxVariantCount = intent.metrics.variantCountMax;
+  }
+  if (intent.metrics.fulfillment.length > 0) {
+    params.fulfillment = [...intent.metrics.fulfillment];
+  }
+
+  return {
+    executor: "ai_selection",
+    lensId: "default",
+    methodId: null,
+    targetSource: "ai_selection",
+    params,
+    unsupportedFilters: collectUnsupportedFilters(
+      intent,
+      SOURCE_CAPABILITIES.ai_selection.supports,
+    ),
+    forcedFilters: ["dataSource=ai_selection"],
+  };
+}
+
 export function buildSelectionFilterIntent(input: {
   scene: SelectionScene;
   methodId: SelectionMethodId | null;
@@ -872,6 +973,7 @@ export function buildSelectionFilterIntent(input: {
     title?: string;
     sellerName?: string;
     marketplace?: string;
+    carriers?: string[];
   };
 }): SelectionFilterIntent {
   const {
@@ -913,6 +1015,10 @@ export function buildSelectionFilterIntent(input: {
       bsrId: exactAsinSearch ? undefined : compactText(overrides?.bsrId),
       nodeId: exactAsinSearch ? undefined : overrides?.nodeId,
       groupByParent: exactAsinSearch ? undefined : overrides?.groupByParent,
+      // 载体多选不受 ASIN 精准直查影响（属于数据集范围过滤，可与批次并存）
+      carriers: overrides?.carriers && overrides.carriers.length > 0
+        ? [...overrides.carriers]
+        : undefined,
     },
     search: {
       asin: asinValues,
@@ -1000,6 +1106,11 @@ export function buildSelectionQueryPlan(input: {
     return buildPremiumProductsQueryPlan({ intent, page, size });
   }
 
+  // AI 选品：固定读取 ai_selection 表，不支持方法卡。
+  if (intent.scene === "ai_selection") {
+    return buildAiSelectionQueryPlan({ intent, page, size });
+  }
+
   if (intent.methodId) {
     return buildMethodCardQueryPlan({
       intent,
@@ -1018,6 +1129,9 @@ export function buildSelectionQueryPlan(input: {
   }
   if (targetSource === "premium_products") {
     return buildPremiumProductsQueryPlan({ intent, page, size });
+  }
+  if (targetSource === "ai_selection") {
+    return buildAiSelectionQueryPlan({ intent, page, size });
   }
 
   return buildCompetitorQueryPlan({

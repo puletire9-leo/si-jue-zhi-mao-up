@@ -23,11 +23,16 @@ import com.sjzm.product.modules.shopcollection.dto.ShopSnapshot;
 import com.sjzm.product.modules.shopcollection.dto.ShopTierAgeCategoryCell;
 import com.sjzm.product.modules.shopcollection.dto.ShopTierInsight;
 import com.sjzm.product.modules.shopcollection.entity.ShopProduct;
+import com.sjzm.product.modules.shopcollection.entity.ShopSellerSummary;
 import com.sjzm.product.modules.shopcollection.entity.ShopWatchlist;
 import com.sjzm.product.modules.shopcollection.mapper.ShopProductMapper;
+import com.sjzm.product.modules.shopcollection.mapper.ShopSellerSummaryMapper;
 import com.sjzm.product.modules.shopcollection.mapper.ShopWatchlistMapper;
+import org.springframework.beans.BeanUtils;
 import com.sjzm.product.modules.shopcollection.rule.ShopProfileLabelRule;
 import com.sjzm.product.modules.shopcollection.rule.ShopProfileLabelRule.CategoryLabel;
+import com.sjzm.product.util.DayBatchSupport;
+import com.github.benmanes.caffeine.cache.Cache;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -48,6 +53,23 @@ public class ShopCollectionService {
     private final ShopWatchlistMapper watchlistMapper;
     private final ShopFetchRunMapper fetchRunMapper;
     private final ShopProfileLabelRule labelRule;
+    private final ShopSellerSummaryMapper shopSellerSummaryMapper;
+    private final ShopSellerSummarySnapshotWriter snapshotWriter;
+
+    /**
+     * 选品分类/批次聚合缓存（复用 common CaffeineConfig 的 categoryCache，60~90min TTL）。
+     * 分类和批次都是几十万行全表 GROUP BY，且随导入低频变化——按 marketplace + 筛选参数缓存，
+     * 让「进页面 / 每次切筛选」不再打穿到 DB 全表聚合。导入完成后调 evictSelectionAggregates 主动失效。
+     *
+     * 注：容器内有多个 {@code Cache<String,Object>} bean，靠构造参数名 {@code categoryCache}
+     * 与 @Bean 方法名一致做按名解析（Spring Boot 默认保留参数名）；字段名必须叫 categoryCache。
+     */
+    private final Cache<String, Object> categoryCache;
+
+    /** 缓存 key 前缀，避免与其它模块共用 categoryCache 时撞 key。 */
+    private static final String CK_CATEGORIES = "shopSel:cat:";
+    private static final String CK_BATCHES = "shopSel:batch:";
+    private static final String CK_COUNT = "shopSel:cnt:";
 
     private static final Set<String> SUCCESS_STATUSES = Set.of("SUCCESS", "PARTIAL_SUCCESS");
 
@@ -530,11 +552,70 @@ public class ShopCollectionService {
 
         String bd = resolveBatchDate(mp, batchDate);
         int lim = limit == null || limit < 1 ? 100 : Math.min(limit, 1000);
+
+        // 常规列表路径（不指定具体 run、不按批次收窄，即 selectionShops 打开筛选抽屉的场景）优先读物化快照，
+        // 退化为单表 SELECT，避开 7 层 CTE 全量聚合。快照为空（未刷新过）时回退实时计算，保证不空窗。
+        boolean snapshotEligible = resolvedSourceRunId == null && !StringUtils.hasText(batchDate);
+        if (snapshotEligible) {
+            List<ShopProfileSummary> cached = readSummaryFromSnapshot(mp, blankToNull(sellerNameKeyword), minProductCount, lim);
+            if (!cached.isEmpty() || hasSummarySnapshot(mp)) return cached;
+        }
+
+        return computeSummaryLive(mp, bd, resolvedSourceRunId, blankToNull(sellerNameKeyword), minProductCount, lim);
+    }
+
+    /** 实时计算按店铺聚合画像（7 层 CTE + Java 派生字段）。快照刷新与快照未命中回退都走这里，口径唯一。 */
+    private List<ShopProfileSummary> computeSummaryLive(String mp, String bd, String resolvedSourceRunId,
+                                                        String sellerNameKeyword, Integer minProductCount, Integer limit) {
         List<ShopProfileSummary> list = selectSummaryFromShopProducts(
-                mp, bd, resolvedSourceRunId, blankToNull(sellerNameKeyword), minProductCount, lim);
+                mp, bd, resolvedSourceRunId, sellerNameKeyword, minProductCount, limit);
         list.forEach(this::completeSummary);
         enrichSummary3d(mp, bd, resolvedSourceRunId, list);
         return list;
+    }
+
+    /** 从物化快照读按店铺画像列表；排序与实时口径一致（productCount desc, abcCount desc, sellerName asc）。 */
+    private List<ShopProfileSummary> readSummaryFromSnapshot(String mp, String sellerNameKeyword,
+                                                             Integer minProductCount, int lim) {
+        LambdaQueryWrapper<ShopSellerSummary> qw = new LambdaQueryWrapper<ShopSellerSummary>()
+                .eq(ShopSellerSummary::getMarketplace, mp)
+                .like(StringUtils.hasText(sellerNameKeyword), ShopSellerSummary::getSellerName, sellerNameKeyword)
+                .ge(minProductCount != null && minProductCount > 0, ShopSellerSummary::getProductCount, minProductCount)
+                .orderByDesc(ShopSellerSummary::getProductCount)
+                .orderByDesc(ShopSellerSummary::getAbcCount)
+                .orderByAsc(ShopSellerSummary::getSellerName)
+                .last("LIMIT " + lim);
+        List<ShopSellerSummary> rows = shopSellerSummaryMapper.selectList(qw);
+        List<ShopProfileSummary> out = new ArrayList<>(rows.size());
+        for (ShopSellerSummary row : rows) {
+            ShopProfileSummary dto = new ShopProfileSummary();
+            BeanUtils.copyProperties(row, dto);
+            out.add(dto);
+        }
+        return out;
+    }
+
+    /** Distinguishes an initialized snapshot with zero filter matches from a missing snapshot. */
+    private boolean hasSummarySnapshot(String marketplace) {
+        return shopSellerSummaryMapper.selectCount(new LambdaQueryWrapper<ShopSellerSummary>()
+                .eq(ShopSellerSummary::getMarketplace, marketplace)) > 0;
+    }
+
+    /**
+     * 刷新指定站点的店铺聚合画像物化快照：跑一次实时计算（复用 computeSummaryLive，口径与读一致），
+     * 再整站替换落库。计算（重）在事务外，只有 delete+insert（快，行数=店铺数，通常几百到几千）在事务内，
+     * 尽量缩短持有连接的时间，不长时间占用连接池。
+     *
+     * <p>由店铺抓取写库后（ShopProductSyncService）触发，或手动端点触发。刷新必须读取完整店铺集合，
+     * 不能复用页面查询的 1000 行上限，否则大站点会生成残缺快照。</p>
+     */
+    public int refreshSellerSummarySnapshot(String marketplace) {
+        String mp = MarketplaceSupport.require(marketplace);
+        String bd = resolveBatchDate(mp, null);
+        List<ShopProfileSummary> computed = computeSummaryLive(mp, bd, null, null, null, null);
+        // Heavy aggregation stays outside the transaction; the writer atomically replaces only the small snapshot.
+        snapshotWriter.replace(mp, computed);
+        return computed.size();
     }
 
     public List<ShopProfileSummary> selectionShops(String marketplace, String batchDate, String sellerNameKeyword,
@@ -567,7 +648,10 @@ public class ShopCollectionService {
      */
     public PageResult<ShopProduct> selectionProducts(ShopProductSelectionQuery query) {
         int page = Math.max(1, query.getPage() == null ? 1 : query.getPage());
-        int size = Math.min(500, Math.max(1, query.getSize() == null ? 60 : query.getSize()));
+        // 页规模上限 200：500 张卡片全量实例化(每张~25 computed + ResizeObserver)是前端卡死的放大因素，
+        // 与前端 page-sizes[60,100,200] 对齐，双端一致。
+        int size = Math.min(200, Math.max(1, query.getSize() == null ? 60 : query.getSize()));
+        normalizeSelectionBatchScope(query);
         LambdaQueryWrapper<ShopProduct> qw = buildSelectionProductFilter(query, true);
 
         // 列裁剪：只取选品卡片实际用到的字段（对齐前端 ShopProductRow），
@@ -601,7 +685,15 @@ public class ShopCollectionService {
         // 旧代码固定 orderByAsc(asin)：与降序主排序方向冲突，强制全量 filesort（首屏 2.7s 的主因）。
         qw.orderBy(true, tieAsc, ShopProduct::getId);
 
-        Page<ShopProduct> result = shopProductMapper.selectPage(new Page<>(page, size), qw);
+        // count 与 list 分离：同一套筛选条件的 total 在翻页间恒定，缓存后翻页只查 list 跳过 COUNT(*)。
+        // count key 含 categories（分类筛选会收窄结果，影响 total），与不含 categories 的分类聚合 key 区分。
+        String countKey = CK_COUNT + selectionCacheKey(query) + encodeList(query.getCategories());
+        Long cachedTotal = (Long) categoryCache.getIfPresent(countKey);
+
+        Page<ShopProduct> pageReq = new Page<>(page, size, cachedTotal == null);
+        if (cachedTotal != null) pageReq.setTotal(cachedTotal);
+        Page<ShopProduct> result = shopProductMapper.selectPage(pageReq, qw);
+        if (cachedTotal == null) categoryCache.put(countKey, result.getTotal());
         return PageResult.of(result.getRecords(), result.getTotal(), (long) page, (long) size);
     }
 
@@ -627,7 +719,10 @@ public class ShopCollectionService {
                 .le(query.getWeightMax() != null, ShopProduct::getWeightG, query.getWeightMax())
                 .le(query.getMaxVariantCount() != null, ShopProduct::getVariations, query.getMaxVariantCount())
                 .in(hasItems(query.getFulfillment()), ShopProduct::getFulfillment, query.getFulfillment())
-                .in(hasItems(query.getGrade()), ShopProduct::getGrade, query.getGrade());
+                .in(hasItems(query.getGrade()), ShopProduct::getGrade, query.getGrade())
+                // 品线树精确筛选：与新品榜口径一致，按 L1 大类 / L2 小类 node 精确匹配。
+                .eq(query.getNodeId() != null, ShopProduct::getNodeId, query.getNodeId())
+                .eq(StringUtils.hasText(query.getBsrId()), ShopProduct::getBsrId, query.getBsrId());
 
         applySelectionBatchFilter(qw, query.getBatchDates());
 
@@ -640,11 +735,13 @@ public class ShopCollectionService {
                     .distinct()
                     .toList();
             if (!categories.isEmpty()) {
-                // 与分类聚合统一按 TRIM 后的完整路径精确匹配，兼容历史首尾空格脏数据。
+                // 与分类聚合统一按「顶级大类」（node_label_path 第一段）匹配：
+                // 选中 Toys & Games 命中该大类下全部商品。与 selectSelectionCategories 的
+                // GROUP BY SUBSTRING_INDEX(...,':',1) 口径一致，保证下拉选项与筛选结果对齐。
                 qw.and(group -> {
-                    group.apply("TRIM(node_label_path) = {0}", categories.get(0));
+                    group.apply("TRIM(SUBSTRING_INDEX(node_label_path, ':', 1)) = {0}", categories.get(0));
                     for (int i = 1; i < categories.size(); i++) {
-                        group.or().apply("TRIM(node_label_path) = {0}", categories.get(i));
+                        group.or().apply("TRIM(SUBSTRING_INDEX(node_label_path, ':', 1)) = {0}", categories.get(i));
                     }
                 });
             }
@@ -660,29 +757,140 @@ public class ShopCollectionService {
     }
 
     /** 与当前店铺商品查询同口径的类目统计，当前已选类目不参与统计收窄。 */
+    @SuppressWarnings("unchecked")
     public List<Map<String, Object>> selectionCategories(ShopProductSelectionQuery query) {
-        return shopProductMapper.selectSelectionCategories(
+        // 类目统计与列表同口径：同样按有无搜索决定批次范围（搜索跨批次、浏览限批次），
+        // 否则浏览时类目聚合会全表扫、且与列表批次口径不一致。
+        normalizeSelectionBatchScope(query);
+        String key = CK_CATEGORIES + selectionCacheKey(query);
+        Object cached = categoryCache.getIfPresent(key);
+        if (cached != null) return (List<Map<String, Object>>) cached;
+        List<Map<String, Object>> result = shopProductMapper.selectSelectionCategories(
                 buildSelectionProductFilter(query, false));
+        categoryCache.put(key, result);
+        return result;
     }
 
     /** 统一选品页的店铺抓取周批次；直接读取入库时生成的 ISO 周 batch_code。 */
+    @SuppressWarnings("unchecked")
     public List<Map<String, Object>> selectionBatches(String marketplace) {
-        return shopProductMapper.selectSelectionWeeks(MarketplaceSupport.require(marketplace));
+        String mp = MarketplaceSupport.require(marketplace);
+        String key = CK_BATCHES + mp;
+        Object cached = categoryCache.getIfPresent(key);
+        if (cached != null) return (List<Map<String, Object>>) cached;
+        List<Map<String, Object>> result = shopProductMapper.selectSelectionWeeks(mp);
+        categoryCache.put(key, result);
+        return result;
+    }
+
+    /**
+     * 构造分类聚合缓存 key：覆盖所有影响 selectionCategories wrapper 的筛选字段。
+     * 分类聚合本身不看 category（buildSelectionProductFilter includeCategories=false），
+     * 故 categories 字段不入 key；page/size/sort 不影响聚合结果，同样不入 key。
+     */
+    private String selectionCacheKey(ShopProductSelectionQuery q) {
+        String marketplace = MarketplaceSupport.require(q.getMarketplace());
+        return marketplace + "|" + encodeParts(List.of(
+                nz(normalizeSelectionMethod(q.getMethodId())),
+                nz(q.getTitle()), nz(q.getSellerName()), nz(q.getBrand()),
+                nz(q.getBsrId()), str(q.getNodeId()),
+                encodeList(q.getAsins()), encodeList(q.getBatchDates()),
+                encodeList(q.getFulfillment()), encodeList(q.getGrade()),
+                str(q.getPriceMin()), str(q.getPriceMax()),
+                str(q.getUnitsMin()), str(q.getUnitsMax()),
+                str(q.getListingDaysMin()), str(q.getListingDaysMax()),
+                str(q.getBsrMax()), str(q.getWeightMax()), str(q.getMaxVariantCount())));
+    }
+
+    private static String nz(String v) { return v == null ? "" : v.trim(); }
+    private static String str(Object v) { return v == null ? "" : v.toString(); }
+
+    /** Length-prefix encoding keeps arbitrary user text, pipes and commas unambiguous. */
+    static String encodeParts(Collection<String> values) {
+        StringBuilder key = new StringBuilder();
+        for (String value : values) {
+            String normalized = value == null ? "" : value;
+            key.append(normalized.length()).append(':').append(normalized).append(';');
+        }
+        return key.toString();
+    }
+
+    static String encodeList(Collection<String> values) {
+        if (values == null || values.isEmpty()) return "0:";
+        List<String> normalized = values.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .sorted()
+                .toList();
+        return normalized.size() + ":" + encodeParts(normalized);
+    }
+
+    /**
+     * 店铺商品导入/刷新后失效指定 marketplace 的分类与批次聚合缓存。
+     * categoryCache 无按前缀批量删除接口，用 asMap().keySet() 精确清理本模块 key。
+     */
+    public void evictSelectionAggregates(String marketplace) {
+        String mp = MarketplaceSupport.require(marketplace);
+        categoryCache.invalidate(CK_BATCHES + mp);
+        // 分类聚合与 count 缓存的 key 都以「前缀 + marketplace + |」开头（selectionCacheKey 首段是 marketplace），
+        // 一并按前缀清理，保证导入新数据后类目下拉、total 立即反映最新。
+        String catPrefix = CK_CATEGORIES + mp + "|";
+        String cntPrefix = CK_COUNT + mp + "|";
+        categoryCache.asMap().keySet().removeIf(
+                k -> k.startsWith(catPrefix) || k.startsWith(cntPrefix));
+    }
+
+    /**
+     * 店铺选品批次范围归一（列表 + 类目统计共用，保证同口径）。
+     * 店铺选品数据量大（单站点几十万行），全表扫会卡死，故：
+     *   - 有搜索（asin/店铺名/标题任一）→ 清空批次，全库该站点直接搜，方便跨批次找货；
+     *   - 无搜索（纯浏览）→ 批次最多 2 个；一个都没选则兜底回退到最新 1 个批次，杜绝全表扫。
+     * 其余筛选（价格/销量/类目/方法卡）在两种路径下都照常生效，不受此方法影响。
+     */
+    private void normalizeSelectionBatchScope(ShopProductSelectionQuery query) {
+        boolean hasSearch = hasItems(query.getAsins())
+                || StringUtils.hasText(query.getSellerName())
+                || StringUtils.hasText(query.getTitle());
+        if (hasSearch) {
+            query.setBatchDates(null);
+            return;
+        }
+        List<String> bd = query.getBatchDates();
+        if (hasItems(bd)) {
+            if (bd.size() > 2) {
+                query.setBatchDates(bd.stream().filter(StringUtils::hasText).limit(2).toList());
+            }
+        } else {
+            String mp = MarketplaceSupport.require(query.getMarketplace());
+            // 兜底默认取「最新的正经批次」（店铺数 >= 10），跳过单店补抓的迷你批次，
+            // 避免打开页面只显示 1 家测试店铺的数据。全是迷你批次时再回退 MAX 保底不空屏。
+            String latest = shopProductMapper.selectLatestMeaningfulBatchDate(mp, 10);
+            if (!StringUtils.hasText(latest)) {
+                latest = shopProductMapper.selectMaxBatchDate(mp);
+            }
+            if (StringUtils.hasText(latest)) {
+                query.setBatchDates(List.of(latest));
+            }
+        }
     }
 
     private static void applySelectionBatchFilter(
             LambdaQueryWrapper<ShopProduct> qw, Collection<String> values) {
         if (!hasItems(values)) return;
+        // 旧 ISO 周值（2026-W30）仍按 batch_code 过滤；
+        // 新的单天日期值（2026-07-22 / 20260722）归一到 batch_date 列的 yyyyMMdd 后过滤。
         List<String> weeks = values.stream()
                 .filter(StringUtils::hasText)
                 .map(String::trim)
-                .filter(value -> value.matches("\\d{4}-W\\d{2}"))
+                .filter(DayBatchSupport::isWeekValue)
                 .distinct()
                 .toList();
         List<String> dates = values.stream()
                 .filter(StringUtils::hasText)
                 .map(String::trim)
-                .filter(value -> !value.matches("\\d{4}-W\\d{2}"))
+                .filter(v -> !DayBatchSupport.isWeekValue(v))
+                .map(DayBatchSupport::normalizeToCompactDate)
+                .filter(StringUtils::hasText)
                 .distinct()
                 .toList();
         if (weeks.isEmpty() && dates.isEmpty()) return;

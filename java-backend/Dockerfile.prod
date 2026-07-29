@@ -57,4 +57,4 @@ COPY --from=builder /build/java-backend/sjzm-product/target/app.jar ./product.ja
 
 ENV SERVICE_MODULE=gateway
 
-CMD java -Xms256m -Xmx512m -Dfile.encoding=UTF-8 -jar /app/${SERVICE_MODULE}.jar
+CMD java ${JAVA_OPTS:--Xms256m -Xmx512m} -Dfile.encoding=UTF-8 -jar /app/${SERVICE_MODULE}.jar

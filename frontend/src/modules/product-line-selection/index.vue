@@ -19,10 +19,16 @@
       </label>
 
       <label class="tb-select desktop-only">
-        月份
-        <el-select v-model="store.month" size="small" style="width: 100px">
-          <el-option v-for="m in monthOptions" :key="m" :label="m" :value="m" />
-        </el-select>
+        数据源
+        <el-radio-group
+          :model-value="store.dataSource"
+          size="small"
+          @update:model-value="store.setDataSource($event)"
+        >
+          <el-radio-button label="all">全部</el-radio-button>
+          <el-radio-button label="new">新品榜</el-radio-button>
+          <el-radio-button label="shop">店铺</el-radio-button>
+        </el-radio-group>
       </label>
 
       <MobileActionSheet
@@ -33,9 +39,10 @@
       />
       <MobileActionSheet
         class="mobile-only"
-        title="月份"
-        :options="monthActionOptions"
-        v-model="store.month"
+        title="数据源"
+        :options="dataSourceActionOptions"
+        :model-value="store.dataSource"
+        @update:model-value="store.setDataSource($event)"
       />
 
       <el-input
@@ -134,7 +141,7 @@
             <div class="method-card__meta">
               <span>适合：新品榜快筛</span>
               <span>站点：UK / DE / US</span>
-              <span>数据源：competitor_products_clean</span>
+              <span>数据源：{{ methodCardSourceLabel }}</span>
             </div>
           </div>
           <div class="method-card__actions">
@@ -160,12 +167,12 @@
           </div>
         </div>
 
-        <div class="method-card method-card--m02">
+        <div class="method-card method-card--m03">
           <div class="method-card__body">
             <div class="method-card__head">
-              <div class="method-card__name">M02 非标同行品线跟随法</div>
+              <div class="method-card__name">M03 FBM 自发货简单道</div>
               <el-tag
-                v-if="store.activeMethodCard?.id === 'M02'"
+                v-if="store.activeMethodCard?.id === 'M03'"
                 type="success"
                 effect="light"
                 size="small"
@@ -174,31 +181,29 @@
               </el-tag>
             </div>
             <div class="method-card__desc">
-              用非标同行店铺最新批次作为基准盘子，重排品线树并标记被同行验证过的
-              L1 / L2。
+              clean 表去变体污染后叠加 FBM 自发货规则，筛出适合自发货的 FBM
+              新品候选。
             </div>
             <div class="method-card__meta">
-              <span>适合：同行跟随 / 品线优先级</span>
-              <span>数据源：deng_zong_shop</span>
-              <span v-if="store.zhengBatchDate"
-                >批次：{{ store.zhengBatchDate }}</span
-              >
+              <span>适合：FBM 自发货快筛</span>
+              <span>站点：UK / DE / US</span>
+              <span>数据源：{{ methodCardSourceLabel }}（FBM）</span>
             </div>
           </div>
           <div class="method-card__actions">
             <el-button
-              v-if="store.activeMethodCard?.id !== 'M02'"
+              v-if="store.activeMethodCard?.id !== 'M03'"
               type="primary"
               size="small"
-              @click="applyM02Method"
+              @click="applyM03Method"
             >
               应用方法
             </el-button>
-            <el-button size="small" link @click="openMethodDetail('M02')">
+            <el-button size="small" link @click="openMethodDetail('M03')">
               了解详情
             </el-button>
             <el-button
-              v-if="store.activeMethodCard?.id === 'M02'"
+              v-if="store.activeMethodCard?.id === 'M03'"
               size="small"
               link
               @click="clearMethodCard"
@@ -241,26 +246,6 @@
         />
       </div>
     </FilterDrawer>
-
-    <!-- 非标店铺数据完整性确认 -->
-    <div
-      v-if="
-        store.activeMethodCard?.id === 'M02' &&
-        store.completeness &&
-        !store.completeness.complete
-      "
-      class="completeness-banner"
-    >
-      <el-icon class="cb-icon"><WarningFilled /></el-icon>
-      <span class="cb-text">
-        本周非标店铺数据：<b>{{ store.completeness.fetchedSellers }}</b> /
-        {{ store.completeness.totalSellers }} 家有数据，缺失
-        {{ store.completeness.missingSellers.length }} 家
-      </span>
-      <el-button size="small" type="warning" @click="goFillMissing">
-        去补全
-      </el-button>
-    </div>
 
     <!-- 工作区 -->
     <div class="workspace">
@@ -484,7 +469,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onActivated, watch } from "vue";
-import { useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import {
   Menu,
@@ -494,7 +478,6 @@ import {
   DArrowRight,
   CaretTop,
   CaretBottom,
-  WarningFilled,
   Filter,
   Download,
 } from "@element-plus/icons-vue";
@@ -517,8 +500,8 @@ const agentStore = useSelectionAgentStore();
 
 // 方法卡详情抽屉
 const methodDetailVisible = ref(false);
-const methodDetailId = ref<"M01" | "M02" | null>(null);
-const openMethodDetail = (id: "M01" | "M02") => {
+const methodDetailId = ref<"M01" | "M03" | null>(null);
+const openMethodDetail = (id: "M01" | "M03") => {
   methodDetailId.value = id;
   methodDetailVisible.value = true;
 };
@@ -531,7 +514,6 @@ function consumeAgentRules() {
     ElMessage.success("已套用 AI 推荐筛选");
   }
 }
-const router = useRouter();
 const mobileTreeOpen = ref(false);
 
 // ---- 筛选预设（统一面板区间）----
@@ -569,18 +551,34 @@ const draftSeller = ref("");
 const draftBrand = ref("");
 const draftRange = ref<RangeFilterValue>(createEmptyRangeFilter());
 const drawerSnapshotKind = computed<
-  "competitor_created_week" | "deng_zong_batch"
->(() =>
-  store.activeMethodCard?.id === "M02"
-    ? "deng_zong_batch"
-    : "competitor_created_week",
-);
-const drawerRangeSource = computed(() => {
-  if (store.activeMethodCard?.id === "M01") return "新品榜";
-  if (store.activeMethodCard?.id === "M02") return "非标店铺";
-  return "";
+  | "competitor_created_week"
+  | "deng_zong_batch"
+  | "shop_batch"
+  | "merged_new_shop"
+>(() => {
+  // 批次口径统一跟随数据源(方法卡不再屏蔽):
+  //   店铺→店铺批次,全部→两源合并批次,新品榜→新品榜入库批次。
+  if (store.dataSource === "shop") return "shop_batch";
+  if (store.dataSource === "all") return "merged_new_shop";
+  return "competitor_created_week";
 });
+// RangeFilterPanel 的 source 是「传给 created-weeks 的 DB source LIKE 过滤值」,不是 UI 文案。
+// 方法卡(M01/M03)是硬筛规则、不是 source 字段值;数据源也已由 snapshotKind 区分。
+// 因此这里恒返回空,避免把展示文案误当查询过滤把真实批次(如新品榜 7/22)全过滤掉。
+const drawerRangeSource = computed(() => "");
 const drawerAutoSelectLatestWeek = computed(() => !store.activeMethodCard);
+
+// 方法卡数据源文案动态化:规则套在当前页面数据源上,卡片如实反映(全部/新品榜/店铺)。
+const methodCardSourceLabel = computed(() => {
+  switch (store.dataSource) {
+    case "shop":
+      return "shop_products（当前数据源：店铺）";
+    case "all":
+      return "competitor_products_clean + shop_products（当前数据源：全部）";
+    default:
+      return "competitor_products_clean（当前数据源：新品榜）";
+  }
+});
 
 function openFilterDrawer() {
   draftSeller.value = store.searchSellerName;
@@ -720,8 +718,8 @@ async function applyM01Method() {
   filterDrawerVisible.value = false;
 }
 
-async function applyM02Method() {
-  await store.applyM02MethodCard();
+async function applyM03Method() {
+  await store.applyM03MethodCard();
   filterDrawerVisible.value = false;
 }
 
@@ -730,17 +728,6 @@ async function clearMethodCard() {
   filterDrawerVisible.value = false;
 }
 
-// 补全缺失店铺 → 跳转到店铺总览页自动勾选
-function goFillMissing() {
-  if (!store.completeness?.missingSellers.length) return;
-  const names = store.completeness.missingSellers
-    .map((s: { sellerName: string }) => s.sellerName)
-    .join(",");
-  router.push({
-    path: "/zheng-shop-overview",
-    query: { stores: names, source: "zheng", marketplace: store.marketplace },
-  });
-}
 const detailVisible = ref(false);
 const detailProduct = ref<any>(null);
 
@@ -776,18 +763,6 @@ watch(
   },
 );
 
-// 月份动态生成：当前日期往前推12个月
-const monthOptions = computed(() => {
-  const now = new Date();
-  const months: string[] = [];
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    months.push(val);
-  }
-  return months;
-});
-
 // MobileActionSheet 选项
 const siteOptions = [
   { label: "US", value: "US" },
@@ -795,9 +770,12 @@ const siteOptions = [
   { label: "DE", value: "DE" },
 ];
 
-const monthActionOptions = computed(() =>
-  monthOptions.value.map((m) => ({ label: m, value: m })),
-);
+// 数据源:全部(合并新品榜+店铺) / 新品榜 / 店铺
+const dataSourceActionOptions = [
+  { label: "全部", value: "all" },
+  { label: "新品榜", value: "new" },
+  { label: "店铺", value: "shop" },
+];
 
 // 拖拽分隔线
 const treeWidth = ref(280);
@@ -835,12 +813,9 @@ function openDetail(product: any) {
 }
 
 onMounted(async () => {
-  // 品线分析默认应用 M01 新品榜加速法, 用户可从"业务方法卡"点"退出方法"回全量
-  if (!store.activeMethodCard) {
-    await store.applyM01MethodCard();
-  } else {
-    await store.initData();
-  }
+  // 默认态:无方法卡 + 数据源"全部"(新品榜+店铺合并,最新批次)。
+  // 方法卡(M01/M03)改为用户主动点击"应用方法"才生效;应用后数据源控件不叠加。
+  await store.initData();
   consumeAgentRules();
 });
 
@@ -849,11 +824,11 @@ onActivated(() => {
 });
 
 watch(
-  [() => store.marketplace, () => store.month],
-  ([newMkp, newMonth], [oldMkp, oldMonth]) => {
+  () => store.marketplace,
+  (newMkp, oldMkp) => {
     if (store.selectedCount > 0 || store.hasFilters) {
       ElMessageBox.confirm(
-        "切换市场或月份将清空当前筛选和选中，是否继续？",
+        "切换市场将清空当前筛选和选中，是否继续？",
         "确认切换",
         {
           confirmButtonText: "确定",
@@ -870,9 +845,8 @@ watch(
           store.initData();
         })
         .catch(() => {
-          // 用户取消 — 回滚市场/月份到旧值
+          // 用户取消 — 回滚市场到旧值
           store.marketplace = oldMkp;
-          store.month = oldMonth;
         });
     } else {
       store.selectedBsrId = "";
@@ -1180,30 +1154,6 @@ export default { name: "ProductLineSelection" };
   background: $bg-color;
   border-bottom: 1px solid $border-color;
   flex-shrink: 0;
-}
-
-// ---- 非标数据完整性提示 ----
-.completeness-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 16px;
-  background: #fef3c7;
-  border-bottom: 1px solid #fcd34d;
-  flex-shrink: 0;
-
-  .cb-icon {
-    color: $warning-color;
-    font-size: 18px;
-  }
-  .cb-text {
-    flex: 1;
-    font-size: 13px;
-    color: $text-primary;
-    b {
-      color: $warning-color;
-    }
-  }
 }
 
 // ---- 工作区 ----
