@@ -232,4 +232,4 @@ API 封装 `frontend/src/api/lingxingProduct.ts`。
 - **周数据同步口径**：先用 UK/DE 全量店铺建池，再从 `lingxing_target_sku_pool` 反查有目标 SKU 的店铺；周数据按国家分组同步这些目标店铺的 `summary_field=msku` 全量表现，不按 6,560 个 SKU 每 50 个拆批。当前 2026-W29 为 UK 13 个、DE 3 个目标店铺；2026-04-08~2026-04-14 实测 5.51 分钟完成，目标 `marketplace+sid+sku` 覆盖 6,560/6,560。
 - **鉴权**：所有接口走网关鉴权，未加额外权限校验（与模块内其它接口一致）。
 - **部署**：`mvn install`（勿 clean）→ 重启 product 容器；前端宿主机 `npm run build`（OOM 加 `--minify false`）；新库需先执行 4 个建表 SQL。
-- 未做：张总蓝本的 API 调用日志/配额监控（credit_count 求和 + caller/call_location 归因）。
+- 未做：API 调用日志/调用量监控（caller/call_location 归因）。注：领星只有令牌桶**限流**，无"配额"概念（配额是卖家精灵侧的概念，勿混）。

@@ -75,4 +75,32 @@ public interface LingxingSkuDataLayerMapper {
             LIMIT #{limit}
             """)
     List<Map<String, Object>> listRecentRuns(@Param("limit") int limit);
+
+    // ============================================================
+    // 周表加工：从 lingxing_product_performance(summary_field=msku) 的 raw_json
+    // 展开 price_list[*]/tag_set[*] → 落 lingxing_sku_weekly_performance。
+    // 一个时间窗一行(SKU×店铺×周)，SHA256 幂等键，限定 mid IN(4,5)=UK/DE。
+    // 见 mapper/LingxingSkuWeeklyMapper.xml。
+    // ============================================================
+
+    /**
+     * 从已落库产品表现加工进周表。startDate/endDate 为 null 时加工全部窗口。
+     * @return 影响行数
+     */
+    int upsertWeeklyFromPerformance(@Param("startDate") String startDate,
+                                    @Param("endDate") String endDate,
+                                    @Param("snapshotWeek") String snapshotWeek,
+                                    @Param("sourceRunId") String sourceRunId);
+
+    /** 统计指定窗口周表行数（校验用）。 */
+    @Select("""
+            <script>
+            SELECT COUNT(*) FROM lingxing_sku_weekly_performance
+            <where>
+              <if test="startDate != null"> AND week_start = #{startDate} </if>
+              <if test="endDate != null"> AND week_end = #{endDate} </if>
+            </where>
+            </script>
+            """)
+    int countWeekly(@Param("startDate") String startDate, @Param("endDate") String endDate);
 }

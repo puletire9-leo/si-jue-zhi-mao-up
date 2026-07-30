@@ -7,19 +7,30 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sjzm.common.Result;
 import com.sjzm.product.mapper.LingxingAsinBaselineMapper;
+import com.sjzm.product.mapper.LingxingListingMapper;
 import com.sjzm.product.mapper.LingxingLocalProductMapper;
+import com.sjzm.product.mapper.LingxingProductPerformanceMapper;
+import com.sjzm.product.mapper.LingxingProductUnifiedMapper;
 import com.sjzm.product.mapper.LingxingProfitAsinMapper;
 import com.sjzm.product.mapper.LingxingSellerMapper;
 import com.sjzm.product.mapper.LingxingSkuDataLayerMapper;
 import com.sjzm.product.modules.lingxing.entity.LingxingAsinBaseline;
+import com.sjzm.product.modules.lingxing.entity.LingxingListing;
 import com.sjzm.product.modules.lingxing.entity.LingxingLocalProduct;
+import com.sjzm.product.modules.lingxing.entity.LingxingProductPerformance;
+import com.sjzm.product.modules.lingxing.entity.LingxingProductUnified;
 import com.sjzm.product.modules.lingxing.entity.LingxingProfitAsin;
 import com.sjzm.product.modules.lingxing.entity.LingxingSeller;
 import com.sjzm.product.modules.lingxing.dto.LingxingBaselineUpdateRequest;
 import com.sjzm.product.modules.lingxing.dto.LingxingCredentialsRequest;
 import com.sjzm.product.modules.lingxing.service.LingxingClient;
 import com.sjzm.product.modules.lingxing.service.LingxingConfigService;
+import com.sjzm.product.modules.lingxing.service.LingxingListingSyncService;
 import com.sjzm.product.modules.lingxing.service.LingxingLocalProductSyncService;
+import com.sjzm.product.modules.lingxing.service.LingxingProductPerformanceSyncService;
+import com.sjzm.product.modules.lingxing.service.LingxingProductUnifiedService;
+import com.sjzm.product.modules.lingxing.service.LingxingScheduledSyncService;
+import com.sjzm.product.modules.lingxing.service.LingxingSkuDataLayerService;
 import com.sjzm.product.modules.lingxing.service.LingxingOverviewService;
 import com.sjzm.product.modules.lingxing.service.LingxingProfitAsinSyncService;
 import com.sjzm.product.modules.lingxing.service.LingxingPurchaseDataLayerService;
@@ -61,6 +72,14 @@ public class LingxingController {
     private final LingxingAsinBaselineMapper baselineMapper;
     private final LingxingSkuDataLayerMapper syncRunMapper;
     private final LingxingOverviewService overviewService;
+    private final LingxingListingSyncService listingSyncService;
+    private final LingxingListingMapper listingMapper;
+    private final LingxingProductPerformanceSyncService performanceSyncService;
+    private final LingxingProductPerformanceMapper performanceMapper;
+    private final LingxingProductUnifiedService unifiedService;
+    private final LingxingProductUnifiedMapper unifiedMapper;
+    private final LingxingScheduledSyncService scheduledSyncService;
+    private final LingxingSkuDataLayerService skuDataLayerService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @PostMapping("/ping")
@@ -204,6 +223,120 @@ public class LingxingController {
                 .like(StringUtils.hasText(asin), LingxingProfitAsin::getAsin, asin)
                 .orderByDesc(LingxingProfitAsin::getDataDate);
         return Result.success(profitMapper.selectPage(new Page<>(current, size), qw));
+    }
+
+    // ============================================================
+    // 亚马逊 Listing（销售板块 Listing 数据，/erp/sc/data/mws/listing）
+    // 令牌桶=1，必须串行；唯一键 sid + seller_sku
+    // ============================================================
+
+    @PostMapping("/listings/sync")
+    @Operation(summary = "手动触发：按店铺 sid 同步领星亚马逊 Listing（令牌桶=1 严格串行；双写+幂等）")
+    public Result<Map<String, Object>> syncListings(@RequestBody Map<String, Object> req) {
+        return Result.success(listingSyncService.sync(
+                readIntList(req, "sids"),
+                readInt(req, "isPair"),
+                readInt(req, "isDelete"),
+                readStr(req, "listingUpdateStart"),
+                readStr(req, "listingUpdateEnd"),
+                readStr(req, "searchField"),
+                readStrList(req, "searchValues"),
+                readInt(req, "exactSearch")));
+    }
+
+    @GetMapping("/listings")
+    @Operation(summary = "分页查询已落库的领星 Listing（可按 ASIN/SKU/店铺/在售状态筛选）")
+    public Result<Page<LingxingListing>> listListings(
+            @RequestParam(defaultValue = "1") long current,
+            @RequestParam(defaultValue = "20") long size,
+            @RequestParam(required = false) Integer sid,
+            @RequestParam(required = false) String asin,
+            @RequestParam(required = false) String sellerSku,
+            @RequestParam(required = false) Integer status) {
+        LambdaQueryWrapper<LingxingListing> qw = new LambdaQueryWrapper<LingxingListing>()
+                .eq(sid != null, LingxingListing::getSid, sid)
+                .like(StringUtils.hasText(asin), LingxingListing::getAsin, asin)
+                .like(StringUtils.hasText(sellerSku), LingxingListing::getSellerSku, sellerSku)
+                .eq(status != null, LingxingListing::getStatus, status)
+                .orderByDesc(LingxingListing::getListingUpdateDate);
+        return Result.success(listingMapper.selectPage(new Page<>(current, size), qw));
+    }
+
+    // ============================================================
+    // 产品表现（2026-07-30 按 git d4d9650 蓝本恢复，供每周自动同步）
+    // 时间窗 ≤92天；sid 必填 ≤200；令牌桶=1 串行
+    // ============================================================
+
+    @PostMapping("/product-performance/sync")
+    @Operation(summary = "手动触发：按店铺+时间窗(≤92天)同步产品表现（双写+幂等）")
+    public Result<Map<String, Object>> syncProductPerformance(@RequestBody Map<String, Object> req) {
+        return Result.success(performanceSyncService.sync(
+                readLongList(req, "sids"),
+                readStr(req, "startDate"),
+                readStr(req, "endDate"),
+                readStr(req, "summaryField"),
+                readStr(req, "currencyCode")));
+    }
+
+    @GetMapping("/product-performance")
+    @Operation(summary = "分页查询已落库的产品表现（可按 ASIN 模糊）")
+    public Result<Page<LingxingProductPerformance>> listProductPerformance(
+            @RequestParam(defaultValue = "1") long current,
+            @RequestParam(defaultValue = "20") long size,
+            @RequestParam(required = false) String asin) {
+        LambdaQueryWrapper<LingxingProductPerformance> qw = new LambdaQueryWrapper<LingxingProductPerformance>()
+                .like(StringUtils.hasText(asin), LingxingProductPerformance::getAsin, asin)
+                .orderByDesc(LingxingProductPerformance::getEndDate);
+        return Result.success(performanceMapper.selectPage(new Page<>(current, size), qw));
+    }
+
+    @PostMapping("/sku-weekly/rebuild")
+    @Operation(summary = "从已落库产品表现(msku)加工进周表（可传 startDate/endDate 限窗口，空则全量）")
+    public Result<Map<String, Object>> rebuildSkuWeekly(@RequestBody(required = false) Map<String, Object> req) {
+        String start = req == null ? null : readStr(req, "startDate");
+        String end = req == null ? null : readStr(req, "endDate");
+        String snapshotWeek = req == null ? null : readStr(req, "snapshotWeek");
+        return Result.success(skuDataLayerService.upsertWeeklyFromExistingPerformance(start, end, snapshotWeek, null));
+    }
+
+    // ============================================================
+    // 产品统一表（ASIN 维度宽表，每周同步后重算）
+    // ============================================================
+
+    @PostMapping("/product-unified/rebuild")
+    @Operation(summary = "全量重算产品统一表（月表聚合+listing真实上架日+baseline起算月）")
+    public Result<Map<String, Object>> rebuildProductUnified(@RequestBody(required = false) Map<String, Object> req) {
+        String cutoffMonth = req == null ? null : readStr(req, "cutoffMonth");
+        return Result.success(unifiedService.rebuild(cutoffMonth));
+    }
+
+    @GetMapping("/product-unified")
+    @Operation(summary = "分页查询产品统一表（可按 ASIN/开发人筛选，按最近销量倒序）")
+    public Result<Page<LingxingProductUnified>> listProductUnified(
+            @RequestParam(defaultValue = "1") long current,
+            @RequestParam(defaultValue = "20") long size,
+            @RequestParam(required = false) String asin,
+            @RequestParam(required = false) String developer) {
+        LambdaQueryWrapper<LingxingProductUnified> qw = new LambdaQueryWrapper<LingxingProductUnified>()
+                .like(StringUtils.hasText(asin), LingxingProductUnified::getAsin, asin)
+                .eq(StringUtils.hasText(developer), LingxingProductUnified::getDeveloper, developer)
+                .orderByDesc(LingxingProductUnified::getTotalVolume);
+        return Result.success(unifiedMapper.selectPage(new Page<>(current, size), qw));
+    }
+
+    // ============================================================
+    // 每周自动同步（@Scheduled + 手动触发同一入口）
+    // ============================================================
+
+    @PostMapping("/scheduled/run-now")
+    @Operation(summary = "手动触发一次完整的每周同步（产品表现全店铺 + 统一表重算），可传 startDate/endDate")
+    public Result<Map<String, Object>> runScheduledNow(@RequestBody(required = false) Map<String, Object> req) {
+        String start = req == null ? null : readStr(req, "startDate");
+        String end = req == null ? null : readStr(req, "endDate");
+        if (!StringUtils.hasText(start) || !StringUtils.hasText(end)) {
+            throw new IllegalArgumentException("startDate/endDate 必填（yyyy-MM-dd，跨度 ≤92 天）");
+        }
+        return Result.success(scheduledSyncService.run(start, end));
     }
 
     // ============================================================

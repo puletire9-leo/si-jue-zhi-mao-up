@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.mapper.LingxingSkuDataLayerMapper">
+
+    <!--
+      周表加工：从 lingxing_product_performance(summary_field='msku') 的 raw_json
+      展开 price_list[*](拿 mid/sid/seller_sku/店铺/local_name) 与 tag_set[*](拿标签)，
+      JSON_VALUE 抽取 50+ 指标 → INSERT ... ON DUPLICATE KEY UPDATE 落 lingxing_sku_weekly_performance。
+      一个 (SKU×店铺×周) 一行；SHA256 幂等键；限定 mid IN(4,5)=UK/DE。
+      LEFT JOIN lingxing_target_sku_pool 标记 is_target_sku（该表在库）。
+      SQL 源自 2026-07-17 前的验证版（生成了现有 46 万行周表），按当前周表链路需求保留。
+    -->
+    <insert id="upsertWeeklyFromPerformance">
+        INSERT INTO lingxing_sku_weekly_performance (
+          biz_key, week_start, week_end, `year_month`, month_week_no, iso_year, iso_week,
+          marketplace, mid, sid_scope, sid, store_name, sku, seller_sku, asin, parent_asin,
+          product_name, local_name, tag_ids, tags, is_target_sku,
+          volume, order_items, amount, net_amount, avg_volume, avg_custom_price,
+          promotion_volume, promotion_amount, gross_profit, predict_gross_profit, gross_margin, roi,
+          spend, tacos, acos, acoas, ad_order_quantity, ad_sales_amount,
+          sessions_total, page_views_total, clicks, impressions, ctr, cvr,
+          afn_fulfillable_quantity, fbm_quantity, available_days, fbm_available_days, stock_up_num,
+          reserved_fc_transfers, reserved_customerorders, reserved_fc_processing,
+          reviews_count, avg_star, return_count, return_rate, return_goods_count, return_goods_rate,
+          currency_code, source_run_id, raw_json, synced_at
+        )
+        SELECT
+          SHA2(CONCAT_WS('|', p.start_date, p.end_date, p.summary_field, COALESCE(p.sid_scope, ''), COALESCE(p.sku, p.summary_value), COALESCE(meta.seller_sku, ''), COALESCE(p.asin, ''), COALESCE(p.currency_code, '')), 256) AS biz_key,
+          p.start_date AS week_start,
+          p.end_date AS week_end,
+          DATE_FORMAT(p.start_date, '%Y-%m') AS `year_month`,
+          CASE
+            WHEN DAY(p.start_date) &lt;= 7 THEN 1
+            WHEN DAY(p.start_date) &lt;= 14 THEN 2
+            WHEN DAY(p.start_date) &lt;= 21 THEN 3
+            ELSE 4
+          END AS month_week_no,
+          FLOOR(YEARWEEK(p.start_date, 3) / 100) AS iso_year,
+          MOD(YEARWEEK(p.start_date, 3), 100) AS iso_week,
+          meta.marketplace,
+          meta.mid,
+          p.sid_scope,
+          meta.sid,
+          meta.store_name,
+          COALESCE(p.sku, p.summary_value) AS sku,
+          meta.seller_sku,
+          p.asin,
+          p.parent_asin,
+          COALESCE(p.item_name, JSON_UNQUOTE(JSON_EXTRACT(p.raw_json, '$.item_name'))) AS product_name,
+          meta.local_name,
+          meta.tag_ids,
+          meta.tags,
+          CASE WHEN tp.id IS NULL THEN 0 ELSE 1 END AS is_target_sku,
+          p.volume,
+          p.order_items,
+          p.amount,
+          JSON_VALUE(p.raw_json, '$.net_amount' RETURNING DECIMAL(18,4) NULL ON EMPTY NULL ON ERROR) AS net_amount,
+          JSON_VALUE(p.raw_json, '$.avg_volume' RETURNING DECIMAL(18,4) NULL ON EMPTY NULL ON ERROR) AS avg_volume,
+          JSON_VALUE(p.raw_json, '$.avg_custom_price' RETURNING DECIMAL(18,4) NULL ON EMPTY NULL ON ERROR) AS avg_custom_price,
+          JSON_VALUE(p.raw_json, '$.promotion_volume' RETURNING SIGNED NULL ON EMPTY NULL ON ERROR) AS promotion_volume,
+          JSON_VALUE(p.raw_json, '$.promotion_amount' RETURNING DECIMAL(18,4) NULL ON EMPTY NULL ON ERROR) AS promotion_amount,
+          p.gross_profit,
+          JSON_VALUE(p.raw_json, '$.predict_gross_profit' RETURNING DECIMAL(18,4) NULL ON EMPTY NULL ON ERROR) AS predict_gross_profit,
+          p.gross_margin,
+          JSON_VALUE(p.raw_json, '$.roi' RETURNING DECIMAL(18,6) NULL ON EMPTY NULL ON ERROR) AS roi,
+          p.spend,
+          p.tacos,
+          JSON_VALUE(p.raw_json, '$.acos' RETURNING DECIMAL(18,6) NULL ON EMPTY NULL ON ERROR) AS acos,
+          JSON_VALUE(p.raw_json, '$.acoas' RETURNING DECIMAL(18,6) NULL ON EMPTY NULL ON ERROR) AS acoas,
+          JSON_VALUE(p.raw_json, '$.ad_order_quantity' RETURNING SIGNED NULL ON EMPTY NULL ON ERROR) AS ad_order_quantity,
+          JSON_VALUE(p.raw_json, '$.ad_sales_amount' RETURNING DECIMAL(18,4) NULL ON EMPTY NULL ON ERROR) AS ad_sales_amount,
+          p.sessions_total,
+          JSON_VALUE(p.raw_json, '$.page_views_total' RETURNING SIGNED NULL ON EMPTY NULL ON ERROR) AS page_views_total,
+          JSON_VALUE(p.raw_json, '$.clicks' RETURNING SIGNED NULL ON EMPTY NULL ON ERROR) AS clicks,
+          JSON_VALUE(p.raw_json, '$.impressions' RETURNING SIGNED NULL ON EMPTY NULL ON ERROR) AS impressions,
+          JSON_VALUE(p.raw_json, '$.ctr' RETURNING DECIMAL(18,6) NULL ON EMPTY NULL ON ERROR) AS ctr,
+          JSON_VALUE(p.raw_json, '$.cvr' RETURNING DECIMAL(18,6) NULL ON EMPTY NULL ON ERROR) AS cvr,
+          JSON_VALUE(p.raw_json, '$.afn_fulfillable_quantity' RETURNING SIGNED NULL ON EMPTY NULL ON ERROR) AS afn_fulfillable_quantity,
+          JSON_VALUE(p.raw_json, '$.fbm_quantity' RETURNING SIGNED NULL ON EMPTY NULL ON ERROR) AS fbm_quantity,
+          JSON_VALUE(p.raw_json, '$.available_days' RETURNING SIGNED NULL ON EMPTY NULL ON ERROR) AS available_days,
+          JSON_VALUE(p.raw_json, '$.fbm_available_days' RETURNING SIGNED NULL ON EMPTY NULL ON ERROR) AS fbm_available_days,
+          JSON_VALUE(p.raw_json, '$.stock_up_num' RETURNING SIGNED NULL ON EMPTY NULL ON ERROR) AS stock_up_num,
+          JSON_VALUE(p.raw_json, '$.reserved_fc_transfers' RETURNING SIGNED NULL ON EMPTY NULL ON ERROR) AS reserved_fc_transfers,
+          JSON_VALUE(p.raw_json, '$.reserved_customerorders' RETURNING SIGNED NULL ON EMPTY NULL ON ERROR) AS reserved_customerorders,
+          JSON_VALUE(p.raw_json, '$.reserved_fc_processing' RETURNING SIGNED NULL ON EMPTY NULL ON ERROR) AS reserved_fc_processing,
+          JSON_VALUE(p.raw_json, '$.reviews_count' RETURNING SIGNED NULL ON EMPTY NULL ON ERROR) AS reviews_count,
+          JSON_VALUE(p.raw_json, '$.avg_star' RETURNING DECIMAL(18,4) NULL ON EMPTY NULL ON ERROR) AS avg_star,
+          JSON_VALUE(p.raw_json, '$.return_count' RETURNING SIGNED NULL ON EMPTY NULL ON ERROR) AS return_count,
+          JSON_VALUE(p.raw_json, '$.return_rate' RETURNING DECIMAL(18,6) NULL ON EMPTY NULL ON ERROR) AS return_rate,
+          JSON_VALUE(p.raw_json, '$.return_goods_count' RETURNING SIGNED NULL ON EMPTY NULL ON ERROR) AS return_goods_count,
+          JSON_VALUE(p.raw_json, '$.return_goods_rate' RETURNING DECIMAL(18,6) NULL ON EMPTY NULL ON ERROR) AS return_goods_rate,
+          p.currency_code,
+          #{sourceRunId} AS source_run_id,
+          CAST(p.raw_json AS CHAR) AS raw_json,
+          NOW() AS synced_at
+        FROM lingxing_product_performance p
+        JOIN (
+          SELECT
+            p2.id,
+            MIN(CAST(pl.mid AS UNSIGNED)) AS mid,
+            CASE MIN(CAST(pl.mid AS UNSIGNED)) WHEN 4 THEN 'UK' WHEN 5 THEN 'DE' END AS marketplace,
+            CASE WHEN COUNT(DISTINCT pl.sid) = 1 THEN MAX(CAST(pl.sid AS UNSIGNED)) ELSE NULL END AS sid,
+            MAX(pl.seller_name) AS store_name,
+            MAX(pl.seller_sku) AS seller_sku,
+            MAX(pl.local_name) AS local_name,
+            GROUP_CONCAT(DISTINCT jt.global_tag_id ORDER BY jt.global_tag_id SEPARATOR ',') AS tag_ids,
+            GROUP_CONCAT(DISTINCT jt.tag_name ORDER BY jt.tag_name SEPARATOR ',') AS tags
+          FROM lingxing_product_performance p2
+          JOIN JSON_TABLE(
+            p2.raw_json, '$.price_list[*]'
+            COLUMNS (
+              mid VARCHAR(16) PATH '$.mid',
+              sid VARCHAR(32) PATH '$.sid',
+              local_name VARCHAR(512) COLLATE utf8mb4_unicode_ci PATH '$.local_name',
+              seller_sku VARCHAR(255) COLLATE utf8mb4_unicode_ci PATH '$.seller_sku',
+              seller_name VARCHAR(255) COLLATE utf8mb4_unicode_ci PATH '$.seller_name'
+            )
+          ) pl
+          LEFT JOIN JSON_TABLE(
+            p2.raw_json, '$.tag_set[*]'
+            COLUMNS (
+              global_tag_id VARCHAR(64) PATH '$.global_tag_id',
+              tag_name VARCHAR(255) COLLATE utf8mb4_unicode_ci PATH '$.tag_name'
+            )
+          ) jt ON TRUE
+          WHERE p2.summary_field = 'msku'
+            AND (#{startDate} IS NULL OR p2.start_date = #{startDate})
+            AND (#{endDate} IS NULL OR p2.end_date = #{endDate})
+            AND pl.mid IN ('4', '5')
+          GROUP BY p2.id
+        ) meta ON meta.id = p.id
+        LEFT JOIN lingxing_target_sku_pool tp
+          ON tp.snapshot_week = #{snapshotWeek}
+         AND tp.marketplace = meta.marketplace
+         AND tp.sid = meta.sid
+         AND tp.sku = COALESCE(p.sku, p.summary_value)
+         AND tp.is_active = 1
+        WHERE p.summary_field = 'msku'
+          AND (#{startDate} IS NULL OR p.start_date = #{startDate})
+          AND (#{endDate} IS NULL OR p.end_date = #{endDate})
+        ON DUPLICATE KEY UPDATE
+          `year_month` = VALUES(`year_month`),
+          month_week_no = VALUES(month_week_no),
+          iso_year = VALUES(iso_year),
+          iso_week = VALUES(iso_week),
+          marketplace = VALUES(marketplace),
+          mid = VALUES(mid),
+          sid_scope = VALUES(sid_scope),
+          sid = VALUES(sid),
+          store_name = VALUES(store_name),
+          seller_sku = VALUES(seller_sku),
+          asin = VALUES(asin),
+          parent_asin = VALUES(parent_asin),
+          product_name = VALUES(product_name),
+          local_name = VALUES(local_name),
+          tag_ids = VALUES(tag_ids),
+          tags = VALUES(tags),
+          is_target_sku = VALUES(is_target_sku),
+          volume = VALUES(volume),
+          order_items = VALUES(order_items),
+          amount = VALUES(amount),
+          net_amount = VALUES(net_amount),
+          avg_volume = VALUES(avg_volume),
+          avg_custom_price = VALUES(avg_custom_price),
+          promotion_volume = VALUES(promotion_volume),
+          promotion_amount = VALUES(promotion_amount),
+          gross_profit = VALUES(gross_profit),
+          predict_gross_profit = VALUES(predict_gross_profit),
+          gross_margin = VALUES(gross_margin),
+          roi = VALUES(roi),
+          spend = VALUES(spend),
+          tacos = VALUES(tacos),
+          acos = VALUES(acos),
+          acoas = VALUES(acoas),
+          ad_order_quantity = VALUES(ad_order_quantity),
+          ad_sales_amount = VALUES(ad_sales_amount),
+          sessions_total = VALUES(sessions_total),
+          page_views_total = VALUES(page_views_total),
+          clicks = VALUES(clicks),
+          impressions = VALUES(impressions),
+          ctr = VALUES(ctr),
+          cvr = VALUES(cvr),
+          afn_fulfillable_quantity = VALUES(afn_fulfillable_quantity),
+          fbm_quantity = VALUES(fbm_quantity),
+          available_days = VALUES(available_days),
+          fbm_available_days = VALUES(fbm_available_days),
+          stock_up_num = VALUES(stock_up_num),
+          reserved_fc_transfers = VALUES(reserved_fc_transfers),
+          reserved_customerorders = VALUES(reserved_customerorders),
+          reserved_fc_processing = VALUES(reserved_fc_processing),
+          reviews_count = VALUES(reviews_count),
+          avg_star = VALUES(avg_star),
+          return_count = VALUES(return_count),
+          return_rate = VALUES(return_rate),
+          return_goods_count = VALUES(return_goods_count),
+          return_goods_rate = VALUES(return_goods_rate),
+          currency_code = VALUES(currency_code),
+          source_run_id = VALUES(source_run_id),
+          raw_json = VALUES(raw_json),
+          synced_at = NOW(),
+          updated_at = NOW()
+    </insert>
+
+</mapper>

@@ -84,6 +84,11 @@ lingxing:
   app-secret: ${LINGXING_APP_SECRET:}
   connect-timeout: 10s
   read-timeout: 30s
+  scheduled:
+    # 每周自动同步产品表现 + 重算产品统一表。默认关，人工验证一轮后再开，避免部署即批量打领星 API。
+    enabled: ${LINGXING_SCHEDULED_ENABLED:false}
+    # 每周一 03:30（错开整点避开限流高峰）。秒 分 时 日 月 周。
+    cron: ${LINGXING_SCHEDULED_CRON:0 30 3 ? * MON}
 
 features:
   ai-selection:
