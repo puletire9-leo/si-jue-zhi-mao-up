@@ -244,6 +244,12 @@ public class LingxingController {
                 readInt(req, "exactSearch")));
     }
 
+    @PostMapping("/listings/sync-target")
+    @Operation(summary = "覆盖同步统一表目标 ASIN 的最新 Listing（truncate 整表 → 按目标店铺 sid 全量拉 → 回填统一表 open_date）")
+    public Result<Map<String, Object>> syncTargetListings() {
+        return Result.success(listingSyncService.syncTargetListings());
+    }
+
     @GetMapping("/listings")
     @Operation(summary = "分页查询已落库的领星 Listing（可按 ASIN/SKU/店铺/在售状态筛选）")
     public Result<Page<LingxingListing>> listListings(

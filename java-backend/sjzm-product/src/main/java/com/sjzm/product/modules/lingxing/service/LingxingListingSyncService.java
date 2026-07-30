@@ -6,7 +6,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sjzm.product.mapper.LingxingListingMapper;
+import com.sjzm.product.mapper.LingxingProductUnifiedMapper;
 import com.sjzm.product.modules.lingxing.entity.LingxingListing;
+import com.sjzm.product.modules.lingxing.entity.LingxingProductUnified;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,9 +21,11 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 领星亚马逊 Listing 同步服务。
@@ -57,6 +61,7 @@ public class LingxingListingSyncService {
 
     private final LingxingClient client;
     private final LingxingListingMapper listingMapper;
+    private final LingxingProductUnifiedMapper unifiedMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -149,6 +154,107 @@ public class LingxingListingSyncService {
         r.put("pages", pages);
         r.put("fetched", fetched);
         r.put("upserted", upserted);
+        return r;
+    }
+
+    /**
+     * 按统一表目标 ASIN 覆盖同步 listing（每周同步流程第 ⑤⑥ 步）。
+     *
+     * <p>流程：<ol>
+     *   <li>truncate 整表 —— listing 要最新数据，旧的（含下架/非目标）不残留（用户拍板：truncate 整表重建）</li>
+     *   <li>取白名单：统一表 6994 目标 ASIN + 其实际分布的店铺 sid（周表 sid+asin，实测集中在 ~18 家）</li>
+     *   <li><b>多 sid 一次逗号传入</b>（文档 sid 支持 "1,16" 逗号分隔），全局分页拉 listing（令牌桶=1 串行），只落 asin ∈ 白名单 的行</li>
+     *   <li>回填统一表 listing_open_date（单独 UPDATE，按 asin 取 MIN(open_date)）</li>
+     * </ol>
+     *
+     * <p>为何多 sid 合并而非按店循环、也非 search_field=asin：
+     * sid 支持逗号分隔多店一次查（文档示例 {@code "sid":"1,16"}），18 家合并成一个逗号串全局分页，
+     * 请求数 ≈ 总行数/1000（约 10~50 页），远少于按店循环的几十次；
+     * 而 search_value（asin）上限仅 10 个，6994 ASIN 按 asin 查需 ~700 批，最差。</p>
+     *
+     * <p><b>去重</b>：领星同一 sid+seller_sku 可能跨页/变体重复返回，用全局 seen 集合去重，
+     * 避免撞唯一键 uk_sid_seller_sku（truncate 后纯 INSERT，重复即报错）。</p>
+     *
+     * @return {truncated, targetAsins, targetSids, pages, fetched, kept, backfilled}
+     */
+    public Map<String, Object> syncTargetListings() {
+        // ① 清空：要最新数据，旧行（含下架/非目标）全清（无 deleted 列，物理删）
+        listingMapper.delete(new LambdaQueryWrapper<>());
+        log.info("领星 listing 覆盖同步：已清空 lingxing_listing");
+
+        // ② 白名单：目标 ASIN 集合 + 实际分布的店铺 sid
+        Set<String> targetAsins = new HashSet<>();
+        for (LingxingProductUnified u : unifiedMapper.selectList(
+                new LambdaQueryWrapper<LingxingProductUnified>().select(LingxingProductUnified::getAsin))) {
+            if (u.getAsin() != null) targetAsins.add(u.getAsin());
+        }
+        List<Long> targetSids = listingMapper.selectTargetSids();
+        log.info("领星 listing 覆盖同步：目标 ASIN {} 个，分布店铺 {} 家", targetAsins.size(), targetSids.size());
+        if (targetAsins.isEmpty() || targetSids.isEmpty()) {
+            Map<String, Object> empty = new LinkedHashMap<>();
+            empty.put("truncated", true);
+            empty.put("targetAsins", targetAsins.size());
+            empty.put("targetSids", targetSids.size());
+            empty.put("kept", 0);
+            empty.put("backfilled", 0);
+            return empty;
+        }
+
+        // ③ 多 sid 一次逗号传入，全局分页拉，只落白名单内 asin 的行；全局去重防撞唯一键
+        String sidCsv = targetSids.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(","));
+        Map<String, LingxingListing> byKey = new LinkedHashMap<>(); // key: sid|seller_sku(小写归一)
+        int pages = 0, fetched = 0;
+        int offset = 0;
+        for (int p = 0; p < MAX_PAGES; p++) {
+            ObjectNode body = objectMapper.createObjectNode();
+            body.put("sid", sidCsv);
+            body.put("offset", offset);
+            body.put("length", PAGE_SIZE);
+
+            JsonNode resp = client.post(PATH, body);
+            JsonNode data = resp.path("data");
+            if (!data.isArray() || data.isEmpty()) break;
+
+            pages++;
+            fetched += data.size();
+            int pageKept = 0;
+            for (JsonNode row : data) {
+                String asin = asText(row, "asin");
+                if (asin == null || !targetAsins.contains(asin)) continue; // 白名单外丢弃
+                LingxingListing e = mapRow(row, null); // 多 sid 查询，sid 以 row 里的为准
+                if (e.getSid() == null || e.getSellerSku() == null) continue;
+                // key 规范化对齐 MySQL 唯一键 collation（utf8mb4_general_ci 大小写/尾空格不敏感）：
+                // 领星同店会返回仅大小写不同的 seller_sku（如 12P vs 12p），DB 视为同一键，Java Map 须同样归一化，否则一次性落库撞 uk_sid_seller_sku。
+                String dedupKey = e.getSid() + "|" + e.getSellerSku().trim().toLowerCase(java.util.Locale.ROOT);
+                byKey.putIfAbsent(dedupKey, e);
+                pageKept++;
+            }
+            log.info("领星 listing 覆盖同步：第 {} 页，本页 {} 行，命中目标 {}，去重后累计 {}", pages, data.size(), pageKept, byKey.size());
+
+            if (data.size() < PAGE_SIZE) break;
+            offset += PAGE_SIZE;
+            sleep(PAGE_INTERVAL_MS);
+        }
+
+        // 一次性落库（空表 + Map 已按 sid+seller_sku 去重，纯 INSERT 不会撞唯一键）
+        int kept = byKey.size();
+        if (kept > 0) {
+            Db.saveBatch(new ArrayList<>(byKey.values()), DB_BATCH_SIZE);
+        }
+
+        // ④ 回填统一表 listing_open_date
+        int backfilled = listingMapper.backfillUnifiedOpenDate();
+        log.info("领星 listing 覆盖同步完成：{} 店合并 / {} 页 / 拉取 {} / 目标落库 {} / 回填统一表 {} 行",
+                targetSids.size(), pages, fetched, kept, backfilled);
+
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("truncated", true);
+        r.put("targetAsins", targetAsins.size());
+        r.put("targetSids", targetSids.size());
+        r.put("pages", pages);
+        r.put("fetched", fetched);
+        r.put("kept", kept);
+        r.put("backfilled", backfilled);
         return r;
     }
 

@@ -141,37 +141,44 @@ public class LingxingClient {
      * @return 接口响应 JSON
      */
     public JsonNode post(String path, JsonNode body) {
-        ensureToken();
         ObjectNode bodyNode = (body != null && body.isObject())
                 ? (ObjectNode) body : objectMapper.createObjectNode();
-
-        String timestamp = String.valueOf(System.currentTimeMillis() / 1000L);
-        // 签名参与：3 公共参数 + 业务参数（集合/bool 在 sign 内做字符串化）
-        TreeMap<String, Object> signParams = new TreeMap<>();
-        signParams.put("access_token", accessToken);
-        signParams.put("app_key", configService.getAppId());
-        signParams.put("timestamp", timestamp);
-        bodyNode.fields().forEachRemaining(e -> signParams.put(e.getKey(), e.getValue()));
-        String sign = generateSign(signParams);
-
-        String url = config.getBaseUrl() + path
-                + "?access_token=" + enc(accessToken)
-                + "&app_key=" + enc(configService.getAppId())
-                + "&timestamp=" + timestamp
-                + "&sign=" + enc(sign);
         String payload;
         try {
             payload = objectMapper.writeValueAsString(bodyNode);
         } catch (Exception e) {
             throw new RuntimeException("领星请求序列化失败: " + e.getMessage(), e);
         }
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .header("Content-Type", "application/json")
-                .timeout(config.getReadTimeout())
-                .POST(HttpRequest.BodyPublishers.ofString(payload))
-                .build();
-        return send(req);
+        // token 失效（长任务中途过期）时强制刷新并用新 token 重拼重发，最多重试 1 次
+        for (int tokenRetry = 0; ; tokenRetry++) {
+            ensureToken();
+            String timestamp = String.valueOf(System.currentTimeMillis() / 1000L);
+            TreeMap<String, Object> signParams = new TreeMap<>();
+            signParams.put("access_token", accessToken);
+            signParams.put("app_key", configService.getAppId());
+            signParams.put("timestamp", timestamp);
+            bodyNode.fields().forEachRemaining(e -> signParams.put(e.getKey(), e.getValue()));
+            String sign = generateSign(signParams);
+
+            String url = config.getBaseUrl() + path
+                    + "?access_token=" + enc(accessToken)
+                    + "&app_key=" + enc(configService.getAppId())
+                    + "&timestamp=" + timestamp
+                    + "&sign=" + enc(sign);
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Content-Type", "application/json")
+                    .timeout(config.getReadTimeout())
+                    .POST(HttpRequest.BodyPublishers.ofString(payload))
+                    .build();
+            try {
+                return send(req);
+            } catch (TokenInvalidException tie) {
+                if (tokenRetry >= 1) throw new RuntimeException("领星 token 反复失效: " + tie.getMessage(), tie);
+                log.warn("领星 token 失效，强制刷新后重发（第 {} 次）", tokenRetry + 1);
+                forceRefreshToken();
+            }
+        }
     }
 
     /**
@@ -181,25 +188,45 @@ public class LingxingClient {
      * @param queryParams 业务查询参数（可空）
      */
     public JsonNode get(String path, Map<String, Object> queryParams) {
-        ensureToken();
-        String timestamp = String.valueOf(System.currentTimeMillis() / 1000L);
-        TreeMap<String, Object> signParams = new TreeMap<>();
-        signParams.put("access_token", accessToken);
-        signParams.put("app_key", configService.getAppId());
-        signParams.put("timestamp", timestamp);
-        if (queryParams != null) signParams.putAll(queryParams);
-        String sign = generateSign(signParams);
+        for (int tokenRetry = 0; ; tokenRetry++) {
+            ensureToken();
+            String timestamp = String.valueOf(System.currentTimeMillis() / 1000L);
+            TreeMap<String, Object> signParams = new TreeMap<>();
+            signParams.put("access_token", accessToken);
+            signParams.put("app_key", configService.getAppId());
+            signParams.put("timestamp", timestamp);
+            if (queryParams != null) signParams.putAll(queryParams);
+            String sign = generateSign(signParams);
 
-        StringBuilder url = new StringBuilder(config.getBaseUrl()).append(path).append("?");
-        signParams.forEach((k, v) -> url.append(enc(k)).append("=").append(enc(stringify(v))).append("&"));
-        url.append("sign=").append(enc(sign));
+            StringBuilder url = new StringBuilder(config.getBaseUrl()).append(path).append("?");
+            signParams.forEach((k, v) -> url.append(enc(k)).append("=").append(enc(stringify(v))).append("&"));
+            url.append("sign=").append(enc(sign));
 
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(url.toString()))
-                .timeout(config.getReadTimeout())
-                .GET()
-                .build();
-        return send(req);
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(url.toString()))
+                    .timeout(config.getReadTimeout())
+                    .GET()
+                    .build();
+            try {
+                return send(req);
+            } catch (TokenInvalidException tie) {
+                if (tokenRetry >= 1) throw new RuntimeException("领星 token 反复失效: " + tie.getMessage(), tie);
+                log.warn("领星 token 失效，强制刷新后重发（第 {} 次）", tokenRetry + 1);
+                forceRefreshToken();
+            }
+        }
+    }
+
+    /** 强制作废当前 token 并重新换取（token 失效码触发）。 */
+    private synchronized void forceRefreshToken() {
+        accessToken = "";
+        expiresAt = 0L;
+        getAccessToken();
+    }
+
+    /** token 失效专用异常：区别于限流，需刷新 token 重拼请求，不能白等重试。 */
+    private static class TokenInvalidException extends RuntimeException {
+        TokenInvalidException(String msg) { super(msg); }
     }
 
     // ============================================================
@@ -277,6 +304,12 @@ public class LingxingClient {
             JsonNode body = objectMapper.readTree(resp.body());
             // 领星错误：code 非 0/200 视为失败（业务接口 code=0，token 接口 code="200"）
             String code = body.path("code").asText("");
+            // token 失效：不白等重试，抛专用异常让 post/get 强制刷新 token 重拼重发
+            if (isTokenInvalidCode(code)) {
+                String msg = body.has("msg") ? body.path("msg").asText("")
+                        : body.path("message").asText("");
+                throw new TokenInvalidException("[" + code + "] " + msg);
+            }
             if (isRateLimitCode(code)) {
                 // 令牌桶限流：等待后重试。领星不同接口会返回 3001008 或 103。
                 if (attempt < RATE_LIMIT_RETRIES) {
@@ -292,6 +325,8 @@ public class LingxingClient {
                         + " (request_id: " + body.path("request_id").asText("") + ")");
             }
             return body;
+        } catch (TokenInvalidException tie) {
+            throw tie; // 透传，不进通用重试
         } catch (Exception e) {
             if (attempt < RATE_LIMIT_RETRIES) {
                 waitBeforeRetry("领星 API 临时失败: " + e.getMessage(), attempt);
@@ -313,6 +348,11 @@ public class LingxingClient {
 
     private boolean isRateLimitCode(String code) {
         return "3001008".equals(code) || "103".equals(code);
+    }
+
+    /** token 失效码：2001005 access token not match、2001002 token 过期等，需刷新 token 重发。 */
+    private boolean isTokenInvalidCode(String code) {
+        return "2001005".equals(code) || "2001002".equals(code) || "2001001".equals(code);
     }
 
     private String enc(String s) {

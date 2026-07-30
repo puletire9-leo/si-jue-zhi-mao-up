@@ -27,7 +27,10 @@ import java.util.Map;
  *   <li>先调店铺列表接口刷新最新 UK/DE 店铺 sid</li>
  *   <li>多店铺批量拉产品表现（sid 上限 200/批，批间间隔 10s，令牌桶=1）</li>
  *   <li>清洗：产品表现 → 周表 → 产品统一表</li>
+ *   <li>listing 覆盖同步：按「刚重建的统一表目标 ASIN 实时分布的店铺 sid」全量拉 listing（覆盖式，要最新）</li>
+ *   <li>回填统一表 listing_open_date（真实上架日）</li>
  * </ol>
+ * 第 4~5 步依赖第 3 步产出：目标店铺 sid 由周表∩统一表实时算出，新增店铺/新目标 ASIN 自动纳入，非固定清单。
  *
  * <p><b>默认关闭</b>：{@code LINGXING_SCHEDULED_ENABLED=false}，人工验证一轮后再开。</p>
  */
@@ -47,6 +50,7 @@ public class LingxingScheduledSyncService {
     private final LingxingProductPerformanceSyncService performanceSyncService;
     private final LingxingSkuDataLayerService skuDataLayerService;
     private final LingxingProductUnifiedService unifiedService;
+    private final LingxingListingSyncService listingSyncService;
     private final LingxingSkuDataLayerMapper syncRunMapper;
 
     /**
@@ -123,6 +127,12 @@ public class LingxingScheduledSyncService {
             Map<String, Object> unified = unifiedService.rebuild(null);
             log.info("领星每周同步：统一表重算 {}", unified);
 
+            // ⑤⑥ listing 覆盖同步 + 回填统一表 open_date
+            // 必须在统一表重建之后：listing 按「刚重建的周表∩统一表」实时算出的目标店铺 sid 取数，
+            // 新增店铺/新目标 ASIN 会被自动纳入（见 LingxingListingMapper.selectTargetSids 注释）。
+            Map<String, Object> listing = listingSyncService.syncTargetListings();
+            log.info("领星每周同步：listing 覆盖同步 {}", listing);
+
             syncRunMapper.finishRun(runId, "SUCCESS", totalUpserted, null);
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("runId", runId);
@@ -132,6 +142,7 @@ public class LingxingScheduledSyncService {
             out.put("upserted", totalUpserted);
             out.put("weekly", weekly);
             out.put("unified", unified);
+            out.put("listing", listing);
             return out;
         } catch (Exception e) {
             log.error("领星每周同步失败：{}", e.getMessage(), e);
