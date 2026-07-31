@@ -69,12 +69,14 @@ def team_developer(value: str) -> str | None:
 
 
 def load_asin_baseline() -> tuple[dict[str, dict[str, Any]], dict[str, set[str]], dict[str, set[str]]]:
-    """从数据库 lingxing_asin_baseline 表读取 ASIN 基准，并构建 SKU 映射索引。"""
+    """从数据库 lingxing_product_unified 统一表读取 ASIN 基准，并构建 SKU 映射索引。"""
+    # 数据源已从 lingxing_asin_baseline 迁移到 lingxing_product_unified 统一表（baseline 已下线）
+    # （统一表自包含：developer 来自 local_product，起算月三级兜底 FBA可售→listing上架日→创建日期）
     sql = """
         SELECT asin, developer, base_sku,
-               fba_available_first_month, model_start_month,
+               fba_first_available_month AS fba_available_first_month, model_start_month,
                model_start_basis, listing_tags
-        FROM lingxing_asin_baseline
+        FROM lingxing_product_unified
     """
     asins: dict[str, dict[str, Any]] = {}
     sku_to_asins: dict[str, set[str]] = defaultdict(set)

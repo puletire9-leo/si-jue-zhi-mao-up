@@ -4,11 +4,6 @@
     <div class="page-head">
       <div class="head-title">
         <span class="title">领星工作台</span>
-        <span class="subtitle"
-          >10 张表 · {{ overview?.tableCounts.baseline ?? "--" }} ASIN · 覆盖
-          {{ overview?.coverage.monthlyEarliest ?? "--" }} ~
-          {{ overview?.coverage.monthlyLatest ?? "--" }}</span
-        >
       </div>
       <div class="head-actions">
         <el-button :icon="Refresh" :loading="loading" @click="loadOverview"
@@ -19,12 +14,23 @@
 
     <!-- 数据总览卡片 -->
     <div class="stat-grid" v-loading="loading && !overview">
-      <div class="stat-card primary">
-        <div class="stat-label">ASIN 基准</div>
+      <div
+        class="stat-card unified-card"
+        role="button"
+        tabindex="0"
+        @click="activeTab = 'unified'"
+      >
+        <div class="stat-label">产品统一表 · 最终产出</div>
         <div class="stat-value">
-          {{ formatNumber(overview?.tableCounts.baseline) }}
+          {{ formatNumber(overview?.unified?.total) }}
+          <span class="stat-sub"
+            >有销量 {{ formatNumber(overview?.unified?.withSales) }}</span
+          >
         </div>
-        <div class="stat-hint">团队标签锁定 · 6 团队</div>
+        <div class="stat-hint">
+          6 目标标签 ASIN · 最新月 {{ overview?.coverage.weeklyLatest ?? "--" }}
+          · 点击查看明细 →
+        </div>
       </div>
       <div class="stat-card success">
         <div class="stat-label">月度产品表现</div>
@@ -92,22 +98,28 @@
       <!-- 概览 -->
       <el-tab-pane label="概览" name="overview">
         <div class="tab-body">
+          <!-- 产品统一表图表（最终产出物） -->
+          <div class="section-title">
+            产品统一表分布
+            <span class="section-sub"
+              >共 {{ formatNumber(overview?.unified?.total) }} 个目标标签
+              ASIN</span
+            >
+          </div>
           <div class="chart-row">
             <div class="chart-card">
-              <div class="chart-title">按开发人（Top 8）</div>
-              <div v-if="overview?.byDeveloper?.length" class="bar-list">
+              <div class="chart-title">按目标标签</div>
+              <div v-if="unifiedTagBars.length" class="bar-list">
                 <div
-                  v-for="row in overview.byDeveloper.slice(0, 8)"
-                  :key="row.developer"
+                  v-for="row in unifiedTagBars"
+                  :key="row.name"
                   class="bar-item"
                 >
-                  <div class="bar-label">{{ row.developer || "未标注" }}</div>
+                  <div class="bar-label">{{ row.name }}</div>
                   <div class="bar-track">
                     <div
-                      class="bar-fill"
-                      :style="{
-                        width: barPercent(row.cnt, developerMax) + '%',
-                      }"
+                      class="bar-fill green"
+                      :style="{ width: barPercent(row.cnt, unifiedTagMax) + '%' }"
                     />
                   </div>
                   <div class="bar-value">{{ formatNumber(row.cnt) }}</div>
@@ -117,18 +129,18 @@
             </div>
 
             <div class="chart-card">
-              <div class="chart-title">按币种</div>
-              <div v-if="overview?.byCurrency?.length" class="pie-list">
+              <div class="chart-title">按国家</div>
+              <div v-if="overview?.unified?.byCountry?.length" class="pie-list">
                 <div
-                  v-for="row in overview.byCurrency"
-                  :key="row.currency"
+                  v-for="row in overview.unified.byCountry"
+                  :key="row.country"
                   class="pie-item"
-                  :class="currencyClass(row.currency)"
+                  :class="row.country === 'UK' ? 'gbp' : 'eur'"
                 >
-                  <div class="pie-currency">{{ row.currency }}</div>
+                  <div class="pie-currency">{{ row.country }}</div>
                   <div class="pie-count">{{ formatNumber(row.cnt) }}</div>
                   <div class="pie-percent">
-                    {{ percent(row.cnt, currencyTotal) }}%
+                    {{ percent(row.cnt, overview.unified.total) }}%
                   </div>
                 </div>
               </div>
@@ -138,17 +150,17 @@
 
           <div class="chart-row">
             <div class="chart-card full">
-              <div class="chart-title">按起算月份分布（近 24 个月）</div>
-              <div v-if="overview?.byStartMonth?.length" class="month-chart">
+              <div class="chart-title">按最新销量月份分布</div>
+              <div v-if="unifiedMonthsSorted.length" class="month-chart">
                 <div
-                  v-for="row in monthsSorted"
+                  v-for="row in unifiedMonthsSorted"
                   :key="row.month"
                   class="month-bar"
                   :title="`${row.month}: ${row.cnt} ASIN`"
                 >
                   <div
-                    class="month-fill"
-                    :style="{ height: barPercent(row.cnt, monthMax) + '%' }"
+                    class="month-fill green"
+                    :style="{ height: barPercent(row.cnt, unifiedMonthMax) + '%' }"
                   />
                   <div class="month-label">{{ shortMonth(row.month) }}</div>
                 </div>
@@ -157,22 +169,111 @@
             </div>
           </div>
 
-          <div class="chart-row">
-            <div class="chart-card full">
-              <div class="chart-title">按分析状态</div>
-              <div v-if="overview?.byStatus?.length" class="tag-list">
-                <el-tag
-                  v-for="row in overview.byStatus"
-                  :key="row.status"
-                  :type="statusTagType(row.status)"
-                  size="large"
-                  class="status-tag"
-                >
-                  {{ row.status }} · {{ formatNumber(row.cnt) }}
-                </el-tag>
-              </div>
-              <el-empty v-else description="暂无数据" :image-size="60" />
-            </div>
+        </div>
+      </el-tab-pane>
+
+      <!-- 产品统一表明细 -->
+      <el-tab-pane label="产品统一表" name="unified">
+        <div class="tab-body">
+          <div class="unified-toolbar">
+            <el-input
+              v-model="unifiedFilter.asin"
+              placeholder="搜索 ASIN"
+              clearable
+              style="width: 200px"
+              @keyup.enter="reloadUnified"
+              @clear="reloadUnified"
+            />
+            <el-input
+              v-model="unifiedFilter.developer"
+              placeholder="开发人"
+              clearable
+              style="width: 160px"
+              @keyup.enter="reloadUnified"
+              @clear="reloadUnified"
+            />
+            <el-button type="primary" :icon="Search" @click="reloadUnified"
+              >查询</el-button
+            >
+            <span class="unified-total"
+              >共 {{ formatNumber(unifiedPage.total) }} 个 ASIN</span
+            >
+          </div>
+
+          <el-table
+            :data="unifiedRows"
+            v-loading="unifiedLoading"
+            size="small"
+            stripe
+            border
+            class="unified-table"
+          >
+            <el-table-column
+              prop="asin"
+              label="ASIN"
+              width="120"
+              fixed
+              show-overflow-tooltip
+            />
+            <el-table-column
+              prop="title"
+              label="标题"
+              min-width="220"
+              show-overflow-tooltip
+            />
+            <el-table-column prop="developer" label="开发人" width="90" />
+            <el-table-column prop="country" label="国家" width="66" />
+            <el-table-column
+              prop="listingTags"
+              label="标签"
+              width="160"
+              show-overflow-tooltip
+            />
+            <el-table-column prop="modelStartMonth" label="起算月" width="90" />
+            <el-table-column label="真实上架日" width="110">
+              <template #default="{ row }">
+                {{ row.listingOpenDate ? row.listingOpenDate.slice(0, 10) : "--" }}
+              </template>
+            </el-table-column>
+            <el-table-column label="累计销量" width="100" align="right">
+              <template #default="{ row }">{{
+                formatNumber(row.totalVolume)
+              }}</template>
+            </el-table-column>
+            <el-table-column label="累计金额" width="110" align="right">
+              <template #default="{ row }">{{
+                formatMoney(row.totalAmount)
+              }}</template>
+            </el-table-column>
+            <el-table-column label="毛利率" width="90" align="right">
+              <template #default="{ row }">{{
+                formatPercent(row.avgGrossMargin)
+              }}</template>
+            </el-table-column>
+            <el-table-column prop="latestMonth" label="最新月" width="90" />
+            <el-table-column label="最新销量" width="100" align="right">
+              <template #default="{ row }">{{
+                formatNumber(row.latestVolume)
+              }}</template>
+            </el-table-column>
+            <el-table-column
+              prop="fbaObservationStatus"
+              label="FBA观测"
+              width="150"
+              show-overflow-tooltip
+            />
+          </el-table>
+
+          <div class="unified-pager">
+            <el-pagination
+              v-model:current-page="unifiedPage.current"
+              v-model:page-size="unifiedPage.size"
+              :total="unifiedPage.total"
+              :page-sizes="[60, 100, 200]"
+              layout="total, sizes, prev, pager, next, jumper"
+              @size-change="reloadUnified"
+              @current-change="loadUnified"
+            />
           </div>
         </div>
       </el-tab-pane>
@@ -343,19 +444,54 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { Refresh } from "@element-plus/icons-vue";
+import { Refresh, Search } from "@element-plus/icons-vue";
 import { useUserStore } from "@/stores/user";
 import {
   lingxingProductApi,
   type LingxingOverview,
+  type LingxingProductUnified,
   type SyncRun,
 } from "@/api/lingxingProduct";
 
 const userStore = useUserStore();
 const loading = ref(false);
-const activeTab = ref<"overview" | "sync" | "credentials">("overview");
+const activeTab = ref<"overview" | "unified" | "sync" | "credentials">(
+  "overview",
+);
 const overview = ref<LingxingOverview | null>(null);
 const syncRuns = ref<SyncRun[]>([]);
+
+/* ─── 产品统一表明细 ─── */
+const unifiedRows = ref<LingxingProductUnified[]>([]);
+const unifiedLoading = ref(false);
+const unifiedFilter = reactive({ asin: "", developer: "" });
+const unifiedPage = reactive({ current: 1, size: 60, total: 0 });
+
+async function loadUnified() {
+  unifiedLoading.value = true;
+  try {
+    const page = await lingxingProductApi.listProductUnified({
+      current: unifiedPage.current,
+      size: unifiedPage.size,
+      asin: unifiedFilter.asin.trim() || undefined,
+      developer: unifiedFilter.developer.trim() || undefined,
+    });
+    unifiedRows.value = page.records;
+    unifiedPage.total = page.total;
+  } catch (e: unknown) {
+    ElMessage.error(
+      "加载统一表失败：" + (e instanceof Error ? e.message : String(e)),
+    );
+  } finally {
+    unifiedLoading.value = false;
+  }
+}
+
+/** 筛选/页大小变化：回到第 1 页重新加载 */
+function reloadUnified() {
+  unifiedPage.current = 1;
+  loadUnified();
+}
 
 const credForm = reactive({ appId: "", appSecret: "" });
 const credSaving = ref(false);
@@ -414,22 +550,36 @@ async function doPing() {
 
 /* ─── computed / util ─── */
 
-const developerMax = computed(() => {
-  const arr = overview.value?.byDeveloper ?? [];
-  return arr.length ? Math.max(...arr.map((r) => r.cnt)) : 1;
+/** 6 目标标签 bar 数据（后端 byTag 一行 6 列 → 数组，值可能是字符串） */
+const unifiedTagBars = computed(() => {
+  const t = overview.value?.unified?.byTag;
+  if (!t) return [] as Array<{ name: string; cnt: number }>;
+  const toNum = (v: number | string | null) => Number(v ?? 0) || 0;
+  return [
+    { name: "欧洲精铺2025", cnt: toNum(t.tag_jingpu) },
+    { name: "非标品", cnt: toNum(t.tag_feibiao) },
+    { name: "淘汰", cnt: toNum(t.tag_taotai) },
+    { name: "待淘汰", cnt: toNum(t.tag_daitaotai) },
+    { name: "季节性断货", cnt: toNum(t.tag_jijie) },
+    { name: "绿标", cnt: toNum(t.tag_lvbiao) },
+  ]
+    .filter((r) => r.cnt > 0)
+    .sort((a, b) => b.cnt - a.cnt);
 });
 
-const currencyTotal = computed(() =>
-  (overview.value?.byCurrency ?? []).reduce((s, r) => s + r.cnt, 0),
+const unifiedTagMax = computed(() =>
+  unifiedTagBars.value.length
+    ? Math.max(...unifiedTagBars.value.map((r) => r.cnt))
+    : 1,
 );
 
-const monthsSorted = computed(() => {
-  const arr = overview.value?.byStartMonth ?? [];
+const unifiedMonthsSorted = computed(() => {
+  const arr = overview.value?.unified?.byLatestMonth ?? [];
   return [...arr].sort((a, b) => (a.month > b.month ? 1 : -1));
 });
 
-const monthMax = computed(() => {
-  const arr = overview.value?.byStartMonth ?? [];
+const unifiedMonthMax = computed(() => {
+  const arr = overview.value?.unified?.byLatestMonth ?? [];
   return arr.length ? Math.max(...arr.map((r) => r.cnt)) : 1;
 });
 
@@ -452,6 +602,25 @@ function formatNumber(v: number | null | undefined) {
   return v.toLocaleString("en-US");
 }
 
+/** 金额：字符串数字 → 千分位保留 2 位 */
+function formatMoney(v: string | number | null | undefined) {
+  if (v == null || v === "") return "--";
+  const n = Number(v);
+  if (Number.isNaN(n)) return "--";
+  return n.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/** 毛利率：小数(如 0.35) → 百分比 */
+function formatPercent(v: string | number | null | undefined) {
+  if (v == null || v === "") return "--";
+  const n = Number(v);
+  if (Number.isNaN(n)) return "--";
+  return (n * 100).toFixed(1) + "%";
+}
+
 function shortMonth(m: string) {
   return m?.slice(2) ?? "";
 }
@@ -459,20 +628,6 @@ function shortMonth(m: string) {
 function formatTime(t: string | null) {
   if (!t) return "--";
   return t.replace("T", " ").slice(0, 19);
-}
-
-function currencyClass(c: string) {
-  if (c === "GBP") return "gbp";
-  if (c === "EUR") return "eur";
-  return "other";
-}
-
-function statusTagType(
-  status: string,
-): "primary" | "success" | "warning" | "info" | "danger" {
-  if (status?.includes("新增")) return "success";
-  if (status?.includes("未标注")) return "info";
-  return "warning";
 }
 
 function runStatusType(
@@ -484,7 +639,10 @@ function runStatusType(
   return "info";
 }
 
-onMounted(loadOverview);
+onMounted(() => {
+  loadOverview();
+  loadUnified();
+});
 </script>
 
 <style scoped lang="scss">
@@ -798,6 +956,73 @@ onMounted(loadOverview);
       font-family: "Fira Code", monospace;
       font-size: 12px;
     }
+  }
+}
+
+/* 统一表卡片（最终产出物，绿色强调 + 可点击） */
+.unified-card {
+  border-top: 3px solid #10b981;
+  background: linear-gradient(135deg, #ecfdf5, #ffffff);
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid #10b981;
+    outline-offset: 2px;
+  }
+}
+
+/* 概览分区标题 */
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 4px 0 -4px;
+
+  .section-sub {
+    font-size: 12px;
+    font-weight: 400;
+    color: #9ca3af;
+    margin-left: 8px;
+  }
+}
+
+/* 统一表图表用绿色系区分 baseline 蓝色 */
+.bar-fill.green {
+  background: linear-gradient(90deg, #10b981, #6ee7b7);
+}
+.month-fill.green {
+  background: linear-gradient(180deg, #10b981, #6ee7b7);
+}
+
+/* 统一表明细工具栏 + 分页 */
+.unified-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+
+  .unified-total {
+    margin-left: auto;
+    font-size: 13px;
+    color: #6b7280;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.unified-pager {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 让整页自然滚动：Element Plus 的 border-card tabs 默认 content overflow:hidden，
+   会裁掉高内容导致外层 lay-content 感知不到溢出而无法滚动。放开裁剪，
+   表格按数据自然撑高，由外层 .lay-content 整页滚动（鼠标在任意位置都能滚）。 */
+.tab-panel {
+  overflow: visible;
+
+  :deep(.el-tabs__content) {
+    overflow: visible;
   }
 }
 </style>

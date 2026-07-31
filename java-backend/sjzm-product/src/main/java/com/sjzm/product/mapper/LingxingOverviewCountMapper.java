@@ -10,9 +10,6 @@ import org.apache.ibatis.annotations.Select;
 @Mapper
 public interface LingxingOverviewCountMapper {
 
-    @Select("SELECT COUNT(*) FROM lingxing_asin_baseline")
-    long countBaseline();
-
     @Select("SELECT COUNT(*) FROM lingxing_asin_monthly_performance")
     long countMonthlyPerformance();
 
@@ -40,6 +37,9 @@ public interface LingxingOverviewCountMapper {
     @Select("SELECT COUNT(*) FROM lingxing_data_sync_run")
     long countDataSyncRun();
 
+    @Select("SELECT COUNT(*) FROM lingxing_product_unified")
+    long countProductUnified();
+
     @Select("SELECT MAX(`month`) FROM lingxing_asin_monthly_performance")
     String latestMonthlyMonth();
 
@@ -48,6 +48,9 @@ public interface LingxingOverviewCountMapper {
 
     @Select("SELECT MAX(week_end) FROM lingxing_sku_weekly_performance")
     String latestWeeklyEnd();
+
+    @Select("SELECT MIN(week_start) FROM lingxing_sku_weekly_performance")
+    String earliestWeeklyStart();
 
     @Select("SELECT MAX(data_date) FROM lingxing_profit_asin")
     String latestProfitDate();

@@ -99,6 +99,27 @@ public class LingxingLocalProductSyncService {
         return r;
     }
 
+    /**
+     * 全量同步 + 只保留统一表目标开发人的 SKU（覆盖更新）。
+     * <p>全量拉 productList（一次拉完 3.7 万，比按 SKU 逐批查快）→ 删非目标开发人行。
+     * 目标开发人 = 统一表 distinct developer（动态）。
+     * <p>空集保护：统一表无目标开发人时跳过删除，避免 NOT IN 空集删光全表。
+     */
+    public Map<String, Object> syncAndPruneToTargetDevelopers() {
+        Map<String, Object> r = syncAll();
+        int targetCount = productMapper.countTargetDevelopers();
+        if (targetCount <= 0) {
+            log.warn("统一表无目标开发人（countTargetDevelopers=0），跳过删非目标，保留全量本地产品");
+            r.put("pruneSkipped", "统一表目标开发人为空，未删除");
+            return r;
+        }
+        int deleted = productMapper.deleteNonTargetDevelopers();
+        log.info("领星本地产品清理：目标开发人 {} 人，删除非目标 {} 行", targetCount, deleted);
+        r.put("targetDevelopers", targetCount);
+        r.put("prunedNonTarget", deleted);
+        return r;
+    }
+
     // ============================================================
     // 写回领星：添加/编辑本地产品 + 上传图片
     // ============================================================

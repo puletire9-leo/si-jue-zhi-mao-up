@@ -47,25 +47,25 @@ def text(value: Any) -> str:
 
 
 def load_fixed_currency_cohorts() -> dict[str, dict[str, str]]:
-    """从数据库 lingxing_asin_baseline 读取固定上架批次及站点归属。"""
+    """从数据库 lingxing_product_unified 统一表读取固定上架批次及站点归属。"""
+    # 数据源迁移到统一表；币种直接用 country(UK/DE)，比原 base_store/country 拼串更准
     sql = """
-        SELECT asin, model_start_month, base_store,
-               available_first_country, inventory_first_country
-        FROM lingxing_asin_baseline
+        SELECT asin, model_start_month, country
+        FROM lingxing_product_unified
     """
     result: dict[str, dict[str, str]] = {currency: {} for currency in CURRENCIES}
     with pymysql.connect(**mysql_env()) as conn:
         with conn.cursor() as cur:
             cur.execute(sql)
-            for asin, month, base_store, avail_country, inv_country in cur.fetchall():
+            for asin, month, country in cur.fetchall():
                 asin = str(asin or "").strip()
                 month = str(month or "").strip()
                 if not asin or not MODEL_START.strftime("%Y-%m") <= month <= MODEL_END.strftime("%Y-%m"):
                     continue
-                site_text = " | ".join(str(v or "") for v in (base_store, avail_country, inv_country))
-                if "UK" in site_text.upper() or "英国" in site_text:
+                site = str(country or "").upper()
+                if "UK" in site or "英国" in str(country or ""):
                     result["GBP"][asin] = month
-                if "DE" in site_text.upper() or "德国" in site_text:
+                elif "DE" in site or "德国" in str(country or ""):
                     result["EUR"][asin] = month
     return result
 

@@ -79,15 +79,17 @@ def team_developer(value: str) -> str | None:
 
 
 def load_baseline() -> dict[str, dict[str, object]]:
-    """从数据库 lingxing_asin_baseline 表读取基准。"""
+    """从数据库 lingxing_product_unified 统一表读取基准。"""
+    # 数据源迁移到统一表：product_create_time→listing_open_date（真实上架日，覆盖率更高）；
+    # analysis_status 弃用（淘汰判定本就用 listing_tags）；三个国家字段统一为 country(UK/DE)。
     sql = """
-        SELECT asin, base_sku, developer, product_create_time,
+        SELECT asin, base_sku, developer, listing_open_date,
                model_start_month, model_start_basis,
-               fba_available_first_month_final, fba_available_first_basis,
-               fba_available_first_month, fba_inventory_first_month,
-               listing_tags, analysis_status,
-               base_store, available_first_country, inventory_first_country
-        FROM lingxing_asin_baseline
+               fba_first_available_month, fba_first_available_basis,
+               fba_first_available_month, fba_inventory_first_month,
+               listing_tags,
+               country
+        FROM lingxing_product_unified
     """
     rows: dict[str, dict[str, object]] = {}
     with pymysql.connect(**mysql_env()) as conn:
@@ -95,8 +97,8 @@ def load_baseline() -> dict[str, dict[str, object]]:
             cur.execute(sql)
             for (asin, sku, dev_raw, created_at, start_month, basis,
                  first_fba_month, first_fba_basis, first_available,
-                 first_inventory, label, cutoff_status,
-                 base_store, avail_country, inv_country) in cur.fetchall():
+                 first_inventory, label,
+                 country) in cur.fetchall():
                 start_month = str(start_month or "").strip()
                 if not start_month or start_month > DATA_CUTOFF:
                     continue
@@ -110,7 +112,7 @@ def load_baseline() -> dict[str, dict[str, object]]:
                     status = "待淘汰（暂计入留存）"
                 else:
                     status = "留存"
-                site_text = " | ".join(str(v or "") for v in (base_store, avail_country, inv_country))
+                site_text = str(country or "")
                 fixed_currencies: set[str] = set()
                 if "UK" in site_text.upper() or "英国" in site_text:
                     fixed_currencies.add("GBP")
@@ -129,7 +131,7 @@ def load_baseline() -> dict[str, dict[str, object]]:
                     "first_inventory": str(first_inventory or ""),
                     "label": label,
                     "status": status,
-                    "cutoff_status": str(cutoff_status or ""),
+                    "cutoff_status": "",
                     "performance_quantity": defaultdict(Decimal),
                     "performance_sales": defaultdict(Decimal),
                     "available_stock": defaultdict(Decimal),

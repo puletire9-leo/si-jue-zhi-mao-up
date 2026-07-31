@@ -7,14 +7,14 @@
 --   产出物从原 CSV（基础统一表目录）升级为 MySQL 表，全量重算幂等。
 --
 -- 数据来源（纯读库加工，不调领星 API）：
---   lingxing_asin_monthly_performance  → 经营指标聚合（累计/最近月/活跃月数）
+--   lingxing_sku_weekly_performance    → 经营指标聚合 + FBA首现 + 创建日期(raw_json)
 --   lingxing_listing                   → open_date 真实上架日
---   lingxing_asin_baseline             → 起算月/FBA首现/身份兜底
+--   lingxing_local_product             → developer（按 sku 关联）
 --
 -- 上架日双口径（用户确认并列存，不二选一）：
---   fba_first_available_month  = FBA 可售首现月（现有模型口径，来自 baseline）
+--   fba_first_available_month  = FBA 可售首现月（周表算）
 --   listing_open_date          = 亚马逊真实商品创建时间（来自 lingxing_listing）
---   model_start_month          = 模型分析起算月（4 级兜底，对齐 Python maintain 脚本口径）
+--   model_start_month          = 模型分析起算月（三级兜底：FBA可售首现月→真实上架日→创建日期）
 --
 -- charset/collation 与其它 lingxing_* 一致（utf8mb4_unicode_ci）。
 -- =================================================================

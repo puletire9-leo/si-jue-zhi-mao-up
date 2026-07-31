@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sjzm.common.Result;
-import com.sjzm.product.mapper.LingxingAsinBaselineMapper;
 import com.sjzm.product.mapper.LingxingListingMapper;
 import com.sjzm.product.mapper.LingxingLocalProductMapper;
 import com.sjzm.product.mapper.LingxingProductPerformanceMapper;
@@ -14,14 +13,15 @@ import com.sjzm.product.mapper.LingxingProductUnifiedMapper;
 import com.sjzm.product.mapper.LingxingProfitAsinMapper;
 import com.sjzm.product.mapper.LingxingSellerMapper;
 import com.sjzm.product.mapper.LingxingSkuDataLayerMapper;
-import com.sjzm.product.modules.lingxing.entity.LingxingAsinBaseline;
 import com.sjzm.product.modules.lingxing.entity.LingxingListing;
+import com.sjzm.product.modules.lingxing.entity.LingxingFbaFeeCompare;
+import com.sjzm.product.mapper.LingxingFbaFeeCompareMapper;
+import com.sjzm.product.modules.lingxing.service.LingxingFbaFeeCompareService;
 import com.sjzm.product.modules.lingxing.entity.LingxingLocalProduct;
 import com.sjzm.product.modules.lingxing.entity.LingxingProductPerformance;
 import com.sjzm.product.modules.lingxing.entity.LingxingProductUnified;
 import com.sjzm.product.modules.lingxing.entity.LingxingProfitAsin;
 import com.sjzm.product.modules.lingxing.entity.LingxingSeller;
-import com.sjzm.product.modules.lingxing.dto.LingxingBaselineUpdateRequest;
 import com.sjzm.product.modules.lingxing.dto.LingxingCredentialsRequest;
 import com.sjzm.product.modules.lingxing.service.LingxingClient;
 import com.sjzm.product.modules.lingxing.service.LingxingConfigService;
@@ -69,11 +69,12 @@ public class LingxingController {
     private final LingxingProfitAsinSyncService profitSyncService;
     private final LingxingProfitAsinMapper profitMapper;
     private final LingxingPurchaseDataLayerService purchaseDataLayerService;
-    private final LingxingAsinBaselineMapper baselineMapper;
     private final LingxingSkuDataLayerMapper syncRunMapper;
     private final LingxingOverviewService overviewService;
     private final LingxingListingSyncService listingSyncService;
     private final LingxingListingMapper listingMapper;
+    private final LingxingFbaFeeCompareService fbaFeeCompareService;
+    private final LingxingFbaFeeCompareMapper fbaFeeCompareMapper;
     private final LingxingProductPerformanceSyncService performanceSyncService;
     private final LingxingProductPerformanceMapper performanceMapper;
     private final LingxingProductUnifiedService unifiedService;
@@ -120,6 +121,46 @@ public class LingxingController {
     @Operation(summary = "手动触发：全量同步领星本地产品到库（双写 + 按 lingxing_id 幂等 upsert）")
     public Result<Map<String, Object>> syncLocalProducts() {
         return Result.success(localProductSyncService.syncAll());
+    }
+
+    @PostMapping("/local-products/sync-prune")
+    @Operation(summary = "全量同步本地产品 + 只保留统一表目标开发人的 SKU（删非目标，覆盖更新）")
+    public Result<Map<String, Object>> syncAndPruneLocalProducts() {
+        return Result.success(localProductSyncService.syncAndPruneToTargetDevelopers());
+    }
+
+    // ============================================================
+    // FBA 配送费对比（开发人预测 vs 亚马逊实际/预估 getPrices）
+    // ============================================================
+
+    @PostMapping("/fba-fee-compare/rebuild")
+    @Operation(summary = "重算FBA配送费对比：合格ASIN(近3月销量>30+正利润)→getPrices拉亚马逊费→对比开发人预测")
+    public Result<Map<String, Object>> rebuildFbaFeeCompare() {
+        return Result.success(fbaFeeCompareService.rebuild());
+    }
+
+    @PostMapping("/fba-fee-compare/sync-fees-by-month")
+    @Operation(summary = "按月+销量补拉亚马逊FBA预估费(getPrices)：如 month=2026-07 minVolume=10")
+    public Result<Map<String, Object>> syncFeesByMonth(
+            @RequestParam String month,
+            @RequestParam(defaultValue = "10") int minVolume) {
+        return Result.success(fbaFeeCompareService.syncFeesByMonth(month, minVolume));
+    }
+
+    @GetMapping("/fba-fee-compare")
+    @Operation(summary = "分页查询FBA配送费对比结果（可按ASIN/开发人/国家筛选，按差异绝对值倒序）")
+    public Result<Page<LingxingFbaFeeCompare>> listFbaFeeCompare(
+            @RequestParam(defaultValue = "1") long current,
+            @RequestParam(defaultValue = "20") long size,
+            @RequestParam(required = false) String asin,
+            @RequestParam(required = false) String developer,
+            @RequestParam(required = false) String country) {
+        LambdaQueryWrapper<LingxingFbaFeeCompare> qw = new LambdaQueryWrapper<LingxingFbaFeeCompare>()
+                .like(StringUtils.hasText(asin), LingxingFbaFeeCompare::getAsin, asin)
+                .eq(StringUtils.hasText(developer), LingxingFbaFeeCompare::getDeveloper, developer)
+                .eq(StringUtils.hasText(country), LingxingFbaFeeCompare::getCountry, country)
+                .orderByDesc(LingxingFbaFeeCompare::getDiff);
+        return Result.success(fbaFeeCompareMapper.selectPage(new Page<>(current, size), qw));
     }
 
     @GetMapping("/local-products")
@@ -343,74 +384,6 @@ public class LingxingController {
             throw new IllegalArgumentException("startDate/endDate 必填（yyyy-MM-dd，跨度 ≤92 天）");
         }
         return Result.success(scheduledSyncService.run(start, end));
-    }
-
-    // ============================================================
-    // ASIN 基准表 baseline（模型一/模型二 起点，6945 团队 ASIN）
-    // ============================================================
-
-    @GetMapping("/baseline")
-    @Operation(summary = "分页查询 ASIN 基准表（支持按 ASIN/开发人/币种/起算月/状态筛选）")
-    public Result<Page<LingxingAsinBaseline>> listBaseline(
-            @RequestParam(defaultValue = "1") long current,
-            @RequestParam(defaultValue = "20") long size,
-            @RequestParam(required = false) String asin,
-            @RequestParam(required = false) String developer,
-            @RequestParam(required = false) String currency,
-            @RequestParam(required = false) String modelStartMonth,
-            @RequestParam(required = false) String analysisStatus,
-            @RequestParam(required = false) String keyword) {
-        LambdaQueryWrapper<LingxingAsinBaseline> qw = new LambdaQueryWrapper<LingxingAsinBaseline>()
-                .like(StringUtils.hasText(asin), LingxingAsinBaseline::getAsin, asin)
-                .eq(StringUtils.hasText(developer), LingxingAsinBaseline::getDeveloper, developer)
-                .eq(StringUtils.hasText(modelStartMonth), LingxingAsinBaseline::getModelStartMonth, modelStartMonth)
-                .orderByDesc(LingxingAsinBaseline::getModelStartMonth)
-                .orderByAsc(LingxingAsinBaseline::getAsin);
-
-        if ("未标注".equals(analysisStatus)) {
-            qw.and(w -> w.isNull(LingxingAsinBaseline::getAnalysisStatus)
-                    .or().eq(LingxingAsinBaseline::getAnalysisStatus, "")
-                    .or().eq(LingxingAsinBaseline::getAnalysisStatus, "未标注"));
-        } else if (StringUtils.hasText(analysisStatus)) {
-            qw.eq(LingxingAsinBaseline::getAnalysisStatus, analysisStatus);
-        }
-
-        if ("GBP".equalsIgnoreCase(currency)) {
-            qw.in(LingxingAsinBaseline::getAvailableFirstCountry, "英国", "UK");
-        } else if ("EUR".equalsIgnoreCase(currency)) {
-            qw.in(LingxingAsinBaseline::getAvailableFirstCountry,
-                    "德国", "法国", "意大利", "西班牙", "荷兰", "DE", "FR", "IT", "ES", "NL");
-        }
-
-        if (StringUtils.hasText(keyword)) {
-            qw.and(w -> w.like(LingxingAsinBaseline::getAsin, keyword)
-                    .or().like(LingxingAsinBaseline::getBaseSku, keyword)
-                    .or().like(LingxingAsinBaseline::getListingTags, keyword)
-                    .or().like(LingxingAsinBaseline::getDeveloper, keyword));
-        }
-
-        return Result.success(baselineMapper.selectPage(new Page<>(current, size), qw));
-    }
-
-    @GetMapping("/baseline/{asin}")
-    @Operation(summary = "查询单个 ASIN 的基准档案")
-    public Result<LingxingAsinBaseline> getBaseline(@PathVariable String asin) {
-        return Result.success(baselineMapper.selectById(asin));
-    }
-
-    @PostMapping("/baseline-maintenance/{asin}")
-    @Operation(summary = "更新单个 ASIN 的基准档案（标签/开发人/起算月等可编辑字段）")
-    public Result<LingxingAsinBaseline> updateBaseline(@PathVariable String asin,
-                                                       @Valid @RequestBody LingxingBaselineUpdateRequest request) {
-        LingxingAsinBaseline update = new LingxingAsinBaseline();
-        update.setAsin(asin);
-        update.setDeveloper(request.developer());
-        update.setListingTags(request.listingTags());
-        update.setModelStartMonth(request.modelStartMonth());
-        update.setModelStartBasis(request.modelStartBasis());
-        update.setAnalysisStatus(request.analysisStatus());
-        baselineMapper.updateById(update);
-        return Result.success(baselineMapper.selectById(asin));
     }
 
     // ============================================================

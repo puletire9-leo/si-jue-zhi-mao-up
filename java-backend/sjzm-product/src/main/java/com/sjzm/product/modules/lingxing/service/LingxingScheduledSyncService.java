@@ -51,6 +51,8 @@ public class LingxingScheduledSyncService {
     private final LingxingSkuDataLayerService skuDataLayerService;
     private final LingxingProductUnifiedService unifiedService;
     private final LingxingListingSyncService listingSyncService;
+    private final LingxingLocalProductSyncService localProductSyncService;
+    private final com.sjzm.product.mapper.LingxingLocalProductMapper localProductMapper;
     private final LingxingSkuDataLayerMapper syncRunMapper;
 
     /**
@@ -94,6 +96,11 @@ public class LingxingScheduledSyncService {
             if (sids.isEmpty()) {
                 throw new IllegalStateException("无有效 UK/DE 店铺 sid，店铺列表同步后仍为空");
             }
+
+            // ①.5 全量同步本地产品（供后续统一表 JOIN 取 developer；此时先不删非目标，保全量匹配）
+            Map<String, Object> localResult = localProductSyncService.syncAll();
+            log.info("领星每周同步：本地产品全量同步 {}", localResult);
+
             log.info("领星每周同步开始：{} 个 UK/DE 店铺，窗口 {}~{}", sids.size(), startDate, endDate);
 
             // ② 多店铺批量拉产品表现（sid 上限 200/批）
@@ -126,6 +133,15 @@ public class LingxingScheduledSyncService {
 
             Map<String, Object> unified = unifiedService.rebuild(null);
             log.info("领星每周同步：统一表重算 {}", unified);
+
+            // ④.5 删本地产品非目标开发人（用刚重建的统一表 distinct developer；空集保护防删光全表）
+            int targetDevs = localProductMapper.countTargetDevelopers();
+            if (targetDevs > 0) {
+                int pruned = localProductMapper.deleteNonTargetDevelopers();
+                log.info("领星每周同步：本地产品清理，目标开发人 {} 人，删非目标 {} 行", targetDevs, pruned);
+            } else {
+                log.warn("领星每周同步：统一表无目标开发人，跳过本地产品清理（防删光全表）");
+            }
 
             // ⑤⑥ listing 覆盖同步 + 回填统一表 open_date
             // 必须在统一表重建之后：listing 按「刚重建的周表∩统一表」实时算出的目标店铺 sid 取数，

@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sjzm.product.mapper.LingxingFbaFeeCompareMapper">
+
+    <insert id="rebuildAll">
+        INSERT INTO lingxing_fba_fee_compare (
+            asin, msku, sid, local_sku, developer, country,
+            amazon_fba_fee, amazon_fba_fee_report, fee_currency,
+            dev_fba_fee, diff, diff_rate,
+            recent3m_volume, recent3m_profit,
+            tacos, dev_price, actual_price, price_diff, price_diff_rate,
+            synced_at
+        )
+        WITH qual_asin AS (
+            SELECT w.asin,
+                   SUM(w.volume) AS vol,
+                   SUM(w.amount) AS amt,
+                   SUM(w.spend) AS spend
+            FROM lingxing_sku_weekly_performance w
+            INNER JOIN lingxing_product_unified u ON u.asin = w.asin
+            WHERE w.`year_month` IN ('2026-05','2026-06','2026-07')
+            GROUP BY w.asin
+            HAVING SUM(w.volume) &gt; 30
+        ),
+        qual_profit AS (
+            SELECT asin, SUM(gross_profit) AS profit
+            FROM lingxing_profit_asin
+            WHERE data_date &gt;= '2026-05-01' AND data_date &lt;= '2026-07-31'
+            GROUP BY asin
+            HAVING SUM(gross_profit) &gt; 0
+        ),
+        msku_list AS (
+            SELECT DISTINCT w.asin, w.seller_sku AS msku, w.sid,
+                   w.sku AS local_sku, w.marketplace AS country
+            FROM lingxing_sku_weekly_performance w
+            INNER JOIN qual_asin q ON q.asin = w.asin
+            INNER JOIN qual_profit qp ON qp.asin = w.asin
+            WHERE w.`year_month` IN ('2026-05','2026-06','2026-07')
+              AND w.seller_sku IS NOT NULL AND w.seller_sku != ''
+              AND w.sid IS NOT NULL
+        )
+        SELECT
+            m.asin, m.msku, m.sid, m.local_sku,
+            u.developer, m.country,
+            fee.fba_fee, fee.fba_fee_report, fee.fee_currency,
+            dev.dev_fba_fee,
+            (fee.fba_fee - dev.dev_fba_fee) AS diff,
+            CASE WHEN dev.dev_fba_fee IS NOT NULL AND dev.dev_fba_fee != 0
+                 THEN (fee.fba_fee - dev.dev_fba_fee) / dev.dev_fba_fee END AS diff_rate,
+            q.vol, qp.profit,
+            ROUND(q.spend / NULLIF(q.amt, 0), 6) AS tacos,
+            dev.dev_price,
+            ROUND(q.amt / NULLIF(q.vol, 0), 4) AS actual_price,
+            ROUND(q.amt / NULLIF(q.vol, 0), 4) - dev.dev_price AS price_diff,
+            CASE WHEN dev.dev_price IS NOT NULL AND dev.dev_price != 0
+                 THEN (ROUND(q.amt / NULLIF(q.vol, 0), 4) - dev.dev_price) / dev.dev_price END AS price_diff_rate,
+            NOW()
+        FROM msku_list m
+        LEFT JOIN lingxing_product_unified u ON u.asin = m.asin
+        LEFT JOIN qual_asin q ON q.asin = m.asin
+        LEFT JOIN qual_profit qp ON qp.asin = m.asin
+        LEFT JOIN lingxing_listing_fba_fee fee ON fee.sid = m.sid AND fee.msku = m.msku
+        LEFT JOIN lingxing_developer_fba dev ON dev.sku = u.base_sku AND dev.country = m.country
+        ON DUPLICATE KEY UPDATE
+            sid = VALUES(sid), local_sku = VALUES(local_sku),
+            developer = VALUES(developer), country = VALUES(country),
+            amazon_fba_fee = VALUES(amazon_fba_fee), amazon_fba_fee_report = VALUES(amazon_fba_fee_report),
+            fee_currency = VALUES(fee_currency),
+            dev_fba_fee = VALUES(dev_fba_fee), diff = VALUES(diff), diff_rate = VALUES(diff_rate),
+            recent3m_volume = VALUES(recent3m_volume), recent3m_profit = VALUES(recent3m_profit),
+            tacos = VALUES(tacos), dev_price = VALUES(dev_price),
+            actual_price = VALUES(actual_price), price_diff = VALUES(price_diff),
+            price_diff_rate = VALUES(price_diff_rate), synced_at = VALUES(synced_at)
+    </insert>
+
+    <delete id="truncateAll">
+        TRUNCATE TABLE lingxing_fba_fee_compare
+    </delete>
+
+</mapper>

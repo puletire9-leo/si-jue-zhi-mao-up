@@ -89,9 +89,19 @@
                 MAX(w.sku)                  AS base_msku,
                 MAX(w.store_name)           AS store_name,
                 MAX(w.marketplace)          AS country,
-                MAX(w.product_name)         AS title
+                MAX(w.product_name)         AS title,
+                MAX(w.tags)                 AS listing_tags,
+                MAX(JSON_UNQUOTE(JSON_EXTRACT(w.raw_json, '$.product_create_time'))) AS product_create_time
             FROM lingxing_sku_weekly_performance w
             INNER JOIN agg ON agg.asin = w.asin AND agg.latest_week_end = w.week_end
+            GROUP BY w.asin
+        ),
+        -- 纯数字本地 SKU（base_sku）：跨全周期取纯数字 sku（周表 sku 列 DE 行常是 seller_sku 脏格式，
+        -- 同一 ASIN 的 UK 行才是纯数字本地SKU；用 REGEXP 只从纯数字里取，供开发表/开发预估费关联）
+        sku_num AS (
+            SELECT w.asin, MAX(w.sku) AS base_sku
+            FROM lingxing_sku_weekly_performance w
+            WHERE w.sku REGEXP '^[0-9]+$'
             GROUP BY w.asin
         ),
         -- FBA 库存首现（afn_fulfillable_quantity>0 或 fbm_quantity>0 或 stock_up_num>0 的最早一周）
@@ -133,25 +143,29 @@
             UUID_SHORT(),
             t.asin,
             latest.parent_asin,
-            b.base_sku,
+            COALESCE(sku_num.base_sku, latest.base_msku),
             latest.base_msku,
-            COALESCE(b.base_store, latest.store_name),
+            latest.store_name,
             latest.country,
-            b.developer,
+            lp.product_developer,
             NULL,
             latest.title,
-            b.listing_tags,
-            COALESCE(b.product_create_time, ''),
-            -- FBA 可售首现月：周表算的优先，无则回退 baseline
-            COALESCE(avl_first.avl_month, b.fba_available_first_month_final),
+            latest.listing_tags,
+            -- 创建日期：周表 raw_json 提取的领星商品创建时间
+            COALESCE(latest.product_create_time, ''),
+            -- FBA 可售首现月：周表 avl_first（不再回退 baseline）
+            avl_first.avl_month,
             CASE WHEN avl_first.avl_month IS NOT NULL THEN '周表首次观察到FBA可售'
-                 ELSE b.fba_available_first_basis END,
+                 ELSE '未观察到FBA可售' END,
             lst.listing_open_date,
-            -- 起算月：可售首现月优先，无则库存首现月，再无回退 baseline
-            COALESCE(avl_first.avl_month, inv_first.inv_month, b.model_start_month),
+            -- 起算月（首次上架亚马逊日）三级兜底：FBA可售首现月 → 真实上架日 → 创建日期
+            COALESCE(avl_first.avl_month,
+                     DATE_FORMAT(lst.listing_open_date, '%Y-%m'),
+                     LEFT(latest.product_create_time, 7)),
             CASE WHEN avl_first.avl_month IS NOT NULL THEN '周表FBA可售首现'
-                 WHEN inv_first.inv_month IS NOT NULL THEN '周表FBA库存首现'
-                 ELSE b.model_start_basis END,
+                 WHEN lst.listing_open_date IS NOT NULL THEN 'listing真实上架日'
+                 WHEN latest.product_create_time IS NOT NULL AND latest.product_create_time != '' THEN '商品创建时间兜底'
+                 ELSE '无起算依据' END,
             inv_first.inv_month,
             inv_first.inv_store,
             inv_first.inv_country,
@@ -186,8 +200,9 @@
         LEFT JOIN latest ON latest.asin = t.asin
         LEFT JOIN inv_first ON inv_first.asin = t.asin
         LEFT JOIN avl_first ON avl_first.asin = t.asin
-        LEFT JOIN lingxing_asin_baseline b ON b.asin = t.asin
         LEFT JOIN lst ON lst.asin = t.asin
+        LEFT JOIN sku_num ON sku_num.asin = t.asin
+        LEFT JOIN lingxing_local_product lp ON lp.sku = COALESCE(sku_num.base_sku, latest.base_msku)
         ON DUPLICATE KEY UPDATE
             parent_asin = VALUES(parent_asin),
             base_sku = VALUES(base_sku),

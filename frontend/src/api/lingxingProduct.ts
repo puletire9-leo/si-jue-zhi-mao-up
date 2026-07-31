@@ -85,63 +85,27 @@ export interface ReportSyncResult {
   upserted: number;
 }
 
-/** ASIN 基准表（lingxing_asin_baseline）。模型一/模型二 6945 团队 ASIN 主表 */
-export interface LingxingAsinBaseline {
-  asin: string;
-  baseSku: string | null;
-  baseStore: string | null;
-  developer: string | null;
-  listingTags: string | null;
-  createTime: string | null;
-  fbaInventoryFirstMonth: string | null;
-  inventoryFirstStore: string | null;
-  inventoryFirstCountry: string | null;
-  inventoryFirstSku: string | null;
-  inventoryFirstQty: string | null;
-  fbaAvailableFirstMonth: string | null;
-  availableFirstStore: string | null;
-  availableFirstCountry: string | null;
-  availableFirstSku: string | null;
-  availableFirstQty: string | null;
-  fbaObservationStatus: string | null;
-  dataCoverageEnd: string | null;
-  productCreateTime: string | null;
-  productCreateSource: string | null;
-  fbaAvailableFirstMonthFinal: string | null;
-  fbaAvailableFirstBasis: string | null;
-  modelStartMonth: string | null;
-  modelStartBasis: string | null;
-  timePrecision: string | null;
-  dataCutoffMonth: string | null;
-  analysisStatus: string | null;
-  baselineVersion: string | null;
-}
-
-/** 基准表筛选参数 */
-export interface BaselineListParams {
-  current?: number;
-  size?: number;
-  asin?: string;
-  developer?: string;
-  currency?: "GBP" | "EUR" | "";
-  modelStartMonth?: string;
-  analysisStatus?: string;
-  keyword?: string;
-}
-
-/** ASIN 基准表人工可编辑字段白名单。 */
-export interface LingxingBaselineUpdatePayload {
-  developer?: string | null;
-  listingTags?: string | null;
-  modelStartMonth?: string | null;
-  modelStartBasis?: string | null;
-  analysisStatus?: string | null;
+/** 产品统一表聚合块（工作台展示今天建成的 6994 目标标签 ASIN 宽表） */
+export interface LingxingUnifiedOverview {
+  total: number;
+  withSales: number;
+  byCountry: Array<{ country: string; cnt: number }>;
+  byDeveloper: Array<{ developer: string; cnt: number }>;
+  byLatestMonth: Array<{ month: string; cnt: number }>;
+  /** 6 目标标签各计数（后端一行返回，值可能是字符串数字） */
+  byTag: {
+    tag_jingpu: number | string | null;
+    tag_feibiao: number | string | null;
+    tag_taotai: number | string | null;
+    tag_daitaotai: number | string | null;
+    tag_jijie: number | string | null;
+    tag_lvbiao: number | string | null;
+  } | null;
 }
 
 /** 工作台总览响应 */
 export interface LingxingOverview {
   tableCounts: {
-    baseline: number;
     monthlyPerformance: number;
     skuWeekly: number;
     profitAsin: number;
@@ -151,18 +115,60 @@ export interface LingxingOverview {
     purchaseOrder: number;
     purchaseOrderItem: number;
     dataSyncRun: number;
+    productUnified: number;
   };
   coverage: {
     monthlyEarliest: string | null;
     monthlyLatest: string | null;
+    weeklyEarliest: string | null;
     weeklyLatest: string | null;
     profitLatest: string | null;
   };
-  byDeveloper: Array<{ developer: string; cnt: number }>;
-  byCurrency: Array<{ currency: string; cnt: number }>;
-  byStartMonth: Array<{ month: string; cnt: number }>;
-  byStatus: Array<{ status: string; cnt: number }>;
+  unified: LingxingUnifiedOverview | null;
   recentSyncs: SyncRun[];
+}
+
+/** 产品统一表明细（lingxing_product_unified，ASIN 维度宽表关键展示列） */
+export interface LingxingProductUnified {
+  id: number;
+  asin: string;
+  parentAsin: string | null;
+  baseSku: string | null;
+  baseMsku: string | null;
+  baseStore: string | null;
+  country: string | null;
+  developer: string | null;
+  title: string | null;
+  listingTags: string | null;
+  modelStartMonth: string | null;
+  modelStartBasis: string | null;
+  fbaInventoryFirstMonth: string | null;
+  fbaFirstAvailableMonth: string | null;
+  listingOpenDate: string | null;
+  fbaObservationStatus: string | null;
+  totalVolume: number | null;
+  totalAmount: string | null;
+  totalOrderItems: number | null;
+  totalGrossProfit: string | null;
+  avgGrossMargin: string | null;
+  activeMonths: number | null;
+  firstSaleMonth: string | null;
+  lastSaleMonth: string | null;
+  latestMonth: string | null;
+  latestVolume: number | null;
+  latestAmount: string | null;
+  latestFbaAvailable: number | null;
+  latestAvgStar: string | null;
+  latestReviewsCount: number | null;
+  syncedAt: string | null;
+}
+
+/** 统一表分页查询参数 */
+export interface ProductUnifiedListParams {
+  current?: number;
+  size?: number;
+  asin?: string;
+  developer?: string;
 }
 
 /** 同步运行记录 */
@@ -408,12 +414,30 @@ export const lingxingProductApi = {
     );
   },
 
-  /** 领星工作台总览：10 张表行数 + 团队分布 + 覆盖窗口 + 最近同步 */
+  /** 领星工作台总览：10 张表行数 + 团队分布 + 覆盖窗口 + 统一表聚合 + 最近同步 */
   getOverview(): Promise<LingxingOverview> {
     return unwrap<LingxingOverview>(
       request({
         url: "/api/v1/modules/lingxing/overview",
         method: "get",
+      }),
+    );
+  },
+
+  /** 分页查询产品统一表（6994 目标标签 ASIN 宽表，按累计销量倒序） */
+  listProductUnified(
+    params: ProductUnifiedListParams = {},
+  ): Promise<MpPage<LingxingProductUnified>> {
+    const { current = 1, size = 60, ...rest } = params;
+    const clean: Record<string, any> = { current, size };
+    Object.entries(rest).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") clean[k] = v;
+    });
+    return unwrap<MpPage<LingxingProductUnified>>(
+      request({
+        url: "/api/v1/modules/lingxing/product-unified",
+        method: "get",
+        params: clean,
       }),
     );
   },
@@ -450,47 +474,6 @@ export const lingxingProductApi = {
     );
   },
 
-  /** ASIN 基准表分页查询 */
-  listBaseline(
-    params: BaselineListParams = {},
-  ): Promise<MpPage<LingxingAsinBaseline>> {
-    const { current = 1, size = 20, ...rest } = params;
-    const clean: Record<string, any> = { current, size };
-    Object.entries(rest).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== "") clean[k] = v;
-    });
-    return unwrap<MpPage<LingxingAsinBaseline>>(
-      request({
-        url: "/api/v1/modules/lingxing/baseline",
-        method: "get",
-        params: clean,
-      }),
-    );
-  },
-
-  /** 查询单个 ASIN 基准档案 */
-  getBaseline(asin: string): Promise<LingxingAsinBaseline> {
-    return unwrap<LingxingAsinBaseline>(
-      request({
-        url: `/api/v1/modules/lingxing/baseline/${encodeURIComponent(asin)}`,
-        method: "get",
-      }),
-    );
-  },
-
-  /** 更新单个 ASIN 基准档案（可编辑：标签/开发人/起算月等） */
-  updateBaseline(
-    asin: string,
-    patch: LingxingBaselineUpdatePayload,
-  ): Promise<LingxingAsinBaseline> {
-    return unwrap<LingxingAsinBaseline>(
-      request({
-        url: `/api/v1/modules/lingxing/baseline/${encodeURIComponent(asin)}`,
-        method: "post",
-        data: patch,
-      }),
-    );
-  },
 };
 
 export default lingxingProductApi;

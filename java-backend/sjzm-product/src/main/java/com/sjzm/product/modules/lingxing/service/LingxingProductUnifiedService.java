@@ -13,7 +13,7 @@ import java.util.Map;
  * 领星产品统一表加工服务（ASIN 维度宽表）。
  *
  * <p>纯读库加工，不调领星 API：月表 {@code lingxing_asin_monthly_performance} 聚合经营指标
- * + {@code lingxing_asin_baseline} 取身份/起算月/FBA首现（4级兜底口径由 Python maintain 脚本预先算好落 baseline）
+ * + {@code lingxing_local_product} 取 developer + {@code lingxing_listing} 取真实上架日（起算月三级兜底：FBA可售→上架日→创建日）
  * + {@code lingxing_listing} 取真实上架日 open_date。</p>
  *
  * <p>全量重算走一条 {@code INSERT ... ON DUPLICATE KEY UPDATE}（见 Mapper XML），
