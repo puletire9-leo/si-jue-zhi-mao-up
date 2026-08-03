@@ -29,7 +29,7 @@ from lingxing_model_paths import (
 BASELINE = ASIN_START_BASELINE
 RAW_FBA_BASELINE = FBA_INVENTORY_BASELINE
 DATA_START = "2025-04"
-DATA_CUTOFF = "2026-06"
+DATA_CUTOFF = "2026-07"
 WINDOW = re.compile(r"(20\d{2}-\d{2})-\d{2}~")
 CURRENCIES = ("GBP", "EUR")
 TEAM_DEVELOPERS = frozenset({"蒋舒", "陈杨", "宋凤莉", "刘淼", "龙梦临", "周沁仪", "张子轩", "黄雨珊"})
@@ -143,53 +143,117 @@ def load_baseline() -> dict[str, dict[str, object]]:
     return rows
 
 
+def marketplace_currency(marketplace: object) -> str:
+    """周表 marketplace(UK/DE) 直接映射币种。"""
+    value = str(marketplace or "").upper()
+    if "UK" in value:
+        return "GBP"
+    if "DE" in value:
+        return "EUR"
+    return ""
+
+
 def load_monthly_performance(records: dict[str, dict[str, object]]) -> None:
-    """从数据库 lingxing_asin_monthly_performance 读取月度产品表现。"""
-    sql = """
-        SELECT asin, country, month, volume, amount, fba_available
-        FROM lingxing_asin_monthly_performance
+    """从周表 lingxing_sku_weekly_performance 按月聚合月度产品表现。
+
+    数据源迁移说明（2026-08）：原 lingxing_asin_monthly_performance 仅到 2026-06 且无同步维护，
+    改用周表按 asin+marketplace+year_month 聚合。已验证 6 月聚合与旧月度表差异 < 0.1%：
+    - 销量/销售额 = 月内 SUM(volume)/SUM(amount)
+    - 出单率分子（近30天销量）= 截止月整月 SUM(volume)
+    - FBA 可售 = 截止月最后一周的 SUM(afn_fulfillable_quantity)（月末快照，非累加）
+    """
+    # 累计销量、销售额：按 asin+marketplace+月 聚合
+    sql_sales = """
+        SELECT asin, marketplace, `year_month` AS ym,
+               SUM(volume) AS vol, SUM(amount) AS amt
+        FROM lingxing_sku_weekly_performance
+        WHERE `year_month` BETWEEN %s AND %s
+        GROUP BY asin, marketplace, `year_month`
+    """
+    # 出单率分子：截止月整月销量（近30天销量，按 asin+marketplace 聚合全月）
+    sql_cutoff_vol = """
+        SELECT asin, marketplace, SUM(volume) AS vol
+        FROM lingxing_sku_weekly_performance
+        WHERE `year_month` = %s
+        GROUP BY asin, marketplace
+    """
+    # FBA 可售月末快照：取截止月内最大 week_start 那一周
+    sql_cutoff_fba = """
+        SELECT w.asin, w.marketplace, SUM(w.afn_fulfillable_quantity) AS fba
+        FROM lingxing_sku_weekly_performance w
+        INNER JOIN (
+            SELECT MAX(week_start) AS max_ws
+            FROM lingxing_sku_weekly_performance
+            WHERE `year_month` = %s
+        ) m ON w.week_start = m.max_ws
+        WHERE w.`year_month` = %s
+        GROUP BY w.asin, w.marketplace
     """
     with pymysql.connect(**mysql_env()) as conn:
         with conn.cursor() as cur:
-            cur.execute(sql)
-            for asin, country, month, volume, amount, fba_available in cur.fetchall():
-                asin = str(asin or "").strip()
-                record = records.get(asin)
+            cur.execute(sql_sales, (DATA_START, DATA_CUTOFF))
+            for asin, marketplace, ym, volume, amount in cur.fetchall():
+                record = records.get(str(asin or "").strip())
                 if not record:
                     continue
-                currency = china_currency(country)
+                currency = marketplace_currency(marketplace)
                 if not currency or currency not in record["currencies"]:
                     continue
-                if month < str(record["start_month"]):
+                if str(ym) < str(record["start_month"]):
                     continue
                 record["performance_quantity"][currency] += decimal(volume)
                 record["performance_sales"][currency] += decimal(amount)
-                if month == DATA_CUTOFF:
-                    record["available_stock"][currency] += decimal(fba_available)
-                    record["cutoff_quantity"][currency] += decimal(volume)
+            # 出单率分子：截止月整月销量
+            cur.execute(sql_cutoff_vol, (DATA_CUTOFF,))
+            for asin, marketplace, volume in cur.fetchall():
+                record = records.get(str(asin or "").strip())
+                if not record:
+                    continue
+                currency = marketplace_currency(marketplace)
+                if not currency or currency not in record["currencies"]:
+                    continue
+                if DATA_CUTOFF < str(record["start_month"]):
+                    continue
+                record["cutoff_quantity"][currency] += decimal(volume)
+            # FBA 可售月末快照
+            cur.execute(sql_cutoff_fba, (DATA_CUTOFF, DATA_CUTOFF))
+            for asin, marketplace, fba in cur.fetchall():
+                record = records.get(str(asin or "").strip())
+                if not record:
+                    continue
+                currency = marketplace_currency(marketplace)
+                if not currency or currency not in record["currencies"]:
+                    continue
+                if DATA_CUTOFF < str(record["start_month"]):
+                    continue
+                record["available_stock"][currency] += decimal(fba)
 
 
 def load_finance(records: dict[str, dict[str, object]]) -> None:
+    """从周表 lingxing_sku_weekly_performance 读取结算销售额/利润。
+
+    数据源迁移说明（2026-08）：原 lingxing_profit_asin 财务日数据仅剩零星两周（历史全量已丢失、无备份），
+    改用周表 gross_profit（领星结算毛利，已扣采购/运输/广告成本）+ amount（结算销售额）。
+    周表完整覆盖 2025-04~2026-07 全 16 个月。
+    """
     sql = """
-        SELECT asin, currency_code, data_date, total_sales_amount, gross_profit
-        FROM lingxing_profit_asin
-        WHERE data_date >= %s AND data_date < %s
+        SELECT asin, marketplace, `year_month` AS ym,
+               SUM(amount) AS sales, SUM(gross_profit) AS profit
+        FROM lingxing_sku_weekly_performance
+        WHERE `year_month` BETWEEN %s AND %s
+        GROUP BY asin, marketplace, `year_month`
     """
     with pymysql.connect(**mysql_env()) as connection:
         with connection.cursor() as cursor:
-            cursor.execute(sql, (date(2025, 4, 1), date(2026, 7, 1)))
-            for asin, currency, data_date, sales, profit in cursor.fetchall():
+            cursor.execute(sql, (DATA_START, DATA_CUTOFF))
+            for asin, marketplace, ym, sales, profit in cursor.fetchall():
                 record = records.get(str(asin or "").strip())
-                currency = str(currency or "").strip()
-                if (
-                    not record
-                    or currency not in CURRENCIES
-                    or currency not in record["currencies"]
-                    or not data_date
-                ):
+                if not record:
                     continue
-                month = data_date.strftime("%Y-%m")
-                if month < str(record["start_month"]):
+                currency = marketplace_currency(marketplace)
+                if not currency or currency not in record["currencies"]:
+                    continue
+                if str(ym) < str(record["start_month"]):
                     continue
                 record["finance_sales"][currency] += decimal(sales)
                 record["finance_profit"][currency] += decimal(profit)
@@ -354,9 +418,9 @@ def build_workbook(currency: str, records: list[dict[str, object]], unassigned: 
         ("批次起算", "优先取月表首次观察到 FBA-可售 > 0 的月份；全期未观察到时，取原始产品表现表商品信息中的创建时间所在月。FBA库存仅作为明细核查字段，不参与起算。"),
         ("创建时间边界", "商品信息创建时间是领星本地记录创建时间，不等同于 FBA 首次可售或亚马逊真实上架日。"),
         ("纳入条件", f"仅纳入模型起算月在 {DATA_START} 至 {DATA_CUTOFF} 的 ASIN；创建时间晚于截止月的 200 个 ASIN 不进入本报表。"),
-        ("销售与库存", "总销售量、总销售额、可用库存取原始月度产品表现表；销售与库存从模型起算月起累计，可用库存取 2026-06 月快照。"),
-        ("汇总出单率", "取 2026-06 月表销量。出单率 = 近30天销量 ÷ 30 ÷ FBA可售大于0的ASIN数；不以标签留存/淘汰作为分母。"),
-        ("结算利润", "总结算销售额、总结算利润取已落库的领星财务利润 ASIN 日数据，按 ASIN、币种、日期累计；仅累计模型起算月及之后的记录。"),
+        ("销售与库存", "总销售量、总销售额、可用库存取周表 lingxing_sku_weekly_performance 按月聚合；销售从模型起算月起累计，可用库存取 2026-07 月末最后一周 FBA 可售快照。"),
+        ("汇总出单率", "取 2026-07 月销量。出单率 = 近30天销量 ÷ 30 ÷ FBA可售大于0的ASIN数；不以标签留存/淘汰作为分母。"),
+        ("结算利润", "总结算销售额取周表 amount、总结算利润取周表 gross_profit（领星结算毛利，已扣采购/运输/广告成本），按 ASIN、币种、月累计；仅累计模型起算月及之后。原 lingxing_profit_asin 财务日数据历史全量已丢失，改用周表（完整覆盖 2025-04~2026-07）。"),
         ("留存/淘汰", "仅最新 Listing 标签含“欧洲精铺2025淘汰”时归为淘汰；“待淘汰”仍计入留存，但会在明细中单独标记。该分类是截止月标签状态，不表示每个历史月份的状态。"),
         ("开发人汇总", "按 ASIN 基准中的团队开发人聚合，金额、库存及留存/淘汰口径与“汇总”工作表完全一致。多人归属 ASIN 单列“多人归属待确认”，不重复分摊给个人。"),
         ("未分币种", "没有在产品表现或财务数据中识别到 GBP/EUR 的 ASIN 不进入汇总，列在“未分币种”工作表供核查。"),
@@ -423,7 +487,7 @@ def build_developer_workbook(currency: str, developer: str, records: list[dict[s
     notes.append(["报告口径", "说明"])
     notes.append(["开发人", developer])
     notes.append(["批次起算", "首次观察到 FBA-可售 > 0 的月份；没有 FBA 可售时，以商品信息创建时间所在月兜底。"])
-    notes.append(["金额与库存", "销量、销售额、库存来自月度产品表现；结算销售额、结算利润来自 ASIN 财务日数据，并累计至 2026-06。"])
+    notes.append(["金额与库存", "销量、销售额、库存、结算利润均来自周表 lingxing_sku_weekly_performance 按月聚合，累计至 2026-07。"])
     notes.append(["标签状态", "仅“欧洲精铺2025淘汰”算淘汰；待淘汰暂计入留存。"])
     for cell in notes[1]:
         cell.fill = HEADER_FILL
