@@ -63,12 +63,13 @@ public class LingxingClient {
             getAccessToken();
             return;
         }
-        // 过期前 60 秒刷新；refresh 失败则重新换 token
+        // 过期前 60 秒刷新；refresh 失败（含 refresh_token 失效/用尽）则重新用 appId+secret 换全新 token
         if (System.currentTimeMillis() >= expiresAt - 60_000L) {
             try {
                 refreshAccessToken();
             } catch (Exception e) {
                 log.warn("领星 token 续约失败，重新换取: {}", e.getMessage());
+                refreshToken = ""; // 作废失效的 refresh_token，避免下次再拿它续约
                 getAccessToken();
             }
         }
@@ -350,9 +351,13 @@ public class LingxingClient {
         return "3001008".equals(code) || "103".equals(code);
     }
 
-    /** token 失效码：2001005 access token not match、2001002 token 过期等，需刷新 token 重发。 */
+    /**
+     * token 失效码：2001005 access token not match、2001002 token 过期、2001001、
+     * 2001009 refresh token invalid（续约用的 refresh_token 失效/用尽，需重新换全新 token）。
+     */
     private boolean isTokenInvalidCode(String code) {
-        return "2001005".equals(code) || "2001002".equals(code) || "2001001".equals(code);
+        return "2001005".equals(code) || "2001002".equals(code)
+                || "2001001".equals(code) || "2001009".equals(code);
     }
 
     private String enc(String s) {
