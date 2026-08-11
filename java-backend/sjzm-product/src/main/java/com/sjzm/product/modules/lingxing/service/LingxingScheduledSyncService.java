@@ -1,6 +1,8 @@
 package com.sjzm.product.modules.lingxing.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.sjzm.product.mapper.LingxingDeveloperSkuPrefixMapper;
+import com.sjzm.product.mapper.LingxingProductUnifiedMapper;
 import com.sjzm.product.mapper.LingxingSellerMapper;
 import com.sjzm.product.mapper.LingxingSkuDataLayerMapper;
 import com.sjzm.product.modules.lingxing.entity.LingxingSeller;
@@ -54,6 +56,8 @@ public class LingxingScheduledSyncService {
     private final LingxingLocalProductSyncService localProductSyncService;
     private final com.sjzm.product.mapper.LingxingLocalProductMapper localProductMapper;
     private final LingxingSkuDataLayerMapper syncRunMapper;
+    private final LingxingDeveloperSkuPrefixMapper prefixMapper;
+    private final LingxingProductUnifiedMapper unifiedMapper;
 
     /**
      * 每周一 03:30 触发（错开整点避开限流高峰）。
@@ -134,6 +138,10 @@ public class LingxingScheduledSyncService {
             Map<String, Object> unified = unifiedService.rebuild(null);
             log.info("领星每周同步：统一表重算 {}", unified);
 
+            // ④ 重建开发人前缀映射表（从统一表提取 developer + base_sku 前3位）
+            rebuildPrefixMapping();
+            log.info("领星每周同步：开发人前缀映射表已重建");
+
             // ④.5 删本地产品非目标开发人（用刚重建的统一表 distinct developer；空集保护防删光全表）
             int targetDevs = localProductMapper.countTargetDevelopers();
             if (targetDevs > 0) {
@@ -143,8 +151,8 @@ public class LingxingScheduledSyncService {
                 log.warn("领星每周同步：统一表无目标开发人，跳过本地产品清理（防删光全表）");
             }
 
-            // ⑤⑥ listing 覆盖同步 + 回填统一表 open_date
-            // 必须在统一表重建之后：listing 按「刚重建的周表∩统一表」实时算出的目标店铺 sid 取数，
+            // ⑤⑥ listing 覆盖同步（真实上架日已在 rebuildAll INSERT 时一次写入，不再回填）
+            // 必须在统一表重算之后：listing 按「刚重算的周表∩统一表」实时算出的目标店铺 sid 取数，
             // 新增店铺/新目标 ASIN 会被自动纳入（见 LingxingListingMapper.selectTargetSids 注释）。
             Map<String, Object> listing = listingSyncService.syncTargetListings();
             log.info("领星每周同步：listing 覆盖同步 {}", listing);
@@ -194,5 +202,21 @@ public class LingxingScheduledSyncService {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    /**
+     * Rebuild developer-to-SKU-prefix mapping from the unified table.
+     * Each developer gets rows for all distinct first-3-digits of their base_sku.
+     */
+    private void rebuildPrefixMapping() {
+        prefixMapper.truncate();
+        List<com.sjzm.product.modules.lingxing.entity.LingxingDeveloperSkuPrefix> prefixes =
+                unifiedMapper.selectDeveloperSkuPrefixes();
+        for (com.sjzm.product.modules.lingxing.entity.LingxingDeveloperSkuPrefix p : prefixes) {
+            if (p.getDeveloper() != null && p.getSkuPrefix() != null) {
+                prefixMapper.upsertPrefix(p);
+            }
+        }
+        log.info("开发人前缀映射：truncate 后写入 {} 行", prefixes.size());
     }
 }

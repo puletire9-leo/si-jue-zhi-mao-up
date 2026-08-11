@@ -164,7 +164,6 @@ public class LingxingListingSyncService {
      *   <li>truncate 整表 —— listing 要最新数据，旧的（含下架/非目标）不残留（用户拍板：truncate 整表重建）</li>
      *   <li>取白名单：统一表 6994 目标 ASIN + 其实际分布的店铺 sid（周表 sid+asin，实测集中在 ~18 家）</li>
      *   <li><b>多 sid 一次逗号传入</b>（文档 sid 支持 "1,16" 逗号分隔），全局分页拉 listing（令牌桶=1 串行），只落 asin ∈ 白名单 的行</li>
-     *   <li>回填统一表 listing_open_date（单独 UPDATE，按 asin 取 MIN(open_date)）</li>
      * </ol>
      *
      * <p>为何多 sid 合并而非按店循环、也非 search_field=asin：
@@ -175,7 +174,7 @@ public class LingxingListingSyncService {
      * <p><b>去重</b>：领星同一 sid+seller_sku 可能跨页/变体重复返回，用全局 seen 集合去重，
      * 避免撞唯一键 uk_sid_seller_sku（truncate 后纯 INSERT，重复即报错）。</p>
      *
-     * @return {truncated, targetAsins, targetSids, pages, fetched, kept, backfilled}
+     * @return {truncated, targetAsins, targetSids, pages, fetched, kept}
      */
     public Map<String, Object> syncTargetListings() {
         // ① 清空：要最新数据，旧行（含下架/非目标）全清（无 deleted 列，物理删）
@@ -196,7 +195,6 @@ public class LingxingListingSyncService {
             empty.put("targetAsins", targetAsins.size());
             empty.put("targetSids", targetSids.size());
             empty.put("kept", 0);
-            empty.put("backfilled", 0);
             return empty;
         }
 
@@ -242,10 +240,8 @@ public class LingxingListingSyncService {
             Db.saveBatch(new ArrayList<>(byKey.values()), DB_BATCH_SIZE);
         }
 
-        // ④ 回填统一表 listing_open_date
-        int backfilled = listingMapper.backfillUnifiedOpenDate();
-        log.info("领星 listing 覆盖同步完成：{} 店合并 / {} 页 / 拉取 {} / 目标落库 {} / 回填统一表 {} 行",
-                targetSids.size(), pages, fetched, kept, backfilled);
+        log.info("领星 listing 覆盖同步完成：{} 店合并 / {} 页 / 拉取 {} / 目标落库 {} 行",
+                targetSids.size(), pages, fetched, kept);
 
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("truncated", true);
@@ -254,7 +250,6 @@ public class LingxingListingSyncService {
         r.put("pages", pages);
         r.put("fetched", fetched);
         r.put("kept", kept);
-        r.put("backfilled", backfilled);
         return r;
     }
 

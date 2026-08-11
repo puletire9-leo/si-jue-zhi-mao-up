@@ -5,7 +5,10 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.sjzm.common.PageResult;
 import com.sjzm.common.Result;
+import com.sjzm.product.modules.lingxing.dto.LingxingShopProductVO;
+import com.sjzm.product.modules.lingxing.dto.LingxingShopQueryRequest;
 import com.sjzm.product.mapper.LingxingListingMapper;
 import com.sjzm.product.mapper.LingxingLocalProductMapper;
 import com.sjzm.product.mapper.LingxingProductPerformanceMapper;
@@ -25,6 +28,7 @@ import com.sjzm.product.modules.lingxing.entity.LingxingSeller;
 import com.sjzm.product.modules.lingxing.dto.LingxingCredentialsRequest;
 import com.sjzm.product.modules.lingxing.service.LingxingClient;
 import com.sjzm.product.modules.lingxing.service.LingxingConfigService;
+import com.sjzm.product.modules.lingxing.service.LingxingInventoryBatchService;
 import com.sjzm.product.modules.lingxing.service.LingxingListingSyncService;
 import com.sjzm.product.modules.lingxing.service.LingxingLocalProductSyncService;
 import com.sjzm.product.modules.lingxing.service.LingxingProductPerformanceSyncService;
@@ -81,6 +85,7 @@ public class LingxingController {
     private final LingxingProductUnifiedMapper unifiedMapper;
     private final LingxingScheduledSyncService scheduledSyncService;
     private final LingxingSkuDataLayerService skuDataLayerService;
+    private final LingxingInventoryBatchService inventoryBatchService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @PostMapping("/ping")
@@ -372,6 +377,24 @@ public class LingxingController {
     }
 
     // ============================================================
+    // 领星店铺数据选品页（复用 AllSelection 选品框架）
+    // ============================================================
+
+    @PostMapping("/shop-products")
+    @Operation(summary = "领星店铺数据选品列表", description = "统一表分页查询，图片双兜底(listing优先local)，支持按店铺(base_store)/站点等筛选")
+    public Result<PageResult<LingxingShopProductVO>> shopProducts(
+            @RequestBody LingxingShopQueryRequest request) {
+        return Result.success(unifiedService.queryShopProducts(request));
+    }
+
+    @GetMapping("/shop-stores")
+    @Operation(summary = "按领星店铺分类下拉", description = "各 base_store 及其商品数（country 可空=全部）")
+    public Result<List<Map<String, Object>>> shopStores(
+            @RequestParam(required = false) String country) {
+        return Result.success(unifiedService.listShopStores(country));
+    }
+
+    // ============================================================
     // 每周自动同步（@Scheduled + 手动触发同一入口）
     // ============================================================
 
@@ -402,6 +425,28 @@ public class LingxingController {
             @RequestParam(defaultValue = "50") int limit) {
         int safe = Math.max(1, Math.min(limit, 500));
         return Result.success(syncRunMapper.listRecentRuns(safe));
+    }
+
+    // ============================================================
+    // 库存批次明细（运营到货看板，每天同步）
+    // ============================================================
+
+    @PostMapping("/inventory-batch/sync")
+    @Operation(summary = "手动触发：从领星拉取采购入库批次明细（getBatchDetailList），前缀匹配开发人后落库")
+    public Result<Map<String, Object>> syncInventoryBatch(@RequestBody(required = false) Map<String, Object> req) {
+        String developer = req == null ? null : readStr(req, "developer");
+        return Result.success(inventoryBatchService.syncDaily(developer));
+    }
+
+    @GetMapping("/inventory-batch")
+    @Operation(summary = "分页查询库存批次明细（到货看板数据），可按开发人/日期筛选")
+    public Result<Map<String, Object>> listInventoryBatch(
+            @RequestParam(defaultValue = "1") int current,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String developer,
+            @RequestParam(required = false) String dataDate,
+            @RequestParam(required = false) String sku) {
+        return Result.success(inventoryBatchService.query(current, size, developer, dataDate, sku));
     }
 
     // ─── helpers ────────────────────────────────────────────────
