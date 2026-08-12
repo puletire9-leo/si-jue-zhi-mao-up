@@ -69,4 +69,66 @@ public interface LingxingInventoryBatchMapper extends BaseMapper<LingxingInvento
     /** Get distinct dates that have records. */
     @Select("SELECT DISTINCT data_date FROM lingxing_inventory_batch_detail ORDER BY data_date DESC LIMIT 30")
     List<String> distinctDates();
+
+    /**
+     * Query with operator from purchase plan (LEFT JOIN via plan_sn JSON array).
+     * Returns batch detail + operator (creator_real_name from first plan_sn).
+     */
+    @Select("""
+            <script>
+            SELECT
+              b.id, b.biz_key, b.batch_no, b.sku, b.developer, b.sku_prefix, b.data_date,
+              b.good_num, b.good_transit_num, b.total_num, b.balance_num, b.transit_balance_num,
+              b.wh_name, b.type_name, b.purchase_in_time, b.purchase_order_sns, b.plan_sn,
+              b.synced_at, b.created_at,
+              COALESCE(p.creator_real_name, b.operator) AS operator
+            FROM lingxing_inventory_batch_detail b
+            LEFT JOIN lingxing_purchase_plan p
+              ON JSON_CONTAINS(b.plan_sn, CONCAT('"', p.plan_sn, '"'))
+            <where>
+              <if test="developer != null and developer != ''">
+                AND b.developer = #{developer}
+              </if>
+              <if test="dataDate != null and dataDate != ''">
+                AND b.data_date = #{dataDate}
+              </if>
+              <if test="sku != null and sku != ''">
+                AND b.sku = #{sku}
+              </if>
+            </where>
+            ORDER BY b.data_date DESC, b.purchase_in_time DESC, b.developer, b.batch_no
+            LIMIT #{offset}, #{limit}
+            </script>
+            """)
+    List<LingxingInventoryBatchDetail> queryWithOperator(
+            @Param("developer") String developer,
+            @Param("dataDate") String dataDate,
+            @Param("sku") String sku,
+            @Param("offset") int offset,
+            @Param("limit") int limit);
+
+    /**
+     * Count total for pagination (same WHERE clause as queryWithOperator).
+     */
+    @Select("""
+            <script>
+            SELECT COUNT(DISTINCT b.id)
+            FROM lingxing_inventory_batch_detail b
+            <where>
+              <if test="developer != null and developer != ''">
+                AND b.developer = #{developer}
+              </if>
+              <if test="dataDate != null and dataDate != ''">
+                AND b.data_date = #{dataDate}
+              </if>
+              <if test="sku != null and sku != ''">
+                AND b.sku = #{sku}
+              </if>
+            </where>
+            </script>
+            """)
+    long countForQuery(
+            @Param("developer") String developer,
+            @Param("dataDate") String dataDate,
+            @Param("sku") String sku);
 }

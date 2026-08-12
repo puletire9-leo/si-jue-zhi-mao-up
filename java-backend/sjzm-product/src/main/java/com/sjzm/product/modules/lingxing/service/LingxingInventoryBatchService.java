@@ -184,6 +184,7 @@ public class LingxingInventoryBatchService {
 
     /**
      * Query inventory batch details for the frontend arrival dashboard.
+     * Note: operator field returns plan_sn JSON; frontend should extract and display.
      */
     public Map<String, Object> query(int current, int size,
                                      String developer, String dataDate, String sku) {
@@ -193,9 +194,10 @@ public class LingxingInventoryBatchService {
                                 LingxingInventoryBatchDetail::getDeveloper, developer)
                         .eq(dataDate != null && !dataDate.isEmpty(),
                                 LingxingInventoryBatchDetail::getDataDate, dataDate)
-                        .eq(sku != null && !sku.isEmpty(),
+                        .like(sku != null && !sku.isEmpty(),
                                 LingxingInventoryBatchDetail::getSku, sku)
                         .orderByDesc(LingxingInventoryBatchDetail::getDataDate)
+                        .orderByDesc(LingxingInventoryBatchDetail::getPurchaseInTime)
                         .orderByAsc(LingxingInventoryBatchDetail::getDeveloper)
                         .orderByAsc(LingxingInventoryBatchDetail::getBatchNo);
 
