@@ -44,15 +44,16 @@ public class LingxingInventoryBatchService {
     /**
      * Execute one full daily sync.
      *
+     * @param startDate date to sync (YYYY-MM-DD)
+     * @param endDate date to sync (YYYY-MM-DD)
      * @param developerFilter optional developer filter (null = all)
      * @return summary map
      */
     @Transactional(rollbackFor = Exception.class)
-    public Map<String, Object> syncDaily(String developerFilter) {
+    public Map<String, Object> syncDaily(String startDate, String endDate, String developerFilter) {
         String runId = "inventory-batch-daily-" + System.currentTimeMillis();
-        String today = LocalDate.now().toString();
         runMapper.beginRun(runId, "INVENTORY_BATCH_DAILY", null,
-                today, today, null, null,
+                startDate, endDate, null, null,
                 "{\"developer\":" + (developerFilter != null ? "\"" + developerFilter + "\"" : "null") + "}");
 
         // 1. Load developer prefix map (prefix → list of developer names)
@@ -76,9 +77,12 @@ public class LingxingInventoryBatchService {
         int totalUpserted = 0;
         int skippedNoPrefix = 0;
         int pages = 0;
+        List<String> skippedSkuSamples = new ArrayList<>(); // 记录前10个跳过的SKU样本
 
         for (int offset = 0; pages < MAX_PAGES; offset += PAGE_SIZE) {
             ObjectNode body = objectMapper.createObjectNode();
+            body.put("start_date", startDate);
+            body.put("end_date", endDate);
             body.put("offset", offset);
             body.put("length", PAGE_SIZE);
             body.put("show_zero_stock", 1);
@@ -107,6 +111,9 @@ public class LingxingInventoryBatchService {
                 if (developers == null || developers.isEmpty()) {
                     skippedNoPrefix++;
                     batchSkipped++;
+                    if (skippedSkuSamples.size() < 10) {
+                        skippedSkuSamples.add(sku + " (prefix=" + skuPrefix + ")");
+                    }
                     continue;
                 }
 
@@ -125,9 +132,9 @@ public class LingxingInventoryBatchService {
                 detail.setBatchNo(batchNo);
                 detail.setSku(sku);
                 detail.setDeveloper(matchedDev);
-                detail.setOperator(nullSafeText(row, "creator_real_name")); // 批次创建人（运营）
+                detail.setOperator(null); // 看板查询时从 plan_sn 关联采购计划表补充
                 detail.setSkuPrefix(skuPrefix);
-                detail.setDataDate(LocalDate.now());
+                detail.setDataDate(LocalDate.parse(startDate)); // 业务日期，不是同步执行日
                 detail.setGoodNum(nullSafeInt(row, "good_num"));
                 detail.setGoodTransitNum(nullSafeInt(row, "good_transit_num"));
                 detail.setTotalNum(nullSafeInt(row, "total"));
@@ -158,6 +165,11 @@ public class LingxingInventoryBatchService {
         }
 
         runMapper.finishRun(runId, "SUCCESS", totalUpserted, null);
+
+        if (!skippedSkuSamples.isEmpty()) {
+            log.warn("库存批次同步：前10个跳过的SKU样本: {}", skippedSkuSamples);
+        }
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("runId", runId);
         result.put("fetched", totalFetched);

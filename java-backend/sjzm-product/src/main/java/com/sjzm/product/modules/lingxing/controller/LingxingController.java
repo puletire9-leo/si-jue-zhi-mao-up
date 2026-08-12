@@ -46,6 +46,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -434,8 +435,20 @@ public class LingxingController {
     @PostMapping("/inventory-batch/sync")
     @Operation(summary = "手动触发：从领星拉取采购入库批次明细（getBatchDetailList），前缀匹配开发人后落库")
     public Result<Map<String, Object>> syncInventoryBatch(@RequestBody(required = false) Map<String, Object> req) {
+        String startDate = req == null ? null : readStr(req, "startDate");
+        String endDate = req == null ? null : readStr(req, "endDate");
         String developer = req == null ? null : readStr(req, "developer");
-        return Result.success(inventoryBatchService.syncDaily(developer));
+
+        // 默认：拉昨天的增量
+        if (startDate == null || startDate.isEmpty()) {
+            LocalDate yesterday = LocalDate.now().minusDays(1);
+            startDate = yesterday.toString();
+            endDate = yesterday.toString();
+        } else if (endDate == null || endDate.isEmpty()) {
+            endDate = startDate; // 单天
+        }
+
+        return Result.success(inventoryBatchService.syncDaily(startDate, endDate, developer));
     }
 
     @GetMapping("/inventory-batch")
