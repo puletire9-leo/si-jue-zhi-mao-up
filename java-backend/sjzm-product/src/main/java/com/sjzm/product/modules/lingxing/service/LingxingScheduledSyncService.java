@@ -58,6 +58,7 @@ public class LingxingScheduledSyncService {
     private final LingxingSkuDataLayerMapper syncRunMapper;
     private final LingxingDeveloperSkuPrefixMapper prefixMapper;
     private final LingxingProductUnifiedMapper unifiedMapper;
+    private final LingxingInventoryBatchService inventoryBatchService;
 
     /**
      * 每周一 03:30 触发（错开整点避开限流高峰）。
@@ -172,6 +173,27 @@ public class LingxingScheduledSyncService {
             log.error("领星每周同步失败：{}", e.getMessage(), e);
             syncRunMapper.finishRun(runId, "FAILED", totalUpserted, truncate(e.getMessage(), 500));
             throw new RuntimeException("领星每周同步失败: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 到货看板每日增量同步：每天 00:20 拉昨天的批次到货明细。
+     * 独立于每周同步，令牌桶=1，与其他领星调用错开时间避免争抢。
+     * cron: 秒 分 时 日 月 周。
+     */
+    @Scheduled(cron = "${lingxing.inventory-batch.cron:0 20 0 * * ?}")
+    public void dailyInventoryBatchSync() {
+        if (!scheduledEnabled) {
+            log.debug("领星到货批次每日同步已禁用（LINGXING_SCHEDULED_ENABLED=false），跳过");
+            return;
+        }
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+        String date = yesterday.format(DF);
+        try {
+            Map<String, Object> r = inventoryBatchService.syncDaily(date, date, null);
+            log.info("到货批次每日同步完成（{}）：{}", date, r);
+        } catch (Exception e) {
+            log.error("到货批次每日同步失败（{}）：{}", date, e.getMessage(), e);
         }
     }
 
