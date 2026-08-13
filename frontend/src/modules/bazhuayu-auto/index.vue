@@ -35,6 +35,14 @@
         <el-button size="small" :loading="refreshing" @click="loadOverview">
           刷新
         </el-button>
+        <el-button
+          size="small"
+          type="primary"
+          :loading="triggeringAll"
+          @click="triggerAllImport"
+        >
+          一键全导
+        </el-button>
         <el-button size="small" @click="openMappingDrawer">
           任务配置
         </el-button>
@@ -158,11 +166,40 @@
     <el-card class="history-card">
       <template #header>
         <div class="card-header">
-          <span>
+          <span class="header-controls">
             <el-radio-group v-model="scope" size="small">
               <el-radio-button label="week">本周任务</el-radio-button>
               <el-radio-button label="lifetime">历史累计</el-radio-button>
             </el-radio-group>
+            <el-select
+              v-model="categoryFilter"
+              size="small"
+              clearable
+              placeholder="全部分类"
+              style="width: 150px"
+            >
+              <el-option label="全部分类" value="" />
+              <el-option
+                v-for="c in categoryOptions"
+                :key="c"
+                :label="c"
+                :value="c"
+              />
+            </el-select>
+            <span class="category-chips">
+              <el-tag
+                v-for="g in categoryCounts"
+                :key="g.category"
+                size="small"
+                :type="categoryFilter === g.category ? 'primary' : 'info'"
+                :effect="categoryFilter === g.category ? 'dark' : 'plain'"
+                class="category-chip"
+                @click="
+                  categoryFilter = categoryFilter === g.category ? '' : g.category
+                "
+                >{{ g.category }} {{ g.count }}</el-tag
+              >
+            </span>
           </span>
           <span class="card-subtitle"
             >{{ scopeCount }} 条 · 按创建时间倒序</span
@@ -228,6 +265,22 @@
             >
           </template>
         </el-table-column>
+        <el-table-column label="通过原因" min-width="180">
+          <template #default="{ row }">
+            <span
+              v-for="chip in passBreakdown(row as BazhuayuTaskMapItem)"
+              :key="chip.label"
+              class="reason-chip"
+              :class="chip.tone"
+              >{{ chip.label }} {{ chip.value }}</span
+            >
+            <span
+              v-if="passBreakdown(row as BazhuayuTaskMapItem).length === 0"
+              class="muted"
+              >—</span
+            >
+          </template>
+        </el-table-column>
         <el-table-column label="未通过原因" min-width="280">
           <template #default="{ row }">
             <span
@@ -258,7 +311,7 @@
             >
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="320" fixed="right">
           <template #default="{ row }">
             <!-- @click.stop 防止触发行点击 openDetail -->
             <el-button
@@ -277,7 +330,34 @@
               @click.stop="executeTask(row as BazhuayuTaskMapItem)"
               >请求卖家精灵</el-button
             >
-            <span v-else class="muted">—</span>
+            <!-- 导入阶段控制：暂停(运行中) / 继续(暂停·中断·失败) / 重新获取(终态) -->
+            <el-button
+              v-if="['RUNNING', 'DRAINING'].includes((row as BazhuayuTaskMapItem).status)"
+              type="warning"
+              link
+              size="small"
+              :loading="controlIds.has((row as BazhuayuTaskMapItem).id)"
+              @click.stop="pauseImportTask(row as BazhuayuTaskMapItem)"
+              >暂停</el-button
+            >
+            <el-button
+              v-if="['PAUSED', 'INTERRUPTED', 'ERROR'].includes((row as BazhuayuTaskMapItem).status) && !hasSellerSpriteRun(row as BazhuayuTaskMapItem)"
+              type="primary"
+              link
+              size="small"
+              :loading="controlIds.has((row as BazhuayuTaskMapItem).id)"
+              @click.stop="resumeImportTask(row as BazhuayuTaskMapItem)"
+              >继续</el-button
+            >
+            <el-button
+              v-if="['READY', 'DONE', 'PAUSED', 'INTERRUPTED', 'ERROR'].includes((row as BazhuayuTaskMapItem).status) && !hasSellerSpriteRun(row as BazhuayuTaskMapItem)"
+              type="success"
+              link
+              size="small"
+              :loading="controlIds.has((row as BazhuayuTaskMapItem).id)"
+              @click.stop="refetchImportTask(row as BazhuayuTaskMapItem)"
+              >重新获取</el-button
+            >
             <el-button
               type="danger"
               link
@@ -319,6 +399,14 @@
           <div class="mapping-actions">
             <el-button
               size="small"
+              type="primary"
+              :loading="triggeringAll"
+              @click="triggerAllImport"
+            >
+              一键导入全部DB
+            </el-button>
+            <el-button
+              size="small"
               :loading="cloudRefreshing"
               @click="refreshAllCloudStats"
             >
@@ -330,11 +418,21 @@
           </div>
         </div>
 
+        <el-collapse v-model="openCategories" v-loading="mappingLoading">
+        <el-collapse-item
+          v-for="group in mappingGroups"
+          :key="group.category"
+          :name="group.category"
+        >
+          <template #title>
+            <el-icon class="folder-icon"><Folder /></el-icon>
+            <span class="folder-title">{{ group.category }}</span>
+            <span class="folder-count">{{ group.rows.length }} 个任务</span>
+          </template>
         <el-table
-          :data="mappingRows"
+          :data="group.rows"
           border
           size="small"
-          v-loading="mappingLoading"
           row-key="key"
         >
           <el-table-column label="任务名称" width="170">
@@ -541,6 +639,8 @@
             </template>
           </el-table-column>
         </el-table>
+        </el-collapse-item>
+        </el-collapse>
 
         <el-empty
           v-if="!mappingLoading && !mappingRows.length"
@@ -576,6 +676,16 @@
           <span>通过（等待人工请求）</span
           ><strong class="ok">{{ detailRow.passCount || 0 }}</strong>
         </div>
+        <template v-if="detailRow.passRefetchCount != null || detailRow.passNewCount != null">
+          <div>
+            <span>· 新品重取</span
+            ><strong>{{ detailRow.passRefetchCount || 0 }}</strong>
+          </div>
+          <div>
+            <span>· 全新通过</span
+            ><strong>{{ detailRow.passNewCount || 0 }}</strong>
+          </div>
+        </template>
         <div class="section">未通过原因（合计 {{ detailRejectSum }}）</div>
         <div>
           <span>价格不符</span
@@ -589,7 +699,17 @@
           <span>输入重复</span
           ><strong>{{ detailRow.duplicateCount || 0 }}</strong>
         </div>
-        <div>
+        <template v-if="detailRow.skipMainCount != null || detailRow.skipBlacklistCount != null">
+          <div>
+            <span>主表已有(去重)</span
+            ><strong>{{ detailRow.skipMainCount || 0 }}</strong>
+          </div>
+          <div>
+            <span>已采过淘汰</span
+            ><strong>{{ detailRow.skipBlacklistCount || 0 }}</strong>
+          </div>
+        </template>
+        <div v-else>
           <span>已采过 / 黑名单</span
           ><strong>{{ detailRow.skipCount || 0 }}</strong>
         </div>
@@ -633,7 +753,7 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
-import { Warning } from "@element-plus/icons-vue";
+import { Warning, Folder } from "@element-plus/icons-vue";
 import {
   bazhuayuApi,
   type BazhuayuCloudStat,
@@ -650,15 +770,19 @@ type Scope = "week" | "lifetime";
 const router = useRouter();
 const marketplace = ref("");
 const refreshing = ref(false);
+const triggeringAll = ref(false);
 const weekTag = ref("");
 const weekStart = ref("");
 const overview = ref<BazhuayuOverviewResp | null>(null);
 const runStates = ref<BazhuayuRunState[]>([]);
 const scope = ref<Scope>("week");
+const categoryFilter = ref<string>("");
 const detailVisible = ref(false);
 const detailRow = ref<BazhuayuTaskMapItem | null>(null);
 /** 正在执行的 taskId 集合，用于按钮 loading */
 const executingIds = ref<Set<number>>(new Set());
+/** 正在暂停/续跑/重新获取的 taskId 集合，用于按钮 loading */
+const controlIds = ref<Set<number>>(new Set());
 
 /** === 任务映射配置面板状态 === */
 const mappingDrawerVisible = ref(false);
@@ -698,6 +822,32 @@ interface MappingRow {
   _stopping?: boolean;
 }
 const mappingRows = ref<MappingRow[]>([]);
+/** 映射配置面板：当前展开的分类文件夹（默认全展开）。 */
+const openCategories = ref<string[]>([]);
+
+/** 分类排序优先级：精铺 → 精品 → 以图识图 → 其它（按名）。 */
+const CATEGORY_ORDER = ["精铺", "精品", "以图识图"];
+function categoryRank(c: string): number {
+  const i = CATEGORY_ORDER.indexOf(c);
+  return i === -1 ? CATEGORY_ORDER.length : i;
+}
+
+/** 按分类分组的映射行（文件夹式折叠用）。 */
+const mappingGroups = computed(() => {
+  const groups = new Map<string, MappingRow[]>();
+  for (const row of mappingRows.value) {
+    const c = row.taskCategory?.trim() || "未分类";
+    if (!groups.has(c)) groups.set(c, []);
+    groups.get(c)!.push(row);
+  }
+  return Array.from(groups.entries())
+    .map(([category, rows]) => ({ category, rows }))
+    .sort(
+      (a, b) =>
+        categoryRank(a.category) - categoryRank(b.category) ||
+        a.category.localeCompare(b.category),
+    );
+});
 
 const FUNCTIONS = [
   { key: "bangdan", label: "榜单采集" },
@@ -817,17 +967,48 @@ const lifetimeMetrics = computed(() => [
   },
 ]);
 
+/** 当前 scope 下出现过的分类（供筛选下拉）。 */
+const categoryOptions = computed(() => {
+  const src =
+    scope.value === "week"
+      ? (overview.value?.weekTasks ?? [])
+      : (overview.value?.lifetimeTasks ?? []);
+  const set = new Set<string>();
+  for (const t of src) set.add(t.taskCategory || "未分类");
+  return Array.from(set).sort();
+});
+
 const filteredHistory = computed(() => {
   const src =
     scope.value === "week"
       ? (overview.value?.weekTasks ?? [])
       : (overview.value?.lifetimeTasks ?? []);
-  return marketplace.value
-    ? src.filter((t) => t.marketplace === marketplace.value)
-    : src;
+  return src.filter(
+    (t) =>
+      (!marketplace.value || t.marketplace === marketplace.value) &&
+      (!categoryFilter.value ||
+        (t.taskCategory || "未分类") === categoryFilter.value),
+  );
 });
 
 const scopeCount = computed(() => filteredHistory.value.length);
+
+/** 各分类计数（分组概览小标签）——只按 scope+站点，不受分类筛选影响，点标签可切换筛选。 */
+const categoryCounts = computed(() => {
+  const src =
+    scope.value === "week"
+      ? (overview.value?.weekTasks ?? [])
+      : (overview.value?.lifetimeTasks ?? []);
+  const counts = new Map<string, number>();
+  for (const t of src) {
+    if (marketplace.value && t.marketplace !== marketplace.value) continue;
+    const c = t.taskCategory || "未分类";
+    counts.set(c, (counts.get(c) || 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .map(([category, count]) => ({ category, count }))
+    .sort((a, b) => b.count - a.count);
+});
 
 function phaseText(phase?: BazhuayuPhase) {
   return (
@@ -866,6 +1047,7 @@ function statusText(status: string) {
         DRAINING: "入库中",
         DONE: "完成",
         ERROR: "失败",
+        INTERRUPTED: "已中断",
         REJECTED: "已拒绝",
         PAUSED: "已暂停",
         CANCELLED: "已取消",
@@ -878,7 +1060,7 @@ function statusTag(
   status: string,
 ): "primary" | "success" | "warning" | "info" | "danger" {
   if (status === "DONE") return "success";
-  if (status === "ERROR") return "danger";
+  if (status === "ERROR" || status === "INTERRUPTED") return "danger";
   if (status === "RUNNING" || status === "QUEUED") return "warning";
   if (status === "DRAINING") return "primary";
   return "info";
@@ -924,7 +1106,7 @@ function displayStatusTag(
 function displayCompletedAt(row: BazhuayuTaskMapItem) {
   const runFinishedAt = sellerSpriteRun(row)?.finishedAt;
   if (runFinishedAt) return formatTs(runFinishedAt);
-  const terminalStatuses = ["READY", "DONE", "ERROR", "REJECTED", "CANCELLED"];
+  const terminalStatuses = ["READY", "DONE", "ERROR", "INTERRUPTED", "REJECTED", "CANCELLED"];
   return terminalStatuses.includes(row.status) ? formatTs(row.completedAt) : "—";
 }
 
@@ -960,20 +1142,54 @@ function openSellerSpriteRun(row: BazhuayuTaskMapItem) {
 }
 
 /**
- * 未通过原因分解：把 5 类不通过来源拆成独立的芯片
- * 后端源：AsinImportService.finishStreamingTask (priceFail/reviewFail/duplicate/skipMain/skipBlacklist)
- * 页面拿到的 skipCount = skipMain + skipBlacklist；这里只显示合并的「已采过/黑名单」
+ * 未通过原因分解：把各类不通过来源拆成独立、含义明确的芯片。
+ * 后端源：AsinImportService (priceFail/reviewFail/duplicate/skipMain/skipBlacklist)。
+ * 「已采过/黑名单」拆成两类：
+ *   - 主表已有 = SKIP_MAIN（competitor_products 已入库，去重跳过）
+ *   - 已采过淘汰 = SKIP_BLACKLIST（skip_asins 命中且非新品重取候选，如上架≥30天）
+ * 旧数据无分列（skipMainCount/skipBlacklistCount 为 null）时回退显示合并的「已采过/黑名单」。
  */
 function failureBreakdown(row: BazhuayuTaskMapItem) {
   const chips: Array<{ label: string; value: number; tone: string }> = [];
   if (row.priceFailCount)
-    chips.push({ label: "价格", value: row.priceFailCount, tone: "warning" });
+    chips.push({ label: "价格不符", value: row.priceFailCount, tone: "warning" });
   if (row.reviewFailCount)
-    chips.push({ label: "评论", value: row.reviewFailCount, tone: "warning" });
+    chips.push({ label: "评论超标", value: row.reviewFailCount, tone: "warning" });
   if (row.duplicateCount)
-    chips.push({ label: "重复", value: row.duplicateCount, tone: "info" });
-  if (row.skipCount)
+    chips.push({ label: "文件内重复", value: row.duplicateCount, tone: "info" });
+
+  const hasSplit =
+    row.skipMainCount != null || row.skipBlacklistCount != null;
+  if (hasSplit) {
+    if (row.skipMainCount)
+      chips.push({ label: "主表已有", value: row.skipMainCount, tone: "info" });
+    if (row.skipBlacklistCount)
+      chips.push({ label: "已采过淘汰", value: row.skipBlacklistCount, tone: "info" });
+  } else if (row.skipCount) {
     chips.push({ label: "已采过/黑名单", value: row.skipCount, tone: "info" });
+  }
+  return chips;
+}
+
+/**
+ * 通过原因分解：把 PASS 拆成两类含义明确的芯片。
+ * 后端源：filterRows 的 _passKind（REFETCH/NEW）。
+ *   - 新品重取 = 已采过但主表<30天，重新去卖家精灵取（会重复消耗 API，值得盯）
+ *   - 全新通过 = 从没见过的 ASIN
+ * 旧数据无分列（passRefetchCount/passNewCount 为 null）时回退显示合并的「通过」。
+ */
+function passBreakdown(row: BazhuayuTaskMapItem) {
+  const chips: Array<{ label: string; value: number; tone: string }> = [];
+  const hasSplit =
+    row.passRefetchCount != null || row.passNewCount != null;
+  if (hasSplit) {
+    if (row.passRefetchCount)
+      chips.push({ label: "新品重取", value: row.passRefetchCount, tone: "refetch" });
+    if (row.passNewCount)
+      chips.push({ label: "全新通过", value: row.passNewCount, tone: "ok" });
+  } else if (row.passCount) {
+    chips.push({ label: "通过", value: row.passCount, tone: "ok" });
+  }
   return chips;
 }
 
@@ -1064,6 +1280,62 @@ async function deleteImportTask(row: BazhuayuTaskMapItem) {
     await loadOverview();
   } catch (e: any) {
     ElMessage.error(e?.message || "删除任务失败");
+  }
+}
+
+/** 暂停正在导入的任务：停在当前进度，可续跑。 */
+async function pauseImportTask(row: BazhuayuTaskMapItem) {
+  controlIds.value.add(row.id);
+  try {
+    await bazhuayuApi.pauseImport(row.id);
+    ElMessage.success("已请求暂停，处理完当前页后停在断点");
+    await loadOverview();
+    syncPolling();
+  } catch (e: any) {
+    ElMessage.error(e?.message || "暂停失败");
+  } finally {
+    controlIds.value.delete(row.id);
+  }
+}
+
+/** 续跑 PAUSED/中断/失败任务：从断点 offset 继续同批次。 */
+async function resumeImportTask(row: BazhuayuTaskMapItem) {
+  controlIds.value.add(row.id);
+  try {
+    await bazhuayuApi.resumeImport(row.id);
+    ElMessage.success("已从断点续跑");
+    await loadOverview();
+    syncPolling();
+  } catch (e: any) {
+    ElMessage.error(e?.message || "续跑失败");
+  } finally {
+    controlIds.value.delete(row.id);
+  }
+}
+
+/** 重新获取：删旧任务数据后重拉云端最新批次。 */
+async function refetchImportTask(row: BazhuayuTaskMapItem) {
+  try {
+    await ElMessageBox.confirm(
+      `将删除任务「${row.taskName || `#${row.id}`}」已导入的数据（明细/去重/原始行），` +
+        "再按同配置重新拉取云端当前最新批次并初筛。是否继续？",
+      "确认重新获取",
+      { type: "warning", confirmButtonText: "重新获取", cancelButtonText: "取消" },
+    );
+  } catch {
+    return;
+  }
+  controlIds.value.add(row.id);
+  try {
+    const resp: any = await bazhuayuApi.refetchImport(row.id);
+    ElMessage.success(`已重新触发，新任务 #${resp?.newTaskId ?? "?"}`);
+    if (detailRow.value?.id === row.id) detailVisible.value = false;
+    await loadOverview();
+    syncPolling();
+  } catch (e: any) {
+    ElMessage.error(e?.message || "重新获取失败");
+  } finally {
+    controlIds.value.delete(row.id);
   }
 }
 
@@ -1241,6 +1513,10 @@ async function loadMappingPanel() {
       _isNew: false,
     }));
     mappingRows.value = rows;
+    // 默认展开全部分类文件夹
+    openCategories.value = Array.from(
+      new Set(rows.map((r) => r.taskCategory?.trim() || "未分类")),
+    );
   } catch (e: any) {
     ElMessage.error(e?.message || "加载映射失败");
   } finally {
@@ -1263,6 +1539,8 @@ function startNewMappingRow() {
     _editing: true,
     _isNew: true,
   });
+  // 确保新增行所在的分类文件夹是展开的（否则新行藏在折叠里看不见）
+  if (!openCategories.value.includes("精铺")) openCategories.value.push("精铺");
 }
 
 function editMappingRow(row: MappingRow) {
@@ -1410,6 +1688,40 @@ async function refreshAllCloudStats() {
  * 后端接口 POST /trigger 是异步 fire-and-forget，前端立即返回；
  * 用户看进度靠"当前运行"段（内存态）+ 主页面刷新。
  */
+/** 一键全导：后端遍历所有榜单任务，各自锁定最新批次异步入库。 */
+async function triggerAllImport() {
+  try {
+    await ElMessageBox.confirm(
+      "将遍历全部榜单任务，各自锁定当前最新已完成批次后异步导入并初筛。\n" +
+        "已导入的批次会自动跳过，中断的任务会重跑。是否继续？",
+      "确认一键全导",
+      { type: "warning", confirmButtonText: "开始", cancelButtonText: "取消" },
+    );
+  } catch {
+    return;
+  }
+  triggeringAll.value = true;
+  try {
+    const resp = await bazhuayuApi.triggerAll();
+    const parts = [`共 ${resp.total} 个任务`];
+    if (resp.submitted) parts.push(`提交 ${resp.submitted}`);
+    if (resp.alreadyImported) parts.push(`已导入 ${resp.alreadyImported}`);
+    if (resp.failed) parts.push(`失败 ${resp.failed}`);
+    if (resp.failed > 0) {
+      ElMessage.warning(parts.join(" · "));
+    } else {
+      ElMessage.success(parts.join(" · "));
+    }
+    scope.value = "week";
+    await loadOverview();
+    syncPolling();
+  } catch (e: any) {
+    ElMessage.error(e?.message || "一键全导失败");
+  } finally {
+    triggeringAll.value = false;
+  }
+}
+
 async function importToDb(row: MappingRow) {
   const batch = row.cloudStat;
   if (!batch?.latestBatchNo || !batch.latestBatchStartTime) {
@@ -1646,6 +1958,42 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.category-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.category-chip {
+  cursor: pointer;
+  user-select: none;
+}
+
+.folder-icon {
+  margin-right: 6px;
+  color: var(--el-color-warning);
+}
+
+.folder-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.folder-count {
+  margin-left: 10px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .card-subtitle {
@@ -1711,6 +2059,18 @@ onUnmounted(() => {
     background: var(--el-color-info-light-9);
     color: var(--el-color-info);
     border-color: var(--el-color-info-light-5);
+  }
+  /* 全新通过：绿 */
+  &.ok {
+    background: var(--el-color-success-light-9);
+    color: var(--el-color-success);
+    border-color: var(--el-color-success-light-5);
+  }
+  /* 新品重取：主色，提示会重复消耗卖家精灵 API */
+  &.refetch {
+    background: var(--el-color-primary-light-9);
+    color: var(--el-color-primary);
+    border-color: var(--el-color-primary-light-5);
   }
 }
 

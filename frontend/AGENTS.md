@@ -36,6 +36,7 @@ frontend/src/
 | 定稿 | /final-drafts | finalDrafts.ts |
 | 素材库 | /material-library | materialLibrary.ts |
 | 运营商库 | /carrier-library | carrierLibrary.ts |
+| 拓品·竞品店铺 | /expansion-competitor-shops | shopCollection.ts |
 | 图片管理 | /image-management | image.ts |
 | 导入导出 | /import-export | import_export.ts |
 | 产品数据看板 | /product-data-dashboard | productData.ts |
@@ -70,6 +71,8 @@ frontend/src/
 | systemConfig.ts | `/api/v1/system-config/`、`/api/v1/sellersprite-config` | 混合：Python 为主，`sellersprite-config` 走 Java |
 | ai-selection.ts | `/api/v1/ai-selection/` | Python；JWT 鉴权，按用户隔离的 Redis 投递会话 |
 | product-line.ts | `/api/v1/product-line/` | 混合：Java 与 Selection Agent 共存，必须结合代理规则判断 |
+
+拓品·竞品店铺使用独立页面和 `/api/v1/modules/shop-collection/expansion-products`，读取 `shop_products` 当前批次商品全集；不复用 `views/AllSelection` 的页面框架。销量字段使用 `shop_products.units`（页面展示为月销量）。
 
 统一选品框架的“下载全部 CSV”会按当前筛选遍历所有分页，再通过 `competitor.ts` 调用 `/api/v1/competitor/export-current-page`；后端按查询计划回查 `competitor_products_clean` / `competitor_products` / `deng_zong_shop` / `shop_products`，不要从前端展示字段自行拼 CSV。
 统一选品页面由 `KeepAlive` 缓存；批次筛选组件在页面重新激活时必须刷新批次选项，确保卖家精灵任务完成并写入 clean 后无需整页刷新即可看到新批次。

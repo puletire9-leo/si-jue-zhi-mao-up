@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WinSW 服务配置 - frpc (frp client)
+  放到内网素材机的 C:\frp\winsw-frpc.xml（必须和 winsw-frpc.exe 同名）
+  安装：以管理员身份 PowerShell 执行 C:\frp\winsw-frpc.exe install
+-->
+<service>
+  <id>frpc</id>
+  <name>frpc</name>
+  <description>FRP client - reverse tunnel to cloud frps</description>
+
+  <startmode>Automatic</startmode>
+
+  <workingdirectory>C:\frp</workingdirectory>
+  <executable>C:\frp\frpc.exe</executable>
+  <arguments>-c C:\frp\frpc.toml</arguments>
+
+  <!-- 等 MinIO 服务先起来再起 frpc，避免 frpc 起来时 9000 还没监听 -->
+  <depend>minio</depend>
+
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+  <logpath>C:\frp\logs</logpath>
+
+  <onfailure action="restart" delay="5 sec"/>
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="30 sec"/>
+  <resetfailure>1 hour</resetfailure>
+
+  <stoptimeout>15 sec</stoptimeout>
+</service>

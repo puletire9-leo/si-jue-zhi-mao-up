@@ -197,7 +197,8 @@ export type SelectionCsvSource =
   | "deng_zong"
   | "shop_products"
   | "premium_products"
-  | "ai_selection";
+  | "ai_selection"
+  | "brs_ranking";
 
 export interface SelectionCsvRowRef {
   id?: string;

@@ -22,6 +22,16 @@ public interface AsinImportTaskMapper extends BaseMapper<AsinImportTask> {
                                        @Param("batchNo") String batchNo);
 
     /**
+     * 查僵尸导入任务：仍处于运行态（RUNNING/DRAINING）但心跳（updated_at）早于给定阈值。
+     * 心跳由 flushProgress 每 5 页/5 秒刷 updated_at 维持；超过阈值仍未动 = 进程崩溃/重启/线程死掉遗留。
+     * 用于启动恢复与定时 reconcile，把它们收口成可重跑的终态。
+     */
+    @Select("SELECT * FROM asin_import_tasks WHERE import_type=#{importType} "
+            + "AND task_status IN ('RUNNING','DRAINING') AND updated_at < #{staleBefore}")
+    List<AsinImportTask> selectStaleRunningTasks(@Param("importType") String importType,
+                                                 @Param("staleBefore") java.time.LocalDateTime staleBefore);
+
+    /**
      * 按 importType + marketplace 统计各状态任务数，替代 Java 全量加载后 stream 聚合。
      * 返回 map 包含 marketplace, task_status, cnt 三字段。
      */

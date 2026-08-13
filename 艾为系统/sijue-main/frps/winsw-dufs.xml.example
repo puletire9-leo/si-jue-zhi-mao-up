@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WinSW 服务配置：dufs（素材库 HTTP 文件服务器）
+  保存到 C:\dufs\winsw.xml，winsw.exe 与 xml 同目录同名
+
+  安装：以管理员 PowerShell 执行
+    cd C:\dufs
+    .\winsw.exe install
+    .\winsw.exe start
+
+  注意：
+  - --bind 127.0.0.1 表示只监听本机，frpc 在同一台机器上转发，安全
+  - 不传 --allow-* 表示只读：通过 HTTP 不能上传/删除/改名，但摄影/美工在 Windows 端正常操作不受影响
+  - 根目录可挂整盘 D:\（摄影默认 comfyui共享、美工默认 美工图片（已完成））
+  - 中文路径、空格需用双引号包起来
+-->
+<service>
+  <id>dufs</id>
+  <name>dufs</name>
+  <description>dufs - HTTP file server exposing woeau 素材库</description>
+  <startmode>Automatic</startmode>
+
+  <workingdirectory>C:\dufs</workingdirectory>
+  <executable>C:\dufs\dufs.exe</executable>
+  <arguments>"D:\" --bind 127.0.0.1 --port 9000 --enable-cors --auth "woeau_admin:请改成你的强密码@/"</arguments>
+
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+  <logpath>C:\dufs\logs</logpath>
+
+  <onfailure action="restart" delay="5 sec"/>
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="30 sec"/>
+  <resetfailure>1 hour</resetfailure>
+  <stoptimeout>10 sec</stoptimeout>
+</service>

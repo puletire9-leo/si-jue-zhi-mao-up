@@ -86,6 +86,30 @@
         <foreach collection="asins" item="a" open="(" separator="," close=")">#{a}</foreach>
     </select>
 
+    <!-- 批量查询 ASIN 的上架天数：返回 {asin, listingDays}，供 API已请求 放行判断 -->
+    <select id="selectListingDaysInList" resultType="map">
+        SELECT asin, listing_days AS listingDays FROM competitor_products
+        WHERE marketplace = #{marketplace}
+        AND listing_days IS NOT NULL
+        AND asin IN
+        <foreach collection="asins" item="a" open="(" separator="," close=")">#{a}</foreach>
+    </select>
+
+    <!--
+      新品重取判定：主表中"上架不足 maxListingDays 天"的 ASIN（不看销量）。
+      同 ASIN 多行（变体/多月）按 asin 聚合：MIN(listing_days) 取最新（天数最小）。
+      用主表实时值（每次采集刷新）而非 skip_asins 快照，避免上架天数冻结导致无限重取。
+    -->
+    <select id="selectYoungAsinsInList" resultType="string">
+        SELECT asin FROM competitor_products
+        WHERE marketplace = #{marketplace}
+        AND listing_days IS NOT NULL
+        AND asin IN
+        <foreach collection="asins" item="a" open="(" separator="," close=")">#{a}</foreach>
+        GROUP BY asin
+        HAVING MIN(listing_days) &lt; #{maxListingDays}
+    </select>
+
     <!--
       清洗表分页查询：复用 service 层组装的 LambdaQueryWrapper
       （清洗表完整复制原表列结构，列名兼容；condition 中的 created_at / parent_asin / 等均存在）。

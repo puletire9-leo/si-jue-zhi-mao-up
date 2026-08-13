@@ -22,4 +22,11 @@
         <foreach collection="asins" item="a" open="(" separator="," close=")">#{a}</foreach>
     </select>
 
+    <!-- 批量查重（带原因+时间）：返回 {asin, filter_reasons, created_at}，供按原因拆分 + 系统导入时间判断 -->
+    <select id="selectExistingWithReasonsInList" resultType="map">
+        SELECT DISTINCT asin, filter_reasons, created_at FROM skip_asins
+        WHERE marketplace = #{marketplace} AND asin IN
+        <foreach collection="asins" item="a" open="(" separator="," close=")">#{a}</foreach>
+    </select>
+
 </mapper>

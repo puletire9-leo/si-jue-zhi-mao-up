@@ -148,6 +148,13 @@ export default defineConfig(({ mode }) => {
           timeout: 300000,
           logLevel: 'warn'
         },
+        '/api/v1/brs-ranking': {
+          target: javaTarget,
+          changeOrigin: true,
+          secure: false,
+          timeout: 300000,
+          logLevel: 'warn'
+        },
         // 预留 Java AI 选品路由；服务默认关闭，仅保持开发/生产代理口径一致。
         '/api/v1/ai-selection-pool': {
           target: javaTarget,

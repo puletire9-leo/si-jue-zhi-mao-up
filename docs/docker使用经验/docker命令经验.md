@@ -1,6 +1,40 @@
 
 # 思觉智贸 — 环境管理
 
+## 🚨 高频 docker exec 打爆 WSL2 内存导致 Docker 崩溃（事故记录）
+
+> **事故 2026-08-11（第二次，同类根因见 2026-07-29）**：用 Python 脚本高频 `docker exec prod-mysql mysql ...` 拉数据分析，每个脚本内部 fork 多个 `docker exec` 子进程，还把脚本放后台并发跑。WSL2 内存（限 9GB）被打满，Docker daemon 卡死无响应，`docker exec` / `docker ps` 全部 hang。
+
+### 现有 WSL2 内存配置（`%USERPROFILE%\.wslconfig`）
+
+```ini
+[wsl2]
+memory=9GB          ; 16G 机器留 ~7G 给 Windows，已接近安全上限，不宜再加
+processors=12
+swap=4GB
+autoMemoryReclaim=gradual
+
+[experimental]
+sparseVhd=true
+```
+
+> 物理内存仅 15.7G。容器基线约 4.75G，Vite/Java 构建峰值更高。memory 再上调会饿死 Windows，**加内存不是解药**。
+
+### 铁律：分析类查数据禁止高频 docker exec
+
+- **禁止**：循环里一条条 `docker exec prod-mysql mysql -e "..."`（每次 fork 新客户端进程，几十次 roundtrip 叠加吃内存）。
+- **禁止**：把连库脚本放 `run_in_background` 并发跑，Docker 吃紧时直接压垮 daemon。
+- **正确**：一个脚本**一次连接**跑完所有查询。要么 Python `pymysql` 直连宿主机映射端口（3306→prod 映射），要么把多条 SQL 拼成**一次** `docker exec ... mysql -e "SELECT ...; SELECT ...;"` 批量返回。
+- 大结果集分析先在 SQL 里聚合好再取回，不要把全表拉进 Python。
+
+### 崩了怎么恢复
+
+1. 手动重启 Docker Desktop；若无效，`wsl --shutdown` 后再开 Docker Desktop。
+2. 等 `docker ps` 能列出 `prod-mysql` 再继续。
+3. 恢复后改用"一次连接批量查"方式重跑，不要原样重试高频 exec。
+
+---
+
 ## 生产环境
 
 ### 启动

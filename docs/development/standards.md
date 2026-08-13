@@ -38,6 +38,8 @@
 powershell -ExecutionPolicy Bypass -File scripts/deploy/prod_preflight_check.ps1
 ```
 
+预检包含 Docker Desktop 数据盘门禁，剩余空间低于 15 GB 时禁止构建或部署。
+
 5. 新增 Java `/api/v1/{resource}` Controller 必须同步检查 `frontend/nginx.conf`，确保生产前端会转发到 Gateway，而不是落到 Python 兜底。
 
 ### Python 后端

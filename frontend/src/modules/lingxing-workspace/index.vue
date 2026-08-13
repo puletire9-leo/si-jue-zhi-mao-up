@@ -229,12 +229,7 @@
               width="160"
               show-overflow-tooltip
             />
-            <el-table-column prop="modelStartMonth" label="起算月" width="90" />
-            <el-table-column label="真实上架日" width="110">
-              <template #default="{ row }">
-                {{ row.listingOpenDate ? row.listingOpenDate.slice(0, 10) : "--" }}
-              </template>
-            </el-table-column>
+            <el-table-column prop="listingDate" label="上架日期" width="100" />
             <el-table-column label="累计销量" width="100" align="right">
               <template #default="{ row }">{{
                 formatNumber(row.totalVolume)

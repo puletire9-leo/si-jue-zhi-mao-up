@@ -33,23 +33,4 @@ public interface LingxingListingMapper extends BaseMapper<LingxingListing> {
               AND w.asin IN (SELECT asin FROM lingxing_product_unified)
             """)
     List<Long> selectTargetSids();
-
-    /**
-     * 用 listing.open_date 回填统一表 listing_open_date（按 asin 取最早 open_date）。
-     * <p>listing 覆盖同步后单独跑一条精准 UPDATE，只更新这一列，不重算整表（省 30s）。
-     * 仅回填 listing 里有 open_date 的目标 ASIN。
-     *
-     * @return 受影响行数
-     */
-    @Update("""
-            UPDATE lingxing_product_unified u
-            JOIN (
-                SELECT asin, MIN(open_date) AS open_date
-                FROM lingxing_listing
-                WHERE open_date IS NOT NULL AND asin IS NOT NULL AND asin != ''
-                GROUP BY asin
-            ) l ON l.asin = u.asin
-            SET u.listing_open_date = l.open_date
-            """)
-    int backfillUnifiedOpenDate();
 }

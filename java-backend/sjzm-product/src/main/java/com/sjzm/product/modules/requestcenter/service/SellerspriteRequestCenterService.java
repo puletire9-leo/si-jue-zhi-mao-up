@@ -88,6 +88,7 @@ public class SellerspriteRequestCenterService {
     private final com.sjzm.product.service.ScoringService scoringService;
     private final com.sjzm.product.service.CleanLayerService cleanLayerService;
     private final com.sjzm.product.mapper.SkipAsinMapper skipAsinMapper;
+    private final com.sjzm.product.service.BrsRankingService brsRankingService;
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     /** 创建任务幂等锁前缀：按 idempotencyKey 串行化"查活跃→插入"，堵住并发重复建任务窗口（跨实例）。 */
@@ -121,7 +122,8 @@ public class SellerspriteRequestCenterService {
                                              org.redisson.api.RedissonClient redissonClient,
                                              com.sjzm.product.service.ScoringService scoringService,
                                              com.sjzm.product.service.CleanLayerService cleanLayerService,
-                                             com.sjzm.product.mapper.SkipAsinMapper skipAsinMapper) {
+                                             com.sjzm.product.mapper.SkipAsinMapper skipAsinMapper,
+                                             com.sjzm.product.service.BrsRankingService brsRankingService) {
         this.runMapper = runMapper;
         this.itemMapper = itemMapper;
         this.productSyncService = productSyncService;
@@ -140,6 +142,7 @@ public class SellerspriteRequestCenterService {
         this.scoringService = scoringService;
         this.cleanLayerService = cleanLayerService;
         this.skipAsinMapper = skipAsinMapper;
+        this.brsRankingService = brsRankingService;
     }
 
     /**
@@ -654,6 +657,58 @@ public class SellerspriteRequestCenterService {
         });
     }
 
+    /**
+     * 创建 BRS 榜单 ASIN 批量任务（仿 createManualAsinTask），但请求类型 BRS_ASIN_LOOKUP，
+     * 卖家精灵返回写入 brs_ranking_raw（隔离于竞品/新品榜）。
+     * 批次元数据（batchDate/batchLabel/sourceRunId）存 run，被 consume 传给 brsRankingService。
+     * @param batchLabel 批次名称，如 UK-kitchen-30页
+     */
+    public SellerspriteRequestRun createBrsAsinTask(CompetitorLookupRequest request, String batchLabel, String operator) {
+        if (request.getAsins() == null || request.getAsins().isEmpty()) {
+            throw new IllegalArgumentException("ASIN 列表不能为空");
+        }
+        List<String> asins = new ArrayList<>(new LinkedHashSet<>(request.getAsins()));
+        String month = StringUtils.hasText(request.getMonth()) ? request.getMonth() : currentDataMonth();
+        String idempotencyKey = buildManualAsinIdempotencyKey(request, asins, month) + "_BRS";
+        return withCreateLock(idempotencyKey, () -> {
+            SellerspriteRequestRun active = runMapper.selectActiveByIdempotencyKey(idempotencyKey);
+            if (active != null) {
+                log.info("复用活跃 BRS ASIN 任务: runId={}, key={}", active.getRunId(), idempotencyKey);
+                return active;
+            }
+            String runId = "REQ_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+            int itemCount = (asins.size() + ASIN_BATCH_SIZE - 1) / ASIN_BATCH_SIZE;
+            String batchDate = LocalDate.now().format(DATE_FMT);  // YYYYMMDD
+            String triggerRef = writeBrsMetaForRun(month, batchLabel);
+            SellerspriteRequestRun run = new SellerspriteRequestRun();
+            run.setRunId(runId);
+            run.setRequestType("BRS_ASIN_LOOKUP");
+            run.setMarketplace(request.getMarketplace());
+            run.setTriggerType("MANUAL");
+            run.setTriggerRef(triggerRef);
+            run.setIdempotencyKey(idempotencyKey);
+            run.setFetchReason("BRS榜单 ASIN 补数");
+            run.setBatchCode(weekTagUtil.currentWeekTag());
+            run.setBatchDate(batchDate);
+            run.setTotalCount(itemCount); run.setPendingCount(itemCount); run.setRunningCount(0);
+            run.setSuccessCount(0); run.setFailedCount(0); run.setSkippedCount(0); run.setApiCalls(0);
+            run.setStatus("PENDING");
+            run.setOperator(operator);
+            runMapper.insert(run);
+            for (int i = 0; i < itemCount; i++) {
+                List<String> batch = asins.subList(i * ASIN_BATCH_SIZE, Math.min((i + 1) * ASIN_BATCH_SIZE, asins.size()));
+                SellerspriteRequestItem item = new SellerspriteRequestItem();
+                item.setRunId(runId); item.setSeq(i); item.setMarketplace(request.getMarketplace());
+                item.setAsinList(writeAsinList(batch));
+                item.setPayloadJson(writeLookupPayload(copyLookupRequest(request, batch)));
+                item.setStatus("PENDING");
+                itemMapper.insert(item);
+            }
+            startAutoConsumeAfterCommit(runId);
+            return run;
+        });
+    }
+
     /** 将卖家名预览任务转换为请求中心任务，普通目标写竞品库，邓总目标写 deng_zong_shop。 */
     @Transactional
     public SellerspriteRequestRun createSellerBatchTask(Long sourceTaskId, String target, String month, String operator) {
@@ -1092,7 +1147,8 @@ public class SellerspriteRequestCenterService {
         // ── ASIN 批量查询 ──────────────────────────────────────────
         if ("ASIN_BATCH_LOOKUP".equals(run.getRequestType())
                 || "MANUAL_ASIN_LOOKUP".equals(run.getRequestType())
-                || "PREMIUM_ASIN_LOOKUP".equals(run.getRequestType())) {
+                || "PREMIUM_ASIN_LOOKUP".equals(run.getRequestType())
+                || "BRS_ASIN_LOOKUP".equals(run.getRequestType())) {
             if (item.getAsinList() == null || item.getAsinList().isBlank()) {
                 throw new IllegalStateException("ASIN_BATCH_LOOKUP item 缺少 asin_list");
             }
@@ -1111,9 +1167,11 @@ public class SellerspriteRequestCenterService {
             CompetitorLookupRequest req = readLookupPayload(item);
             if (req == null) {
                 req = new CompetitorLookupRequest();
-                req.setVariation("Y");  // 不含变体，父体口径，与店铺请求一致
-                req.setSize(100);
             }
+            // 强制父体口径 + 一次拉全：40 ASIN 用 size=100 一页返回，避免满页翻页导致每批双倍调用。
+            // 原实现在 if(req==null) 内设置，payload 非空时（默认 size=50）被短路 → 满页翻2页 → 配额翻倍。
+            req.setVariation("Y");  // 不含变体，父体口径，与店铺请求一致
+            req.setSize(100);
             req.setMarketplace(item.getMarketplace() != null ? item.getMarketplace() : run.getMarketplace());
             req.setAsins(new ArrayList<>(asins));
 
@@ -1137,6 +1195,16 @@ public class SellerspriteRequestCenterService {
                         stringValue(meta.get("weekTag")),
                         run.getRunId(),
                         executor);
+            } else if ("BRS_ASIN_LOOKUP".equals(run.getRequestType())) {
+                Map<String, Object> meta = readRunMeta(run);
+                raw = brsRankingService.doLookupAndSave(
+                        req,
+                        StringUtils.hasText(month) ? month : currentDataMonth(),
+                        run.getBatchDate(),
+                        stringValue(meta.get("batchLabel")),
+                        run.getRunId(),
+                        LocalDateTime.now(),
+                        executor);
             } else {
                 raw = competitorService.doLookupAndSave(req,
                         StringUtils.hasText(month) ? month : currentDataMonth(), LocalDateTime.now(), executor);
@@ -1146,7 +1214,9 @@ public class SellerspriteRequestCenterService {
 
             // 请求过的 ASIN 写入 skip_asins「API已请求」，下次导入不再重复请求扣费。
             // 与旧链路 AsinImportService.executeApiCalls 每批收尾一致；insertBatchIgnoreDup 幂等，重复写无害。
-            if (!"PREMIUM_ASIN_LOOKUP".equals(run.getRequestType())) {
+            // BRS 榜单隔离：不写共享 skip_asins，避免污染竞品/新品榜的「API已请求」去重。
+            if (!"PREMIUM_ASIN_LOOKUP".equals(run.getRequestType())
+                    && !"BRS_ASIN_LOOKUP".equals(run.getRequestType())) {
                 markAsinsRequested(asins, itemMarketplace);
             }
 
@@ -1566,6 +1636,17 @@ public class SellerspriteRequestCenterService {
     private String writeMonthTriggerRef(String month) {
         try { return OBJECT_MAPPER.writeValueAsString(Map.of("month", month == null ? "" : month)); }
         catch (JsonProcessingException e) { throw new IllegalStateException("序列化 triggerRef 失败", e); }
+    }
+
+    /** BRS 任务 run 级 meta：month（供 resolveRunMonth）+ batchLabel（供 consume 传给 brsRankingService）。 */
+    private String writeBrsMetaForRun(String month, String batchLabel) {
+        try {
+            return OBJECT_MAPPER.writeValueAsString(Map.of(
+                    "month", month == null ? "" : month,
+                    "batchLabel", batchLabel == null ? "" : batchLabel));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("序列化 BRS triggerRef 失败", e);
+        }
     }
 
     private String writeAsinList(List<String> asins) {

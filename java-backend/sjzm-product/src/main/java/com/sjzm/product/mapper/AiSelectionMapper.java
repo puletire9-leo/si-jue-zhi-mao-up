@@ -60,6 +60,25 @@ public interface AiSelectionMapper extends BaseMapper<AiSelectionProduct> {
                          @Param("includeKeywords") List<String> includeKeywords);
 
     /**
+     * 合并扫描（提速 C）：一次扫 shop_products 某站点，全载体 OR 并集召回 + CASE 分流 carrier。
+     * 把「每载体一条」压成「每站点一条」，扫表次数减 17 倍。
+     */
+    int harvestAllFromShop(@Param("marketplace") String marketplace,
+                           @Param("batchId") String batchId,
+                           @Param("batchLabel") String batchLabel,
+                           @Param("pushedBy") String pushedBy,
+                           @Param("carriers") List<com.sjzm.product.dto.CarrierHarvestSpec> carriers);
+
+    /**
+     * 合并扫描：一次扫 competitor_products_clean 某站点，全载体 OR 并集 + CASE 分流。
+     */
+    int harvestAllFromClean(@Param("marketplace") String marketplace,
+                            @Param("batchId") String batchId,
+                            @Param("batchLabel") String batchLabel,
+                            @Param("pushedBy") String pushedBy,
+                            @Param("carriers") List<com.sjzm.product.dto.CarrierHarvestSpec> carriers);
+
+    /**
      * 统计某批次实际写入行数。
      */
     @Select("SELECT COUNT(*) FROM ai_selection WHERE batch_id = #{batchId}")

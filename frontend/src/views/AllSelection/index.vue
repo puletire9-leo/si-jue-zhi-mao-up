@@ -46,6 +46,7 @@
                 </template>
 
                 <el-button
+                  v-if="!isBrsScene"
                   type="success"
                   :icon="Download"
                   :loading="exportingAllResults"
@@ -237,7 +238,7 @@
                 <el-option label="德国" value="DE" />
               </el-select>
             </label>
-            <label class="ufb-field">
+            <label v-if="!isLingxingShopScene" class="ufb-field">
               <span class="ufb-field-label">大类榜单</span>
               <el-select
                 v-model="activeFilters.category"
@@ -254,6 +255,24 @@
                   :key="cat.category"
                   :label="`${cat.category} (${cat.count})`"
                   :value="cat.category"
+                />
+              </el-select>
+            </label>
+            <label v-if="isLingxingShopScene" class="ufb-field">
+              <span class="ufb-field-label">按领星店铺</span>
+              <el-select
+                v-model="activeFilters.sellerSelect"
+                placeholder="全部店铺"
+                clearable
+                filterable
+                style="width: 220px"
+                @change="onLingxingStoreChange"
+              >
+                <el-option
+                  v-for="s in lingxingStores"
+                  :key="s.store"
+                  :label="`${s.store} (${s.count})`"
+                  :value="s.store"
                 />
               </el-select>
             </label>
@@ -430,7 +449,7 @@
           <!-- 业务筛选方法 -->
           <div class="fd-section">
             <div class="fd-label">业务筛选方法</div>
-            <div class="method-card method-card--m01">
+            <div v-if="!isBrsScene" class="method-card method-card--m01">
               <div class="method-card__body">
                 <div class="method-card__head">
                   <div class="method-card__name">M01 新品榜加速法</div>
@@ -528,7 +547,7 @@
               </div>
             </div>
 
-            <div class="method-card method-card--m03">
+            <div v-if="!isBrsScene" class="method-card method-card--m03">
               <div class="method-card__body">
                 <div class="method-card__head">
                   <div class="method-card__name">M03 FBM 自发货简单道</div>
@@ -624,6 +643,7 @@
               :snapshot-kind="currentSnapshotKind"
               :use-clean-table="useCleanTable"
               :auto-select-latest-week="!activeMethodCard"
+              :hide-snapshot="isLingxingShopScene"
               embedded
               @batch-deleted="handleBatchDeleted"
             />
@@ -1051,7 +1071,7 @@
     <!-- 非标载体：管理 -->
     <el-dialog v-model="carrierManageVisible" title="载体管理" width="820px">
       <div style="font-size: 12px; color: #94a3b8; margin-bottom: 10px;">
-        载体定义「一类非标品用哪套检索词」。首次使用或补充数据时，选站点点「同步数据」把该载体的商品灌入选品库，之后即可在顶部按载体筛选。
+        载体定义「一类非标品用哪套检索词」。点「一键同步本周全载体」把所有载体商品灌入本周批次；也可对单个载体点「同步数据」补捞。之后在顶部按载体筛选。
       </div>
       <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
         <span style="font-size: 13px; color: #64748b;">同步站点：</span>
@@ -1060,7 +1080,9 @@
           <el-option label="德国 DE" value="DE" />
           <el-option label="美国 US" value="US" />
         </el-select>
-        <span style="font-size: 12px; color: #94a3b8;">（多选，一次增量同步多国，合并为一个批次，仅灌新增）</span>
+        <el-button type="success" size="small" :loading="carrierSyncingAll" @click="handleCarrierSyncAll">一键同步本周全载体</el-button>
+        <span v-if="carrierSyncAllProgress" style="font-size: 12px; color: #16a34a;">{{ carrierSyncAllProgress }}</span>
+        <span v-else style="font-size: 12px; color: #94a3b8;">（全部 enabled 载体写入本周批次 batch_周，重复同步=增量，不新开批次）</span>
       </div>
       <el-table :data="carrierList" size="small" border style="margin-bottom: 16px;">
         <el-table-column prop="name" label="名称" width="80" />
@@ -1227,8 +1249,19 @@ const isDownloadCenterXlsxScene = computed(() =>
 );
 /** AI 选品复用同一页面外壳，读取 ai_selection 持久表。 */
 const isAiSelectionScene = computed(() => route.path === "/ai-selection");
+/** BRS 榜单复用同一页面外壳，读取 brs_ranking_raw 表。 */
+const isBrsScene = computed(() => route.path === "/brs-ranking");
+/** 领星店铺数据复用同一页面外壳，读取 lingxing_product_unified 统一表。 */
+const isLingxingShopScene = computed(
+  () => route.path === "/lingxing-shop-data",
+);
 const isFixedSelectionSourceScene = computed(
-  () => isShopProductsScene.value || isPremiumProductsScene.value || isAiSelectionScene.value,
+  () =>
+    isShopProductsScene.value ||
+    isPremiumProductsScene.value ||
+    isAiSelectionScene.value ||
+    isBrsScene.value ||
+    isLingxingShopScene.value,
 );
 const isReadOnlySourceScene = isFixedSelectionSourceScene;
 const isManualLibrarySourceScene = computed(() =>
@@ -1396,6 +1429,7 @@ const getSectionTitle = (): string => {
     zheng: "非标店铺上新",
     fbm: "FBM 自发货",
     ai_selection: "AI 选品",
+    brs: "BRS榜单",
   };
   return titles[activeTab.value as keyof typeof titles] || "选品管理";
 };
@@ -1430,6 +1464,7 @@ const currentSource = computed(() => {
     premium: "精品榜",
     zheng: "非标店铺",
     ai_selection: "AI 选品",
+    brs: "BRS榜单",
     all: "",
   };
   return m[effectiveScene.value] || "";
@@ -1441,6 +1476,10 @@ const effectiveScene = computed(() => {
   if (isPremiumProductsScene.value) return "premium";
   // AI 选品固定数据源，不支持方法卡。
   if (isAiSelectionScene.value) return "ai_selection";
+  // BRS 榜单固定数据源，不支持方法卡。
+  if (isBrsScene.value) return "brs";
+  // 领星店铺数据固定读统一表，不支持方法卡。
+  if (isLingxingShopScene.value) return "lingxing_shop";
   if (activeMethodCard.value?.id === "M01") return "new";
   if (activeMethodCard.value?.id === "M02") return "zheng";
   if (activeMethodCard.value?.id === "M03") return "fbm";
@@ -1462,6 +1501,8 @@ const currentSnapshotKind = computed<
   | "deng_zong_batch"
   | "shop_batch"
   | "ai_selection_batch"
+  | "lingxing_shop_store"
+  | "brs_ranking_created_week"
 >(() =>
   effectiveScene.value === "premium"
     ? "premium_created_week"
@@ -1471,7 +1512,11 @@ const currentSnapshotKind = computed<
       ? "deng_zong_batch"
       : effectiveScene.value === "ai_selection"
         ? "ai_selection_batch"
-        : "competitor_created_week",
+        : effectiveScene.value === "lingxing_shop"
+          ? "lingxing_shop_store"
+          : effectiveScene.value === "brs"
+            ? "brs_ranking_created_week"
+            : "competitor_created_week",
 );
 const mySelections = ref<Set<string>>(new Set());
 const selectionUsersMap = ref<
@@ -1524,6 +1569,8 @@ const carrierManageVisible = ref(false);
 // 管理弹窗内同步数据的站点（多选，默认三国全选，一次同步多国）
 const carrierSyncMarketplaces = ref<string[]>(["UK", "DE", "US"]);
 const carrierSyncing = ref(""); // 正在同步的载体键
+const carrierSyncingAll = ref(false); // 一键同步本周全载体进行中
+const carrierSyncAllProgress = ref(""); // 全载体同步进度文案
 const carrierEditForm = reactive({
   id: undefined as number | undefined,
   carrierKey: "",
@@ -1577,8 +1624,8 @@ const handleCarrierSync = async (row: any) => {
   }
   try {
     await ElMessageBox.confirm(
-      `将从 shop_products + 新品榜全批次按「${row.name}」检索词增量捞取 ${markets.join(" / ")} 站点商品：仅导入历史未出现过的新增商品，合并生成「一个」同步批次。确定继续？`,
-      "增量同步载体数据",
+      `将从 shop_products + 新品榜全批次按「${row.name}」检索词捞取 ${markets.join(" / ")} 站点商品，写入「本周批次」：同周重复=增量（已有不重复、新增补入）。确定继续？`,
+      "补捞载体数据（写入本周批次）",
       { type: "warning" },
     );
   } catch {
@@ -1587,16 +1634,11 @@ const handleCarrierSync = async (row: any) => {
   carrierSyncing.value = row.carrierKey;
   try {
     const { harvest } = await import("@/api/ai-selection-pool");
-    // 一次请求带三国数组，后端合并为一个增量批次
+    // 单载体补捞，写入当周批次
     const resp = await harvest(row.carrierKey, markets);
-    const added = resp.total ?? 0;
-    if (added > 0) {
-      ElMessage.success(
-        `增量同步完成，${markets.join("/")} 共新增 ${added} 条商品（1 个批次）`,
-      );
-    } else {
-      ElMessage.info("增量同步完成，无新增商品（历史已覆盖）");
-    }
+    ElMessage.success(
+      `补捞完成：${row.name} 写入本周批次，当前本周批次共 ${resp.total ?? 0} 条`,
+    );
     if (isAiSelectionScene.value) {
       pagination.page = 1;
       loadProducts();
@@ -1606,6 +1648,75 @@ const handleCarrierSync = async (row: any) => {
     ElMessage.error(`同步失败: ${e instanceof Error ? e.message : "未知错误"}`);
   } finally {
     carrierSyncing.value = "";
+  }
+};
+
+/** 一键同步本周全载体：后端遍历所有 enabled 载体，全部写入当周批次 batch_<ISO周>。
+ *  同周重复=增量更新，不新开批次。 */
+const handleCarrierSyncAll = async () => {
+  const markets = carrierSyncMarketplaces.value;
+  if (!markets || markets.length === 0) {
+    ElMessage.warning("请先选择至少一个同步站点");
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `将遍历所有启用载体，从 shop_products + 新品榜全批次捞取 ${markets.join(" / ")} 站点商品，全部合并写入「本周批次」。同周重复同步=增量更新，不新开批次。确定继续？`,
+      "一键同步本周全载体",
+      { type: "warning" },
+    );
+  } catch {
+    return;
+  }
+  carrierSyncingAll.value = true;
+  try {
+    const { harvestAll, harvestRunStatus } = await import(
+      "@/api/ai-selection-pool"
+    );
+    const { runId } = await harvestAll(markets);
+    ElMessage.info("已开始后台同步全载体，进度将实时更新…");
+
+    // 轮询进度：每 2.5s 查一次，直到 SUCCESS/FAILED
+    await new Promise<void>((resolve) => {
+      const timer = setInterval(async () => {
+        try {
+          const st = await harvestRunStatus(runId);
+          const done = st.carrierDone ?? 0;
+          const total = st.carrierTotal ?? 0;
+          if (st.status === "RUNNING") {
+            carrierSyncAllProgress.value = `同步中 ${done}/${total} 步，已入库 ${st.batchTotal ?? 0} 条`;
+          } else if (st.status === "SUCCESS") {
+            clearInterval(timer);
+            carrierSyncAllProgress.value = "";
+            ElMessage.success(
+              `全载体同步完成：${markets.join("/")} 本周批次共 ${st.batchTotal ?? 0} 条商品（1 个批次）`,
+            );
+            if (isAiSelectionScene.value) {
+              pagination.page = 1;
+              loadProducts();
+              loadCategories();
+            }
+            resolve();
+          } else {
+            clearInterval(timer);
+            carrierSyncAllProgress.value = "";
+            ElMessage.error(`同步失败: ${st.errorMessage ?? "未知错误"}`);
+            resolve();
+          }
+        } catch (e) {
+          clearInterval(timer);
+          carrierSyncAllProgress.value = "";
+          ElMessage.error(
+            `进度查询失败: ${e instanceof Error ? e.message : "未知错误"}`,
+          );
+          resolve();
+        }
+      }, 2500);
+    });
+  } catch (e) {
+    ElMessage.error(`同步失败: ${e instanceof Error ? e.message : "未知错误"}`);
+  } finally {
+    carrierSyncingAll.value = false;
   }
 };
 
@@ -1949,6 +2060,7 @@ const loadCategories = async () => {
     reference: "店铺商品",
     premium: "精品榜",
     zheng: "非标店铺",
+    brs: "BRS榜单",
     all: "",
   };
   const source = sourceMap[effectiveScene.value] || "";
@@ -1994,6 +2106,17 @@ const loadCategories = async () => {
       );
       if (reqId !== categoriesReqId) return;
       categories.value = nextCategories;
+      return;
+    }
+    if (isLingxingShopScene.value) {
+      // 领星店铺数据不用大类榜单，改加载"按领星店铺"下拉。
+      categories.value = [];
+      await loadLingxingStores();
+      return;
+    }
+    if (isBrsScene.value) {
+      // BRS 榜单暂无大类榜单接口，先置空（不影响核心筛选/周批次/卡片）。
+      categories.value = [];
       return;
     }
     if (activeMethodCard.value?.id === "M01") {
@@ -2318,6 +2441,7 @@ const handleToggleSelect = async (asin: string, selected: boolean) => {
               new: "新品榜",
               reference: "店铺选品",
               premium: "精品",
+              brs: "BRS榜单",
             } as Record<
               string,
               string
@@ -2376,6 +2500,25 @@ const triggerFilterQuery = () => {
   loadCategories();
   loadProducts();
 };
+
+/** 领星店铺数据：按店铺下拉选项 [{store,count}]。 */
+const lingxingStores = ref<Array<{ store: string; count: number }>>([]);
+async function loadLingxingStores() {
+  try {
+    const { shopStores } = await import("@/api/lingxingShopData");
+    lingxingStores.value = await shopStores(
+      activeFilters.value.country || undefined,
+    );
+  } catch (e) {
+    lingxingStores.value = [];
+    console.error("加载领星店铺列表失败:", e);
+  }
+}
+/** 切换按店铺筛选 → 重查列表（店铺下拉本身不随选择变化，不重拉）。 */
+function onLingxingStoreChange() {
+  pagination.page = 1;
+  loadProducts();
+}
 
 const {
   activeFilters,
@@ -3194,6 +3337,8 @@ onMounted(async () => {
     "/reference-products": "reference",
     "/premium-products": "premium",
     "/ai-selection": "ai_selection",
+    "/lingxing-shop-data": "lingxing_shop",
+    "/brs-ranking": "brs",
     "/all-selection": "all",
   };
   const tab = pathTabMap[route.path] || "all";

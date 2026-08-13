@@ -30,8 +30,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import jakarta.annotation.PostConstruct;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -54,7 +56,14 @@ public class AsinImportService {
     private static final long BATCH_API_DELAY_MS = 2000;
     private static final int DB_BATCH_SIZE = 2000; // 每批写入 DB 的行数
     private static final int RESULT_TITLE_MAX_LENGTH = 500;
-    
+    /**
+     * 新品重取放行阈值：已采过（在 skip_asins）的 ASIN，若主表当前 listing_days &lt; 该值
+     * （不看销量），初筛一律放行重新调用卖家精灵获取最新数据（重复 ASIN 可通过、重新获取）。
+     * 上架时间取主表实时值（每次采集刷新），一旦满 30 天则不再放行，天然收敛不无限重取。
+     * 强调"上架要新"（尤其八爪鱼采集页），只放行 30 天内新品。
+     */
+    private static final int NEW_PRODUCT_REFETCH_MAX_LISTING_DAYS = 30;
+
     private static final long SELLER_API_DELAY_MS = 500;
     private static final int STATUS_CHECK_INTERVAL = 5;
 
@@ -144,12 +153,16 @@ public class AsinImportService {
                                                        String marketplace, String importType) {
         // 1. 从输入提取 ASIN，分批送数据库查重（不加载全表）
         Set<String> inputAsins = extractInputAsins(rows);
-        Set<String> blacklistAsins = batchQueryExistingBlacklist(inputAsins, marketplace);
+        Set<String> skipAsins = batchQueryExistingSkipAsins(inputAsins, marketplace);
         Set<String> mainTableAsins = batchQueryExistingMainTable(inputAsins, marketplace);
-        log.info("查重完成: 输入 {} 个, 命中主表 {} 个, 命中黑名单 {} 个", inputAsins.size(), mainTableAsins.size(), blacklistAsins.size());
+        // 新品重取：已采过(在 skip_asins)但主表当前 listing_days<60 的 ASIN 放行重取（不看销量）
+        Set<String> refetchAsins = batchQueryYoungRefetch(skipAsins, marketplace);
+        Set<String> blockedAsins = new HashSet<>(skipAsins);
+        blockedAsins.removeAll(refetchAsins);
+        log.info("查重完成: 输入 {} 个, 命中主表 {} 个, 已采过 {} 个, 其中新品重取放行 {} 个", inputAsins.size(), mainTableAsins.size(), skipAsins.size(), refetchAsins.size());
 
         // 2. 执行筛选
-        Map<String, List<Map<String, String>>> filterResult = filterRows(rows, blacklistAsins, mainTableAsins, marketplace);
+        Map<String, List<Map<String, String>>> filterResult = filterRows(rows, blockedAsins, refetchAsins, mainTableAsins, marketplace);
 
         // 2.5 将初筛不通过 ASIN 写入 skip_asins（后续上传可去重）
         saveFilteredAsinsToSkipTable(filterResult, marketplace);
@@ -160,10 +173,16 @@ public class AsinImportService {
         task.setImportType(importType);
         task.setTaskStatus("READY");
         task.setTotalCount(rows.size());
-        task.setPassCount(filterResult.get("PASS").size());
+        List<Map<String, String>> passList = filterResult.get("PASS");
+        int passRefetch = (int) passList.stream().filter(p -> "REFETCH".equals(p.get("_passKind"))).count();
+        task.setPassCount(passList.size());
+        task.setPassRefetchCount(passRefetch);
+        task.setPassNewCount(passList.size() - passRefetch);
         task.setPriceFailCount(filterResult.get("PRICE_FAIL").size());
         task.setReviewFailCount(filterResult.get("REVIEW_FAIL").size());
         task.setDuplicateCount(filterResult.get("DUPLICATE").size());
+        task.setSkipMainCount(filterResult.get("SKIP_MAIN").size());
+        task.setSkipBlacklistCount(filterResult.get("SKIP_BLACKLIST").size());
         task.setSkipCount(filterResult.get("SKIP_BLACKLIST").size() + filterResult.get("SKIP_MAIN").size());
 
         List<String> passAsins = new ArrayList<>();
@@ -214,6 +233,8 @@ public class AsinImportService {
         final boolean alreadyImported;
         final Set<String> seenAsins = new HashSet<>();   // 跨页去重（in-file 重复）
         int total, pass, priceFail, reviewFail, duplicate, skipBlacklist, skipMain;
+        // pass 拆分来源：新品重取放行(已采过<30天重新取) vs 全新通过(从没见过的 ASIN)
+        int passRefetch, passNew;
         int pageCount;                                   // 已处理页数，用于周期写回节流
         long lastFlushMs = System.currentTimeMillis();   // 上次写回时间戳
 
@@ -234,6 +255,76 @@ public class AsinImportService {
     /** 周期写回节流阈值：每 5 页或每 5 秒把累计统计刷进 DB */
     private static final int PROGRESS_FLUSH_PAGES = 5;
     private static final long PROGRESS_FLUSH_INTERVAL_MS = 5000;
+
+    /** 八爪鱼自动采集导入类型（僵尸恢复只扫这个类型，不动手工文件导入 ASIN 任务）。 */
+    private static final String BAZHUAYU_IMPORT_TYPE = "BAZHUAYU_AUTO";
+    /**
+     * 僵尸判定阈值（分钟）：RUNNING/DRAINING 任务的 updated_at 心跳早于 now-阈值 即判为僵尸。
+     * flushProgress 每 5 页/5 秒刷心跳；正常翻页间隔含 2s sleep，5 页约 15s。取 10 分钟给足余量，
+     * 只把真正崩溃/重启/线程死掉遗留的任务收口，绝不误伤慢但活着的任务。
+     */
+    private static final long STALE_TASK_THRESHOLD_MINUTES = 10;
+    /** 僵尸恢复终态：与 ERROR 并列的可重跑终态，区分「中断」与「业务失败」。 */
+    private static final String STATUS_INTERRUPTED = "INTERRUPTED";
+    /** 用户主动暂停终态：保留断点 offset，可 resume 从检查点续拉。 */
+    private static final String STATUS_PAUSED = "PAUSED";
+
+    /**
+     * 启动即扫一次僵尸任务：服务上次异常退出（重启/崩溃/OOM）时遗留的 RUNNING/DRAINING 任务，
+     * 心跳已停，收口成 INTERRUPTED 终态，让对应批次可被重新导入（否则永远卡住占位）。
+     */
+    @PostConstruct
+    public void recoverStaleImportTasksOnStartup() {
+        try {
+            int n = recoverStaleImportTasks();
+            if (n > 0) log.warn("[启动恢复] 收口 {} 个僵尸八爪鱼导入任务 → {}", n, STATUS_INTERRUPTED);
+        } catch (RuntimeException e) {
+            log.error("[启动恢复] 僵尸任务扫描失败(忽略，不阻塞启动): {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 定时 reconcile：进程仍在跑但某个导入线程死了/被 kill，任务同样会卡在 RUNNING。
+     * 每 5 分钟扫一次，把心跳过期的收口成 INTERRUPTED。与启动恢复共用同一逻辑。
+     */
+    @Scheduled(cron = "${BAZHUAYU_RECOVER_CRON:0 */5 * * * *}")
+    public void recoverStaleImportTasksScheduled() {
+        try {
+            int n = recoverStaleImportTasks();
+            if (n > 0) log.warn("[定时恢复] 收口 {} 个僵尸八爪鱼导入任务 → {}", n, STATUS_INTERRUPTED);
+        } catch (RuntimeException e) {
+            log.error("[定时恢复] 僵尸任务扫描失败(忽略): {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 收口僵尸八爪鱼导入任务：RUNNING/DRAINING 且心跳（updated_at）早于 now-阈值 → 标 INTERRUPTED。
+     * 幂等：无僵尸时返回 0，不产生副作用。写入侧本就幂等（唯一键 + skip_asins），
+     * 已落库的部分保留，收口后同批次重新触发即从头补齐缺失部分。
+     * @return 本次收口的任务数
+     */
+    public int recoverStaleImportTasks() {
+        LocalDateTime staleBefore = LocalDateTime.now().minusMinutes(STALE_TASK_THRESHOLD_MINUTES);
+        List<AsinImportTask> zombies = taskMapper.selectStaleRunningTasks(BAZHUAYU_IMPORT_TYPE, staleBefore);
+        if (zombies == null || zombies.isEmpty()) return 0;
+        LocalDateTime now = LocalDateTime.now();
+        for (AsinImportTask z : zombies) {
+            AsinImportTask upd = new AsinImportTask();
+            upd.setId(z.getId());
+            upd.setTaskStatus(STATUS_INTERRUPTED);
+            upd.setErrorMessage("导入中断（进程重启/崩溃或线程终止），已收口为可重跑终态；"
+                    + "上次心跳 " + z.getUpdatedAt() + "，已处理 " + safeInt(z.getTotalCount()) + " 行");
+            upd.setCompletedAt(now);
+            upd.setUpdatedAt(now);
+            taskMapper.updateById(upd);
+            log.warn("[恢复] 僵尸任务收口: id={}, mp={}, batchNo={}, 上次心跳={}, 已处理={}行",
+                    z.getId(), z.getMarketplace(), z.getBazhuayuBatchNo(),
+                    z.getUpdatedAt(), safeInt(z.getTotalCount()));
+        }
+        return zombies.size();
+    }
+
+    private int safeInt(Integer v) { return v == null ? 0 : v; }
 
     /**
      * 开始一个流式初筛任务：建 RUNNING 任务（计数全 0），返回上下文。
@@ -371,8 +462,9 @@ public class AsinImportService {
                 && !batch.batchNo().isBlank()) {
             AsinImportTask existing = taskMapper.selectBazhuayuBatch(mappingId, batch.batchNo());
             if (existing != null) {
+                String status = existing.getTaskStatus();
                 // QUEUED = trigger 同步预建的排队任务，复用它转 RUNNING 继续，不新建。
-                if ("QUEUED".equals(existing.getTaskStatus())) {
+                if ("QUEUED".equals(status)) {
                     AsinImportTask run = new AsinImportTask();
                     run.setId(existing.getId());
                     run.setTaskStatus("RUNNING");
@@ -382,10 +474,40 @@ public class AsinImportService {
                             mappingId, batch.batchNo(), existing.getId());
                     return new StreamingFilterContext(existing.getId(), marketplace);
                 }
-                // READY/DONE/RUNNING/ERROR 均视为已存在（ERROR 重试留待后续批次处理）。
-                log.info("八爪鱼批次已导入，跳过重复任务: mappingId={}, batchNo={}, taskId={}, status={}",
-                        mappingId, batch.batchNo(), existing.getId(), existing.getTaskStatus());
-                return new StreamingFilterContext(existing.getId(), marketplace, true);
+                // RUNNING/DRAINING：要区分「真在跑」和「僵尸」——
+                //   心跳(updated_at)新鲜 = 另一线程确实在导同批次，跳过（防重复导入）。
+                //   心跳过期 = 崩溃/重启/线程死掉遗留的僵尸，就地收口 INTERRUPTED 后放行新建（否则该批次永久卡住）。
+                if ("RUNNING".equals(status) || "DRAINING".equals(status)) {
+                    LocalDateTime staleBefore = LocalDateTime.now().minusMinutes(STALE_TASK_THRESHOLD_MINUTES);
+                    boolean zombie = existing.getUpdatedAt() == null
+                            || existing.getUpdatedAt().isBefore(staleBefore);
+                    if (!zombie) {
+                        log.info("八爪鱼批次正在导入中（心跳新鲜），跳过重复触发: mappingId={}, batchNo={}, taskId={}",
+                                mappingId, batch.batchNo(), existing.getId());
+                        return new StreamingFilterContext(existing.getId(), marketplace, true);
+                    }
+                    AsinImportTask upd = new AsinImportTask();
+                    upd.setId(existing.getId());
+                    upd.setTaskStatus(STATUS_INTERRUPTED);
+                    upd.setErrorMessage("导入中断（触发重导时检测到僵尸任务），已收口重跑；上次心跳 "
+                            + existing.getUpdatedAt());
+                    upd.setCompletedAt(LocalDateTime.now());
+                    upd.setUpdatedAt(LocalDateTime.now());
+                    taskMapper.updateById(upd);
+                    log.warn("八爪鱼批次僵尸任务收口后重导: mappingId={}, batchNo={}, oldTaskId={}, 上次心跳={}",
+                            mappingId, batch.batchNo(), existing.getId(), existing.getUpdatedAt());
+                    // fall through 新建任务
+                } else if (STATUS_INTERRUPTED.equals(status) || "ERROR".equals(status)) {
+                    // 中断/失败的批次允许重跑：不视为已导入，放行新建。
+                    log.info("八爪鱼批次上次为 {}，允许重新导入: mappingId={}, batchNo={}, oldTaskId={}",
+                            status, mappingId, batch.batchNo(), existing.getId());
+                    // fall through 新建任务
+                } else {
+                    // READY/DONE：真正已导入，跳过。
+                    log.info("八爪鱼批次已导入，跳过重复任务: mappingId={}, batchNo={}, taskId={}, status={}",
+                            mappingId, batch.batchNo(), existing.getId(), status);
+                    return new StreamingFilterContext(existing.getId(), marketplace, true);
+                }
             }
         }
         AsinImportTask task = new AsinImportTask();
@@ -445,11 +567,14 @@ public class AsinImportService {
 
         // 本页 ASIN 查重（复用现有分批查询）
         Set<String> pageAsins = extractInputAsins(fresh);
-        Set<String> blacklist = batchQueryExistingBlacklist(pageAsins, mp);
+        Set<String> skipAsins = batchQueryExistingSkipAsins(pageAsins, mp);
         Set<String> mainTable = batchQueryExistingMainTable(pageAsins, mp);
+        Set<String> refetchAsins = batchQueryYoungRefetch(skipAsins, mp);
+        Set<String> blockedAsins = new HashSet<>(skipAsins);
+        blockedAsins.removeAll(refetchAsins);
 
         // 复用现有 filterRows 分桶（其内部 seen 负责本页内去重）
-        Map<String, List<Map<String, String>>> result = filterRows(fresh, blacklist, mainTable, mp);
+        Map<String, List<Map<String, String>>> result = filterRows(fresh, blockedAsins, refetchAsins, mainTable, mp);
 
         // 落库：明细 + skip_asins（均已分批）
         saveResults(ctx.taskId, result, mp);
@@ -476,7 +601,12 @@ public class AsinImportService {
         if (!passSkips.isEmpty()) skipAsinMapper.insertBatchIgnoreDup(passSkips);
 
         // 累加计数
-        ctx.pass += result.get("PASS").size();
+        List<Map<String, String>> passRows = result.get("PASS");
+        ctx.pass += passRows.size();
+        for (Map<String, String> p : passRows) {
+            if ("REFETCH".equals(p.get("_passKind"))) ctx.passRefetch++;
+            else ctx.passNew++;
+        }
         ctx.priceFail += result.get("PRICE_FAIL").size();
         ctx.reviewFail += result.get("REVIEW_FAIL").size();
         ctx.duplicate += result.get("DUPLICATE").size();
@@ -535,10 +665,14 @@ public class AsinImportService {
             task.setId(ctx.taskId);
             task.setTotalCount(ctx.total);
             task.setPassCount(ctx.pass);
+            task.setPassRefetchCount(ctx.passRefetch);
+            task.setPassNewCount(ctx.passNew);
             task.setPriceFailCount(ctx.priceFail);
             task.setReviewFailCount(ctx.reviewFail);
             task.setDuplicateCount(ctx.duplicate);
             task.setSkipCount(ctx.skipBlacklist + ctx.skipMain);
+            task.setSkipMainCount(ctx.skipMain);
+            task.setSkipBlacklistCount(ctx.skipBlacklist);
             task.setUpdatedAt(java.time.LocalDateTime.now());
             taskMapper.updateById(task);
         } catch (RuntimeException e) {
@@ -557,10 +691,14 @@ public class AsinImportService {
         task.setTaskStatus("READY");
         task.setTotalCount(ctx.total);
         task.setPassCount(ctx.pass);
+        task.setPassRefetchCount(ctx.passRefetch);
+        task.setPassNewCount(ctx.passNew);
         task.setPriceFailCount(ctx.priceFail);
         task.setReviewFailCount(ctx.reviewFail);
         task.setDuplicateCount(ctx.duplicate);
         task.setSkipCount(ctx.skipBlacklist + ctx.skipMain);
+        task.setSkipMainCount(ctx.skipMain);
+        task.setSkipBlacklistCount(ctx.skipBlacklist);
         task.setBatchTotal(totalBatches);
         java.time.LocalDateTime finishNow = java.time.LocalDateTime.now();
         task.setUpdatedAt(finishNow);
@@ -590,15 +728,84 @@ public class AsinImportService {
         task.setTaskStatus("ERROR");
         task.setTotalCount(ctx.total);
         task.setPassCount(ctx.pass);
+        task.setPassRefetchCount(ctx.passRefetch);
+        task.setPassNewCount(ctx.passNew);
         task.setPriceFailCount(ctx.priceFail);
         task.setReviewFailCount(ctx.reviewFail);
         task.setDuplicateCount(ctx.duplicate);
         task.setSkipCount(ctx.skipBlacklist + ctx.skipMain);
+        task.setSkipMainCount(ctx.skipMain);
+        task.setSkipBlacklistCount(ctx.skipBlacklist);
         task.setErrorMessage(truncateText(errorMessage, 1000));
         java.time.LocalDateTime failNow = java.time.LocalDateTime.now();
         task.setUpdatedAt(failNow);
         task.setCompletedAt(failNow);   // ERROR 也是终态，写入完成时间
         taskMapper.updateById(task);
+    }
+
+    /**
+     * 暂停收口：把当前 ctx 累计计数 + 断点 offset 落盘，状态置 PAUSED（可 resume 续拉）。
+     * @param nextOffset 下一个续拉的云端原始行 offset（startOffset + 本轮已处理行数）
+     */
+    public void pauseStreamingTask(StreamingFilterContext ctx, int nextOffset) {
+        if (ctx == null) return;
+        AsinImportTask task = taskMapper.selectById(ctx.taskId);
+        if (task == null) return;
+        task.setTaskStatus(STATUS_PAUSED);
+        task.setTotalCount(ctx.total);
+        task.setPassCount(ctx.pass);
+        task.setPassRefetchCount(ctx.passRefetch);
+        task.setPassNewCount(ctx.passNew);
+        task.setPriceFailCount(ctx.priceFail);
+        task.setReviewFailCount(ctx.reviewFail);
+        task.setDuplicateCount(ctx.duplicate);
+        task.setSkipCount(ctx.skipBlacklist + ctx.skipMain);
+        task.setSkipMainCount(ctx.skipMain);
+        task.setSkipBlacklistCount(ctx.skipBlacklist);
+        task.setResumeOffset(nextOffset);
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        task.setUpdatedAt(now);
+        task.setCompletedAt(now);   // PAUSED 是可操作的中间终态，写入时间供列表展示
+        taskMapper.updateById(task);
+        log.info("流式初筛暂停收口: taskId={}, 已处理 total={}, pass={}, 续拉 offset={}",
+                ctx.taskId, ctx.total, ctx.pass, nextOffset);
+    }
+
+    /**
+     * 续跑准备：把 PAUSED 任务重新置 RUNNING，用已落盘计数 seed 出上下文，返回给编排层从 offset 续拉。
+     * 之前已处理的行不重拉、不重复写 results（靠 offset 检查点 + 幂等写入）。
+     * seed 只恢复累计计数（供最终 finish 汇总正确）；seenAsins 不恢复（剩余批次内新页去重仍生效，
+     * 跨暂停的重复由 skip_asins 幂等兜底，最多计入 skip 而非 duplicate，可接受）。
+     */
+    public StreamingFilterContext beginResumeStreamingTask(Long taskId) {
+        AsinImportTask task = taskMapper.selectById(taskId);
+        if (task == null) throw new IllegalArgumentException("导入任务不存在: " + taskId);
+        AsinImportTask run = new AsinImportTask();
+        run.setId(taskId);
+        run.setTaskStatus("RUNNING");
+        run.setUpdatedAt(java.time.LocalDateTime.now());
+        taskMapper.updateById(run);
+        StreamingFilterContext ctx = new StreamingFilterContext(taskId, task.getMarketplace());
+        ctx.total = safeInt(task.getTotalCount());
+        ctx.pass = safeInt(task.getPassCount());
+        ctx.passRefetch = safeInt(task.getPassRefetchCount());
+        ctx.passNew = safeInt(task.getPassNewCount());
+        ctx.priceFail = safeInt(task.getPriceFailCount());
+        ctx.reviewFail = safeInt(task.getReviewFailCount());
+        ctx.duplicate = safeInt(task.getDuplicateCount());
+        // 分列恢复两类跳过计数；旧数据无分列时回退把合并值归入 blacklist 桶（累计总数仍正确）。
+        Integer sm = task.getSkipMainCount();
+        Integer sb = task.getSkipBlacklistCount();
+        if (sm == null && sb == null) {
+            ctx.skipBlacklist = safeInt(task.getSkipCount());
+            ctx.skipMain = 0;
+        } else {
+            ctx.skipMain = safeInt(sm);
+            ctx.skipBlacklist = safeInt(sb);
+        }
+        log.info("流式初筛续跑 seed: taskId={}, 恢复 total={}, pass={}, 从 offset={} 续拉",
+                taskId, ctx.total, ctx.pass, safeInt(task.getResumeOffset()));
+        return ctx;
     }
 
     /**
@@ -1407,7 +1614,8 @@ public class AsinImportService {
     // ---- 筛选逻辑 ----
 
     private Map<String, List<Map<String, String>>> filterRows(List<Map<String, String>> rows,
-                                                              Set<String> blacklistAsins,
+                                                              Set<String> blockedAsins,
+                                                              Set<String> refetchAsins,
                                                               Set<String> mainTableAsins,
                                                               String marketplace) {
         Map<String, List<Map<String, String>>> result = new LinkedHashMap<>();
@@ -1446,12 +1654,24 @@ public class AsinImportService {
             }
             seen.add(asin);
 
-            // ★ 跳过检查必须在价格/评论之前：只要请求过的ASIN，绝对不重复
-            // 硬性黑名单（历史淘汰：价格/评论/精筛不通过）
-            if (blacklistAsins.contains(asin)) {
+            // 已采过黑名单（精筛淘汰、API已请求、初筛PASS 等）先拦；
+            // 但"新品重取"候选（主表当前上架<30天，不看销量）不在此拦，留待后续放行。
+            if (blockedAsins.contains(asin)) {
                 Map<String, String> skip = new LinkedHashMap<>(row);
                 skip.put("asin", asin);
                 result.get("SKIP_BLACKLIST").add(skip);
+                continue;
+            }
+
+            // 价格/评论筛选已取消（2026-08）：初筛不再按价格区间/评论上限淘汰，全部留给卖家精灵后精筛。
+
+            // 新品重取放行：已采过但主表当前上架<30天（不看销量），直接 PASS 放过重新获取。
+            // （blockedAsins 已排除这些 ASIN，此处只需正向放行，不再落主表已有拦截。）
+            if (refetchAsins.contains(asin)) {
+                Map<String, String> pass = new LinkedHashMap<>(row);
+                pass.put("asin", asin);
+                pass.put("_passKind", "REFETCH");   // 新品重取放行（已采过<30天，重新取）
+                result.get("PASS").add(pass);
                 continue;
             }
 
@@ -1463,51 +1683,11 @@ public class AsinImportService {
                 continue;
             }
 
-            // 价格筛选：优先按索引（Python: PRICE_COL_INDEX=3），列名回退
-            String priceStr = getByIndex(row, 3);
-            if (priceStr == null || priceStr.isEmpty()) priceStr = findField(row, "价格(£)", "价格", "price", "Price", "售价");
-            // 排除人民币定价（CNY/¥ 出现在欧洲站是跨境错误上架）
-            if (priceStr != null && (priceStr.contains("CNY") || priceStr.contains("¥") || priceStr.contains("￥"))) {
-                Map<String, String> fail = new LinkedHashMap<>(row);
-                fail.put("asin", asin);
-                fail.put("_price", priceStr);
-                fail.put("_detail", "人民币定价");
-                result.get("PRICE_FAIL").add(fail);
-                continue;
-            }
-            Double price = null;
-            if (priceStr != null && !priceStr.isEmpty()) {
-                price = extractNumeric(priceStr);
-            }
-            if (rowIdx <= 3) log.info("  ASIN={} priceIdx[3]='{}' extractNumeric={}", asin, getByIndex(row, 3), price);
-            if (price != null && (price < initialFilterConfig.getPriceMin(marketplace).doubleValue() || price > initialFilterConfig.getPriceMax(marketplace).doubleValue())) {
-                Map<String, String> fail = new LinkedHashMap<>(row);
-                fail.put("asin", asin);
-                fail.put("_price", String.valueOf(price));
-                result.get("PRICE_FAIL").add(fail);
-                continue;
-            }
-
-            // 评论数筛选：优先按索引（Python: REVIEW_COL_INDEX=4），列名回退
-            String reviewStr = getByIndex(row, 4);
-            if (reviewStr == null || reviewStr.isEmpty()) reviewStr = findField(row, "review数量", "评论数量", "review_count", "reviews", "评论", "review");
-            Integer reviews = null;
-            if (reviewStr != null && !reviewStr.isEmpty()) {
-                try { reviews = Integer.parseInt(reviewStr.replaceAll("[^0-9]", "")); } catch (Exception ignored) {}
-            }
-            if (rowIdx <= 3) log.info("  ASIN={} reviewIdx[4]='{}' parseReview={}", asin, getByIndex(row, 4), reviews);
-            if (reviews != null && reviews > initialFilterConfig.getReviewMax(marketplace)) {
-                Map<String, String> fail = new LinkedHashMap<>(row);
-                fail.put("asin", asin);
-                fail.put("_reviews", String.valueOf(reviews));
-                result.get("REVIEW_FAIL").add(fail);
-                continue;
-            }
-
-            // 通过
-            if (rowIdx <= 10) log.info("  ASIN={} PASS (price={}, reviews={})", asin, price, reviews);
+            // 通过（全新 ASIN）
+            if (rowIdx <= 10) log.info("  ASIN={} PASS", asin);
             Map<String, String> pass = new LinkedHashMap<>(row);
             pass.put("asin", asin);
+            pass.put("_passKind", "NEW");   // 全新通过
             result.get("PASS").add(pass);
         }
 
@@ -1528,7 +1708,8 @@ public class AsinImportService {
                     case "PRICE_FAIL" -> result.setDetail("价格 " + row.get("_price") + " 不在范围 " + initialFilterConfig.getPriceMin(marketplace) + "-" + initialFilterConfig.getPriceMax(marketplace));
                     case "REVIEW_FAIL" -> result.setDetail("评论数 " + row.get("_reviews") + " > " + initialFilterConfig.getReviewMax(marketplace));
                     case "DUPLICATE" -> result.setDetail("文件内重复");
-                    case "SKIP_BLACKLIST" -> result.setDetail("硬性淘汰黑名单");
+                    case "SKIP_BLACKLIST" -> result.setDetail("已采过黑名单（非新品重取候选：上架≥"
+                            + NEW_PRODUCT_REFETCH_MAX_LISTING_DAYS + "天或价格/评论淘汰）");
                     case "SKIP_MAIN" -> result.setDetail("主表已有数据");
                 }
                 batch.add(result);
@@ -1556,8 +1737,8 @@ public class AsinImportService {
         return asins;
     }
 
-    /** 分批查询输入 ASIN 中哪些已存在于 skip_asins 表 */
-    private Set<String> batchQueryExistingBlacklist(Set<String> inputAsins, String marketplace) {
+    /** 分批查询输入 ASIN 中哪些已存在于 skip_asins 表（不区分原因；放行判断改由主表 young-no-sales 决定） */
+    private Set<String> batchQueryExistingSkipAsins(Set<String> inputAsins, String marketplace) {
         Set<String> found = new HashSet<>();
         List<String> asinList = new ArrayList<>(inputAsins);
         for (int i = 0; i < asinList.size(); i += DB_BATCH_SIZE) {
@@ -1578,6 +1759,23 @@ public class AsinImportService {
             found.addAll(competitorProductMapper.selectExistingAsinsInList(marketplace, batch));
         }
         return found;
+    }
+
+    /**
+     * 新品重取候选：在已采过（skip_asins）ASIN 中，筛出主表当前 listing_days &lt; 30 的 ASIN（不看销量）。
+     * 用主表实时值判定（每次采集刷新），满 30 天后自动移出候选，不无限重取。
+     */
+    private Set<String> batchQueryYoungRefetch(Set<String> skipAsins, String marketplace) {
+        Set<String> refetch = new HashSet<>();
+        if (skipAsins == null || skipAsins.isEmpty()) return refetch;
+        List<String> asinList = new ArrayList<>(skipAsins);
+        for (int i = 0; i < asinList.size(); i += DB_BATCH_SIZE) {
+            int end = Math.min(i + DB_BATCH_SIZE, asinList.size());
+            List<String> batch = asinList.subList(i, end);
+            refetch.addAll(competitorProductMapper.selectYoungAsinsInList(
+                    marketplace, batch, NEW_PRODUCT_REFETCH_MAX_LISTING_DAYS));
+        }
+        return refetch;
     }
 
     /**

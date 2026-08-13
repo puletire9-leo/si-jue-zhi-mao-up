@@ -107,6 +107,11 @@ public class CompetitorProductResponse {
 
     private List<SubcategoryDto> subcategories;
 
+    /** BRS 榜单档位（按 node_id 关联 brs_node_tier；非 BRS 场景为空）。 */
+    private String brsSalesTier;
+    private String brsTierCode;
+    private Integer brsSuggestedPages;
+
     @Data
     @Builder
     public static class SubcategoryDto {

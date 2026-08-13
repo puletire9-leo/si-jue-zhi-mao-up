@@ -162,6 +162,7 @@ Java `AiSelectionController/Service/Entity/Mapper` 当前仅为预留源码，�
 所有卖家名称驱动的店铺分页抓取，单店最多发出 10 次卖家精灵请求；达到上限后当前店铺按部分完成收口并继续下一个店铺，不得阻塞整批任务。
 
 八爪鱼榜单配置允许同站点多条平级命名任务，不存在主/附加任务。每条任务保存 `task_category` 和 `initial_filter`。“导入DB”必须同步创建可见 `QUEUED` 任务并返回 taskId，后台按 `QUEUED → RUNNING → READY/ERROR` 收口；禁止自动调用卖家精灵。只有用户点击请求后才按任务元数据分流：精铺 `ASIN_BATCH_LOOKUP → competitor_products`，精品 `PREMIUM_ASIN_LOOKUP → premium_products`。精品链路禁止写新品榜表、`skip_asins` 或刷新 clean 层。
+初筛判定顺序（2026-08，**价格/评论筛选已取消**）：ASIN 格式 → 文件内去重 → 已采过黑名单（非新品重取候选）→ 「新品重取放行判断」→ 主表已有（SKIP_MAIN）→ PASS。初筛不再按价格区间/评论上限淘汰（`PRICE_FAIL`/`REVIEW_FAIL` 桶保留但恒为 0），全部留给卖家精灵后精筛。**新品重取规则（取代旧的「API已请求<90天+导入超1月」时间闸）**：凡命中 `skip_asins`（不区分 `filter_reasons`）的 ASIN，若主表 `competitor_products` 当前 `listing_days < 30`（`NEW_PRODUCT_REFETCH_MAX_LISTING_DAYS`，`selectYoungAsinsInList` 判定，**不看销量**），则放行进 PASS 允许重新调用卖家精灵获取最新数据（重复 ASIN 可通过、重新获取）；否则该 skip 命中 ASIN 归 SKIP_BLACKLIST。强调"上架要新"（尤其八爪鱼采集页），只放行 30 天内新品。上架天数一律取主表实时值（每次采集刷新，非 `skip_asins` 快照），满 30 天后自动移出候选、天然收敛不无限重取；无时间闸，每次八爪鱼重爬都会重新判定放行。SKIP_MAIN 语义不变。
 精品统一选品接口位于 `/api/v1/competitor/premium-*`，列表固定查询 `premium_products` 且强制 `deleted=0`。它复用竞品筛选字段，但始终是原始表，不查询 `competitor_subcategories`，变体统计也必须从 `premium_products` 计算。`methodId` 仅接受用户手动选择的 M01/M03，禁止 M02；CSV 白名单数据源为 `premium_products`，必须导出该表完整字段。
 精品页面、批次、类目、卖家、变体和页面 CSV 只允许读取 `sellersprite_raw_json` 非空的已补全记录；八爪鱼原始空壳仅作为请求中心暂存，禁止出现在用户选品页面。
 统一选品前端的“上架时间”排序参数为 `listingDate`，Java 查询必须映射到 `available_date`，空值固定置后并用 ASIN 作为稳定次排序；不得落入默认销量排序。

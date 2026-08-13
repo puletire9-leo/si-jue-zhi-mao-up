@@ -1,7 +1,11 @@
 package com.sjzm.product.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.sjzm.product.modules.lingxing.dto.LingxingShopProductVO;
+import com.sjzm.product.modules.lingxing.dto.LingxingShopQueryRequest;
+import com.sjzm.product.modules.lingxing.entity.LingxingDeveloperSkuPrefix;
 import com.sjzm.product.modules.lingxing.entity.LingxingProductUnified;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
@@ -14,17 +18,26 @@ import java.util.Map;
 public interface LingxingProductUnifiedMapper extends BaseMapper<LingxingProductUnified> {
 
     /**
-     * 全量重算统一表：DB 层 JOIN + 聚合 + INSERT...ON DUPLICATE KEY UPDATE。
-     * 数据源：lingxing_asin_monthly_performance（经营指标聚合）
-     *        + lingxing_local_product（developer）+ lingxing_listing（真实上架日）
-     *        + lingxing_listing（真实上架日 open_date）。
+     * 增量重算统一表：只 INSERT 新 ASIN（真实上架日期一次写入锁定）。
+     * 数据源：lingxing_sku_weekly_performance（经营指标聚合 + FBA首现）
+     *        + lingxing_local_product（developer）+ lingxing_listing（真实上架日）。
+     * 上架日期优先级（仅新 ASIN）：listing.open_date > FBA首现月 > 创建时间。
      * 见 resources/mapper/LingxingProductUnifiedMapper.xml。
      *
      * @param cutoffMonth     数据覆盖截止月（写入元数据列）
      * @param unifiedVersion  统一表算法版本（写入元数据列）
-     * @return 影响行数（INSERT+UPDATE 累计，MySQL 语义仅供参考）
+     * @return 新插入行数
      */
     int rebuildAll(String cutoffMonth, String unifiedVersion);
+
+    /**
+     * 刷新所有已在统一表的 ASIN 的经营指标（不动 listing_date）。
+     *
+     * @param cutoffMonth     数据覆盖截止月
+     * @param unifiedVersion  统一表算法版本
+     * @return 更新行数
+     */
+    int updateMetrics(String cutoffMonth, String unifiedVersion);
 
     /** 清空统一表（重算前可选调用；rebuildAll 已是幂等 upsert，通常不需要）。 */
     int truncateAll();
@@ -74,4 +87,42 @@ public interface LingxingProductUnifiedMapper extends BaseMapper<LingxingProduct
             "  SUM(FIND_IN_SET('绿标', listing_tags) > 0) AS tag_lvbiao " +
             "FROM lingxing_product_unified")
     Map<String, Object> sumUnifiedByTag();
+
+    // ============================================================
+    // 领星店铺数据选品页（分页 + 图片 JOIN 双兜底 + 按店铺筛选）
+    // 见 resources/mapper/LingxingProductUnifiedMapper.xml
+    // ============================================================
+
+    /** 分页查询店铺数据选品卡片（图片 listing 优先 local 兜底）。 */
+    List<LingxingShopProductVO> selectShopProducts(@Param("req") LingxingShopQueryRequest req,
+                                                   @Param("offset") long offset,
+                                                   @Param("limit") int limit);
+
+    /** 上述查询的总数（同 where，不 JOIN 图片）。 */
+    long countShopProducts(@Param("req") LingxingShopQueryRequest req);
+
+    /** "按领星店铺分类"下拉：各 base_store 及其商品数（可按 country 过滤）。 */
+    List<Map<String, Object>> selectShopStores(@Param("country") String country);
+
+    // ============================================================
+    // 开发人前缀映射（每周同步后自动重建）
+    // ============================================================
+
+    /**
+     * 从统一表提取 (developer, LEFT(base_sku, 3)) 去重组合。
+     * 用于重建 lingxing_developer_sku_prefix 表。
+     */
+    @Select("""
+            SELECT developer,
+                   LEFT(base_sku, 3) AS sku_prefix,
+                   COUNT(*)          AS asin_count
+            FROM lingxing_product_unified
+            WHERE developer IS NOT NULL
+              AND developer <> ''
+              AND base_sku IS NOT NULL
+              AND base_sku <> ''
+            GROUP BY developer, LEFT(base_sku, 3)
+            ORDER BY developer, sku_prefix
+            """)
+    List<LingxingDeveloperSkuPrefix> selectDeveloperSkuPrefixes();
 }

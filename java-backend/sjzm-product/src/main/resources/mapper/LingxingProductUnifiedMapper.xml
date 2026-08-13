@@ -3,21 +3,26 @@
 <mapper namespace="com.sjzm.product.mapper.LingxingProductUnifiedMapper">
 
     <!--
-      全量重算领星产品统一表（ASIN 维度宽表，每 ASIN 一行）。
-      自包含：所有字段直接从周表 lingxing_sku_weekly_performance 算出，不依赖 baseline 历史表。
+      重建领星产品统一表（ASIN 维度宽表，每 ASIN 一行）。
+
+      策略变更（2026-08-11）：
+      - 旧：TRUNCATE 全表 → INSERT 全量（上架时间每周重算，可能变）
+      - 新：INSERT 新 ASIN（上架时间一次写入锁定）+ UPDATE 全量（每周刷新经营指标）
+      - listing_date：
+          * 新 ASIN：优先 listing.open_date > FBA首现月 > 创建时间
+          * 已存在 ASIN：保持现有值（首次写入后锁定）
+          * 首次写入后不再变
+
+      自包含：所有字段直接从周表 lingxing_sku_weekly_performance 算出。
       - 准入：仅 6 个目标标签 ASIN（周表最新周 tag_ids 精确匹配）
       - 经营指标：周表按 asin 聚合
       - FBA 库存/可售首现（月/店铺/国家/SKU/数量）：周表按时间序取首次 >0 的那周
-      - 起算月 model_start_month：可售首现月优先，无则库存首现月
-      - 真实上架日：listing.open_date
-      baseline 仅作纯档案补充（developer/create_time 等 API/周表拿不到的）。
     -->
     <insert id="rebuildAll">
         INSERT INTO lingxing_product_unified (
             id, asin, parent_asin, base_sku, base_msku, base_store, country, developer, principal,
             title, listing_tags, product_create_time,
-            fba_first_available_month, fba_first_available_basis, listing_open_date,
-            model_start_month, model_start_basis,
+            listing_date,
             fba_inventory_first_month, inventory_first_store, inventory_first_country,
             inventory_first_sku, inventory_first_qty,
             available_first_store, available_first_country, available_first_sku, available_first_qty,
@@ -57,7 +62,14 @@
                  OR FIND_IN_SET('907657425150046095', lt.tag_ids)
               )
         ),
-        -- 周表按 asin 聚合（仅目标标签）
+        -- 排除已存在的 ASIN（INSERT 仅新 ASIN）
+        new_asins AS (
+            SELECT t.asin
+            FROM target_asins t
+            LEFT JOIN lingxing_product_unified u ON u.asin = t.asin
+            WHERE u.asin IS NULL
+        ),
+        -- 周表按 asin 聚合（仅新 ASIN）
         agg AS (
             SELECT
                 w.asin,
@@ -72,7 +84,7 @@
                 MAX(w.`year_month`) AS latest_month,
                 MAX(w.week_end) AS latest_week_end
             FROM lingxing_sku_weekly_performance w
-            INNER JOIN target_asins t ON t.asin = w.asin
+            INNER JOIN new_asins t ON t.asin = w.asin
             WHERE w.asin IS NOT NULL AND w.asin != ''
             GROUP BY w.asin
         ),
@@ -96,8 +108,7 @@
             INNER JOIN agg ON agg.asin = w.asin AND agg.latest_week_end = w.week_end
             GROUP BY w.asin
         ),
-        -- 纯数字本地 SKU（base_sku）：跨全周期取纯数字 sku（周表 sku 列 DE 行常是 seller_sku 脏格式，
-        -- 同一 ASIN 的 UK 行才是纯数字本地SKU；用 REGEXP 只从纯数字里取，供开发表/开发预估费关联）
+        -- 纯数字本地 SKU（base_sku）
         sku_num AS (
             SELECT w.asin, MAX(w.sku) AS base_sku
             FROM lingxing_sku_weekly_performance w
@@ -110,7 +121,7 @@
                    w.afn_fulfillable_quantity AS qty,
                    ROW_NUMBER() OVER (PARTITION BY w.asin ORDER BY w.week_start ASC) AS rn
             FROM lingxing_sku_weekly_performance w
-            INNER JOIN target_asins t ON t.asin = w.asin
+            INNER JOIN new_asins t ON t.asin = w.asin
             WHERE COALESCE(w.afn_fulfillable_quantity,0) > 0
                OR COALESCE(w.fbm_quantity,0) > 0
                OR COALESCE(w.stock_up_num,0) > 0
@@ -125,14 +136,43 @@
                    w.afn_fulfillable_quantity AS qty,
                    ROW_NUMBER() OVER (PARTITION BY w.asin ORDER BY w.week_start ASC) AS rn
             FROM lingxing_sku_weekly_performance w
-            INNER JOIN target_asins t ON t.asin = w.asin
+            INNER JOIN new_asins t ON t.asin = w.asin
             WHERE COALESCE(w.afn_fulfillable_quantity,0) > 0
         ),
         avl_first AS (
             SELECT asin, m AS avl_month, store_name AS avl_store, marketplace AS avl_country, sku AS avl_sku, qty AS avl_qty
             FROM avl_ranked WHERE rn = 1
         ),
-        -- 真实上架日
+        -- ── 上架时间 4 信号（取最早，精确到日）──
+        -- 信号1 FBA可售首现日：afn>0 的最早 week_start
+        sig_fba AS (
+            SELECT w.asin, MIN(w.week_start) AS d
+            FROM lingxing_sku_weekly_performance w
+            INNER JOIN new_asins t ON t.asin = w.asin
+            WHERE COALESCE(w.afn_fulfillable_quantity,0) > 0
+            GROUP BY w.asin
+        ),
+        -- 信号2 可用库存首现日（领星口径：FBA可售+待调仓+预留+入库中）
+        sig_inv AS (
+            SELECT w.asin, MIN(w.week_start) AS d
+            FROM lingxing_sku_weekly_performance w
+            INNER JOIN new_asins t ON t.asin = w.asin
+            WHERE (COALESCE(w.afn_fulfillable_quantity,0)
+                 + COALESCE(w.reserved_fc_transfers,0)
+                 + COALESCE(w.reserved_customerorders,0)
+                 + COALESCE(w.reserved_fc_processing,0)
+                 + COALESCE(w.stock_up_num,0)) > 0
+            GROUP BY w.asin
+        ),
+        -- 信号3 销量首现日：volume>0 的最早 week_start
+        sig_vol AS (
+            SELECT w.asin, MIN(w.week_start) AS d
+            FROM lingxing_sku_weekly_performance w
+            INNER JOIN new_asins t ON t.asin = w.asin
+            WHERE COALESCE(w.volume,0) > 0
+            GROUP BY w.asin
+        ),
+        -- 信号4 真实上架日（listing.open_date）
         lst AS (
             SELECT asin, MIN(open_date) AS listing_open_date
             FROM lingxing_listing
@@ -151,21 +191,16 @@
             NULL,
             latest.title,
             latest.listing_tags,
-            -- 创建日期：周表 raw_json 提取的领星商品创建时间
             COALESCE(latest.product_create_time, ''),
-            -- FBA 可售首现月：周表 avl_first（不再回退 baseline）
-            avl_first.avl_month,
-            CASE WHEN avl_first.avl_month IS NOT NULL THEN '周表首次观察到FBA可售'
-                 ELSE '未观察到FBA可售' END,
-            lst.listing_open_date,
-            -- 起算月（首次上架亚马逊日）三级兜底：FBA可售首现月 → 真实上架日 → 创建日期
-            COALESCE(avl_first.avl_month,
-                     DATE_FORMAT(lst.listing_open_date, '%Y-%m'),
-                     LEFT(latest.product_create_time, 7)),
-            CASE WHEN avl_first.avl_month IS NOT NULL THEN '周表FBA可售首现'
-                 WHEN lst.listing_open_date IS NOT NULL THEN 'listing真实上架日'
-                 WHEN latest.product_create_time IS NOT NULL AND latest.product_create_time != '' THEN '商品创建时间兜底'
-                 ELSE '无起算依据' END,
+            -- listing_date：4 信号取最早（FBA可售/可用库存/销量/open_date），再兜底创建时间。精确到日
+            NULLIF(LEAST(
+                COALESCE(sig_fba.d, '9999-12-31'),
+                COALESCE(sig_inv.d, '9999-12-31'),
+                COALESCE(sig_vol.d, '9999-12-31'),
+                COALESCE(DATE(lst.listing_open_date), '9999-12-31'),
+                COALESCE(CASE WHEN latest.product_create_time REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+                              THEN STR_TO_DATE(LEFT(latest.product_create_time, 10), '%Y-%m-%d') END, '9999-12-31')
+            ), '9999-12-31'),
             inv_first.inv_month,
             inv_first.inv_store,
             inv_first.inv_country,
@@ -195,57 +230,257 @@
             #{cutoffMonth},
             #{unifiedVersion},
             NOW()
-        FROM target_asins t
+        FROM new_asins t
         LEFT JOIN agg ON agg.asin = t.asin
         LEFT JOIN latest ON latest.asin = t.asin
         LEFT JOIN inv_first ON inv_first.asin = t.asin
         LEFT JOIN avl_first ON avl_first.asin = t.asin
+        LEFT JOIN sig_fba ON sig_fba.asin = t.asin
+        LEFT JOIN sig_inv ON sig_inv.asin = t.asin
+        LEFT JOIN sig_vol ON sig_vol.asin = t.asin
         LEFT JOIN lst ON lst.asin = t.asin
         LEFT JOIN sku_num ON sku_num.asin = t.asin
         LEFT JOIN lingxing_local_product lp ON lp.sku = COALESCE(sku_num.base_sku, latest.base_msku)
-        ON DUPLICATE KEY UPDATE
-            parent_asin = VALUES(parent_asin),
-            base_sku = VALUES(base_sku),
-            base_msku = VALUES(base_msku),
-            base_store = VALUES(base_store),
-            country = VALUES(country),
-            developer = VALUES(developer),
-            title = VALUES(title),
-            listing_tags = VALUES(listing_tags),
-            product_create_time = VALUES(product_create_time),
-            fba_first_available_month = VALUES(fba_first_available_month),
-            fba_first_available_basis = VALUES(fba_first_available_basis),
-            listing_open_date = VALUES(listing_open_date),
-            model_start_month = VALUES(model_start_month),
-            model_start_basis = VALUES(model_start_basis),
-            fba_inventory_first_month = VALUES(fba_inventory_first_month),
-            inventory_first_store = VALUES(inventory_first_store),
-            inventory_first_country = VALUES(inventory_first_country),
-            inventory_first_sku = VALUES(inventory_first_sku),
-            inventory_first_qty = VALUES(inventory_first_qty),
-            available_first_store = VALUES(available_first_store),
-            available_first_country = VALUES(available_first_country),
-            available_first_sku = VALUES(available_first_sku),
-            available_first_qty = VALUES(available_first_qty),
-            fba_observation_status = VALUES(fba_observation_status),
-            total_volume = VALUES(total_volume),
-            total_amount = VALUES(total_amount),
-            total_order_items = VALUES(total_order_items),
-            total_gross_profit = VALUES(total_gross_profit),
-            avg_gross_margin = VALUES(avg_gross_margin),
-            active_months = VALUES(active_months),
-            first_sale_month = VALUES(first_sale_month),
-            last_sale_month = VALUES(last_sale_month),
-            latest_month = VALUES(latest_month),
-            latest_volume = VALUES(latest_volume),
-            latest_amount = VALUES(latest_amount),
-            latest_fba_available = VALUES(latest_fba_available),
-            latest_avg_star = VALUES(latest_avg_star),
-            latest_reviews_count = VALUES(latest_reviews_count),
-            data_cutoff_month = VALUES(data_cutoff_month),
-            unified_version = VALUES(unified_version),
-            synced_at = VALUES(synced_at)
     </insert>
+
+    <!--
+      更新已有 ASIN 的经营指标（不动 listing_date）。
+      每周调度：刷新周表聚合出的经营数据（销量/金额/利润/活跃月数/最新月快照等）。
+      listing_date 首次写入后锁定，不再变。
+    -->
+    <update id="updateMetrics">
+        UPDATE lingxing_product_unified u
+        INNER JOIN (
+            WITH
+            latest_tag AS (
+                SELECT w.asin, w.tag_ids
+                FROM lingxing_sku_weekly_performance w
+                INNER JOIN (
+                    SELECT asin, MAX(week_end) AS mx
+                    FROM lingxing_sku_weekly_performance
+                    WHERE asin IS NOT NULL AND asin != ''
+                    GROUP BY asin
+                ) m ON m.asin = w.asin AND m.mx = w.week_end
+                GROUP BY w.asin, w.tag_ids
+            ),
+            target_asins AS (
+                SELECT DISTINCT lt.asin
+                FROM latest_tag lt
+                WHERE lt.tag_ids IS NOT NULL AND lt.tag_ids != ''
+                  AND (
+                        FIND_IN_SET('907563170455592213', lt.tag_ids)
+                     OR FIND_IN_SET('907654877317203632', lt.tag_ids)
+                     OR FIND_IN_SET('907585631391968576', lt.tag_ids)
+                     OR FIND_IN_SET('907585847123066054', lt.tag_ids)
+                     OR FIND_IN_SET('907596133278666918', lt.tag_ids)
+                     OR FIND_IN_SET('907657425150046095', lt.tag_ids)
+                  )
+            ),
+            agg AS (
+                SELECT
+                    w.asin,
+                    SUM(w.volume)        AS total_volume,
+                    SUM(w.amount)        AS total_amount,
+                    SUM(w.order_items)   AS total_order_items,
+                    SUM(w.gross_profit)  AS total_gross_profit,
+                    AVG(w.gross_margin)  AS avg_gross_margin,
+                    COUNT(DISTINCT CASE WHEN w.volume > 0 THEN w.`year_month` END) AS active_months,
+                    MIN(CASE WHEN w.volume > 0 THEN w.`year_month` END) AS first_sale_month,
+                    MAX(CASE WHEN w.volume > 0 THEN w.`year_month` END) AS last_sale_month,
+                    MAX(w.`year_month`) AS latest_month,
+                    MAX(w.week_end) AS latest_week_end
+                FROM lingxing_sku_weekly_performance w
+                INNER JOIN target_asins t ON t.asin = w.asin
+                WHERE w.asin IS NOT NULL AND w.asin != ''
+                GROUP BY w.asin
+            ),
+            latest AS (
+                SELECT
+                    w.asin,
+                    SUM(w.volume)               AS latest_volume,
+                    SUM(w.amount)               AS latest_amount,
+                    SUM(w.afn_fulfillable_quantity) AS latest_fba_available,
+                    MAX(w.avg_star)             AS latest_avg_star,
+                    MAX(w.reviews_count)        AS latest_reviews_count,
+                    MAX(w.parent_asin)          AS parent_asin,
+                    MAX(w.sku)                  AS base_msku,
+                    MAX(w.store_name)           AS store_name,
+                    MAX(w.marketplace)          AS country,
+                    MAX(w.product_name)         AS title,
+                    MAX(w.tags)                 AS listing_tags
+                FROM lingxing_sku_weekly_performance w
+                INNER JOIN agg ON agg.asin = w.asin AND agg.latest_week_end = w.week_end
+                GROUP BY w.asin
+            ),
+            sku_num AS (
+                SELECT w.asin, MAX(w.sku) AS base_sku
+                FROM lingxing_sku_weekly_performance w
+                WHERE w.sku REGEXP '^[0-9]+$'
+                GROUP BY w.asin
+            )
+            SELECT
+                t.asin,
+                latest.parent_asin,
+                COALESCE(sku_num.base_sku, latest.base_msku) AS base_sku,
+                latest.base_msku,
+                latest.store_name,
+                latest.country,
+                lp.product_developer,
+                latest.title,
+                latest.listing_tags,
+                COALESCE(agg.total_volume, 0) AS total_volume,
+                COALESCE(agg.total_amount, 0) AS total_amount,
+                COALESCE(agg.total_order_items, 0) AS total_order_items,
+                COALESCE(agg.total_gross_profit, 0) AS total_gross_profit,
+                agg.avg_gross_margin,
+                COALESCE(agg.active_months, 0) AS active_months,
+                agg.first_sale_month,
+                agg.last_sale_month,
+                agg.latest_month,
+                latest.latest_volume,
+                latest.latest_amount,
+                latest.latest_fba_available,
+                latest.latest_avg_star,
+                latest.latest_reviews_count
+            FROM target_asins t
+            LEFT JOIN agg ON agg.asin = t.asin
+            LEFT JOIN latest ON latest.asin = t.asin
+            LEFT JOIN sku_num ON sku_num.asin = t.asin
+            LEFT JOIN lingxing_local_product lp ON lp.sku = COALESCE(sku_num.base_sku, latest.base_msku)
+        ) m ON u.asin = m.asin
+        SET
+            u.parent_asin = m.parent_asin,
+            u.base_sku = m.base_sku,
+            u.base_msku = m.base_msku,
+            u.base_store = m.store_name,
+            u.country = m.country,
+            u.developer = m.product_developer,
+            u.title = m.title,
+            u.listing_tags = m.listing_tags,
+            u.total_volume = m.total_volume,
+            u.total_amount = m.total_amount,
+            u.total_order_items = m.total_order_items,
+            u.total_gross_profit = m.total_gross_profit,
+            u.avg_gross_margin = m.avg_gross_margin,
+            u.active_months = m.active_months,
+            u.first_sale_month = m.first_sale_month,
+            u.last_sale_month = m.last_sale_month,
+            u.latest_month = m.latest_month,
+            u.latest_volume = m.latest_volume,
+            u.latest_amount = m.latest_amount,
+            u.latest_fba_available = m.latest_fba_available,
+            u.latest_avg_star = m.latest_avg_star,
+            u.latest_reviews_count = m.latest_reviews_count,
+            u.data_cutoff_month = #{cutoffMonth},
+            u.unified_version = #{unifiedVersion},
+            u.synced_at = NOW()
+    </update>
+
+    <!-- 查询店铺产品列表 -->
+    <select id="selectShopProducts" resultType="com.sjzm.product.modules.lingxing.dto.LingxingShopProductVO">
+        SELECT
+            id,
+            asin,
+            parent_asin AS parentAsin,
+            base_sku AS baseSku,
+            base_msku AS baseMsku,
+            base_store AS baseStore,
+            country,
+            developer,
+            principal,
+            title,
+            listing_tags AS listingTags,
+            product_create_time AS productCreateTime,
+            listing_date AS listingDate,
+            fba_inventory_first_month AS fbaInventoryFirstMonth,
+            inventory_first_store AS inventoryFirstStore,
+            inventory_first_country AS inventoryFirstCountry,
+            inventory_first_sku AS inventoryFirstSku,
+            inventory_first_qty AS inventoryFirstQty,
+            available_first_store AS availableFirstStore,
+            available_first_country AS availableFirstCountry,
+            available_first_sku AS availableFirstSku,
+            available_first_qty AS availableFirstQty,
+            fba_observation_status AS fbaObservationStatus,
+            total_volume AS totalVolume,
+            total_amount AS totalAmount,
+            total_order_items AS totalOrderItems,
+            total_gross_profit AS totalGrossProfit,
+            avg_gross_margin AS avgGrossMargin,
+            active_months AS activeMonths,
+            first_sale_month AS firstSaleMonth,
+            last_sale_month AS lastSaleMonth,
+            latest_month AS latestMonth,
+            latest_volume AS latestVolume,
+            latest_amount AS latestAmount,
+            latest_fba_available AS latestFbaAvailable,
+            latest_cate_rank AS latestCateRank,
+            latest_avg_star AS latestAvgStar,
+            latest_reviews_count AS latestReviewsCount,
+            data_cutoff_month AS dataCutoffMonth,
+            unified_version AS unifiedVersion,
+            synced_at AS syncedAt
+        FROM lingxing_product_unified
+        <where>
+            <if test="baseStore != null and baseStore != ''">
+                AND base_store = #{baseStore}
+            </if>
+            <if test="developer != null and developer != ''">
+                AND developer = #{developer}
+            </if>
+        </where>
+        <if test="sortField != null and sortField != ''">
+            ORDER BY
+            <choose>
+                <when test="sortField == 'listingDate'">
+                    listing_date
+                </when>
+                <when test="sortField == 'totalVolume'">
+                    total_volume
+                </when>
+                <when test="sortField == 'totalAmount'">
+                    total_amount
+                </when>
+                <when test="sortField == 'latestVolume'">
+                    latest_volume
+                </when>
+                <when test="sortField == 'latestAmount'">
+                    latest_amount
+                </when>
+                <otherwise>
+                    synced_at
+                </otherwise>
+            </choose>
+            <if test="sortOrder != null and sortOrder != ''">
+                ${sortOrder}
+            </if>
+        </if>
+        <if test="limit != null and limit > 0">
+            LIMIT #{offset}, #{limit}
+        </if>
+    </select>
+
+    <!-- 统计店铺产品数量 -->
+    <select id="countShopProducts" resultType="long">
+        SELECT COUNT(*)
+        FROM lingxing_product_unified
+        <where>
+            <if test="baseStore != null and baseStore != ''">
+                AND base_store = #{baseStore}
+            </if>
+            <if test="developer != null and developer != ''">
+                AND developer = #{developer}
+            </if>
+        </where>
+    </select>
+
+    <!-- 查询店铺列表 -->
+    <select id="selectShopStores" resultType="java.lang.String">
+        SELECT DISTINCT base_store
+        FROM lingxing_product_unified
+        WHERE base_store IS NOT NULL AND base_store != ''
+        ORDER BY base_store
+    </select>
 
     <delete id="truncateAll">
         TRUNCATE TABLE lingxing_product_unified

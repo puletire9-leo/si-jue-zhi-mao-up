@@ -140,11 +140,8 @@ export interface LingxingProductUnified {
   developer: string | null;
   title: string | null;
   listingTags: string | null;
-  modelStartMonth: string | null;
-  modelStartBasis: string | null;
+  listingDate: string | null;
   fbaInventoryFirstMonth: string | null;
-  fbaFirstAvailableMonth: string | null;
-  listingOpenDate: string | null;
   fbaObservationStatus: string | null;
   totalVolume: number | null;
   totalAmount: string | null;

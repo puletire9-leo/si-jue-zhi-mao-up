@@ -106,6 +106,13 @@ public class BazhuayuController {
         return Result.success(result);
     }
 
+    @PostMapping("/trigger-all")
+    @Operation(summary = "一键全导：遍历所有榜单任务，各自锁定最新批次后异步入库",
+            description = "复用单任务导入的批次校验+幂等+僵尸重跑；单任务失败不阻塞其它。前端仍用 /overview + /run-state 轮询进度。")
+    public Result<Map<String, Object>> triggerAll() {
+        return Result.success(scheduledService.triggerAllBangdanTasks());
+    }
+
     @PostMapping("/start-collect")
     @Operation(summary = "启动云端采集一条龙（启动→等待采完→榜单则drain入库初筛，全异步）")
     public Result<Map<String, Object>> startCollect(
@@ -245,12 +252,14 @@ public class BazhuayuController {
             row.put("weekReadyCount", weekSt.getOrDefault("READY", 0L));
             row.put("weekQueuedCount", weekSt.getOrDefault("QUEUED", 0L));
             row.put("weekRunningCount", weekSt.getOrDefault("RUNNING", 0L));
-            row.put("weekDoneCount", weekSt.getOrDefault("DONE", 0L));
+            // 导入初筛的终态是 READY（待人工请求卖家精灵），本链路从不写 DONE；
+            // “完成”口径统计 READY+DONE，否则完成数恒为 0。
+            row.put("weekDoneCount", weekSt.getOrDefault("READY", 0L) + weekSt.getOrDefault("DONE", 0L));
             row.put("weekErrorCount", weekSt.getOrDefault("ERROR", 0L));
             row.put("weekPausedCount", weekSt.getOrDefault("PAUSED", 0L));
             // 历史累计段
             row.put("lifetimeTaskCount", lifeSt.values().stream().mapToLong(Long::longValue).sum());
-            row.put("lifetimeDoneCount", lifeSt.getOrDefault("DONE", 0L));
+            row.put("lifetimeDoneCount", lifeSt.getOrDefault("READY", 0L) + lifeSt.getOrDefault("DONE", 0L));
             row.put("lifetimeErrorCount", lifeSt.getOrDefault("ERROR", 0L));
             // 这个站点的最新一条任务（已按 id DESC 预索引在 latestTaskByMp 中）
             AsinImportTask latestTask = latestTaskByMp.get(marketplace);
@@ -264,14 +273,15 @@ public class BazhuayuController {
         // ── 跨站点汇总 ──
         long weekTotalCount = weekStatusByMp.values().stream()
                 .flatMap(m -> m.values().stream()).mapToLong(Long::longValue).sum();
+        // “完成”口径 = READY + DONE（READY 是导入初筛终态，本链路不写 DONE）
         long weekDoneCount = weekStatusByMp.values().stream()
-                .mapToLong(m -> m.getOrDefault("DONE", 0L)).sum();
+                .mapToLong(m -> m.getOrDefault("READY", 0L) + m.getOrDefault("DONE", 0L)).sum();
         long weekErrorCount = weekStatusByMp.values().stream()
                 .mapToLong(m -> m.getOrDefault("ERROR", 0L)).sum();
         long lifetimeTotalCount = lifetimeStatusByMp.values().stream()
                 .flatMap(m -> m.values().stream()).mapToLong(Long::longValue).sum();
         long lifetimeDoneCount = lifetimeStatusByMp.values().stream()
-                .mapToLong(m -> m.getOrDefault("DONE", 0L)).sum();
+                .mapToLong(m -> m.getOrDefault("READY", 0L) + m.getOrDefault("DONE", 0L)).sum();
         long lifetimeErrorCount = lifetimeStatusByMp.values().stream()
                 .mapToLong(m -> m.getOrDefault("ERROR", 0L)).sum();
         long weeklyRawTotal = weeklyRawCountByMp.values().stream().mapToLong(Long::longValue).sum();
@@ -399,6 +409,29 @@ public class BazhuayuController {
         }
         asinImportService.deleteBazhuayuTask(taskId);
         return Result.success();
+    }
+
+    @PostMapping("/import-task/{taskId}/pause")
+    @Operation(summary = "暂停导入任务：停在当前进度，落断点 offset，置 PAUSED，可续跑")
+    public Result<Map<String, Object>> pauseImportTask(@PathVariable Long taskId) {
+        return Result.success(scheduledService.pauseImportTask(taskId));
+    }
+
+    @PostMapping("/import-task/{taskId}/resume")
+    @Operation(summary = "续跑导入任务：从断点 offset 继续拉取同批次（PAUSED/ERROR/INTERRUPTED 可用）")
+    public Result<Map<String, Object>> resumeImportTask(@PathVariable Long taskId) {
+        return Result.success(scheduledService.resumeImportTask(taskId));
+    }
+
+    @PostMapping("/import-task/{taskId}/refetch")
+    @Operation(summary = "重新获取：删旧任务数据后按同配置重拉云端最新批次")
+    public Result<Map<String, Object>> refetchImportTask(@PathVariable Long taskId) {
+        SellerspriteRequestRun linked = requestCenterService
+                .findLatestAsinRunsBySourceTaskIds(List.of(taskId)).get(taskId);
+        if (linked != null) {
+            throw new IllegalStateException("任务已关联卖家精灵请求，不能重新获取；请先处理请求中心任务");
+        }
+        return Result.success(scheduledService.refetchImportTask(taskId));
     }
 
     @PutMapping("/config/mapping")
@@ -574,10 +607,16 @@ public class BazhuayuController {
         item.put("processedCount", task.getTotalCount() != null ? task.getTotalCount() : 0);
         item.put("totalCount", task.getTotalCount() != null ? task.getTotalCount() : 0);
         item.put("passCount", task.getPassCount() != null ? task.getPassCount() : 0);
+        // 通过来源拆分：新品重取放行 vs 全新通过。旧数据为空时前端回退只显示总通过。
+        item.put("passRefetchCount", task.getPassRefetchCount());
+        item.put("passNewCount", task.getPassNewCount());
         item.put("priceFailCount", task.getPriceFailCount() != null ? task.getPriceFailCount() : 0);
         item.put("reviewFailCount", task.getReviewFailCount() != null ? task.getReviewFailCount() : 0);
         item.put("duplicateCount", task.getDuplicateCount() != null ? task.getDuplicateCount() : 0);
         item.put("skipCount", task.getSkipCount() != null ? task.getSkipCount() : 0);
+        // 拆分展示：主表已有(去重) vs 已采过淘汰(黑名单)。旧数据两列为空时前端回退用 skipCount。
+        item.put("skipMainCount", task.getSkipMainCount());
+        item.put("skipBlacklistCount", task.getSkipBlacklistCount());
         item.put("batchTotal", task.getBatchTotal() != null ? task.getBatchTotal() : 0);
         item.put("batchCurrent", task.getBatchCurrent() != null ? task.getBatchCurrent() : 0);
         item.put("apiSuccess", task.getApiSuccess() != null ? task.getApiSuccess() : 0);

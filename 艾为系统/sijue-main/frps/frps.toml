@@ -1,0 +1,28 @@
+# frp server 配置。token / dashboard 凭据通过环境变量注入（compose.env）。
+# 参考：https://github.com/fatedier/frp/blob/master/conf/frps_full_example.toml
+
+bindAddr = "0.0.0.0"
+bindPort = 7000
+
+# Dashboard：访问 http://<server>:7500，账号密码见 compose.env
+webServer.addr = "0.0.0.0"
+webServer.port = 7500
+webServer.user = "{{ .Envs.FRPS_DASHBOARD_USER }}"
+webServer.password = "{{ .Envs.FRPS_DASHBOARD_PASSWORD }}"
+
+# 鉴权：frpc 必须带相同 token
+auth.method = "token"
+auth.token = "{{ .Envs.FRPS_TOKEN }}"
+
+# 限制 frpc 能映射的远程端口（白名单），防止客户端随便占端口。
+# 当前只放 9000 给内网 MinIO 用；要加新服务再扩这里 + docker-compose.yml。
+allowPorts = [
+  { start = 9000, end = 9000 },
+]
+
+# 强制 frpc 必须开 TLS（更安全，下游 frpc 端配置 transport.tls.enable = true）
+transport.tls.force = true
+
+log.to = "console"
+log.level = "info"
+log.maxDays = 3

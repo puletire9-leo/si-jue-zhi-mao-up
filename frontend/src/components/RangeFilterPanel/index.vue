@@ -8,6 +8,7 @@ import {
   getPremiumCreatedWeeks,
 } from "@/api/competitor";
 import shopCollectionApi from "@/api/shopCollection";
+import { getCreatedWeeks as getBrsCreatedWeeks } from "@/api/brs-ranking";
 import { formatDayBatchLabel } from "@/utils/batchLabel";
 
 export interface RangeFilterValue {
@@ -47,6 +48,7 @@ const props = withDefaults(
       | "deng_zong_batch"
       | "shop_batch"
       | "ai_selection_batch"
+      | "brs_ranking_created_week"
       | "merged_new_shop";
     /** 外部页面提供自己的周期选项时复用本组件，不再请求选品源批次接口。 */
     snapshotOptions?: RangeSnapshotOption[];
@@ -58,6 +60,8 @@ const props = withDefaults(
     useCleanTable?: boolean;
     /** 嵌入抽屉/卡片时为 true：去掉自身灰底边框，与外层风格统一 */
     embedded?: boolean;
+    /** 隐藏"入库批次"下拉（如领星店铺数据场景没有批次概念）。默认 false */
+    hideSnapshot?: boolean;
   }>(),
   {
     modelValue: () => ({
@@ -125,13 +129,13 @@ const TOOLTIPS = {
 const currencySymbol = computed(() => CURRENCY_MAP[props.country] ?? "$");
 const snapshotLabel = computed(() =>
   props.snapshotLabelText ||
-  (["competitor_created_week", "premium_created_week"].includes(props.snapshotKind)
+  (["competitor_created_week", "premium_created_week", "brs_ranking_created_week"].includes(props.snapshotKind)
     ? "入库批次（周）"
     : "入库批次（批次日）"),
 );
 const snapshotPlaceholder = computed(() =>
   props.snapshotPlaceholderText ||
-  (["competitor_created_week", "premium_created_week"].includes(props.snapshotKind)
+  (["competitor_created_week", "premium_created_week", "brs_ranking_created_week"].includes(props.snapshotKind)
     ? "选择周批次（默认最新）"
     : "选择批次日期"),
 );
@@ -286,6 +290,15 @@ async function loadAvailableWeeks() {
       startDate: item.startDate,
       endDate: item.endDate,
     }));
+  } else if (props.snapshotKind === "brs_ranking_created_week") {
+    const res = await getBrsCreatedWeeks(props.country);
+    availableSnapshots.value = (res?.data ?? []).map((item) => ({
+      value: item.week,
+      label: item.week,
+      count: item.count,
+      startDate: item.startDate,
+      endDate: item.endDate,
+    }));
   } else if (props.snapshotKind === "ai_selection_batch") {
     const { getBatches } = await import("@/api/ai-selection-pool");
     const batches = await getBatches(props.country);
@@ -389,7 +402,7 @@ watch(
 
 <template>
   <div class="rfp" :class="{ 'rfp--embedded': embedded }">
-    <div class="rfp__week-row">
+    <div v-if="!hideSnapshot" class="rfp__week-row">
       <div class="rfp__field">
         <label class="rfp__label">
           {{ snapshotLabel }}

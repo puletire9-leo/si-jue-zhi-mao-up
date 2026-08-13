@@ -56,12 +56,27 @@ public class AiSelectionController {
     }
 
     @PostMapping("/harvest")
-    @Operation(summary = "按载体全量捞取", description = "按载体检索词，从 shop_products / competitor_products_clean 全批次双通道 INSERT SELECT 进 ai_selection")
+    @Operation(summary = "按载体补捞（写入本周批次）", description = "单载体全市场双通道捞取，写入当周批次 batch_<ISO周>；同周重复=增量")
     public Result<AiSelectionPushResult> harvest(
             @Valid @RequestBody AiSelectionHarvestRequest request,
             @RequestHeader(value = "X-User-Id", defaultValue = "system") String userId) {
         return Result.success(
                 aiSelectionService.harvestByCarrier(request.getCarrierKey(), request.getMarketplaces(), userId));
+    }
+
+    @PostMapping("/harvest-all")
+    @Operation(summary = "一键同步本周全载体（异步）", description = "秒返回 runId；后台合并扫描全 enabled 载体写入当周批次 batch_<ISO周>。前端轮询 /harvest-run/{runId}")
+    public Result<Map<String, String>> harvestAll(
+            @Valid @RequestBody AiSelectionHarvestAllRequest request,
+            @RequestHeader(value = "X-User-Id", defaultValue = "system") String userId) {
+        String runId = aiSelectionService.startHarvestAll(request.getMarketplaces(), userId);
+        return Result.success(Map.of("runId", runId));
+    }
+
+    @GetMapping("/harvest-run/{runId}")
+    @Operation(summary = "查全载体同步任务状态", description = "轮询：status(RUNNING/SUCCESS/FAILED) + 进度 carrierDone/carrierTotal + batchTotal")
+    public Result<com.sjzm.product.entity.AiSelectionHarvestRun> getHarvestRun(@PathVariable String runId) {
+        return Result.success(aiSelectionService.getHarvestRun(runId));
     }
 
     @GetMapping("/batches")

@@ -401,7 +401,7 @@ public class CompetitorService {
         return s != null && s.length() > maxLen ? s.substring(0, maxLen) : s;
     }
 
-    private CompetitorProduct mapToEntity(JsonNode item, String marketplace, String asin, String month) {
+    public CompetitorProduct mapToEntity(JsonNode item, String marketplace, String asin, String month) {
         CompetitorProduct product = new CompetitorProduct();
         product.setMarketplace(marketplace);
         product.setAsin(asin);
@@ -794,7 +794,7 @@ public class CompetitorService {
         return list.stream().map(p -> toResponse(p, Collections.emptyList())).collect(Collectors.toList());
     }
 
-    private CompetitorProductResponse toResponse(CompetitorProduct p, List<CompetitorProductResponse.SubcategoryDto> subs) {
+    public CompetitorProductResponse toResponse(CompetitorProduct p, List<CompetitorProductResponse.SubcategoryDto> subs) {
         CompetitorProductResponse.CompetitorProductResponseBuilder builder = CompetitorProductResponse.builder()
                 .id(p.getId())
                 .enriched(p.getEnriched())

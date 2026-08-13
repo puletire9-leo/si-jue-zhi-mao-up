@@ -2,6 +2,7 @@ import type { CompetitorListParams, QualifyRule } from "@/api/competitor";
 import type { MethodCardListParams } from "@/api/methodCards";
 import type { ShopProductSelectionParams } from "@/api/shopCollection";
 import type { AiSelectionPoolListParams } from "@/api/ai-selection-pool";
+import type { LingxingShopQueryParams } from "@/api/lingxingShopData";
 import type { RangeFilterValue } from "@/components/RangeFilterPanel/index.vue";
 import type { SelectionQueryParams } from "@/components/SelectionQueryForm/types";
 
@@ -12,7 +13,9 @@ export type SelectionScene =
   | "premium"
   | "zheng"
   | "fbm"
-  | "ai_selection";
+  | "ai_selection"
+  | "lingxing_shop"
+  | "brs";
 export type SelectionMethodId = "M01" | "M02" | "M03";
 export type SelectionDataView = "clean" | "raw";
 export type SelectionLensId = "default" | SelectionMethodId;
@@ -22,20 +25,26 @@ export type SelectionExecutor =
   | "deng_zong"
   | "shop_products"
   | "method_card"
-  | "ai_selection";
+  | "ai_selection"
+  | "lingxing_shop"
+  | "brs_ranking";
 export type SelectionSnapshotKind =
   | "competitor_created_week"
   | "premium_created_week"
   | "deng_zong_batch"
   | "shop_batch"
-  | "ai_selection_batch";
+  | "ai_selection_batch"
+  | "lingxing_shop_store"
+  | "brs_ranking_created_week";
 export type SelectionTargetSource =
   | "competitor_clean"
   | "competitor_raw"
   | "premium_products"
   | "deng_zong"
   | "shop_products"
-  | "ai_selection";
+  | "ai_selection"
+  | "lingxing_shop"
+  | "brs_ranking";
 export type SelectionSemanticFilterKey =
   | "asin"
   | "title"
@@ -171,6 +180,18 @@ export interface AiSelectionQueryPlan extends SelectionQueryPlanBase {
   params: AiSelectionPoolListParams;
 }
 
+export interface LingxingShopQueryPlan extends SelectionQueryPlanBase {
+  executor: "lingxing_shop";
+  targetSource: "lingxing_shop";
+  params: LingxingShopQueryParams;
+}
+
+export interface BrsRankingQueryPlan extends SelectionQueryPlanBase {
+  executor: "brs_ranking";
+  targetSource: "brs_ranking";
+  params: CompetitorListParams;
+}
+
 export interface MethodCardQueryPlan extends SelectionQueryPlanBase {
   executor: "method_card";
   targetSource: "competitor_clean" | "deng_zong";
@@ -183,6 +204,8 @@ export type SelectionQueryPlan =
   | DengZongQueryPlan
   | ShopProductsQueryPlan
   | AiSelectionQueryPlan
+  | LingxingShopQueryPlan
+  | BrsRankingQueryPlan
   | MethodCardQueryPlan;
 
 interface SelectionMethodLensDefinition {
@@ -293,6 +316,34 @@ export const SOURCE_CAPABILITIES: Record<
       grade: "unsupported",
       qualifyRules: "unsupported",
     }),
+  },
+  lingxing_shop: {
+    targetSource: "lingxing_shop",
+    executor: "lingxing_shop",
+    snapshotKind: "lingxing_shop_store",
+    // 领星统一表：只支持 asin/title/店铺(sellerName)/销量(units)。
+    // 大类榜单(category)禁用——latest_cate_rank 是"类目:排名"混合串非干净类目名。
+    supports: createSupportMap({
+      category: "unsupported",
+      snapshotKeys: "unsupported",
+      filterMode: "unsupported",
+      weekTag: "unsupported",
+      createdAtRange: "unsupported",
+      listingDays: "unsupported",
+      bsrMax: "unsupported",
+      weightMax: "unsupported",
+      variantCount: "unsupported",
+      fulfillment: "unsupported",
+      grade: "unsupported",
+      qualifyRules: "unsupported",
+      price: "unsupported",
+    }),
+  },
+  brs_ranking: {
+    targetSource: "brs_ranking",
+    executor: "brs_ranking",
+    snapshotKind: "brs_ranking_created_week",
+    supports: createSupportMap(),
   },
 };
 
@@ -405,6 +456,7 @@ export function resolveSceneBusinessSource(
     reference: "竞品店铺",
     premium: "精品榜",
     zheng: "非标店铺",
+    brs: "BRS榜单",
   };
   if (scene === "fbm") return undefined;
   return map[scene];
@@ -546,6 +598,12 @@ function resolveDefaultTargetSource(
   }
   if (intent.scene === "ai_selection") {
     return "ai_selection";
+  }
+  if (intent.scene === "lingxing_shop") {
+    return "lingxing_shop";
+  }
+  if (intent.scene === "brs") {
+    return "brs_ranking";
   }
   return intent.scope.dataView === "clean"
     ? "competitor_clean"
@@ -841,6 +899,100 @@ function buildCompetitorQueryPlan(input: {
   };
 }
 
+function buildBrsRankingQueryPlan(input: {
+  intent: SelectionFilterIntent;
+  page: number;
+  size: number;
+}): BrsRankingQueryPlan {
+  const { intent, page, size } = input;
+  const targetSource = "brs_ranking";
+  const marketplace = intent.scope.marketplace || "UK";
+  const capability = SOURCE_CAPABILITIES[targetSource];
+  const params: CompetitorListParams = {
+    page,
+    size,
+    marketplace,
+    source: intent.scope.businessSource,
+    filterMode: intent.scope.filterMode,
+    useCleanTable: false, // BRS 无 clean 表，固定读原始表
+    sortBy: intent.sort.field || "createdAt",
+    sortOrder: intent.sort.order || "desc",
+  };
+
+  if (intent.search.asin.length > 0) params.asin = intent.search.asin;
+  if (intent.search.title) params.title = intent.search.title;
+  if (intent.search.sellerName) params.sellerName = intent.search.sellerName;
+  if (intent.search.brand) params.brand = intent.search.brand;
+  if (intent.search.keywords) params.keywords = intent.search.keywords;
+  if (intent.search.categories.length > 0) {
+    params.category = intent.search.categories.join(",");
+  }
+  if (intent.scope.bsrId) params.bsrId = intent.scope.bsrId;
+  if (intent.scope.nodeId != null) params.nodeId = intent.scope.nodeId;
+  if (intent.metrics.grade.length > 0) {
+    params.grade = intent.metrics.grade.join(",");
+  }
+  if (intent.freshness.weekTag) params.weekTag = intent.freshness.weekTag;
+  if (intent.freshness.createdAtStart) {
+    params.createdAtStart = intent.freshness.createdAtStart;
+  }
+  if (intent.freshness.createdAtEnd) {
+    params.createdAtEnd = intent.freshness.createdAtEnd;
+  }
+  if (intent.metrics.priceMin != null)
+    params.priceMin = intent.metrics.priceMin;
+  if (intent.metrics.priceMax != null)
+    params.priceMax = intent.metrics.priceMax;
+  if (intent.metrics.unitsMin != null)
+    params.unitsMin = intent.metrics.unitsMin;
+  if (intent.metrics.unitsMax != null)
+    params.unitsMax = intent.metrics.unitsMax;
+  if (intent.metrics.listingDaysMin != null) {
+    params.listingDaysMin = intent.metrics.listingDaysMin;
+  }
+  if (intent.metrics.listingDaysMax != null) {
+    params.listingDaysMax = intent.metrics.listingDaysMax;
+  }
+  if (intent.metrics.bsrMax != null) params.bsrMax = intent.metrics.bsrMax;
+  if (intent.metrics.weightMax != null) {
+    params.weightMax = intent.metrics.weightMax;
+  }
+  if (intent.metrics.variantCountMax != null) {
+    params.maxVariantCount = intent.metrics.variantCountMax;
+  }
+  if (intent.metrics.fulfillment.length > 0) {
+    params.fulfillment = intent.metrics.fulfillment;
+  }
+  if (intent.freshness.snapshotKeys.length > 0) {
+    params.createdWeeks = [...intent.freshness.snapshotKeys];
+  }
+  if (intent.qualifyRules.length > 0) {
+    params.qualifyRules = intent.qualifyRules;
+  }
+
+  return {
+    executor: "brs_ranking",
+    lensId: "default",
+    methodId: null,
+    targetSource,
+    params,
+    unsupportedFilters: collectUnsupportedFilters(intent, capability.supports),
+    forcedFilters: ["dataSource=brs_ranking"],
+    latestSnapshotFallback:
+      intent.search.exactAsin ||
+      intent.freshness.snapshotKeys.length > 0 ||
+      intent.freshness.weekTag ||
+      intent.freshness.createdAtStart
+        ? undefined
+        : {
+            kind: capability.snapshotKind,
+            marketplace,
+            businessSource: intent.scope.businessSource,
+            filterMode: intent.scope.filterMode,
+          },
+  };
+}
+
 function buildPremiumProductsQueryPlan(input: {
   intent: SelectionFilterIntent;
   page: number;
@@ -953,6 +1105,41 @@ function buildAiSelectionQueryPlan(input: {
       SOURCE_CAPABILITIES.ai_selection.supports,
     ),
     forcedFilters: ["dataSource=ai_selection"],
+  };
+}
+
+function buildLingxingShopQueryPlan(input: {
+  intent: SelectionFilterIntent;
+  page: number;
+  size: number;
+}): LingxingShopQueryPlan {
+  const { intent, page, size } = input;
+  const params: LingxingShopQueryParams = {
+    page,
+    size,
+    // 站点可空=全部（统一表只有 UK/DE）
+    country: intent.scope.marketplace || undefined,
+    sortBy: intent.sort.field || "latestVolume",
+    sortOrder: intent.sort.order || "desc",
+  };
+  // 按领星店铺分类：复用 sellerName 语义槽承载 base_store
+  if (intent.search.sellerName) params.baseStore = intent.search.sellerName;
+  if (intent.search.asin.length > 0) params.asin = intent.search.asin[0];
+  if (intent.search.title) params.title = intent.search.title;
+  if (intent.metrics.unitsMin != null) params.latestVolumeMin = intent.metrics.unitsMin;
+  if (intent.metrics.unitsMax != null) params.latestVolumeMax = intent.metrics.unitsMax;
+
+  return {
+    executor: "lingxing_shop",
+    lensId: "default",
+    methodId: null,
+    targetSource: "lingxing_shop",
+    params,
+    unsupportedFilters: collectUnsupportedFilters(
+      intent,
+      SOURCE_CAPABILITIES.lingxing_shop.supports,
+    ),
+    forcedFilters: ["dataSource=lingxing_shop"],
   };
 }
 
@@ -1111,6 +1298,16 @@ export function buildSelectionQueryPlan(input: {
     return buildAiSelectionQueryPlan({ intent, page, size });
   }
 
+  // 领星店铺数据：固定读取统一表，不支持方法卡。
+  if (intent.scene === "lingxing_shop") {
+    return buildLingxingShopQueryPlan({ intent, page, size });
+  }
+
+  // BRS 榜单：固定读取 brs_ranking_raw，不支持方法卡。
+  if (intent.scene === "brs") {
+    return buildBrsRankingQueryPlan({ intent, page, size });
+  }
+
   if (intent.methodId) {
     return buildMethodCardQueryPlan({
       intent,
@@ -1132,6 +1329,12 @@ export function buildSelectionQueryPlan(input: {
   }
   if (targetSource === "ai_selection") {
     return buildAiSelectionQueryPlan({ intent, page, size });
+  }
+  if (targetSource === "lingxing_shop") {
+    return buildLingxingShopQueryPlan({ intent, page, size });
+  }
+  if (targetSource === "brs_ranking") {
+    return buildBrsRankingQueryPlan({ intent, page, size });
   }
 
   return buildCompetitorQueryPlan({

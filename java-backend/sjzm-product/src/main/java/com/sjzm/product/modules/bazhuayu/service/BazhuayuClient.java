@@ -301,6 +301,23 @@ public class BazhuayuClient {
             String taskId,
             BazhuayuBatchSnapshot batch,
             java.util.function.Consumer<List<JsonNode>> pageHandler) {
+        return fetchBatchDataStreaming(taskId, batch, pageHandler, 0, 0, null);
+    }
+
+    /**
+     * 断点/协作取消版：从 startOffset 起拉，alreadyProcessed 为此前已导行数（供 targetRows 完整性判定）。
+     * cancelled 命中即处理完当前页后停止；此时不做“不完整批次”完整性校验（暂停是合法中断，不算失败）。
+     *
+     * <p>返回本轮实际处理行数（不含 alreadyProcessed）。暂停时下一个续拉 offset = startOffset + 返回值
+     * （整页不截断，仅收口末页才截断，故此式精确）。</p>
+     */
+    public int fetchBatchDataStreaming(
+            String taskId,
+            BazhuayuBatchSnapshot batch,
+            java.util.function.Consumer<List<JsonNode>> pageHandler,
+            int startOffset,
+            int alreadyProcessed,
+            java.util.function.BooleanSupplier cancelled) {
         if (batch == null || batch.batchNo() == null) {
             throw new IllegalArgumentException("八爪鱼批次不能为空");
         }
@@ -313,12 +330,20 @@ public class BazhuayuClient {
         String pathPrefix = exactLotNo
                 ? "/data/lotno/all?taskId=" + enc(taskId) + "&lotno=" + enc(batch.lotNo())
                 : "/data/all?taskId=" + enc(taskId);
-        int offset = 0;
-        int total = 0;
+        int offset = Math.max(0, startOffset);
+        int total = 0;                          // 本轮处理行数
         int size = Math.min(1000, Math.max(1, config.getDataPageSize()));
         int targetRows = exactLotNo ? 0 : expectedRows;
         boolean firstPage = true;
+        boolean paused = false;
         while (true) {
+            // 协作式暂停：处理完上一页后、拉下一页前检查，停在整页边界，offset 即下一个续拉点。
+            if (cancelled != null && cancelled.getAsBoolean()) {
+                paused = true;
+                log.info("八爪鱼任务 {} 批次 {} 导入暂停：本轮已处理 {} 行，续拉 offset={}",
+                        taskId, batch.batchNo(), total, offset);
+                break;
+            }
             JsonNode data = fetchDataPage(pathPrefix + "&offset=" + offset + "&size=" + size);
             if (firstPage) {
                 int sourceTotal = data.path("total").asInt(0);
@@ -344,7 +369,7 @@ public class BazhuayuClient {
             JsonNode rows = data.path("data");
             List<JsonNode> page = new ArrayList<>();
             if (rows.isArray()) rows.forEach(page::add);
-            int remaining = targetRows - total;
+            int remaining = targetRows - alreadyProcessed - total;
             if (page.size() > remaining) {
                 page = new ArrayList<>(page.subList(0, remaining));
             }
@@ -352,18 +377,20 @@ public class BazhuayuClient {
                 pageHandler.accept(page);
                 total += page.size();
             }
-            if (total >= targetRows) break;
+            if (alreadyProcessed + total >= targetRows) break;
             int restTotal = data.path("restTotal").asInt(0);
             offset = data.path("offset").asInt(offset);
             if (restTotal <= 0 || page.isEmpty()) break;
             sleep2s();
         }
-        if (total < targetRows) {
+        // 暂停是合法中断，跳过“不完整批次”完整性校验；自然结束才校验。
+        if (!paused && alreadyProcessed + total < targetRows) {
             throw new IllegalStateException("八爪鱼任务 " + taskId + " 批次 " + batch.batchNo()
-                    + " 预计读取 " + targetRows + " 条，实际仅读取 " + total + " 条，拒绝按不完整批次收口");
+                    + " 预计读取 " + targetRows + " 条，实际仅读取 " + (alreadyProcessed + total)
+                    + " 条，拒绝按不完整批次收口");
         }
-        log.info("八爪鱼任务 {} 批次 {} 流式拉取 {} 行（lotNo={}）",
-                taskId, batch.batchNo(), total, batch.lotNo());
+        log.info("八爪鱼任务 {} 批次 {} 流式拉取本轮 {} 行（累计 {}/{}，lotNo={}，paused={}）",
+                taskId, batch.batchNo(), total, alreadyProcessed + total, targetRows, batch.lotNo(), paused);
         return total;
     }
 
@@ -518,10 +545,16 @@ public class BazhuayuClient {
         }
     }
 
-    /** 翻页间隔（package-private 非 final，便于单测 spy 覆盖跳过真实 sleep） */
+    /**
+     * 翻页间隔（package-private 非 final，便于单测 spy 覆盖跳过真实 sleep）。
+     * 时长走配置 bazhuayu.page-delay-ms（默认 800ms，原固定 2000ms）；<=0 不 sleep。
+     * 方法名保留 sleep2s 以兼容既有单测 spy，语义已改为"可配翻页间隔"。
+     */
     void sleep2s() {
+        long delay = config.getPageDelayMs();
+        if (delay <= 0) return;
         try {
-            Thread.sleep(2000);
+            Thread.sleep(delay);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

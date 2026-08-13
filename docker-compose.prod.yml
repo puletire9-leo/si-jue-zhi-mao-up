@@ -1,7 +1,13 @@
 # ============================================
 # 思觉智贸 - 生产环境
-# 启动: docker compose -f docker-compose.prod.yml -p sijuelishi-prod up -d
+# 启动: docker compose -f docker-compose.prod.yml up -d
 # ============================================
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "3"
 
 services:
 
@@ -10,6 +16,7 @@ services:
   # ============================================
 
   mysql:
+    logging: *default-logging
     image: mysql:8.0
     container_name: prod-mysql
     command:
@@ -17,6 +24,8 @@ services:
       - --collation-server=utf8mb4_unicode_ci
       - --innodb-buffer-pool-size=${MYSQL_INNODB_BUFFER_POOL_SIZE:-1G}
       - --max-connections=${MYSQL_MAX_CONNECTIONS:-60}
+      # 生产无主从复制，binlog 仅用于短期误操作恢复；强制保留 3-7 天，默认 7 天。
+      - --binlog-expire-logs-seconds=${MYSQL_BINLOG_EXPIRE_SECONDS:-604800}
     mem_limit: ${MYSQL_MEMORY_LIMIT:-2g}
     ports:
       - "3310:3306"
@@ -34,6 +43,7 @@ services:
     restart: unless-stopped
 
   redis:
+    logging: *default-logging
     image: redis:7-alpine
     container_name: prod-redis
     command: redis-server --port 6379
@@ -49,6 +59,7 @@ services:
     restart: unless-stopped
 
   nacos:
+    logging: *default-logging
     image: nacos/nacos-server:v2.3.1
     container_name: prod-nacos
     ports:
@@ -67,10 +78,11 @@ services:
   # ============================================
 
   backend:
+    logging: *default-logging
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: prod-backend
+    image: prod-backend:current
     container_name: prod-backend
     ports:
       - "127.0.0.1:7093:8090"
@@ -91,10 +103,11 @@ services:
     restart: unless-stopped
 
   celery-download:
+    logging: *default-logging
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: prod-backend
+    image: prod-backend:current
     container_name: prod-celery-download
     command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=10 -Q download_tasks
     env_file:
@@ -120,10 +133,11 @@ services:
   # ============================================
 
   ai-center:
+    logging: *default-logging
     build:
       context: ./python-ai/ai-center
       dockerfile: Dockerfile
-    image: prod-ai-center
+    image: prod-ai-center:current
     container_name: prod-ai-center
     env_file:
       - ./config/public/prod.env
@@ -142,16 +156,19 @@ services:
   # ============================================
 
   java-user:
+    logging: *default-logging
     build:
       context: .
       dockerfile: java-backend/Dockerfile.prod
-    image: prod-java
+    image: prod-java:current
     container_name: prod-java-user
     ports:
       - "8014:8001"
     env_file:
       - ./config/public/prod.env
       - ./config/secrets/prod.env
+      - ./config/public/user-prod.env
+      - ./config/secrets/user-prod.env
     environment:
       SERVICE_MODULE: user
       SPRING_PROFILES_ACTIVE: prod
@@ -166,10 +183,11 @@ services:
     restart: unless-stopped
 
   java-product:
+    logging: *default-logging
     build:
       context: .
       dockerfile: java-backend/Dockerfile.prod
-    image: prod-java
+    image: prod-java:current
     container_name: prod-java-product
     ports:
       # 仅保留宿主机本地运维入口；外部流量必须经 gateway 执行 JWT/RBAC。
@@ -195,10 +213,11 @@ services:
     restart: unless-stopped
 
   gateway:
+    logging: *default-logging
     build:
       context: .
       dockerfile: java-backend/Dockerfile.prod
-    image: prod-java
+    image: prod-java:current
     container_name: prod-gateway
     ports:
       - "9003:9000"
@@ -223,10 +242,11 @@ services:
   # ============================================
 
   frontend:
+    logging: *default-logging
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    image: prod-frontend
+    image: prod-frontend:current
     container_name: prod-frontend
     ports:
       - "5173:80"

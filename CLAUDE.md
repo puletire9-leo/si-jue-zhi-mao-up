@@ -33,6 +33,8 @@
 6. **修改前先读对应 AGENTS.md** — 了解模块上下文后再动手
 7. **响应统一用 `Result.success()` / `Result.error()`**
 8. **新功能优先用模块化** — 前端放 `src/modules/`，即插即用，不改 router/sidebar
+9. **Maven 只在 Docker 里** — 宿主机没装 Maven，Java 编译走 `docker compose build`，禁止在宿主机直接跑 `mvn`
+10. **部署前必读部署流程** — `docs/docker使用经验/部署流程.md` 是唯一权威，Java/Python/前端/Nginx 怎么构建、怎么重启全在里面
 
 ## 会话启动检查清单
 

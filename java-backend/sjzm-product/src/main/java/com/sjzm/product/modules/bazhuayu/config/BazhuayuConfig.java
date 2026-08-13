@@ -37,6 +37,14 @@ public class BazhuayuConfig {
     private int dataPageSize = 1000;
 
     /**
+     * 分页拉取翻页间隔（毫秒），避免八爪鱼数据接口 429 限流。
+     * 原固定 2000ms 是导入慢的主因（30 万行/1000 每页 = 300 页 × 2s ≈ 10 分钟纯 sleep）。
+     * 改为可配：BAZHUAYU_PAGE_DELAY_MS。经测数据接口比采集接口宽松，500ms 通常安全；
+     * 若遇 429 再调回 1000~2000。<=0 视为不 sleep（仅内网/自测用，生产勿设 0）。
+     */
+    private long pageDelayMs = 800;
+
+    /**
      * 单次 drain（notexported 增量拉取）最多处理行数，防失控。
      * 0 = 不限（首次清 192 万历史积压时可设大或设 0）。
      */

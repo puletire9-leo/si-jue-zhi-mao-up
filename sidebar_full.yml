@@ -1,0 +1,179 @@
+- generic [ref=f4e4]:
+  - complementary [ref=f4e5]:
+    - generic [ref=f4e6]:
+      - generic [ref=f4e7]:
+        - generic [ref=f4e8]: 思
+        - generic [ref=f4e9]: 思觉智贸
+      - menubar [ref=f4e13]:
+        - menuitem "首页" [ref=f4e14] [cursor=pointer]
+        - menuitem "选品中心" [ref=f4e20]
+        - menuitem "店铺总览" [ref=f4e29]
+        - menuitem "品线分析" [ref=f4e38]
+        - menuitem "资料集" [ref=f4e47]
+        - menuitem "非标品" [ref=f4e56]
+        - menuitem "领星" [ref=f4e65]
+        - menuitem "数据看板" [ref=f4e74]
+        - menuitem "下载管理" [ref=f4e83] [cursor=pointer]
+        - menuitem "用户管理" [ref=f4e87] [cursor=pointer]
+        - menuitem "账号设置" [ref=f4e91] [cursor=pointer]
+        - menuitem "系统设置" [ref=f4e95] [cursor=pointer]
+  - main [ref=f4e99]:
+    - generic [ref=f4e101]:
+      - generic [ref=f4e102]:
+        - button [ref=f4e103] [cursor=pointer]
+        - navigation "面包屑" [ref=f4e107]:
+          - link "首页" [ref=f4e109]
+      - generic [ref=f4e110]:
+        - button [ref=f4e111] [cursor=pointer]
+        - button [ref=f4e116] [cursor=pointer]
+        - button [ref=f4e120] [cursor=pointer]
+        - button [ref=f4e124] [cursor=pointer]
+        - button "A admin" [ref=f4e129] [cursor=pointer]:
+          - generic [ref=f4e130]: A
+          - generic [ref=f4e131]: admin
+    - generic [ref=f4e135]: 首页
+    - generic [ref=f4e144]:
+      - generic [ref=f4e145]:
+        - generic [ref=f4e146]: 欢迎回来，Admin
+        - generic [ref=f4e147]: 您有 5 条待处理消息 · 2026年8月6日
+      - generic [ref=f4e148]:
+        - generic [ref=f4e149] [cursor=pointer]:
+          - generic [ref=f4e153]:
+            - generic [ref=f4e154]: 1,284
+            - generic [ref=f4e155]: 产品总数
+          - generic [ref=f4e156]: +12.5%
+        - generic [ref=f4e157] [cursor=pointer]:
+          - generic [ref=f4e161]:
+            - generic [ref=f4e162]: "456"
+            - generic [ref=f4e163]: 选品数量
+          - generic [ref=f4e164]: +8.2%
+        - generic [ref=f4e165] [cursor=pointer]:
+          - generic [ref=f4e169]:
+            - generic [ref=f4e170]: ¥89.2K
+            - generic [ref=f4e171]: 本月销售额
+          - generic [ref=f4e172]: +23.1%
+        - generic [ref=f4e173] [cursor=pointer]:
+          - generic [ref=f4e177]:
+            - generic [ref=f4e178]: 3,847
+            - generic [ref=f4e179]: 图片素材
+          - generic [ref=f4e180]: "-3.2%"
+      - generic [ref=f4e181]:
+        - heading "快捷功能" [level=2] [ref=f4e182]
+        - generic [ref=f4e183]:
+          - generic [ref=f4e184] [cursor=pointer]:
+            - generic [ref=f4e188]
+            - generic [ref=f4e191]: →
+          - generic [ref=f4e192] [cursor=pointer]:
+            - generic [ref=f4e196]
+            - generic [ref=f4e199]: →
+          - generic [ref=f4e200] [cursor=pointer]:
+            - generic [ref=f4e204]
+            - generic [ref=f4e207]: →
+          - generic [ref=f4e208] [cursor=pointer]:
+            - generic [ref=f4e212]
+            - generic [ref=f4e215]: →
+          - generic [ref=f4e216] [cursor=pointer]:
+            - generic [ref=f4e220]
+            - generic [ref=f4e223]: →
+          - generic [ref=f4e224] [cursor=pointer]:
+            - generic [ref=f4e228]
+            - generic [ref=f4e231]: →
+      - generic [ref=f4e232]:
+        - generic [ref=f4e233]:
+          - generic [ref=f4e234]:
+            - generic [ref=f4e235]: 最近动态
+            - generic [ref=f4e236] [cursor=pointer]: 查看全部
+          - generic [ref=f4e237]:
+            - generic [ref=f4e238]
+            - generic [ref=f4e246]
+            - generic [ref=f4e254]
+            - generic [ref=f4e262]
+        - generic [ref=f4e270]:
+          - generic [ref=f4e271]: 快捷操作
+          - generic [ref=f4e273]:
+            - generic [ref=f4e274] [cursor=pointer]: 导入产品
+            - generic [ref=f4e279] [cursor=pointer]: 上传图片
+            - generic [ref=f4e284] [cursor=pointer]: 导出数据
+  - generic [ref=f4e289]:
+    - heading "系统配置" [level=4] [ref=f4e291]
+    - generic [ref=f4e299]:
+      - generic [ref=f4e300]:
+        - heading "主题模式" [level=4] [ref=f4e301]
+        - generic [ref=f4e302]:
+          - button "☀ 浅色" [ref=f4e303] [cursor=pointer]:
+            - generic [ref=f4e304]: ☀
+            - generic [ref=f4e305]: 浅色
+          - button "☽ 深色" [ref=f4e306] [cursor=pointer]:
+            - generic [ref=f4e307]: ☽
+            - generic [ref=f4e308]: 深色
+          - button "⚙ 自动" [ref=f4e309] [cursor=pointer]:
+            - generic [ref=f4e310]: ⚙
+            - generic [ref=f4e311]: 自动
+      - generic [ref=f4e312]:
+        - heading "主题色" [level=4] [ref=f4e313]
+        - generic [ref=f4e314]:
+          - button [ref=f4e315] [cursor=pointer]
+          - button [ref=f4e316] [cursor=pointer]
+          - button [ref=f4e317] [cursor=pointer]
+          - button [ref=f4e318] [cursor=pointer]
+          - button [ref=f4e319] [cursor=pointer]
+          - button [ref=f4e320] [cursor=pointer]
+          - button [ref=f4e321] [cursor=pointer]
+          - button [ref=f4e322] [cursor=pointer]
+      - generic [ref=f4e323]:
+        - heading "菜单布局" [level=4] [ref=f4e324]
+        - generic [ref=f4e325]:
+          - button [ref=f4e326] [cursor=pointer]
+          - button [ref=f4e330] [cursor=pointer]
+          - button [ref=f4e334] [cursor=pointer]
+      - generic [ref=f4e339]:
+        - heading "页宽" [level=4] [ref=f4e340]
+        - generic [ref=f4e341]:
+          - button "固定" [ref=f4e342] [cursor=pointer]
+          - button "自定义" [ref=f4e343] [cursor=pointer]
+      - generic [ref=f4e344]:
+        - heading "页签风格" [level=4] [ref=f4e345]
+        - generic [ref=f4e346]:
+          - button "灵动" [ref=f4e347] [cursor=pointer]
+          - button "卡片" [ref=f4e348] [cursor=pointer]
+          - button "谷歌" [ref=f4e349] [cursor=pointer]
+      - generic [ref=f4e350]:
+        - heading "全屏水印" [level=4] [ref=f4e351]
+        - generic [ref=f4e352]:
+          - generic [ref=f4e353]: 水印
+          - generic [ref=f4e354]:
+            - switch
+            - generic [ref=f4e355] [cursor=pointer]: 关
+      - generic [ref=f4e360]:
+        - heading "界面显示" [level=4] [ref=f4e361]
+        - generic [ref=f4e362]:
+          - generic [ref=f4e363]: 隐藏标签页
+          - generic [ref=f4e364]:
+            - switch
+            - generic [ref=f4e365] [cursor=pointer]: 否
+        - generic [ref=f4e370]:
+          - generic [ref=f4e371]: 隐藏页脚
+          - generic [ref=f4e372]:
+            - switch
+            - generic [ref=f4e373] [cursor=pointer]: 否
+        - generic [ref=f4e378]:
+          - generic [ref=f4e379]: 页签持久化
+          - generic [ref=f4e380]:
+            - switch [checked]
+            - generic [ref=f4e381] [cursor=pointer]: 是
+        - generic [ref=f4e386]:
+          - generic [ref=f4e387]: Logo
+          - generic [ref=f4e388]:
+            - switch [checked]
+            - generic [ref=f4e389] [cursor=pointer]: 是
+        - generic [ref=f4e394]:
+          - generic [ref=f4e395]: 灰色模式
+          - generic [ref=f4e396]:
+            - switch
+            - generic [ref=f4e397] [cursor=pointer]: 否
+        - generic [ref=f4e402]:
+          - generic [ref=f4e403]: 色弱模式
+          - generic [ref=f4e404]:
+            - switch
+            - generic [ref=f4e405] [cursor=pointer]: 否
+      - button "清空缓存" [ref=f4e411] [cursor=pointer]

@@ -35,10 +35,17 @@ public class AuthServiceImpl implements AuthService {
     public LoginResponse login(LoginRequest request) {
         User user = userMapper.selectOne(
                 new LambdaQueryWrapper<User>()
-                        .eq(User::getUsername, request.getUsername())
+                        .and(query -> query
+                                .eq(User::getUsername, request.getUsername())
+                                .or(nameless -> nameless
+                                        .and(emptyUsername -> emptyUsername
+                                                .isNull(User::getUsername)
+                                                .or()
+                                                .eq(User::getUsername, ""))
+                                        .eq(User::getName, request.getUsername())))
         );
 
-        if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        if (user == null || !passwordMatches(request.getPassword(), user.getPassword())) {
             throw new BusinessException(401, "用户名或密码错误");
         }
 
@@ -46,7 +53,8 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(403, "账户已被禁用");
         }
 
-        String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getUsername(), user.getRole());
+        String role = normalizeRole(user.getRole());
+        String accessToken = jwtUtil.generateAccessToken(user.getId(), user.getUsername(), role);
         String refreshToken = jwtUtil.generateRefreshToken(user.getId());
 
         // 更新最后登录时间
@@ -66,7 +74,7 @@ public class AuthServiceImpl implements AuthService {
                         .email(user.getEmail())
                         .realName(user.getRealName())
                         .avatar(user.getAvatar())
-                        .role(user.getRole())
+                        .role(role)
                         .build())
                 .build();
     }
@@ -83,11 +91,12 @@ public class AuthServiceImpl implements AuthService {
 
         User user = new User();
         user.setUsername(request.getUsername());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setPassword(request.getPassword());
         user.setRealName(request.getRealName());
         user.setPhone(request.getPhone());
-        user.setRole("user");
+        user.setRole("OPERATOR");
         user.setStatus(1);
+        preparePlatformFields(user);
 
         userMapper.insert(user);
         log.info("用户注册成功: username={}", user.getUsername());
@@ -110,7 +119,8 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(403, "账户不存在或已被禁用");
         }
 
-        String newAccessToken = jwtUtil.generateAccessToken(user.getId(), user.getUsername(), user.getRole());
+        String role = normalizeRole(user.getRole());
+        String newAccessToken = jwtUtil.generateAccessToken(user.getId(), user.getUsername(), role);
         String newRefreshToken = jwtUtil.generateRefreshToken(user.getId());
 
         return LoginResponse.builder()
@@ -121,7 +131,7 @@ public class AuthServiceImpl implements AuthService {
                 .userInfo(LoginResponse.UserInfo.builder()
                         .id(user.getId())
                         .username(user.getUsername())
-                        .role(user.getRole())
+                        .role(role)
                         .build())
                 .build();
     }
@@ -139,5 +149,43 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public User getUserById(Long id) {
         return userMapper.selectById(id);
+    }
+
+    private boolean passwordMatches(String rawPassword, String storedPassword) {
+        if (storedPassword == null) {
+            return false;
+        }
+        if (storedPassword.startsWith("$2a$")
+                || storedPassword.startsWith("$2b$")
+                || storedPassword.startsWith("$2y$")) {
+            return passwordEncoder.matches(rawPassword, storedPassword);
+        }
+        return storedPassword.equals(rawPassword);
+    }
+
+    private static String normalizeRole(String role) {
+        if (role == null || role.isBlank()) {
+            return "user";
+        }
+        return switch (role) {
+            case "MANAGER" -> "admin";
+            case "DEVELOPER" -> "developer";
+            case "ART_MANAGER", "ARTIST" -> "editor";
+            case "OPERATOR" -> "user";
+            default -> role;
+        };
+    }
+
+    private static void preparePlatformFields(User user) {
+        if (user.getPlatformId() == null || user.getPlatformId().isBlank()) {
+            user.setPlatformId(java.util.UUID.randomUUID().toString());
+        }
+        if (user.getName() == null || user.getName().isBlank()) {
+            user.setName(user.getRealName() == null || user.getRealName().isBlank()
+                    ? user.getUsername() : user.getRealName());
+        }
+        if (user.getCreatedAt() == null || user.getCreatedAt().isBlank()) {
+            user.setCreatedAt(java.time.Instant.now().toString());
+        }
     }
 }

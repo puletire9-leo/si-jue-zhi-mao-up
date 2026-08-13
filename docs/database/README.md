@@ -66,6 +66,28 @@ Java product 已启用启动期 `SchemaGuard`：
 
 这条链路的目标是让“缺表/缺列”在部署阶段暴露，不再拖到页面运行时报 500。
 
+### 生产 MySQL binlog 保留策略
+
+生产当前是单机 MySQL，没有主从复制。binlog 只用于短期误操作恢复，固定保留 7 天；允许的安全范围
+是 3-7 天，禁止恢复成 MySQL 默认 30 天或无限保留。`docker-compose.prod.yml` 通过
+`MYSQL_BINLOG_EXPIRE_SECONDS` 注入，默认值和生产公共配置均为 `604800` 秒。
+
+生产预检会强制检查：
+
+- `binlog_expire_logs_seconds` 必须在 `259200-604800` 秒之间。
+- 复制通道必须为 0；若未来启用主从复制，必须先重新设计保留期，不能继续套用单机策略。
+- binlog 总量不得超过 5 GB；超过时停止部署，先调查异常写入量并安全清理。
+
+只能通过 MySQL 清理过期日志，禁止在数据卷中执行 `rm binlog.*`：
+
+```sql
+SET PERSIST binlog_expire_logs_seconds = 604800;
+PURGE BINARY LOGS BEFORE DATE_SUB(NOW(), INTERVAL 7 DAY);
+```
+
+执行 purge 前必须确认 `performance_schema.replication_connection_configuration` 没有复制通道，并先完成
+可恢复的数据库备份。`si-jue-zhi-mao-up_prod-mysql-data` 是受保护生产卷，禁止手工修改其文件。
+
 ### 核心建表脚本
 
 | 文件 | 说明 |
@@ -178,6 +200,15 @@ Java product 已启用启动期 `SchemaGuard`：
 - `sub_category` 保留为展示名，查询侧允许原始小类名经 alias layer 解析后命中 canonical 基线
 
 ## 数据库连接
+
+### RDS 统一用户表
+
+`ai_platform.users` 同时保留平台字符串主键 `id` 和思觉智贸数字主键
+`numeric_id`。Java 用户服务通过专属的 `config/public/user-prod.env` 和
+`config/secrets/user-prod.env` 中 `USER_MYSQL_*` 配置连接该库，以
+`numeric_id` 生成 JWT，并兼容平台明文密码与历史 BCrypt 密码。账号合并按
+`username` 去重，目标库已有账号、密码、角色和状态全部保留；只新增缺失的有效
+账号。迁移脚本见 `java-backend/sql/merge_users_into_ai_platform.sql`。
 
 ### Java 后端
 ```

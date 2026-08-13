@@ -33,7 +33,13 @@ export interface BazhuayuTask {
   reviewFailCount: number;
   duplicateCount: number;
   skipCount: number;
+  skipMainCount?: number | null;
+  skipBlacklistCount?: number | null;
   batchTotal: number;
+  /** 通过来源拆分：新品重取放行；旧数据可能为 null。 */
+  passRefetchCount?: number | null;
+  /** 通过来源拆分：全新通过；旧数据可能为 null。 */
+  passNewCount?: number | null;
   batchCurrent: number;
   apiSuccess: number;
   apiFail: number;
@@ -64,7 +70,13 @@ export interface BazhuayuTaskMapItem {
   reviewFailCount: number;
   duplicateCount: number;
   skipCount: number;
+  skipMainCount?: number | null;
+  skipBlacklistCount?: number | null;
   batchTotal: number;
+  /** 通过来源拆分：新品重取放行；旧数据可能为 null。 */
+  passRefetchCount?: number | null;
+  /** 通过来源拆分：全新通过；旧数据可能为 null。 */
+  passNewCount?: number | null;
   batchCurrent: number;
   apiSuccess: number;
   apiFail: number;
@@ -238,6 +250,25 @@ export interface TriggerImportResp {
   submitted: boolean;
 }
 
+/** 一键全导受理结果 */
+export interface TriggerAllItem {
+  marketplace: string;
+  taskId: string;
+  taskName?: string | null;
+  taskCategory?: string | null;
+  status: string; // QUEUED / ALREADY_IMPORTED / ERROR
+  batchNo?: string | null;
+  importTaskId?: number | null;
+  error?: string | null;
+}
+export interface TriggerAllResp {
+  total: number;
+  submitted: number;
+  alreadyImported: number;
+  failed: number;
+  items: TriggerAllItem[];
+}
+
 /** 以图识图结果行 */
 export interface ImageSearchResult {
   id: number;
@@ -290,6 +321,17 @@ export const bazhuayuApi = {
             : {}),
           ...(batch ? { batchCount: batch.latestBatchCount || 0 } : {}),
         },
+      }),
+    );
+  },
+
+  /** 一键全导：遍历所有榜单任务，各自锁定最新批次后异步入库 */
+  triggerAll(): Promise<TriggerAllResp> {
+    return unwrap(
+      request({
+        url: "/api/v1/modules/bazhuayu/trigger-all",
+        method: "post",
+        timeout: 90000,
       }),
     );
   },
@@ -384,6 +426,30 @@ export const bazhuayuApi = {
     return unwrap<void>(request({
       url: `/api/v1/modules/bazhuayu/tasks/${taskId}`,
       method: "delete",
+    }));
+  },
+
+  /** 暂停导入任务：停在当前进度，落断点，置 PAUSED，可续跑。 */
+  pauseImport(taskId: number): Promise<Record<string, unknown>> {
+    return unwrap(request({
+      url: `/api/v1/modules/bazhuayu/import-task/${taskId}/pause`,
+      method: "post",
+    }));
+  },
+
+  /** 续跑导入任务：从断点 offset 继续拉取同批次。 */
+  resumeImport(taskId: number): Promise<Record<string, unknown>> {
+    return unwrap(request({
+      url: `/api/v1/modules/bazhuayu/import-task/${taskId}/resume`,
+      method: "post",
+    }));
+  },
+
+  /** 重新获取：删旧任务数据后按同配置重拉云端最新批次。 */
+  refetchImport(taskId: number): Promise<Record<string, unknown>> {
+    return unwrap(request({
+      url: `/api/v1/modules/bazhuayu/import-task/${taskId}/refetch`,
+      method: "post",
     }));
   },
 

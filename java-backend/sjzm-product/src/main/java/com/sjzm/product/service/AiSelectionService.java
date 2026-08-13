@@ -27,17 +27,29 @@ public class AiSelectionService {
 
     private final AiSelectionMapper aiSelectionMapper;
     private final com.sjzm.product.mapper.NonstandardCarrierMapper carrierMapper;
+    private final com.sjzm.product.util.WeekTagUtil weekTagUtil;
+    private final AiSelectionHarvestRunner harvestRunner;
+    private final com.sjzm.product.mapper.AiSelectionHarvestRunMapper harvestRunMapper;
 
     // ────────────────────────────────────────────────────────
     // 全量捞取（按载体，服务端 INSERT ... SELECT）
     // ────────────────────────────────────────────────────────
 
-    @Transactional(rollbackFor = Exception.class)
-    public AiSelectionPushResult harvestByCarrier(String carrierKey, List<String> marketplaces, String userId) {
-        if (StringUtils.isBlank(carrierKey) || marketplaces == null || marketplaces.isEmpty()) {
-            throw new IllegalArgumentException("carrierKey 和 marketplaces 不能为空");
+    /** 本周批次 id：batch_<ISO周>（如 batch_2026-W31）。同周任意 harvest 都落进同一批次。 */
+    private String currentWeekBatchId() {
+        return "batch_" + weekTagUtil.currentWeekTag();
+    }
+
+    /** 本周批次名称：本周全载体 · 周 · 站点。 */
+    private String weekBatchLabel(List<String> markets) {
+        return "本周全载体 · " + weekTagUtil.currentWeekTag() + " · " + String.join("/", markets);
+    }
+
+    /** 规范化站点列表：去空白/去重/保序。 */
+    private List<String> normalizeMarkets(List<String> marketplaces) {
+        if (marketplaces == null || marketplaces.isEmpty()) {
+            throw new IllegalArgumentException("marketplaces 不能为空");
         }
-        // 去空白/去重，保持传入顺序
         List<String> markets = marketplaces.stream()
                 .filter(StringUtils::isNotBlank)
                 .map(String::trim)
@@ -46,8 +58,44 @@ public class AiSelectionService {
         if (markets.isEmpty()) {
             throw new IllegalArgumentException("站点列表为空");
         }
+        return markets;
+    }
 
-        // 读载体检索词
+    /**
+     * 单载体全市场捞取——写入指定 batchId（周批次）。
+     * 逐站点 × shop/clean 双通道；批次内去重靠 uk_batch_asin_mp，
+     * 同周重复捞 = 增量（已在的不重复插，新的加入）。
+     * 返回该载体本次 shop+clean 命中行数（未去重前的写入尝试数）。
+     */
+    private int harvestOneCarrier(com.sjzm.product.entity.NonstandardCarrier carrier,
+                                  List<String> markets, String batchId, String batchLabel, String userId) {
+        String carrierKey = carrier.getCarrierKey();
+        List<String> titleKeywords = splitCsv(carrier.getTitleKeywords());
+        List<String> categoryPaths = splitCsv(carrier.getCategoryPaths());
+        List<String> excludeKeywords = splitCsv(carrier.getExcludeKeywords());
+        List<String> conditionalExcludeKeywords = splitCsv(carrier.getConditionalExcludeKeywords());
+        List<String> includeKeywords = splitCsv(carrier.getIncludeKeywords());
+        if (titleKeywords.isEmpty() && categoryPaths.isEmpty()) {
+            log.warn("AI 选品捞取跳过：载体未配置任何检索词 carrier={}", carrierKey);
+            return 0;
+        }
+        int hit = 0;
+        for (String mk : markets) {
+            hit += aiSelectionMapper.harvestFromShop(mk, batchId, batchLabel, carrierKey,
+                    userId, titleKeywords, categoryPaths, excludeKeywords, conditionalExcludeKeywords, includeKeywords);
+            hit += aiSelectionMapper.harvestFromClean(mk, batchId, batchLabel, carrierKey,
+                    userId, titleKeywords, categoryPaths, excludeKeywords, conditionalExcludeKeywords, includeKeywords);
+        }
+        return hit;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public AiSelectionPushResult harvestByCarrier(String carrierKey, List<String> marketplaces, String userId) {
+        if (StringUtils.isBlank(carrierKey)) {
+            throw new IllegalArgumentException("carrierKey 不能为空");
+        }
+        List<String> markets = normalizeMarkets(marketplaces);
+
         com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.sjzm.product.entity.NonstandardCarrier> cw =
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
         cw.eq(com.sjzm.product.entity.NonstandardCarrier::getCarrierKey, carrierKey);
@@ -56,44 +104,81 @@ public class AiSelectionService {
             throw new IllegalArgumentException("载体不存在: " + carrierKey);
         }
 
-        List<String> titleKeywords = splitCsv(carrier.getTitleKeywords());
-        List<String> categoryPaths = splitCsv(carrier.getCategoryPaths());
-        List<String> excludeKeywords = splitCsv(carrier.getExcludeKeywords());
-        List<String> conditionalExcludeKeywords = splitCsv(carrier.getConditionalExcludeKeywords());
-        List<String> includeKeywords = splitCsv(carrier.getIncludeKeywords());
-        if (titleKeywords.isEmpty() && categoryPaths.isEmpty()) {
-            throw new IllegalArgumentException("载体未配置任何检索词: " + carrierKey);
-        }
+        // 周批次：同周任意载体 harvest 都写进同一 batch_<周>。补捞单载体也进当周批次。
+        String batchId = currentWeekBatchId();
+        String batchLabel = weekBatchLabel(markets);
 
-        // 一个 batchId 贯穿三国：本次「新增」的商品全部归入同一批次
-        String batchId = "batch_" + UUID.randomUUID().toString().replace("-", "");
-        String today = java.time.LocalDate.now().toString();
-        String batchLabel = carrier.getName() + " · " + String.join("/", markets) + " · 增量 " + today;
-
-        // 逐站点 × 双通道，都写同一批次。shop 先、clean 后；
-        // harvestFrom* 内已含「相对 载体+站点+ASIN 历史 NOT EXISTS」增量去重，
-        // 同事务内 clean 能看到 shop 刚插入行，跨通道/跨站点天然不重。
-        int shopTotal = 0;
-        int cleanTotal = 0;
-        for (String mk : markets) {
-            shopTotal += aiSelectionMapper.harvestFromShop(mk, batchId, batchLabel, carrierKey,
-                    userId, titleKeywords, categoryPaths, excludeKeywords, conditionalExcludeKeywords, includeKeywords);
-            cleanTotal += aiSelectionMapper.harvestFromClean(mk, batchId, batchLabel, carrierKey,
-                    userId, titleKeywords, categoryPaths, excludeKeywords, conditionalExcludeKeywords, includeKeywords);
-        }
+        int hit = harvestOneCarrier(carrier, markets, batchId, batchLabel, userId);
         int total = aiSelectionMapper.countByBatch(batchId);
 
-        log.info("AI 选品增量捞取: carrier={}, marketplaces={}, batchId={}, shop={}, clean={}, 新增(去重后)={}",
-                carrierKey, markets, batchId, shopTotal, cleanTotal, total);
+        log.info("AI 选品单载体补捞: carrier={}, marketplaces={}, batchId={}, 命中={}, 本周批次总数={}",
+                carrierKey, markets, batchId, hit, total);
 
         return AiSelectionPushResult.builder()
                 .batchId(batchId)
                 .batchLabel(batchLabel)
                 .total(total)
-                .requested(shopTotal + cleanTotal)
+                .requested(hit)
                 .invalidAsins(Collections.emptyList())
                 .products(Collections.emptyList())
                 .build();
+    }
+
+    /**
+     * 一键同步本周全载体（异步）：建 RUNNING 记录，提交异步任务，秒返回 runId。
+     * 实际合并扫描在 AiSelectionHarvestRunner.runHarvestAll 异步执行（独立 bean 规避 @Async 自调用失效）。
+     * 前端拿 runId 轮询 GET /harvest-run/{runId}。
+     */
+    public String startHarvestAll(List<String> marketplaces, String userId) {
+        List<String> markets = normalizeMarkets(marketplaces);
+        int carrierCount = harvestRunner.countEnabledCarriers();
+        if (carrierCount == 0) {
+            throw new IllegalArgumentException("没有 enabled 的载体");
+        }
+
+        String weekTag = weekTagUtil.currentWeekTag();
+        String batchId = currentWeekBatchId();
+        String batchLabel = weekBatchLabel(markets);
+        String runId = "harvest-all-" + UUID.randomUUID().toString().replace("-", "");
+
+        // carrier_total 用「扫描步数 = 站点数 × 2(shop/clean)」，进度按步推进更准
+        int steps = markets.size() * 2;
+        com.sjzm.product.entity.AiSelectionHarvestRun run = new com.sjzm.product.entity.AiSelectionHarvestRun();
+        run.setRunId(runId);
+        run.setStatus("RUNNING");
+        run.setWeekTag(weekTag);
+        run.setBatchId(batchId);
+        run.setMarketplaces(String.join("/", markets));
+        run.setCarrierTotal(steps);
+        run.setCarrierDone(0);
+        run.setHitTotal(0);
+        run.setBatchTotal(0);
+        harvestRunMapper.insert(run);
+
+        // 提交异步执行（taskExecutor 线程池）
+        harvestRunner.runHarvestAll(runId, markets, batchId, batchLabel, userId);
+
+        log.info("AI 选品全载体已提交异步: runId={}, batchId={}, 载体数={}, 扫描步数={}",
+                runId, batchId, carrierCount, steps);
+        return runId;
+    }
+
+    /** 查询异步同步任务状态（前端轮询）。 */
+    public com.sjzm.product.entity.AiSelectionHarvestRun getHarvestRun(String runId) {
+        return harvestRunMapper.selectById(runId);
+    }
+
+    /** 启动时把残留 RUNNING 记录置 FAILED（服务重启导致的僵尸任务）。 */
+    @jakarta.annotation.PostConstruct
+    public void recoverStaleHarvestRuns() {
+        try {
+            int n = harvestRunMapper.markStaleRunsFailed();
+            if (n > 0) {
+                log.warn("AI 选品：启动清理僵尸全载体同步任务 {} 条（置 FAILED）", n);
+            }
+        } catch (Exception e) {
+            log.warn("AI 选品：僵尸任务清理跳过（表可能未建）: {}", e.getMessage());
+        }
     }
 
     private List<String> splitCsv(String csv) {

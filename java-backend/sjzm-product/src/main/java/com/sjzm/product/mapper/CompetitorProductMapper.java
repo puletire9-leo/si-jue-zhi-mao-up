@@ -26,6 +26,19 @@ public interface CompetitorProductMapper extends BaseMapper<CompetitorProduct> {
     /** 批量查重：给定 ASIN 列表，返回已存在于 competitor_products 的 ASIN */
     List<String> selectExistingAsinsInList(@Param("marketplace") String marketplace, @Param("asins") List<String> asins);
 
+    /** 批量查询 ASIN 的上架天数：返回 {asin, listingDays}，供 API已请求 放行判断 */
+    List<Map<String, Object>> selectListingDaysInList(@Param("marketplace") String marketplace, @Param("asins") List<String> asins);
+
+    /**
+     * 新品重取判定：批量返回主表中 listing_days &lt; maxListingDays 的 ASIN（不看销量）。
+     * 即"上架不足 N 天"的已采过新品，初筛一律放行重新获取。
+     * 取 MIN(listing_days) 兜底同 ASIN 多行（变体/多月），取最新（天数最小）判定。
+     * 用主表实时值（每次采集刷新）而非 skip_asins 快照，避免上架天数冻结导致无限重取。
+     */
+    List<String> selectYoungAsinsInList(@Param("marketplace") String marketplace,
+                                        @Param("asins") List<String> asins,
+                                        @Param("maxListingDays") int maxListingDays);
+
     /** 按 marketplace + sellerName 拉取候选店铺商品（评分用） */
     @Select("<script>" +
         "SELECT cp.seller_name, cp.node_id, cp.bsr_id, cp.price" +

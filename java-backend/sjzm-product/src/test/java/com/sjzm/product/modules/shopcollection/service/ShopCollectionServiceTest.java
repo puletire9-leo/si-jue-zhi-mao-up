@@ -127,6 +127,25 @@ class ShopCollectionServiceTest {
     }
 
     @Test
+    void expansionProductsKeepsSelectedBatchWhileSearching() {
+        ShopProductSelectionQuery query = new ShopProductSelectionQuery();
+        query.setMarketplace("UK");
+        query.setBatchDates(List.of("2026-W29"));
+        query.setSellerName("TARGET SHOP");
+        when(shopProductMapper.selectPage(ArgumentMatchers.any(Page.class), ArgumentMatchers.any(Wrapper.class)))
+                .thenReturn(new Page<>(1, 60, 0));
+
+        service.expansionProducts(query);
+
+        ArgumentCaptor<Wrapper<ShopProduct>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(shopProductMapper).selectPage(ArgumentMatchers.any(Page.class), wrapperCaptor.capture());
+        Wrapper<ShopProduct> wrapper = wrapperCaptor.getValue();
+        assertThat(wrapper.getCustomSqlSegment()).contains("batch_code", "seller_name", "units");
+        assertThat(((LambdaQueryWrapper<ShopProduct>) wrapper).getParamNameValuePairs().values())
+                .contains("2026-W29", "%TARGET SHOP%");
+    }
+
+    @Test
     void selectionBatchesUsesWeeklyAggregation() {
         List<Map<String, Object>> weeks = List.of(Map.of(
                 "week", "2026-W29",

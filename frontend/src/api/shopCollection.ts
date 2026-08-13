@@ -564,6 +564,19 @@ export const shopCollectionApi = {
     );
   },
 
+  /** 拓品页面：当前批次内跨店分页，搜索不会扩展到历史快照。 */
+  expansionProducts(
+    params: ShopProductSelectionParams,
+  ): Promise<PageResult<ShopProductRow>> {
+    return unwrap<PageResult<ShopProductRow>>(
+      request({
+        url: `${BASE}/expansion-products`,
+        method: 'post',
+        data: params,
+      }),
+    );
+  },
+
   /** 统一选品页：店铺商品类目下拉。 */
   selectionCategories(
     params: ShopProductSelectionParams,

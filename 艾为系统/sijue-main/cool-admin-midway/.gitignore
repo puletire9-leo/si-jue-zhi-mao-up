@@ -1,0 +1,21 @@
+logs/
+cache/
+npm-debug.log
+yarn-error.log
+node_modules/
+yarn.lock
+coverage/
+dist/
+.idea/
+run/
+.DS_Store
+launch.json
+*.sw*
+*.un~
+.tsbuildinfo
+.tsbuildinfo.*
+data/*
+pnpm-lock.yaml
+public/uploads/*
+# 本地 Midway 覆盖（密钥、本机 DB 等），勿提交
+src/config/config.local.ts

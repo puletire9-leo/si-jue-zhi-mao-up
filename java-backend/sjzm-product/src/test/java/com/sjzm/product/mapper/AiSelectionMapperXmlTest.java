@@ -27,15 +27,18 @@ class AiSelectionMapperXmlTest {
     }
 
     @Test
-    void bothSourceHarvestsUseTheSameRecallAndIncrementalFilters() throws IOException {
+    void bothSourceHarvestsUseTheSameRecallAndNoCrossBatchDedup() throws IOException {
         String xml;
         try (var input = getClass().getResourceAsStream("/mapper/AiSelectionMapper.xml")) {
             assertThat(input).isNotNull();
             xml = new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }
 
+        // 双通道召回：shop + clean 两处
         assertThat(count(xml, "<include refid=\"dualChannelWhere\"/>")) .isEqualTo(2);
-        assertThat(count(xml, "<include refid=\"incrementalNotExists\"/>")) .isEqualTo(2);
+        // 已去掉跨批次增量去重：每次 harvest 全量重灌进新批次，批次内靠 uk_batch_asin_mp 去重
+        assertThat(count(xml, "<include refid=\"incrementalNotExists\"/>")) .isEqualTo(0);
+        assertThat(xml).doesNotContain("<sql id=\"incrementalNotExists\">");
     }
 
     private int count(String text, String token) {

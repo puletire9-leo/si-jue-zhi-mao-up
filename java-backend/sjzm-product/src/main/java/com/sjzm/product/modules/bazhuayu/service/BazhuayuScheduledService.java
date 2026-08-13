@@ -2,6 +2,8 @@ package com.sjzm.product.modules.bazhuayu.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.sjzm.product.entity.AsinImportTask;
+import com.sjzm.product.mapper.AsinImportTaskMapper;
 import com.sjzm.product.mapper.BazhuayuWeeklyRawMapper;
 import com.sjzm.product.config.DatabaseWorkloadGate;
 import com.sjzm.product.modules.bazhuayu.config.BazhuayuConfig;
@@ -54,6 +56,8 @@ public class BazhuayuScheduledService {
     private final AsinImportService asinImportService;
     private final ScoringService scoringService;
     private final BazhuayuRunStateService runState;
+    private final BazhuayuImportControlService importControl;
+    private final AsinImportTaskMapper taskMapper;
     private final ThreadPoolTaskExecutor executor;
     private final DatabaseWorkloadGate workloadGate;
     private final Set<String> activeDrainMarketplaces = ConcurrentHashMap.newKeySet();
@@ -66,6 +70,8 @@ public class BazhuayuScheduledService {
                                     AsinImportService asinImportService,
                                     ScoringService scoringService,
                                     BazhuayuRunStateService runState,
+                                    BazhuayuImportControlService importControl,
+                                    AsinImportTaskMapper taskMapper,
                                     @Qualifier("bazhuayuExecutor") ThreadPoolTaskExecutor executor,
                                     DatabaseWorkloadGate workloadGate) {
         this.client = client;
@@ -76,6 +82,8 @@ public class BazhuayuScheduledService {
         this.asinImportService = asinImportService;
         this.scoringService = scoringService;
         this.runState = runState;
+        this.importControl = importControl;
+        this.taskMapper = taskMapper;
         this.executor = executor;
         this.workloadGate = workloadGate;
     }
@@ -158,6 +166,69 @@ public class BazhuayuScheduledService {
             throw e;
         }
         return new DirectTriggerResult(queued.taskId(), "QUEUED", false, true, batchNo);
+    }
+
+    /**
+     * 一键全导：遍历所有 bangdan 任务映射，逐个锁定各自最新云采集批次后异步 drain 入库。
+     * 每个任务复用 {@link #triggerTaskAsync}（含"所见即所导"批次校验 + 幂等 + 僵尸重跑）。
+     * 单个任务失败/跳过不影响其它任务；同步返回每个任务的受理结果（提交/已导入/错误）。
+     */
+    public Map<String, Object> triggerAllBangdanTasks() {
+        // bangdan 功能下全部任务（精铺 initialFilter=true + 精品 false 都纳入）
+        List<BazhuayuTaskMapping> entries = configService.listTaskEntries().stream()
+                .filter(e -> BazhuayuConfigService.FUNC_BANGDAN.equals(e.getFunctionKey()))
+                .toList();
+        List<Map<String, Object>> items = new ArrayList<>();
+        int submitted = 0, alreadyImported = 0, failed = 0;
+        boolean first = true;
+        for (BazhuayuTaskMapping entry : entries) {
+            // 每个任务都要调 statuses/v2 查最新批次；连发会触发八爪鱼 TooManyRequests(1s5次)。
+            // 任务间隔 400ms 节流，确保云端状态查询不超频（首个不等）。
+            if (!first) sleepQuietly(400);
+            first = false;
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("marketplace", entry.getMarketplace());
+            item.put("taskId", entry.getTaskId());
+            item.put("taskName", entry.getTaskName());
+            item.put("taskCategory", entry.getTaskCategory());
+            try {
+                // 锁定该任务当前最新 Finished 批次（与单个导入同口径）
+                BazhuayuBatchSnapshot latest = client.getLatestBatchSnapshot(entry.getTaskId());
+                latest.assertSameBatch(latest);
+                DirectTriggerResult r = triggerTaskAsync(
+                        BazhuayuConfigService.FUNC_BANGDAN, entry.getMarketplace(), entry.getTaskId(), latest);
+                item.put("status", r.status());
+                item.put("batchNo", r.batchNo());
+                item.put("importTaskId", r.taskId());
+                if (r.submitted()) submitted++;
+                else if (r.alreadyImported()) alreadyImported++;
+            } catch (Exception e) {
+                failed++;
+                item.put("status", "ERROR");
+                item.put("error", e.getMessage());
+                log.error("一键全导：任务 {}:{} 触发失败: {}",
+                        entry.getMarketplace(), entry.getTaskId(), e.getMessage(), e);
+            }
+            items.add(item);
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("total", entries.size());
+        result.put("submitted", submitted);
+        result.put("alreadyImported", alreadyImported);
+        result.put("failed", failed);
+        result.put("items", items);
+        log.info("一键全导受理完成: 总 {} / 提交 {} / 已导入 {} / 失败 {}",
+                entries.size(), submitted, alreadyImported, failed);
+        return result;
+    }
+
+    /** 静默 sleep（被打断即恢复中断标志，不抛异常）。用于任务间节流。 */
+    private void sleepQuietly(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /**
@@ -478,6 +549,18 @@ public class BazhuayuScheduledService {
     private Map<String, Object> collectAndScreen(BazhuayuTaskMapping entry, String weekTag,
                                                  java.util.function.BooleanSupplier cancelled,
                                                  BazhuayuBatchSnapshot batch) {
+        return collectAndScreen(entry, weekTag, cancelled, batch, null, 0);
+    }
+
+    /**
+     * @param seedCtx     非空 = 续跑：复用已 seed 计数的上下文，跳过建任务/清周表；空 = 新建。
+     * @param startOffset 续跑起始云端原始行 offset（新建为 0）。
+     */
+    private Map<String, Object> collectAndScreen(BazhuayuTaskMapping entry, String weekTag,
+                                                 java.util.function.BooleanSupplier cancelled,
+                                                 BazhuayuBatchSnapshot batch,
+                                                 AsinImportService.StreamingFilterContext seedCtx,
+                                                 int startOffset) {
         String mp = entry.getMarketplace();
         String taskId = entry.getTaskId();
         if (!activeDrainMarketplaces.add(mp)) {
@@ -489,18 +572,26 @@ public class BazhuayuScheduledService {
             return skipped;
         }
 
-        log.info("Starting Bazhuayu increment drain for marketplace {}, task {}", mp, taskId);
+        log.info("Starting Bazhuayu increment drain for marketplace {}, task {} (resume={}, startOffset={})",
+                mp, taskId, seedCtx != null, startOffset);
 
         // 加锁后所有分支都必须走 finally 释放；命中幂等直接 return 也不能漏掉 remove。
         try {
-            AtomicBoolean initialized = new AtomicBoolean(false);
-            AsinImportService.StreamingFilterContext ctx = asinImportService.createStreamingTask(
-                    mp, IMPORT_TYPE, entry.getId(), entry.getTaskId(), entry.getTaskName(),
-                    entry.getTaskCategory(), true, "competitor_products", batch);
+            // 续跑复用 seed 上下文，新建走原逻辑。initialized 起始值：续跑视为已初始化（不再清周表）。
+            AtomicBoolean initialized = new AtomicBoolean(seedCtx != null);
+            AsinImportService.StreamingFilterContext ctx = seedCtx != null ? seedCtx
+                    : asinImportService.createStreamingTask(
+                            mp, IMPORT_TYPE, entry.getId(), entry.getTaskId(), entry.getTaskName(),
+                            entry.getTaskCategory(), true, "competitor_products", batch);
             if (ctx.isAlreadyImported()) {
                 return Map.of("status", "SKIPPED", "reason", "BATCH_ALREADY_IMPORTED",
                         "taskId", ctx.getTaskId(), "batchNo", batch == null ? null : batch.batchNo());
             }
+            // 协作暂停信号：用户点“暂停”→ importControl 置位；drain 每页边界检查后停在整页。
+            final Long ctxTaskId = ctx.getTaskId();
+            java.util.function.BooleanSupplier pauseCheck =
+                    () -> importControl.isPauseRequested(ctxTaskId)
+                            || (cancelled != null && cancelled.getAsBoolean());
 
             try {
                 java.util.function.Consumer<List<JsonNode>> pageHandler = page -> {
@@ -542,9 +633,26 @@ public class BazhuayuScheduledService {
                     }
                     asinImportService.filterPageAndAppend(ctx, shapedRows);
                 };
+                // batch 路径 startOffset==alreadyProcessed（offset 按整页原始行前移，从 0 起精确）。
                 int totalRaw = batch == null
-                        ? client.drainNotExported(taskId, pageHandler, config.getDrainMaxRows(), cancelled)
-                        : client.fetchBatchDataStreaming(taskId, batch, pageHandler);
+                        ? client.drainNotExported(taskId, pageHandler, config.getDrainMaxRows(), pauseCheck)
+                        : client.fetchBatchDataStreaming(taskId, batch, pageHandler,
+                                startOffset, startOffset, pauseCheck);
+
+                // 暂停命中：落断点，任务置 PAUSED，可续跑。
+                if (importControl.isPauseRequested(ctxTaskId)
+                        || (cancelled != null && cancelled.getAsBoolean())) {
+                    int nextOffset = startOffset + totalRaw;
+                    asinImportService.pauseStreamingTask(ctx, nextOffset);
+                    importControl.clear(ctxTaskId);
+                    Map<String, Object> paused = new LinkedHashMap<>();
+                    paused.put("status", "PAUSED");
+                    paused.put("rawCount", totalRaw);
+                    paused.put("resumeOffset", nextOffset);
+                    paused.put("taskId", ctxTaskId);
+                    paused.put("batchNo", batch == null ? null : batch.batchNo());
+                    return paused;
+                }
 
                 Map<String, Object> r = new LinkedHashMap<>();
                 r.put("status", "READY");
@@ -560,9 +668,107 @@ public class BazhuayuScheduledService {
             } catch (RuntimeException e) {
                 asinImportService.failStreamingTask(ctx, e.getMessage());
                 throw e;
+            } finally {
+                importControl.clear(ctxTaskId);
             }
         } finally {
             activeDrainMarketplaces.remove(mp);
         }
+    }
+
+    // ============================================================
+    // Entry 4: 导入任务 暂停 / 续跑 / 重新获取（仅初筛榜单，batch 路径）。
+    // ============================================================
+
+    /** 暂停一个正在导入的任务：置协作信号，worker 处理完当前页后收口 PAUSED。 */
+    public Map<String, Object> pauseImportTask(Long taskId) {
+        AsinImportTask task = taskMapper.selectById(taskId);
+        if (task == null) throw new IllegalArgumentException("导入任务不存在: " + taskId);
+        String st = task.getTaskStatus();
+        if (!"RUNNING".equals(st) && !"DRAINING".equals(st)) {
+            throw new IllegalStateException("仅运行中(RUNNING/DRAINING)的任务可暂停，当前状态: " + st);
+        }
+        importControl.requestPause(taskId);
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("taskId", taskId);
+        r.put("status", "PAUSE_REQUESTED");
+        return r;
+    }
+
+    /** 续跑一个 PAUSED/ERROR/INTERRUPTED 的导入任务：从断点 offset 继续拉取同批次。 */
+    public Map<String, Object> resumeImportTask(Long taskId) {
+        AsinImportTask task = taskMapper.selectById(taskId);
+        if (task == null) throw new IllegalArgumentException("导入任务不存在: " + taskId);
+        String st = task.getTaskStatus();
+        if (!"PAUSED".equals(st) && !"ERROR".equals(st) && !"INTERRUPTED".equals(st)) {
+            throw new IllegalStateException("仅 PAUSED/ERROR/INTERRUPTED 任务可续跑，当前状态: " + st);
+        }
+        if (Boolean.FALSE.equals(task.getInitialFilter())) {
+            throw new IllegalStateException("精品(直入)任务暂不支持续跑，请用重新获取");
+        }
+        if (task.getBazhuayuBatchNo() == null || task.getBazhuayuBatchNo().isBlank()) {
+            throw new IllegalStateException("任务无云端批次信息，无法续跑，请用重新获取");
+        }
+        BazhuayuTaskMapping entry = configService.findTaskEntry(
+                BazhuayuConfigService.FUNC_BANGDAN, task.getMarketplace(), task.getBazhuayuTaskId());
+        if (entry == null) {
+            throw new IllegalStateException("八爪鱼命名任务不存在，无法续跑: "
+                    + task.getMarketplace() + ":" + task.getBazhuayuTaskId());
+        }
+        BazhuayuBatchSnapshot batch = new BazhuayuBatchSnapshot(
+                task.getBazhuayuBatchNo(), task.getBazhuayuLotNo(),
+                task.getBazhuayuBatchStartTime(), null, task.getBazhuayuBatchEndTime(),
+                task.getBazhuayuBatchCount() == null ? 0 : task.getBazhuayuBatchCount(), "Finished");
+        int startOffset = task.getResumeOffset() == null ? 0 : task.getResumeOffset();
+        importControl.clear(taskId);
+        AsinImportService.StreamingFilterContext ctx = asinImportService.beginResumeStreamingTask(taskId);
+        executor.execute(() -> {
+            try {
+                String weekTag = scoringService.getCurrentWeekTag();
+                workloadGate.runHeavyWrite(() ->
+                        collectAndScreen(entry, weekTag, null, batch, ctx, startOffset));
+            } catch (Exception e) {
+                asinImportService.failStreamingTask(ctx, "续跑失败: " + e.getMessage());
+                log.error("导入任务 {} 续跑失败: {}", taskId, e.getMessage(), e);
+            }
+        });
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("taskId", taskId);
+        r.put("status", "RESUMED");
+        r.put("startOffset", startOffset);
+        return r;
+    }
+
+    /** 重新获取：删旧任务数据后按同配置重拉云端最新批次（走标准 trigger 幂等+校验链路）。 */
+    public Map<String, Object> refetchImportTask(Long taskId) {
+        AsinImportTask task = taskMapper.selectById(taskId);
+        if (task == null) throw new IllegalArgumentException("导入任务不存在: " + taskId);
+        String st = task.getTaskStatus();
+        if ("RUNNING".equals(st) || "DRAINING".equals(st) || "QUEUED".equals(st)) {
+            throw new IllegalStateException("任务运行中，请先暂停再重新获取，当前状态: " + st);
+        }
+        if (Boolean.FALSE.equals(task.getInitialFilter())) {
+            throw new IllegalStateException("精品(直入)任务暂不支持重新获取");
+        }
+        BazhuayuTaskMapping entry = configService.findTaskEntry(
+                BazhuayuConfigService.FUNC_BANGDAN, task.getMarketplace(), task.getBazhuayuTaskId());
+        if (entry == null) {
+            throw new IllegalStateException("八爪鱼命名任务不存在，无法重新获取: "
+                    + task.getMarketplace() + ":" + task.getBazhuayuTaskId());
+        }
+        // 先清旧任务（含 results/skip/raw），使同批次可真正重导。
+        importControl.clear(taskId);
+        asinImportService.deleteBazhuayuTask(taskId);
+        // 重拉云端当前最新 Finished 批次（与配置面板“导入DB”同口径）。
+        BazhuayuBatchSnapshot latest = client.getLatestBatchSnapshot(entry.getTaskId());
+        latest.assertSameBatch(latest);
+        DirectTriggerResult r = triggerTaskAsync(
+                BazhuayuConfigService.FUNC_BANGDAN, entry.getMarketplace(), entry.getTaskId(), latest);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("oldTaskId", taskId);
+        result.put("newTaskId", r.taskId());
+        result.put("status", r.status());
+        result.put("batchNo", r.batchNo());
+        return result;
     }
 }

@@ -647,11 +647,24 @@ public class ShopCollectionService {
      * 店铺商品跨店分页。统一选品页与新品榜共用一套筛选外壳，仅在这里替换数据源。
      */
     public PageResult<ShopProduct> selectionProducts(ShopProductSelectionQuery query) {
+        return pagedShopProducts(query, true);
+    }
+
+    /**
+     * 拓品页面商品分页。与选品工作台读取同一份 shop_products 事实，
+     * 但搜索不能清空页面已经选定的批次，否则同一 ASIN 会混入历史快照。
+     */
+    public PageResult<ShopProduct> expansionProducts(ShopProductSelectionQuery query) {
+        return pagedShopProducts(query, false);
+    }
+
+    private PageResult<ShopProduct> pagedShopProducts(
+            ShopProductSelectionQuery query, boolean searchAcrossBatches) {
         int page = Math.max(1, query.getPage() == null ? 1 : query.getPage());
         // 页规模上限 200：500 张卡片全量实例化(每张~25 computed + ResizeObserver)是前端卡死的放大因素，
         // 与前端 page-sizes[60,100,200] 对齐，双端一致。
         int size = Math.min(200, Math.max(1, query.getSize() == null ? 60 : query.getSize()));
-        normalizeSelectionBatchScope(query);
+        normalizeSelectionBatchScope(query, searchAcrossBatches);
         LambdaQueryWrapper<ShopProduct> qw = buildSelectionProductFilter(query, true);
 
         // 列裁剪：只取选品卡片实际用到的字段（对齐前端 ShopProductRow），
@@ -848,10 +861,15 @@ public class ShopCollectionService {
      * 其余筛选（价格/销量/类目/方法卡）在两种路径下都照常生效，不受此方法影响。
      */
     private void normalizeSelectionBatchScope(ShopProductSelectionQuery query) {
+        normalizeSelectionBatchScope(query, true);
+    }
+
+    private void normalizeSelectionBatchScope(
+            ShopProductSelectionQuery query, boolean searchAcrossBatches) {
         boolean hasSearch = hasItems(query.getAsins())
                 || StringUtils.hasText(query.getSellerName())
                 || StringUtils.hasText(query.getTitle());
-        if (hasSearch) {
+        if (hasSearch && searchAcrossBatches) {
             query.setBatchDates(null);
             return;
         }

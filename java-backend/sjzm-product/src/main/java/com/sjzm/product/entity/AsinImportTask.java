@@ -16,10 +16,19 @@ public class AsinImportTask {
     private String taskStatus;
     private Integer totalCount;
     private Integer passCount;
+    /** 通过来源拆分：新品重取放行(已采过<30天,重新取)。 */
+    private Integer passRefetchCount;
+    /** 通过来源拆分：全新通过(从没见过的 ASIN)。 */
+    private Integer passNewCount;
     private Integer priceFailCount;
     private Integer reviewFailCount;
     private Integer duplicateCount;
+    /** 跳过总数 = skipMainCount + skipBlacklistCount（保留合并列，兼容旧数据/汇总）。 */
     private Integer skipCount;
+    /** 主表已有（competitor_products 已入库，去重跳过）。 */
+    private Integer skipMainCount;
+    /** 已采过淘汰（skip_asins 命中且非新品重取候选，如上架≥30天）。 */
+    private Integer skipBlacklistCount;
     private Integer batchTotal;
     private Integer batchCurrent;
     private Integer apiSuccess;
@@ -45,6 +54,13 @@ public class AsinImportTask {
 
     private String errorMessage;
     private String progressLog;
+
+    /**
+     * 八爪鱼导入断点检查点：已处理的云端原始行 offset。
+     * 暂停时落盘，resume 时从此 offset 续拉，避免重拉已导行 / 重复写 asin_import_results。
+     * null / 0 = 从头开始。
+     */
+    private Integer resumeOffset;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;

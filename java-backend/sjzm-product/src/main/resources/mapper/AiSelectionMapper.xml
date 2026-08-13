@@ -86,18 +86,6 @@
         </if>
     </sql>
 
-    <!-- 增量去重：相对该「载体 + 站点 + ASIN」的历史（跨所有批次）不存在才捞入。
-         同事务内 clean 能看到 shop 刚插入的行，故 shop∪clean、跨站点天然不重复。
-         走 idx_carrier_mp_asin (carrier, marketplace, asin)。 -->
-    <sql id="incrementalNotExists">
-        AND NOT EXISTS (
-            SELECT 1 FROM ai_selection e
-            WHERE e.carrier = #{carrier}
-              AND e.marketplace = s.marketplace
-              AND e.asin = s.asin
-        )
-    </sql>
-
     <!-- 全量捞取的目标列清单（与 insertBatchIgnoreDup 一致，末尾补 carrier） -->
     <sql id="harvestColumns">
         marketplace, asin, month,
@@ -140,7 +128,9 @@
         NOW(), NOW()
     </sql>
 
-    <!-- 从 shop_products 全量捞取（去重靠目标表 uk_batch_asin，同批次同 asin 保留首行） -->
+    <!-- 从 shop_products 全量捞取：每次把该载体全市场匹配 ASIN 全灌入本批次。
+         批次内去重靠目标表 uk_batch_asin_mp(batch_id,asin,marketplace)，同批次同 asin 保留首行。
+         已去掉跨批次增量去重——每次 harvest 都全量重灌进新批次。 -->
     <insert id="harvestFromShop">
         <bind name="sourceRef" value="'shop_products'"/>
         INSERT IGNORE INTO ai_selection (<include refid="harvestColumns"/>)
@@ -150,10 +140,9 @@
           AND s.title IS NOT NULL AND s.title != ''
           AND s.asin IS NOT NULL AND s.asin != ''
         <include refid="dualChannelWhere"/>
-        <include refid="incrementalNotExists"/>
     </insert>
 
-    <!-- 从 competitor_products_clean 全量捞取（clean 在 shop 之后跑，撞 uk_batch_asin 的被忽略） -->
+    <!-- 从 competitor_products_clean 全量捞取（clean 在 shop 之后跑，撞 uk_batch_asin_mp 的被忽略） -->
     <insert id="harvestFromClean">
         <bind name="sourceRef" value="'competitor_products_clean'"/>
         INSERT IGNORE INTO ai_selection (<include refid="harvestColumns"/>)
@@ -163,7 +152,119 @@
           AND s.title IS NOT NULL AND s.title != ''
           AND s.asin IS NOT NULL AND s.asin != ''
         <include refid="dualChannelWhere"/>
-        <include refid="incrementalNotExists"/>
+    </insert>
+
+    <!-- ============================================================
+         合并扫描（提速 C）：一次扫某表某站点，全载体用 OR 并集召回，
+         SELECT 里 CASE 按载体顺序取首个命中的 carrier。
+         把「17 载体 × N 站 × 2 表」的逐条扫描压成「N 站 × 2 表」次。
+         入参 carriers: List<CarrierHarvestSpec>；每项 c 有
+           c.carrierKey / c.titleKeywords / c.categoryPaths /
+           c.excludeKeywords / c.conditionalExcludeKeywords / c.includeKeywords
+         依赖前提「同 ASIN 不跨载体」——CASE 首个命中即唯一归属。
+         ============================================================ -->
+
+    <!-- 单载体命中判定（title 或 category 命中 + 硬排除 + 条件排除/成品保护）。
+         用于 WHERE 的 OR 并集 与 SELECT 的 CASE 分支，逻辑与 dualChannelWhere 完全一致。 -->
+    <sql id="carrierMatch">
+        (
+          (
+          <trim prefixOverrides="OR">
+              <foreach collection="c.titleKeywords" item="kw">
+                  OR s.title LIKE CONCAT('%', #{kw}, '%')
+              </foreach>
+              <foreach collection="c.categoryPaths" item="cp">
+                  OR s.node_label_path LIKE CONCAT('%', #{cp}, '%')
+              </foreach>
+          </trim>
+          )
+          <if test="c.excludeKeywords != null and c.excludeKeywords.size() > 0">
+              <foreach collection="c.excludeKeywords" item="ex">
+                  AND s.title NOT LIKE CONCAT('%', #{ex}, '%')
+              </foreach>
+          </if>
+          <if test="c.conditionalExcludeKeywords != null and c.conditionalExcludeKeywords.size() > 0">
+              AND (
+                  <trim prefixOverrides="AND">
+                      <foreach collection="c.conditionalExcludeKeywords" item="conditionalEx">
+                          AND s.title NOT LIKE CONCAT('%', #{conditionalEx}, '%')
+                      </foreach>
+                  </trim>
+                  <if test="c.includeKeywords != null and c.includeKeywords.size() > 0">
+                      OR (
+                          <trim prefixOverrides="OR">
+                              <foreach collection="c.includeKeywords" item="includeKw">
+                                  OR s.title LIKE CONCAT('%', #{includeKw}, '%')
+                              </foreach>
+                          </trim>
+                      )
+                  </if>
+              )
+          </if>
+        )
+    </sql>
+
+    <!-- 合并 SELECT 列：carrier 列由 CASE 计算，其余同 harvestSelect（但 carrier 不用常量）。 -->
+    <sql id="harvestSelectMerged">
+        s.marketplace, s.asin, s.month,
+        s.title, s.brand, s.brand_url, s.image_url, s.parent_asin, s.sku,
+        s.node_id, s.node_id_path, s.node_label_path, s.symbol,
+        s.units, s.sales_tier, s.units_gr, s.amz_unit, s.amz_sales, s.amz_unit_date, s.revenue,
+        s.bsr_id, s.bsr, s.bsr_cr, s.bsr_cv,
+        s.ratings, s.rating, s.ratings_rate, s.ratings_cv, s.rating_delta,
+        s.price, s.prime_price, s.profit, s.fba, s.delivery_price,
+        s.seller_name, s.seller_id, s.seller_nation, s.sellers,
+        s.fulfillment, s.variations, s.weight, s.dimension, s.dimensions_type,
+        s.pkg_dimensions, s.pkg_dimension_type, s.pkg_weight,
+        s.lqs, s.available_date,
+        s.best_seller, s.amazon_choice, s.new_release, s.ebc, s.video,
+        s.filter_mode, s.filter_reasons, s.listing_days, s.weight_g,
+        s.product_url, s.similar_url, s.source,
+        s.score, s.grade, s.week_tag, s.is_current,
+        #{batchId}, #{batchLabel}, #{sourceRef},
+        CASE
+        <foreach collection="carriers" item="c">
+            WHEN <include refid="carrierMatch"/> THEN #{c.carrierKey}
+        </foreach>
+            ELSE '' END,
+        #{pushedBy}, NOW(),
+        NOW(), NOW()
+    </sql>
+
+    <!-- 合并扫描 shop_products：一次扫某站点，全载体 OR 并集 + CASE 分流 carrier。 -->
+    <insert id="harvestAllFromShop">
+        <bind name="sourceRef" value="'shop_products'"/>
+        INSERT IGNORE INTO ai_selection (<include refid="harvestColumns"/>)
+        SELECT <include refid="harvestSelectMerged"/>
+        FROM shop_products s
+        WHERE s.marketplace = #{marketplace}
+          AND s.title IS NOT NULL AND s.title != ''
+          AND s.asin IS NOT NULL AND s.asin != ''
+          AND (
+          <trim prefixOverrides="OR">
+              <foreach collection="carriers" item="c">
+                  OR <include refid="carrierMatch"/>
+              </foreach>
+          </trim>
+          )
+    </insert>
+
+    <!-- 合并扫描 competitor_products_clean：同上，clean 后跑，撞 uk_batch_asin_mp 的忽略。 -->
+    <insert id="harvestAllFromClean">
+        <bind name="sourceRef" value="'competitor_products_clean'"/>
+        INSERT IGNORE INTO ai_selection (<include refid="harvestColumns"/>)
+        SELECT <include refid="harvestSelectMerged"/>
+        FROM competitor_products_clean s
+        WHERE s.marketplace = #{marketplace}
+          AND s.title IS NOT NULL AND s.title != ''
+          AND s.asin IS NOT NULL AND s.asin != ''
+          AND (
+          <trim prefixOverrides="OR">
+              <foreach collection="carriers" item="c">
+                  OR <include refid="carrierMatch"/>
+              </foreach>
+          </trim>
+          )
     </insert>
 
 </mapper>

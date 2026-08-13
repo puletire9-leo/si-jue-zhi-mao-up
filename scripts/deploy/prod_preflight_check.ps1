@@ -6,7 +6,8 @@ param(
     [string]$User = "",
     [string]$Password = "",
     [switch]$SkipDatabase,
-    [switch]$SkipRoutes
+    [switch]$SkipRoutes,
+    [switch]$SkipDockerDisk
 )
 
 $ErrorActionPreference = "Stop"
@@ -125,6 +126,33 @@ $failures = New-Object System.Collections.Generic.List[string]
 Write-Host "[preflight] repository: $(Get-Location)"
 Write-Host "[preflight] env: $Env"
 
+if (-not $SkipDockerDisk) {
+    $dockerSettingsPath = Join-Path $env:APPDATA "Docker/settings-store.json"
+    $dockerDataPath = ""
+    if (Test-Path $dockerSettingsPath) {
+        try {
+            $dockerSettings = Get-Content -Encoding UTF8 $dockerSettingsPath -Raw | ConvertFrom-Json
+            $dockerDataPath = [string]$dockerSettings.CustomWslDistroDir
+        } catch {
+            $failures.Add("Cannot parse Docker Desktop settings: $dockerSettingsPath")
+        }
+    }
+    if (-not $dockerDataPath) {
+        $dockerDataPath = $env:LOCALAPPDATA
+    }
+    $dockerDriveName = (Split-Path -Qualifier $dockerDataPath).TrimEnd(":")
+    $dockerDrive = Get-PSDrive -Name $dockerDriveName -ErrorAction SilentlyContinue
+    if (-not $dockerDrive) {
+        $failures.Add("Cannot resolve Docker data drive from: $dockerDataPath")
+    } else {
+        $dockerFreeGb = [math]::Round($dockerDrive.Free / 1GB, 2)
+        Write-Host "[preflight] Docker data drive ${dockerDriveName}: free=${dockerFreeGb}GB path=$dockerDataPath"
+        if ($dockerFreeGb -lt 15) {
+            $failures.Add("Docker data drive ${dockerDriveName}: has only ${dockerFreeGb}GB free; at least 15GB is required before build/deploy.")
+        }
+    }
+}
+
 if (-not $SkipDatabase) {
     if (-not $Database -or -not $User -or -not $Password) {
         $failures.Add("Database credentials incomplete. Provide -Database/-User/-Password or config/public+secrets $Env env files.")
@@ -143,6 +171,40 @@ if (-not $SkipDatabase) {
             }
         }
         Write-Host "[preflight] entity tables required=$($entityTables.Count), existing=$($dbTables.Count)"
+    }
+
+    if ($Env -eq "prod") {
+        Write-Host "[preflight] checking MySQL binlog retention and replication safety ..."
+        try {
+            $binlogExpireSeconds = [long](@(Invoke-MysqlScalarList "SELECT @@global.binlog_expire_logs_seconds")[0])
+            $replicationChannels = [int](@(Invoke-MysqlScalarList "SELECT COUNT(*) FROM performance_schema.replication_connection_configuration")[0])
+            $binlogRows = @(Invoke-MysqlScalarList "SHOW BINARY LOGS")
+            $binlogBytes = [long]0
+            foreach ($row in $binlogRows) {
+                $parts = ([string]$row).Trim() -split "`t"
+                if ($parts.Count -ge 2) {
+                    $size = [long]0
+                    if ([long]::TryParse($parts[1], [Globalization.NumberStyles]::Integer, [Globalization.CultureInfo]::InvariantCulture, [ref]$size)) {
+                        $binlogBytes += $size
+                    }
+                }
+            }
+
+            $binlogGb = [math]::Round($binlogBytes / 1GB, 2)
+            Write-Host "[preflight] MySQL binlog: retention=${binlogExpireSeconds}s size=${binlogGb}GB replicationChannels=$replicationChannels"
+
+            if ($replicationChannels -gt 0) {
+                $failures.Add("MySQL replication is configured. Do not use the standalone 3-7 day binlog policy until replica requirements are reviewed.")
+            }
+            if ($binlogExpireSeconds -lt 259200 -or $binlogExpireSeconds -gt 604800) {
+                $failures.Add("MySQL binlog retention must be between 259200 and 604800 seconds (3-7 days); actual=${binlogExpireSeconds}.")
+            }
+            if ($binlogBytes -gt 5GB) {
+                $failures.Add("MySQL binlog uses ${binlogGb}GB (>5GB). Review write volume and purge safely with MySQL before deployment; never delete binlog files directly.")
+            }
+        } catch {
+            $failures.Add("Cannot verify MySQL binlog retention/size: $($_.Exception.Message)")
+        }
     }
 }
 

@@ -24,6 +24,8 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 - **Java 多阶段构建**：`Dockerfile.prod` 已改为多阶段构建，`mvn package` 在 Docker 镜像内自动执行，无需宿主机手动编译
 - **Celery Worker**：新增 `celery-download` 服务处理异步下载任务
 - **旧配置标记**：`docker-compose.base.yml` 仅用于构建 Python 基础镜像
+- **生产镜像双版本**：应用镜像使用 `current` + `previous`，构建时短暂出现第三版，验证后只保留当前版和上一版；完整步骤见生产部署流程
+- **Java 编译缓存双版本**：BuildKit 中本项目 `mvn clean package` 记录常态只保留最新 2 条；发布验证后必须运行 `scripts/deploy/prune_java_build_cache.ps1`
 
 ## 验证
 
@@ -44,6 +46,10 @@ docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate mysql
 
 MySQL 健康检查执行真实的 `SELECT 1`，连接超时 1 秒、健康检查总超时 2 秒。
 不要改回 `mysqladmin ping`：该命令在 InnoDB 查询线程阻塞时仍可能返回存活。
+
+生产单机 MySQL 的 binlog 默认只保留 7 天（`MYSQL_BINLOG_EXPIRE_SECONDS=604800`），生产预检
+强制要求保留期在 3-7 天、无复制通道且 binlog 总量不超过 5 GB。禁止直接删除数据卷内的
+`binlog.*` 文件；详细操作见生产部署流程和数据库设计文档。
 
 生产连接与重负载默认预算：
 

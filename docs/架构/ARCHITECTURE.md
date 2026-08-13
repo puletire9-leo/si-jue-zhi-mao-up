@@ -85,7 +85,7 @@ LoggingMiddleware → TimeoutMiddleware → AuthMiddleware → ErrorHandler
 | `final_drafts` | 27 | 定稿 CRUD、状态流转、ZIP 下载 |
 | `carrier_library` | 22 | 载体库管理 |
 | `material_library` | 21 | 素材库管理 |
-| `selection` | 18 | 选品管理（新品/竞品/郑总店铺） |
+| `selection` | 19 | 选品管理（新品/竞品/郑总店铺/拓品竞品店铺） |
 | `logs` | 16 | 系统日志/文档/更新记录 |
 | `images` | 14 | 图片上传/搜索/元数据 |
 | `products` | 14 | 产品 CRUD |

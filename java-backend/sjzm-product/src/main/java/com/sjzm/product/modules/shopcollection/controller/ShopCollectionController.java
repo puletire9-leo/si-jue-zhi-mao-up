@@ -136,6 +136,13 @@ public class ShopCollectionController {
         return Result.success(collectionService.selectionProducts(query));
     }
 
+    @PostMapping("/expansion-products")
+    @Operation(summary = "拓品竞品店铺商品分页",
+            description = "独立拓品页面读取 shop_products；搜索时仍保留指定批次，避免混入历史快照")
+    public Result<PageResult<ShopProduct>> expansionProducts(@RequestBody ShopProductSelectionQuery query) {
+        return Result.success(collectionService.expansionProducts(query));
+    }
+
     @GetMapping("/selection-categories")
     @Operation(summary = "统一选品页的店铺商品类目")
     public Result<List<Map<String, Object>>> selectionCategories(@RequestParam String marketplace) {

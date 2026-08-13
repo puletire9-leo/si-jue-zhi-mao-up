@@ -26,7 +26,7 @@ public class UserServiceImpl implements UserService {
                 new Page<>(page, size),
                 new LambdaQueryWrapper<User>()
                         .select(User.class, f -> !"password".equals(f.getProperty()))
-                        .orderByDesc(User::getCreatedAt)
+                        .orderByDesc(User::getId)
         );
         return PageResult.of(
                 userPage.getRecords(),
@@ -55,10 +55,10 @@ public class UserServiceImpl implements UserService {
         if (user == null) {
             throw new BusinessException(404, "用户不存在");
         }
-        if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
+        if (!passwordMatches(oldPassword, user.getPassword())) {
             throw new BusinessException(400, "原密码错误");
         }
-        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setPassword(newPassword);
         userMapper.updateById(user);
         log.info("用户密码已修改: userId={}", id);
     }
@@ -72,10 +72,12 @@ public class UserServiceImpl implements UserService {
         if (count > 0) {
             throw new BusinessException(400, "用户名已存在");
         }
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setPassword(user.getPassword());
+        user.setRole(toPlatformRole(user.getRole()));
         if (user.getStatus() == null) {
             user.setStatus(1);
         }
+        preparePlatformFields(user);
         userMapper.insert(user);
         log.info("用户创建成功: username={}, role={}", user.getUsername(), user.getRole());
     }
@@ -115,7 +117,7 @@ public class UserServiceImpl implements UserService {
                     throw new BusinessException(400, "无效的角色: " + trimmed);
                 }
             }
-            existing.setRole(user.getRole());
+            existing.setRole(toPlatformRole(user.getRole()));
         }
         if (user.getDeveloper() != null) existing.setDeveloper(user.getDeveloper());
         if (user.getStatus() != null) existing.setStatus(user.getStatus());
@@ -139,7 +141,7 @@ public class UserServiceImpl implements UserService {
         if (user == null) {
             throw new BusinessException(404, "用户不存在");
         }
-        user.setRole(role);
+        user.setRole(toPlatformRole(role));
         userMapper.updateById(user);
         log.info("用户角色已更新: userId={}, role={}", id, role);
     }
@@ -150,8 +152,49 @@ public class UserServiceImpl implements UserService {
         if (user == null) {
             throw new BusinessException(404, "用户不存在");
         }
-        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setPassword(newPassword);
         userMapper.updateById(user);
         log.warn("[Admin] 重置用户密码: userId={}, username={}", id, user.getUsername());
+    }
+
+    private boolean passwordMatches(String rawPassword, String storedPassword) {
+        if (storedPassword == null) {
+            return false;
+        }
+        if (storedPassword.startsWith("$2a$")
+                || storedPassword.startsWith("$2b$")
+                || storedPassword.startsWith("$2y$")) {
+            return passwordEncoder.matches(rawPassword, storedPassword);
+        }
+        return storedPassword.equals(rawPassword);
+    }
+
+    private static void preparePlatformFields(User user) {
+        if (user.getPlatformId() == null || user.getPlatformId().isBlank()) {
+            user.setPlatformId(java.util.UUID.randomUUID().toString());
+        }
+        if (user.getName() == null || user.getName().isBlank()) {
+            user.setName(user.getRealName() == null || user.getRealName().isBlank()
+                    ? user.getUsername() : user.getRealName());
+        }
+        if (user.getCreatedAt() == null || user.getCreatedAt().isBlank()) {
+            user.setCreatedAt(java.time.Instant.now().toString());
+        }
+    }
+
+    private static String toPlatformRole(String role) {
+        if (role == null || role.isBlank()) {
+            return "OPERATOR";
+        }
+        if (role.contains("admin") || role.contains("管理员")) {
+            return "MANAGER";
+        }
+        if (role.contains("开发") || role.contains("developer")) {
+            return "DEVELOPER";
+        }
+        if (role.contains("美术") || role.contains("artist")) {
+            return "ART_MANAGER";
+        }
+        return "OPERATOR";
     }
 }

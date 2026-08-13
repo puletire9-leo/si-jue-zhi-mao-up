@@ -106,6 +106,38 @@ export function harvest(
   }).then((res: any) => res?.data as AiSelectionPushResponse);
 }
 
+/** 一键同步本周全载体（异步）：秒返回 runId，后台合并扫描。前端轮询 harvestRunStatus。 */
+export function harvestAll(
+  marketplaces: string[],
+): Promise<{ runId: string }> {
+  return request({
+    url: `${BASE}/harvest-all`,
+    method: "post",
+    data: { marketplaces },
+  }).then((res: any) => res?.data as { runId: string });
+}
+
+/** 全载体同步任务状态（轮询用）。 */
+export interface HarvestRunStatus {
+  runId: string;
+  status: "RUNNING" | "SUCCESS" | "FAILED";
+  weekTag?: string;
+  batchId?: string;
+  marketplaces?: string;
+  carrierTotal?: number;
+  carrierDone?: number;
+  hitTotal?: number;
+  batchTotal?: number;
+  errorMessage?: string;
+}
+
+export function harvestRunStatus(runId: string): Promise<HarvestRunStatus> {
+  return request({
+    url: `${BASE}/harvest-run/${runId}`,
+    method: "get",
+  }).then((res: any) => res?.data as HarvestRunStatus);
+}
+
 /** 批次列表（RangeFilterPanel 用） */
 export function getBatches(
   marketplace: string,

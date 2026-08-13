@@ -1,0 +1,154 @@
+# ========================
+# Dependencies
+# ========================
+node_modules/
+.pnp/
+.pnp.js
+
+# ========================
+# Build Output
+# ========================
+/cool-admin-vue/dist/
+/cool-admin-midway/dist/
+dist-ssr/
+*.tsbuildinfo
+.tsbuildinfo.*
+.venv
+
+dist-ssr
+*.local
+pnpm-lock.yaml
+
+# ========================
+# Logs & Debug
+# ========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ========================
+# Cache
+# ========================
+# 勿写 cache/ —— 会误伤 keyword-research-ms-go/internal/cache（Go 源码包）
+/cache/
+.cache/
+.npm/
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+__pycache__/
+*.py[cod]
+
+# ========================
+# Environment & Config
+# ========================
+.env
+.env.local
+.env.*.local
+*.local
+# 服务器真实部署变量（示例见 compose.env.example）
+compose.env
+
+# ========================
+# IDE & Editor
+# ========================
+aimazon_seo/
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*.swo
+*.un~
+launch.json
+
+# ========================
+# OS Files
+# ========================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ========================
+# Lock Files (optional, uncomment if needed)
+# ========================
+pnpm-lock.yaml
+
+# ========================
+# Test & Coverage
+# ========================
+coverage/
+.nyc_output/
+.agents
+.agents/
+
+# ========================
+# Temp & Runtime
+# ========================
+run/
+*.pid
+*.seed
+*.pid.lock
+tmp/
+temp/
+playwright_profile/
+keyword-research-ms-go/keyword_research_go.db
+
+# ========================
+# Backend Specific (cool-admin-midway)
+# ========================
+cool-admin-midway/logs/
+cool-admin-midway/cache/
+cool-admin-midway/dist/
+cool-admin-midway/run/
+cool-admin-midway/public/uploads/*
+cool-admin-midway/public/temp/*
+cool-admin-midway/data/*
+cool-admin-midway/lock/*
+cool-admin-midway/node_modules.tar.gz
+!cool-admin-midway/public/uploads/.gitkeep
+!cool-admin-midway/public/temp/.gitkeep
+
+# ========================
+# Frontend Specific (cool-admin-vue)
+# ========================
+cool-admin-vue/dist/
+cool-admin-vue/stats.html
+cool-admin-vue/*.timestamp-*
+# vite 构建插件源码目录（不是构建产物）
+!cool-admin-vue/build/
+!cool-admin-vue/build/**
+
+# ========================
+# Misc
+# ========================
+*.tgz
+*.gz
+*.7z
+!*.config.js.gz
+~$*.xlsx
+lingxing_api_page_compare_zh_*.xlsx
+docs/superpowers/
+trading/
+trading.7z
+/cool-admin-midway/src/config/*
+!/cool-admin-midway/src/configuration.ts
+!/cool-admin-midway/src/config/config.default.ts
+!/cool-admin-midway/src/config/config.prod.ts
+/cool-admin-midway/sqls/*
+.devnotes
+.cursor
+cool-admin-vue/build/cool/dist/eps.d.ts
+cool-admin-vue/build/cool/dist/eps.d.ts
+cool-admin-vue/build/cool/dist/eps.json

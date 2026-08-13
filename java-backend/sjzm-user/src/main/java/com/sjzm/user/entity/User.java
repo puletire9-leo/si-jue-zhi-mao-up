@@ -9,8 +9,13 @@ import java.time.LocalDateTime;
 @TableName("users")
 public class User {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(value = "numeric_id", type = IdType.AUTO)
     private Long id;
+
+    @TableField("id")
+    private String platformId;
+
+    private String name;
 
     private String username;
 
@@ -33,8 +38,8 @@ public class User {
 
     private Integer status;
 
-    @TableField(fill = FieldFill.INSERT)
-    private LocalDateTime createdAt;
+    @TableField("createdAt")
+    private String createdAt;
 
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
