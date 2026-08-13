@@ -4,7 +4,7 @@
 
 跨境电商选品 / 竞品分析 / 数据对接平台。**双后端微服务架构**：Java 微服务承担认证、竞品分析、评分、ASIN 导入、领星数据对接；Python（FastAPI）承担 AI 功能（向量 / 图像识别）及部分业务 CRUD。
 
-> 面向开发者的模块上下文见各级 `CLAUDE.md` / `AGENTS.md`（根 → 模块）。本文件只做总览与部署入口。
+> 面向开发者的模块上下文见各级 `CLAUDE.md` / `AGENTS.md`（根 → 模块）。生产部署唯一权威是 [`docs/docker使用经验/部署流程.md`](docs/docker使用经验/部署流程.md)，本文件不提供可替代的生产步骤。
 
 ---
 
@@ -44,12 +44,13 @@
 
 ## 部署
 
-Java 后端与前端采用 **volume 挂载**（宿主机构建产物挂进容器），构建必须在宿主机完成。
+生产代码构建进镜像。禁止使用历史的宿主 Maven + `docker restart`、`docker cp` 热替换或 `up -d --build` 作为正式发布流程。
 
 ### 生产环境
 
-```bash
-docker compose -f docker-compose.prod.yml up -d
+```powershell
+# 先完整阅读 docs/docker使用经验/部署流程.md，再按受影响组件执行
+powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component java
 ```
 
 服务端口（宿主机 → 容器）：
@@ -71,34 +72,18 @@ docker compose -f docker-compose.prod.yml up -d
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-### 构建与更新（宿主机执行）
+### 构建与更新
 
-```powershell
-# Java（Docker Maven 构建，勿用 mvn clean——会删 app.jar）
-cd java-backend
-docker run --rm -v "${PWD}:/app" -v "$env:TEMP\m2:/root/.m2" -w /app `
-  maven:3.9-eclipse-temurin-21 mvn package -DskipTests -T 4 -pl sjzm-product -am
-Copy-Item sjzm-product/target/sjzm-product-1.0.0-SNAPSHOT.jar sjzm-product/target/app.jar -Force
-docker restart prod-java-product
-
-# 前端（宿主机构建，Docker 内 OOM；产物到 static/vue-dist/）
-cd frontend
-$env:NODE_OPTIONS="--max-old-space-size=2048"
-npx vite build --mode production --minify false
-docker restart prod-frontend
-
-# Python（小改动直接 cp）
-docker cp backend/app/. prod-backend:/app/app/
-docker restart prod-backend
-```
+统一脚本根据 `-Component java|frontend|backend|ai-center` 完成预检、双版本轮换、单次缓存构建、无隐式构建重建、验证和旧缓存收尾。具体命令与回滚方法只在主部署流程维护。
 
 ---
 
 ## ⚠️ 运维铁律
 
-- **禁止 `docker compose down`**（会销毁容器 + 数据卷）。生产只用 `restart` / `start` / `stop`。
-- **Java 构建禁止 `mvn clean`**（会删除挂载的 `app.jar` 导致容器起不来），只用 `package` / `install`。
-- **前端构建禁止在 Docker 内执行**（内存不足 OOM），在宿主机 `npm run build`（OOM 时加 `--minify false`）。
+- **禁止跳过主部署流程**，生产发布只走 `scripts/deploy/deploy_prod.ps1`。
+- **禁止 `-p sijuelishi-prod`、`up -d --build`、生产 `--no-cache` 和无条件全量 prune**。
+- **模型/Agent 验证先跑最小范围测试并复用缓存**；同一组件一次任务最多进行一次生产镜像构建。
+- **成品常态只留 `current + previous`**；Java 历史源码编译缓存只留最新两条，Maven/npm/pip 热依赖缓存不得随意清除。
 - 配置走环境变量（`config/secrets/*.env`），禁止硬编码；`.env` 不提交 Git。
 
 ## 常用命令

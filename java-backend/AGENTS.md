@@ -214,3 +214,5 @@ Amazon 以图识图任务构造 StyleSnap/Shop the Look URL 前必须移除 Amaz
 7. 配置文件在 `src/main/resources/`，环境变量占位 `${ENV_VAR:default}`
 8. 新增/修改 `@TableName` Entity 必须同步 `java-backend/sql/*.sql` 迁移；`prod-java-product` 启动时 `SchemaGuard` 会校验表/列，缺失会启动失败
 9. 新增 Java `/api/v1/{resource}` Controller 必须同步 `frontend/nginx.conf` Java 路由，并在部署前运行 `scripts/deploy/prod_preflight_check.ps1`
+10. 生产发布必须完整遵循 `docs/docker使用经验/部署流程.md`，统一运行 `scripts/deploy/deploy_prod.ps1 -Component java`；禁止直接 `docker compose build/up`、`--no-cache` 或分别重复构建三个 Java 服务
+11. 测试优先复用 Maven/BuildKit 缓存，先跑受影响模块最小测试；发布任务中 Java 生产镜像只构建一次，验证后只保留最新两条源码编译缓存

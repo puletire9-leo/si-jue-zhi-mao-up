@@ -92,3 +92,5 @@ ENVIRONMENT, MYSQL_*, REDIS_*, QDRANT_*, COS_*, SECRET_KEY, ...
 5. 异步任务放 `tasks/`，通过 Celery 执行
 6. 数据库变更写 SQL 迁移文件放 `migrations/`
 7. 禁止硬编码路径，用 `settings` 读取配置
+8. 生产发布必须完整遵循 `docs/docker使用经验/部署流程.md`，统一运行 `scripts/deploy/deploy_prod.ps1 -Component backend`；禁止直接 `up -d --build`、生产 `--no-cache` 或重复构建 backend/celery
+9. 模型测试先做最小范围 pytest/静态检查并复用 pip/BuildKit 依赖缓存；只有正式镜像验证才构建一次，发布后按主流程清理旧源码编译缓存

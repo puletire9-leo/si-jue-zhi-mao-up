@@ -1,5 +1,7 @@
 # Docker 生产环境独立部署方案
 
+> **已归档的历史方案，不得执行其中命令。** 当前生产部署唯一权威为 [`docs/docker使用经验/部署流程.md`](../docker使用经验/部署流程.md)，并统一使用 `scripts/deploy/deploy_prod.ps1`。本文件只用于理解架构演进，其中宿主 Maven、`--no-cache` 和直接 `up -d` 流程均已废弃。
+
 ## 目标
 
 所有代码构建后 bake 进 Docker 镜像，删除本地项目目录后 Docker 照常运行。
@@ -79,33 +81,20 @@ docker ps --format "table {{.Names}}\t{{.Status}}" | Select-String "prod-"
 ### 只改了 Java 代码
 
 ```powershell
-cd java-backend
-docker run --rm -v "$($pwd):/app" -v "$env:TEMP\m2:/root/.m2" -w /app `
-    maven:3.9-eclipse-temurin-21 mvn package -DskipTests -T 4
-Copy-Item sjzm-product/target/sjzm-product-1.0.0-SNAPSHOT.jar sjzm-product/target/app.jar -Force
-# （改到哪个模块就拷哪个）
-
-cd ..
-docker compose -f docker-compose.prod.yml build --no-cache java-product
-docker compose -f docker-compose.prod.yml up -d java-product
+# 当前有效入口；复用 Maven/BuildKit 缓存，Java 三个服务只构建一次
+powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component java
 ```
 
 ### 只改了前端代码
 
 ```powershell
-cd frontend
-npm run build
-
-cd ..
-docker compose -f docker-compose.prod.yml build --no-cache frontend
-docker compose -f docker-compose.prod.yml up -d frontend
+powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component frontend
 ```
 
 ### 只改了 Python 代码
 
 ```powershell
-docker compose -f docker-compose.prod.yml build --no-cache backend celery-download
-docker compose -f docker-compose.prod.yml up -d backend celery-download
+powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component backend
 ```
 
 > Python 基础镜像 (`sjzm-python-base`) 不需要重建，除非 `requirements.txt` 有变更。
@@ -115,8 +104,9 @@ docker compose -f docker-compose.prod.yml up -d backend celery-download
 叠加上述步骤，最后一次性 rebuild + up：
 
 ```powershell
-docker compose -f docker-compose.prod.yml build --no-cache java-product gateway frontend
-docker compose -f docker-compose.prod.yml up -d java-product gateway frontend
+# 分组件依次发布，每个组件各自完成轮换、单次构建、验证和缓存收尾
+powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component java
+powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component frontend
 ```
 
 ---

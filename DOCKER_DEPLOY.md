@@ -1,12 +1,15 @@
-# Docker 部署指南
+# Docker 部署入口
 
-> 详细部署流程见 [docs/docker使用经验/部署流程.md](docs/docker使用经验/部署流程.md)
+> **唯一权威流程**：[docs/docker使用经验/部署流程.md](docs/docker使用经验/部署流程.md)。本文件只做索引，任何冲突均以该文件为准。生产部署不得跳过预检，不得从 README、日志、问题记录或旧架构文档复制命令。
 
 ## 快速启动
 
 ```bash
-# 生产环境
-docker compose -f docker-compose.prod.yml up -d
+# 生产发布：按实际组件四选一
+powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component java
+powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component frontend
+powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component backend
+powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component ai-center
 
 # 开发环境
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
@@ -32,6 +35,8 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 ```bash
 docker compose -f docker-compose.prod.yml ps
 ```
+
+统一脚本强制执行：生产预检、删除最老回退版、`current -> previous`、单次缓存构建、`--no-build` 重建、运行状态检查、Java 编译缓存保留两条及 24 小时冷缓存清理。禁止直接使用 `up -d --build` 或 `--no-cache` 绕过。
 
 ## 生产 MySQL 资源保护
 

@@ -1,6 +1,8 @@
 
 # 思觉智贸 — 环境管理
 
+> **历史命令资料，禁止作为生产部署入口。** 其中部分 `-p sijuelishi-prod`、`down`、`restart` 和 `--build` 命令已失效。生产操作必须返回 [部署流程.md](部署流程.md)，并使用 `scripts/deploy/deploy_prod.ps1`；如有冲突，以部署流程为准。
+
 ## 🚨 高频 docker exec 打爆 WSL2 内存导致 Docker 崩溃（事故记录）
 
 > **事故 2026-08-11（第二次，同类根因见 2026-07-29）**：用 Python 脚本高频 `docker exec prod-mysql mysql ...` 拉数据分析，每个脚本内部 fork 多个 `docker exec` 子进程，还把脚本放后台并发跑。WSL2 内存（限 9GB）被打满，Docker daemon 卡死无响应，`docker exec` / `docker ps` 全部 hang。
@@ -37,22 +39,18 @@ sparseVhd=true
 
 ## 生产环境
 
-### 启动
+### 启动/更新
 
-```powershell
-docker compose -f docker-compose.prod.yml -p sijuelishi-prod up -d
-```
+禁止从本历史文档直接启动或更新生产。按受影响组件运行统一发布脚本，脚本不得添加 `-p`。
 
 ### 停止
 
-```powershell
-docker compose -f docker-compose.prod.yml -p sijuelishi-prod down
-```
+禁止使用旧 `down` 流程；按主部署流程执行有范围的 `stop`。
 
 ### 查看状态
 
 ```powershell
-docker compose -f docker-compose.prod.yml -p sijuelishi-prod ps
+docker compose -f docker-compose.prod.yml ps
 docker stats --no-stream
 ```
 
@@ -130,7 +128,7 @@ docker restart prod-backend
 **大改动（依赖变更/多文件）：** 需要重建镜像：
 
 ```powershell
-docker compose -f docker-compose.prod.yml -p sijuelishi-prod up -d --build backend
+powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component backend
 ```
 
 > ⚠️ **禁止无脑 `--build`！** 单文件改动用 `docker cp` + `restart` 秒级完成，`--build` 会重新安装所有依赖，耗时数分钟。

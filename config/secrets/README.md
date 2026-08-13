@@ -44,4 +44,4 @@ cp config/secrets/prod.env.example config/secrets/prod.env
 如果密钥泄露：
 1. 立即去对应平台**轮换/吊销**旧密钥
 2. 更新 `config/secrets/prod.env`
-3. 重启服务：`docker compose -f docker-compose.prod.yml -p sijuelishi-prod restart`
+3. 完整阅读 `docs/docker使用经验/部署流程.md`，按受影响组件运行 `scripts/deploy/deploy_prod.ps1`；不得用 `restart` 跳过 env 重载、预检和验证

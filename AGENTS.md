@@ -28,7 +28,8 @@
 | API 路由分流 | [docs/api/README.md](docs/api/README.md) | Nginx 路由规则、Java/Python 职责划分 |
 | 数据库设计 | [docs/database/README.md](docs/database/README.md) | 表结构、迁移记录、ER 关系 |
 | 开发规范 | [docs/development/standards.md](docs/development/standards.md) | 编码规范、提交规范、分支策略 |
-| 部署指南 | [DOCKER_DEPLOY.md](DOCKER_DEPLOY.md) | Docker 部署完整流程 |
+| 生产部署唯一流程 | [docs/docker使用经验/部署流程.md](docs/docker使用经验/部署流程.md) | 唯一权威，其他文档不得覆盖 |
+| 部署索引 | [DOCKER_DEPLOY.md](DOCKER_DEPLOY.md) | 只做入口索引 |
 | AI 能力分析 | [docs/AI能力差距综合分析报告.md](docs/AI能力差距综合分析报告.md) | 岗位差距与学习路线 |
 
 ## 模块索引
@@ -49,6 +50,9 @@
 6. **修改前先读** — 改任何模块前，先读对应 AGENTS.md 了解上下文
 7. **保持文档同步** — 代码变更后同步更新相关文档
 8. **PowerShell 编码禁令** — 禁止用 PowerShell here-string/管道传递含中文路径或中文内容的 Python/Node 源码；必须使用脚本文件、UTF-8 文件或 ASCII/Unicode escape 路径，并设置 UTF-8 输出环境
+9. **生产部署不得跳过主流程** — 部署前必须完整读取 `docs/docker使用经验/部署流程.md`；禁止从 README、日志、问题记录或旧架构文档复制生产命令
+10. **生产发布只走统一脚本** — 使用 `scripts/deploy/deploy_prod.ps1 -Component <java|frontend|backend|ai-center>`；禁止直接 `up -d --build`、`--no-cache`、重复 build 或临时添加 `-p`
+11. **验证优先复用缓存** — Agent/模型测试先跑最小范围静态检查和单测；确需 Docker 编译时只做一次正常缓存构建，禁止为“更干净”清 Maven/npm/pip 热缓存
 
 ## 快速命令
 
@@ -58,8 +62,8 @@ docker compose -f docker-compose.dev.yml up -d
 
 # 当前 dev compose 不包含 gateway / nacos profile；需要联调时先补 compose 服务定义
 
-# 生产环境启动
-docker compose -f docker-compose.prod.yml -p sijuelishi-prod up -d
+# 生产发布（必须先读 docs/docker使用经验/部署流程.md）
+powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component java
 
 # 查看服务状态
 docker compose ps

@@ -35,6 +35,8 @@
 8. **新功能优先用模块化** — 前端放 `src/modules/`，即插即用，不改 router/sidebar
 9. **Maven 只在 Docker 里** — 宿主机没装 Maven，Java 编译走 `docker compose build`，禁止在宿主机直接跑 `mvn`
 10. **部署前必读部署流程** — `docs/docker使用经验/部署流程.md` 是唯一权威，Java/Python/前端/Nginx 怎么构建、怎么重启全在里面
+11. **生产发布只走统一脚本** — `scripts/deploy/deploy_prod.ps1` 强制预检、缓存构建、双版本轮换与旧缓存收尾；不得从历史日志复制命令或使用 `--no-cache`
+12. **模型验证优先缓存** — 先跑受影响范围测试；只有最终发布需要生产镜像构建，同一组件一次任务最多构建一次
 
 ## 会话启动检查清单
 

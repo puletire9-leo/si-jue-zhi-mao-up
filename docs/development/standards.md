@@ -3,6 +3,8 @@
 > 本文同时描述“当前必须遵守的规则”和“迁移期附加规则”。
 >
 > 若文档与实现冲突，以代码事实为准：模块约束先看对应 `AGENTS.md`，开发态路由先看 `frontend/vite.config.js`，再回写本文档。
+>
+> 生产部署例外：生产操作不从本文复制命令，唯一权威是 `docs/docker使用经验/部署流程.md`，统一入口是 `scripts/deploy/deploy_prod.ps1`。
 
 ## 规则分级
 
@@ -41,6 +43,8 @@ powershell -ExecutionPolicy Bypass -File scripts/deploy/prod_preflight_check.ps1
 预检包含 Docker Desktop 数据盘门禁，剩余空间低于 15 GB 时禁止构建或部署。
 
 5. 新增 Java `/api/v1/{resource}` Controller 必须同步检查 `frontend/nginx.conf`，确保生产前端会转发到 Gateway，而不是落到 Python 兜底。
+
+6. Agent/模型验证先跑受影响范围的静态检查和最小单测，优先复用 Maven/npm/pip/BuildKit 缓存；正式生产镜像同一组件一次任务只构建一次，禁止默认 `--no-cache` 或重复 build。
 
 ### Python 后端
 

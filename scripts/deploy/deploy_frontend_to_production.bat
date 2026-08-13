@@ -1,5 +1,11 @@
 @echo off
 chcp 65001 > nul
+echo [已停用] 本脚本是旧的文件复制流程，不能用于当前 Docker 生产部署。
+echo 请先阅读 docs\docker使用经验\部署流程.md
+echo 然后从仓库根目录执行：
+echo powershell -ExecutionPolicy Bypass -File scripts\deploy\deploy_prod.ps1 -Component frontend
+exit /b 2
+
 echo ========================================
 echo   部署前端到生产环境
 echo ========================================

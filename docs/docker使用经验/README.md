@@ -1,5 +1,7 @@
 # Docker 使用经验
 
+> 本文件是经验索引，不是生产操作手册。生产构建、更新、回滚和缓存清理一律以 [部署流程.md](部署流程.md) 为唯一权威，禁止从本文件或历史事故段落复制命令直接执行。
+
 本项目从零开始用 Docker 容器化部署，以下是踩过的坑和总结。
 
 ---
@@ -316,8 +318,11 @@ Windows 上不要把开发服务映射到 8001/8002/8090/8179/8180 这类宿主�
 ### 清理命令
 
 ```bash
-# 清理未使用的构建缓存（保留正在用的层）
-docker builder prune -f
+# 只清理 24 小时以上未使用的冷缓存，保留 Maven/pip 热依赖层
+docker buildx prune --force --filter "until=24h"
+
+# Java 历史源码编译结果严格保留最新两条
+powershell -ExecutionPolicy Bypass -File scripts/deploy/prune_java_build_cache.ps1
 
 # 查看磁盘占用
 docker system df
@@ -479,7 +484,7 @@ docker run --rm -v volume_name:/data -v $(pwd):/backup alpine tar xzf /backup/vo
 1. **不要在 Docker 里跑前端生产构建** — 内存不够，宿主机跑
 2. **dev 和 prod 完全隔离** — 独立的 compose 文件、网络、卷、端口
 3. **容器间通信用容器名 + 内部端口**
-4. **定期清理构建缓存** — `docker builder prune -f`
+4. **按主部署流程清理缓存** — Java 精确保留两条编译记录；其他只清理 24 小时以上冷缓存，禁止无条件 `docker builder prune -f`
 5. **改配置用 `docker compose up -d`，改代码用 `--force-recreate`**
 6. **跨服务 JWT 密钥必须一致**
 7. **中文 SQL 不要用管道传，用 docker cp + sh -c**

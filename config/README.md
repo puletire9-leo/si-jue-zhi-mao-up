@@ -68,8 +68,8 @@ cp config/secrets/prod.env.example config/secrets/prod.env
 # 2. 填入真实值
 vim config/secrets/prod.env
 
-# 3. 启动
-docker compose -f docker-compose.prod.yml up -d
+# 3. 按唯一生产流程发布，不得直接启动绕过预检
+powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component backend
 ```
 
 ---

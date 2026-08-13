@@ -141,3 +141,5 @@ Vite 自动导入的 `auto-import.d.ts` 和 `components.d.ts` 只在 development
 4. 新增类型放 `types/` 下，禁止使用 `any`
 5. 样式用 SCSS，变量在 `styles/variables.scss`
 6. 注意：开发态真实请求去向优先看 `vite.config.js`；混合模块（如 `selection.ts`、`systemConfig.ts`、`product-line.ts`）必须结合代理规则判断
+7. 生产发布必须完整遵循 `docs/docker使用经验/部署流程.md`，统一运行 `scripts/deploy/deploy_prod.ps1 -Component frontend`；禁止直接 `up -d --build`、生产 `--no-cache` 或重复 Vite/Docker 构建
+8. 前端测试优先复用现有 `node_modules`，先跑受影响模块的 Vitest/type-check；正式构建只执行一次，禁止为测试清空依赖缓存

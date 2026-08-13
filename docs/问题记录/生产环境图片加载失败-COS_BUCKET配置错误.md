@@ -56,9 +56,7 @@
 
 重启后端容器：
 
-```powershell
-docker compose -f docker-compose.prod.yml -p sijuelishi-prod up -d backend
-```
+> 以下命令为历史记录，不得直接执行。当前生产更新必须先阅读 `docs/docker使用经验/部署流程.md`，再运行 `scripts/deploy/deploy_prod.ps1 -Component backend`。
 
 ### 验证
 
