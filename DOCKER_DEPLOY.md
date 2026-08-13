@@ -5,7 +5,7 @@
 ## 快速启动
 
 ```bash
-# 生产发布：按实际组件四选一
+# 生产发布：按实际变更范围只选一个组件；不要连续执行四条命令
 powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component java
 powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component frontend
 powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component backend

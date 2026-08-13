@@ -8,6 +8,17 @@
 powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component <java|frontend|backend|ai-center>
 ```
 
+每次只发布一个组件。根据本次代码变更选择对应命令，不要把四条命令串联执行：
+
+| 变更范围 | 只运行 |
+|---|---|
+| Java（user/product/gateway 共用镜像） | `-Component java` |
+| Vue/Nginx 前端 | `-Component frontend` |
+| Python API 或 Celery | `-Component backend` |
+| AI Center | `-Component ai-center` |
+
+脚本不会自动构建或重启其他组件；`--no-deps` 会阻止 Compose 联动重建 MySQL、Redis、Nacos 等基础设施。
+
 `deploy_prod.ps1` 强制执行预检、构建前双版本轮换、一次缓存构建、`--no-deps --no-build` 重建、健康验证和旧缓存收尾。首次发布且没有 `current` 的组件会在健康验证后建立回退基线。`prod_preflight_check.ps1` 与 `prune_java_build_cache.ps1` 是该流程内部步骤，不替代完整发布入口。
 
 禁止事项：
