@@ -98,6 +98,18 @@ function Invoke-MysqlScalarList {
     docker exec -e MYSQL_PWD="$Password" $MysqlContainer mysql "-u$User" -N -e $Sql 2>$null
 }
 
+function Invoke-MysqlAdminScalarList {
+    param([string]$Sql)
+    $adminPassword = Read-EnvFileValue "config/secrets/$Env.env" "MYSQL_ROOT_PASSWORD"
+    if (-not $adminPassword) {
+        throw "MYSQL_ROOT_PASSWORD is required for read-only binlog/replication preflight."
+    }
+    docker exec -e MYSQL_PWD="$adminPassword" $MysqlContainer mysql "-uroot" -N -e $Sql 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "MySQL admin read-only query failed with exit code $LASTEXITCODE."
+    }
+}
+
 if (-not $MysqlContainer) {
     if ($Env -eq "dev") {
         $MysqlContainer = "dev-mysql"
@@ -176,9 +188,9 @@ if (-not $SkipDatabase) {
     if ($Env -eq "prod") {
         Write-Host "[preflight] checking MySQL binlog retention and replication safety ..."
         try {
-            $binlogExpireSeconds = [long](@(Invoke-MysqlScalarList "SELECT @@global.binlog_expire_logs_seconds")[0])
-            $replicationChannels = [int](@(Invoke-MysqlScalarList "SELECT COUNT(*) FROM performance_schema.replication_connection_configuration")[0])
-            $binlogRows = @(Invoke-MysqlScalarList "SHOW BINARY LOGS")
+            $binlogExpireSeconds = [long](@(Invoke-MysqlAdminScalarList "SELECT @@global.binlog_expire_logs_seconds")[0])
+            $replicationChannels = [int](@(Invoke-MysqlAdminScalarList "SELECT COUNT(*) FROM performance_schema.replication_connection_configuration")[0])
+            $binlogRows = @(Invoke-MysqlAdminScalarList "SHOW BINARY LOGS")
             $binlogBytes = [long]0
             foreach ($row in $binlogRows) {
                 $parts = ([string]$row).Trim() -split "`t"

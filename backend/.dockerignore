@@ -34,6 +34,11 @@ logs/
 
 # 数据和缓存
 data/
+database/
+backup/
+uploads/
+images/
+下载缓存/
 *.db
 *.sqlite
 model_cache/

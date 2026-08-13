@@ -8,7 +8,7 @@
 powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component <java|frontend|backend|ai-center>
 ```
 
-`deploy_prod.ps1` 强制执行预检、构建前双版本轮换、一次缓存构建、`--no-build` 重建、健康验证和旧缓存收尾。`prod_preflight_check.ps1` 与 `prune_java_build_cache.ps1` 是该流程内部步骤，不替代完整发布入口。
+`deploy_prod.ps1` 强制执行预检、构建前双版本轮换、一次缓存构建、`--no-deps --no-build` 重建、健康验证和旧缓存收尾。首次发布且没有 `current` 的组件会在健康验证后建立回退基线。`prod_preflight_check.ps1` 与 `prune_java_build_cache.ps1` 是该流程内部步骤，不替代完整发布入口。
 
 禁止事项：
 

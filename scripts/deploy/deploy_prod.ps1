@@ -28,19 +28,23 @@ function Start-ProdImageRotation {
     $currentRef = "${Repository}:current"
     $previousRef = "${Repository}:previous"
 
-    & docker image inspect $currentRef *> $null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Missing current production image: $currentRef"
+    $repositoryRefs = @(& docker image ls $Repository --format '{{.Repository}}:{{.Tag}}')
+    if ($repositoryRefs -notcontains $currentRef) {
+        Write-Host "[deploy] first release: $currentRef does not exist; rollback baseline will be created after verification." -ForegroundColor Yellow
+        return $true
     }
 
-    $oldPreviousId = & docker image inspect $previousRef --format '{{.Id}}' 2>$null
-    if ($LASTEXITCODE -eq 0 -and $oldPreviousId) {
-        Invoke-Checked "remove old rollback tag $previousRef" { docker image rm $previousRef }
-        Invoke-Checked "remove old rollback image $oldPreviousId" { docker image rm $oldPreviousId }
+    $oldPreviousId = $null
+    if ($repositoryRefs -contains $previousRef) {
+        $oldPreviousId = (& docker image inspect $previousRef --format '{{.Id}}').Trim()
+    }
+    if ($oldPreviousId) {
+        $null = Invoke-Checked "remove old rollback tag $previousRef" { docker image rm $previousRef }
     }
 
-    Invoke-Checked "save $currentRef as rollback image" { docker image tag $currentRef $previousRef }
-    Invoke-Checked "verify rollback image $previousRef" { docker image inspect $previousRef }
+    $null = Invoke-Checked "save $currentRef as rollback image" { docker image tag $currentRef $previousRef }
+    $null = Invoke-Checked "verify rollback image $previousRef" { docker image inspect $previousRef }
+    return $false
 }
 
 $profiles = @{
@@ -71,14 +75,14 @@ $repository = [string]$profile.Repository
 $buildService = [string]$profile.BuildService
 $services = [string[]]$profile.Services
 
-Write-Host "[deploy] authoritative procedure: docs/docker使用经验/部署流程.md" -ForegroundColor Yellow
+Write-Host "[deploy] authoritative procedure: DOCKER_DEPLOY.md -> deployment procedure" -ForegroundColor Yellow
 Write-Host "[deploy] component=$Component repository=$repository services=$($services -join ',')"
 
 Invoke-Checked "production preflight" {
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy/prod_preflight_check.ps1
 }
 
-Start-ProdImageRotation -Repository $repository
+$firstRelease = Start-ProdImageRotation -Repository $repository
 
 if ($Component -eq "frontend") {
     Push-Location frontend
@@ -90,13 +94,11 @@ if ($Component -eq "frontend") {
 }
 
 Invoke-Checked "cached Docker build for $buildService (once)" {
-    docker compose -f docker-compose.prod.yml build --progress=plain $buildService
+    docker compose --progress plain -f docker-compose.prod.yml build $buildService
 }
 
 $upArgs = @("compose", "-f", "docker-compose.prod.yml", "up", "-d", "--no-build")
-if ($Component -eq "frontend") {
-    $upArgs += "--no-deps"
-}
+$upArgs += "--no-deps"
 $upArgs += $services
 Invoke-Checked "recreate affected services without another build" { docker @upArgs }
 
@@ -125,6 +127,12 @@ foreach ($service in $services) {
         throw "Service $service health check timed out (health=$health)."
     }
     Write-Host "[deploy] verified ${service}: state=$state health=$health ($containerId)" -ForegroundColor Green
+}
+
+if ($firstRelease) {
+    Invoke-Checked "create first-release rollback baseline $repository`:previous" {
+        docker image tag "${repository}:current" "${repository}:previous"
+    }
 }
 
 if ($Component -eq "java") {

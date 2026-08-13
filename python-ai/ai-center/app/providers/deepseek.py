@@ -12,6 +12,7 @@ import httpx
 from openai import AsyncOpenAI
 
 from app.config import Settings
+from app.errors import UpstreamError
 
 
 class DeepSeekProvider:
@@ -19,6 +20,7 @@ class DeepSeekProvider:
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
+        self._configured = bool(settings.deepseek_api_key)
         timeout = httpx.Timeout(
             connect=settings.upstream_connect_timeout,
             read=settings.upstream_read_timeout,
@@ -26,7 +28,9 @@ class DeepSeekProvider:
             pool=settings.upstream_connect_timeout,
         )
         self._client = AsyncOpenAI(
-            api_key=settings.deepseek_api_key,
+            # The SDK requires a non-empty key at construction time. Requests
+            # are blocked by client below when production credentials are absent.
+            api_key=settings.deepseek_api_key or "not-configured",
             base_url=settings.deepseek_base_url,
             max_retries=0,
             http_client=httpx.AsyncClient(
@@ -37,6 +41,8 @@ class DeepSeekProvider:
 
     @property
     def client(self) -> AsyncOpenAI:
+        if not self._configured:
+            raise UpstreamError("AI center upstream is not configured (DEEPSEEK_API_KEY missing)")
         return self._client
 
     async def aclose(self) -> None:
