@@ -1,6 +1,7 @@
 # Docker 部署入口
 
 > **唯一权威流程**：[docs/docker使用经验/部署流程.md](docs/docker使用经验/部署流程.md)。本文件只做索引，任何冲突均以该文件为准。生产部署不得跳过预检，不得从 README、日志、问题记录或旧架构文档复制命令。
+> Docker 容量巡检、缓存清理和 VHDX 压缩见：[Docker存储优化.md](docs/docker使用经验/Docker存储优化.md)。
 
 ## 快速启动
 
