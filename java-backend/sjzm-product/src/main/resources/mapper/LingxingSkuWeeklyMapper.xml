@@ -6,7 +6,7 @@
       周表加工：从 lingxing_product_performance(summary_field='msku') 的 raw_json
       展开 price_list[*](拿 mid/sid/seller_sku/店铺/local_name) 与 tag_set[*](拿标签)，
       JSON_VALUE 抽取 50+ 指标 → INSERT ... ON DUPLICATE KEY UPDATE 落 lingxing_sku_weekly_performance。
-      一个 (SKU×店铺×周) 一行；SHA256 幂等键；限定 mid IN(4,5)=UK/DE。
+      一个 (SKU×店铺×周) 一行；SHA256 幂等键；限定 mid IN(4,5)=UK/DE 且币种为 GBP。
       LEFT JOIN lingxing_target_sku_pool 标记 is_target_sku（该表在库）。
       SQL 源自 2026-07-17 前的验证版（生成了现有 46 万行周表），按当前周表链路需求保留。
     -->
@@ -124,6 +124,7 @@
             )
           ) jt ON TRUE
           WHERE p2.summary_field = 'msku'
+            AND p2.currency_code = 'GBP'
             AND (#{startDate} IS NULL OR p2.start_date = #{startDate})
             AND (#{endDate} IS NULL OR p2.end_date = #{endDate})
             AND pl.mid IN ('4', '5')
@@ -136,6 +137,7 @@
          AND tp.sku = COALESCE(p.sku, p.summary_value)
          AND tp.is_active = 1
         WHERE p.summary_field = 'msku'
+          AND p.currency_code = 'GBP'
           AND (#{startDate} IS NULL OR p.start_date = #{startDate})
           AND (#{endDate} IS NULL OR p.end_date = #{endDate})
         ON DUPLICATE KEY UPDATE

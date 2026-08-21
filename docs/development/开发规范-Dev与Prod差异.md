@@ -11,11 +11,11 @@
 | 维度 | 开发 (dev) | 生产 (prod) |
 |------|-----------|------------|
 | Compose 文件 | `docker-compose.dev.yml` | `docker-compose.prod.yml` |
-| 项目名 | 默认 | `sijuelishi-prod` |
+| 项目名 | 目录默认名 | 必须是 `si-jue-zhi-mao-up`，**禁止 `-p sijuelishi-prod`** |
 | 数据库 | `sijuelishi_dev` | `sijuelishi` |
-| 容器名前缀 | `dev-` | `prod-` |
-| 容器数量 | 8 | 9（多了 celery-download） |
-| JWT 鉴权 | **关闭** (`GATEWAY_AUTH_ENABLED=false`) | **开启** |
+| 容器名前缀 | `dev-` / `java-` | `prod-` |
+| 容器数量 | 默认 8（无 gateway/nacos） | 10（含 celery-download、ai-center） |
+| JWT 鉴权 | 开发直连 Java，不走 Gateway | **开启**（`GATEWAY_AUTH_ENABLED=true`） |
 | 代码加载 | volume 挂载 → 热重载 | `COPY` bake 进镜像 |
 | 调试模式 | `DEBUG=true` | `DEBUG=false` |
 
@@ -23,16 +23,17 @@
 
 ## 二、端口对照
 
-| 服务 | Dev | Prod |
-|------|-----|------|
-| MySQL | 3410 | 3310 |
+| 服务 | Dev 宿主端口 | Prod 宿主端口 |
+|------|-------------|--------------|
+| 前端 | 6175（Vite） | 5173（Nginx） |
+| Python Backend | 18090 | 127.0.0.1:7093 |
+| Java User | 18001 | 8014 |
+| Java Product | 18002 | 127.0.0.1:8025 |
+| Gateway | 开发默认不启 | 9003 |
+| MySQL | 13338 | 3310 |
 | Redis | 6379 | 6383 |
-| Nacos | 8848 / 9848 | 8852 / 9852 |
-| Python Backend | 8090 | 7093 |
-| 前端 | 8179 (Vite) | 5173 (Nginx) |
-| Java User | 8001 | 8014 |
-| Java Product | 8002 | 8025 |
-| Gateway | 9000 | 9003 |
+| Nacos | 开发默认不启 | 8852 / 9852 |
+| AI Center | 无对外 | 无对外 |
 
 > 严禁在开发代码中硬编码端口。前端通过环境变量 `VITE_*` 注入，Java 通过 Spring 占位符 `${ENV:default}` 读取。
 

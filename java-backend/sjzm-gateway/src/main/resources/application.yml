@@ -103,6 +103,10 @@ rbac:
     "/api/v1/competitor/lookup": "data:import"
     "/api/v1/modules/lingxing/credentials": "lingxing:credentials:manage"
     "/api/v1/modules/lingxing/baseline-maintenance/**": "lingxing:baseline:manage"
+    "/api/v1/modules/data-processing/**": "automation:manage"
+    "/api/v1/modules/automation/**": "automation:manage"
+    "/api/v1/modules/lingxing/request-center/**": "automation:manage"
+    "/api/v1/modules/feishu/**": "automation:manage"
 
 gateway:
   auth:

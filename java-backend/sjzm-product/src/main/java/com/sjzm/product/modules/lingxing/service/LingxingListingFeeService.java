@@ -1,13 +1,13 @@
 package com.sjzm.product.modules.lingxing.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.toolkit.Db;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sjzm.product.mapper.LingxingListingFbaFeeMapper;
 import com.sjzm.product.modules.lingxing.entity.LingxingListingFbaFee;
+import com.sjzm.product.rds.service.RdsBatchWriteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -38,6 +38,7 @@ public class LingxingListingFeeService {
 
     private final LingxingClient client;
     private final LingxingListingFbaFeeMapper feeMapper;
+    private final RdsBatchWriteService rdsBatchWriteService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -80,18 +81,13 @@ public class LingxingListingFeeService {
                 e.setFbaFeeReport(asDecimal(row, "fba_fee_report"));
                 e.setFeeCurrency(row.path("fba_fee_currency_code").asText(null));
                 e.setSyncedAt(LocalDateTime.now());
-                // 幂等：按 sid+msku 命中回填 id
-                LingxingListingFbaFee existing = feeMapper.selectOne(
-                        new LambdaQueryWrapper<LingxingListingFbaFee>()
-                                .eq(LingxingListingFbaFee::getSid, sid)
-                                .eq(LingxingListingFbaFee::getMsku, msku)
-                                .last("LIMIT 1"));
-                if (existing != null) e.setId(existing.getId());
                 entities.add(e);
             }
+            attachExistingIds(entities);
             if (!entities.isEmpty()) {
-                Db.saveOrUpdateBatch(entities, DB_BATCH);
-                upserted += entities.size();
+                upserted += rdsBatchWriteService.saveOrUpdate(
+                        LingxingListingFbaFeeMapper.class, entities, DB_BATCH,
+                        entity -> entity.getId() != null);
             }
             sleep(BATCH_INTERVAL_MS);
         }
@@ -101,6 +97,24 @@ public class LingxingListingFeeService {
         r.put("fetched", fetched);
         r.put("upserted", upserted);
         return r;
+    }
+
+    /** 每个 API 批次一次查出已有 sid+msku，避免逐行 RDS 存在性查询。 */
+    private void attachExistingIds(List<LingxingListingFbaFee> entities) {
+        if (entities.isEmpty()) return;
+        List<Long> sids = entities.stream().map(LingxingListingFbaFee::getSid).distinct().toList();
+        List<String> mskus = entities.stream().map(LingxingListingFbaFee::getMsku).distinct().toList();
+        Map<String, Long> existingIds = feeMapper.selectList(
+                        new LambdaQueryWrapper<LingxingListingFbaFee>()
+                                .select(LingxingListingFbaFee::getId, LingxingListingFbaFee::getSid,
+                                        LingxingListingFbaFee::getMsku)
+                                .in(LingxingListingFbaFee::getSid, sids)
+                                .in(LingxingListingFbaFee::getMsku, mskus))
+                .stream().collect(java.util.stream.Collectors.toMap(
+                        entity -> entity.getSid() + "|" + entity.getMsku().trim().toLowerCase(java.util.Locale.ROOT),
+                        LingxingListingFbaFee::getId, (left, right) -> left));
+        entities.forEach(entity -> entity.setId(existingIds.get(
+                entity.getSid() + "|" + entity.getMsku().trim().toLowerCase(java.util.Locale.ROOT))));
     }
 
     private BigDecimal asDecimal(JsonNode row, String key) {

@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS person_roster (
     role_type   VARCHAR(30)  NOT NULL COMMENT '职能: developer/operator/product_manager/purchaser',
     sort_order  INT          DEFAULT 0 COMMENT '排序权重，越小越前',
     enabled     TINYINT(1)   DEFAULT 1 COMMENT '是否启用 1启用 0停用',
+    effective_from DATE      DEFAULT NULL COMMENT '生效日期（含）',
+    effective_to DATE        DEFAULT NULL COMMENT '失效日期（含）',
     remark      VARCHAR(255) DEFAULT NULL COMMENT '备注',
     created_at  DATETIME     DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at  DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -48,4 +50,11 @@ INSERT INTO person_roster (id, name, role_type, sort_order) VALUES
     (3001, '王亚成', 'purchaser', 1)
 ON DUPLICATE KEY UPDATE sort_order = VALUES(sort_order);
 
--- 运营：暂空，由前端补录
+-- 运营：财务日报当前名单
+INSERT INTO person_roster (id, name, role_type, sort_order) VALUES
+    (4001, '阳姣',   'operator', 1),
+    (4002, '张奋奋', 'operator', 2),
+    (4003, '尹心如', 'operator', 3),
+    (4004, '余江燕', 'operator', 4),
+    (4005, '李微微', 'operator', 5)
+ON DUPLICATE KEY UPDATE sort_order = VALUES(sort_order);

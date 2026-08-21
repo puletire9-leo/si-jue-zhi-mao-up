@@ -1,13 +1,13 @@
 package com.sjzm.product.modules.lingxing.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.toolkit.Db;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sjzm.product.mapper.LingxingProfitAsinMapper;
 import com.sjzm.product.modules.lingxing.entity.LingxingProfitAsin;
+import com.sjzm.product.rds.service.RdsBatchWriteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 领星利润统计-ASIN 同步服务。
@@ -43,6 +44,7 @@ public class LingxingProfitAsinSyncService {
 
     private final LingxingClient client;
     private final LingxingProfitAsinMapper mapper;
+    private final RdsBatchWriteService rdsBatchWriteService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -81,20 +83,25 @@ public class LingxingProfitAsinSyncService {
             if (!records.isArray() || records.isEmpty()) break;
 
             pages++;
-            List<LingxingProfitAsin> entities = new ArrayList<>(records.size());
+            Map<String, LingxingProfitAsin> byKey = new LinkedHashMap<>(records.size());
             for (JsonNode row : records) {
                 LingxingProfitAsin e = mapRow(row, currencyCode);
                 if (e.getBizKey() == null) continue;
-                LingxingProfitAsin existing = mapper.selectOne(
-                        new LambdaQueryWrapper<LingxingProfitAsin>()
-                                .eq(LingxingProfitAsin::getBizKey, e.getBizKey())
-                                .last("LIMIT 1"));
-                if (existing != null) e.setId(existing.getId());
-                entities.add(e);
+                byKey.put(e.getBizKey(), e);
             }
+            Map<String, Long> existingIds = byKey.isEmpty() ? Map.of() : mapper.selectList(
+                                    new LambdaQueryWrapper<LingxingProfitAsin>()
+                                            .select(LingxingProfitAsin::getId, LingxingProfitAsin::getBizKey)
+                                            .in(LingxingProfitAsin::getBizKey, byKey.keySet()))
+                            .stream().collect(Collectors.toMap(
+                                    LingxingProfitAsin::getBizKey, LingxingProfitAsin::getId,
+                                    (left, right) -> left));
+            List<LingxingProfitAsin> entities = new ArrayList<>(byKey.values());
+            entities.forEach(entity -> entity.setId(existingIds.get(entity.getBizKey())));
             if (!entities.isEmpty()) {
-                Db.saveOrUpdateBatch(entities, DB_BATCH_SIZE);
-                upserted += entities.size();
+                upserted += rdsBatchWriteService.saveOrUpdate(
+                        LingxingProfitAsinMapper.class, entities, DB_BATCH_SIZE,
+                        entity -> entity.getId() != null);
             }
             fetched += records.size();
 

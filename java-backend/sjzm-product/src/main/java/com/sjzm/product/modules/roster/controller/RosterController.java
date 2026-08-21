@@ -25,8 +25,9 @@ public class RosterController {
 
     @GetMapping("/list")
     @Operation(summary = "按职能取名单（含 id，管理用）")
-    public Result<List<PersonRoster>> list(@RequestParam(required = false) String roleType) {
-        return Result.success(service.listByRole(roleType));
+    public Result<List<PersonRoster>> list(@RequestParam(required = false) String roleType,
+                                           @RequestParam(defaultValue = "false") boolean includeDisabled) {
+        return Result.success(service.listByRole(roleType, includeDisabled));
     }
 
     @GetMapping("/names")

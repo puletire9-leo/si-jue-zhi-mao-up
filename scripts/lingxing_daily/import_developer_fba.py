@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 """导入理实产品开发表 CSV 到 lingxing_developer_fba（开发人预测 FBA 配送费）。
 
-数据源：产品数据/产品表/理实产品开发表/理实产品开发表_{英国,德国}.csv
-    列：SKU, 开发备注, 开发计算的FBA配送费($), 开发计算的利润率(%), 来源文件
-    同 SKU 跨月多条（增量/全量快照），去重取"最新"（来源文件名靠后=月份更新）。
+数据源：产品数据/产品表/理实产品开发表/理实产品开发表_英德.csv
+    列：国家, SKU, 开发备注, 开发计算的FBA配送费($), 开发计算的利润率(%), 开发人预估售价($), 来源文件
+    同 SKU+国家 跨月多条（增量/全量快照），去重取"最新"（来源文件名靠后=月份更新）。
 
 用法：
     python scripts/lingxing_daily/import_developer_fba.py
@@ -26,10 +26,8 @@ from lingxing_base_access import mysql_env
 from lingxing_model_paths import ROOT
 
 CSV_DIR = ROOT / "产品数据" / "产品表" / "理实产品开发表"
-FILES = [
-    ("理实产品开发表_英国.csv", "UK"),
-    ("理实产品开发表_德国.csv", "DE"),
-]
+UNIFIED_CSV = CSV_DIR / "理实产品开发表_英德.csv"
+COUNTRY_MAP = {"英国": "UK", "UK": "UK", "德国": "DE", "DE": "DE"}
 
 
 def to_decimal(v):
@@ -42,20 +40,21 @@ def to_decimal(v):
         return None
 
 
-def load_csv(path: Path, country: str) -> dict[str, dict]:
-    """读 CSV，按 SKU 去重取最新（来源文件名字典序最大＝月份靠后）。返回 {sku: row}。"""
-    latest: dict[str, dict] = {}
+def load_csv(path: Path) -> dict[tuple[str, str], dict]:
+    """读统一 CSV，按 (SKU, 国家) 去重取最新（来源文件名字典序最大＝月份靠后）。"""
+    latest: dict[tuple[str, str], dict] = {}
     with path.open("r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
             sku = str(row.get("SKU") or "").strip()
-            if not sku:
+            country = COUNTRY_MAP.get(str(row.get("国家") or "").strip(), "")
+            if not sku or country not in ("UK", "DE"):
                 continue
             source = str(row.get("来源文件") or "")
-            # 同 SKU 保留来源文件名更靠后的（月份更新）
-            if sku in latest and source <= latest[sku]["source_file"]:
+            key = (sku, country)
+            if key in latest and source <= latest[key]["source_file"]:
                 continue
-            latest[sku] = {
+            latest[key] = {
                 "sku": sku,
                 "country": country,
                 "dev_remark": (str(row.get("开发备注") or "").strip() or None),
@@ -85,13 +84,13 @@ def main():
     args = parser.parse_args()
 
     all_rows: list[dict] = []
-    for filename, country in FILES:
-        path = CSV_DIR / filename
-        if not path.exists():
-            print(f"[WARN] 文件不存在，跳过: {path}")
-            continue
-        rows = load_csv(path, country)
-        print(f"{filename}: 去重后 {len(rows)} 个 SKU（{country}）")
+    if not UNIFIED_CSV.exists():
+        print(f"[WARN] 文件不存在，跳过: {UNIFIED_CSV}")
+    else:
+        rows = load_csv(UNIFIED_CSV)
+        uk = sum(1 for r in rows.values() if r["country"] == "UK")
+        de = sum(1 for r in rows.values() if r["country"] == "DE")
+        print(f"{UNIFIED_CSV.name}: 去重后 {len(rows)} 个 SKU（UK={uk}, DE={de}）")
         all_rows.extend(rows.values())
 
     if args.sql:

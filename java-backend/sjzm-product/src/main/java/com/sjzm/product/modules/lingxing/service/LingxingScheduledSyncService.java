@@ -6,16 +6,11 @@ import com.sjzm.product.mapper.LingxingProductUnifiedMapper;
 import com.sjzm.product.mapper.LingxingSellerMapper;
 import com.sjzm.product.mapper.LingxingSkuDataLayerMapper;
 import com.sjzm.product.modules.lingxing.entity.LingxingSeller;
+import com.sjzm.product.rds.service.RdsBatchWriteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.time.DayOfWeek;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,11 +36,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class LingxingScheduledSyncService {
 
-    private static final DateTimeFormatter DF = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final int SID_BATCH = 200; // 产品表现接口 sid 上限
-
-    @Value("${lingxing.scheduled.enabled:false}")
-    private boolean scheduledEnabled;
+    private static final String REPORTING_CURRENCY = "GBP";
 
     private final LingxingSellerMapper sellerMapper;
     private final LingxingSellerSyncService sellerSyncService;
@@ -58,24 +50,7 @@ public class LingxingScheduledSyncService {
     private final LingxingSkuDataLayerMapper syncRunMapper;
     private final LingxingDeveloperSkuPrefixMapper prefixMapper;
     private final LingxingProductUnifiedMapper unifiedMapper;
-    private final LingxingInventoryBatchService inventoryBatchService;
-
-    /**
-     * 每周一 03:30 触发（错开整点避开限流高峰）。
-     * cron: 秒 分 时 日 月 周。
-     */
-    @Scheduled(cron = "${lingxing.scheduled.cron:0 30 3 ? * MON}")
-    public void weeklySync() {
-        if (!scheduledEnabled) {
-            log.debug("领星每周自动同步已禁用（LINGXING_SCHEDULED_ENABLED=false），跳过");
-            return;
-        }
-        // 最近完整一周：上周一 ~ 上周日
-        LocalDate today = LocalDate.now();
-        LocalDate start = today.minusDays(7).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        LocalDate end = start.plusDays(6);
-        run(start.format(DF), end.format(DF));
-    }
+    private final RdsBatchWriteService rdsBatchWriteService;
 
     /**
      * 执行一次完整同步（供调度与手动触发共用）。
@@ -86,9 +61,10 @@ public class LingxingScheduledSyncService {
      */
     public Map<String, Object> run(String startDate, String endDate) {
         String runId = "product-performance-weekly-" + System.currentTimeMillis();
-        syncRunMapper.beginRun(runId, "PRODUCT_PERFORMANCE_WEEKLY", null,
-                startDate, endDate, null, null,
-                "{\"startDate\":\"" + startDate + "\",\"endDate\":\"" + endDate + "\"}");
+        rdsBatchWriteService.executeOne(LingxingSkuDataLayerMapper.class, mapper -> mapper.beginRun(
+                runId, "PRODUCT_PERFORMANCE_WEEKLY", null, startDate, endDate, null, null,
+                "{\"startDate\":\"" + startDate + "\",\"endDate\":\"" + endDate
+                        + "\",\"currencyCode\":\"" + REPORTING_CURRENCY + "\"}"));
 
         int totalUpserted = 0;
         int totalFetched = 0;
@@ -118,14 +94,13 @@ public class LingxingScheduledSyncService {
                 log.info("领星每周同步：批次 {}/{}，本批 {} 店", batchNo, batchCount, batch.size());
                 try {
                     Map<String, Object> r = performanceSyncService.sync(
-                            batch, startDate, endDate, "msku", null);
+                            batch, startDate, endDate, "msku", REPORTING_CURRENCY);
                     totalFetched += ((Number) r.getOrDefault("fetched", 0)).intValue();
                     totalUpserted += ((Number) r.getOrDefault("upserted", 0)).intValue();
                     log.info("领星每周同步：批次 {}/{} 完成 {}", batchNo, batchCount, r);
                 } catch (Exception ex) {
                     log.warn("领星每周同步：批次 {}/{} 失败，跳过：{}", batchNo, batchCount, ex.getMessage());
                 }
-                // 批与批之间再间隔 10s（文档多店铺规则）
                 if (i + SID_BATCH < sids.size()) {
                     sleep(10_000L);
                 }
@@ -146,7 +121,9 @@ public class LingxingScheduledSyncService {
             // ④.5 删本地产品非目标开发人（用刚重建的统一表 distinct developer；空集保护防删光全表）
             int targetDevs = localProductMapper.countTargetDevelopers();
             if (targetDevs > 0) {
-                int pruned = localProductMapper.deleteNonTargetDevelopers();
+                int pruned = rdsBatchWriteService.executeOne(
+                        com.sjzm.product.mapper.LingxingLocalProductMapper.class,
+                        com.sjzm.product.mapper.LingxingLocalProductMapper::deleteNonTargetDevelopers);
                 log.info("领星每周同步：本地产品清理，目标开发人 {} 人，删非目标 {} 行", targetDevs, pruned);
             } else {
                 log.warn("领星每周同步：统一表无目标开发人，跳过本地产品清理（防删光全表）");
@@ -158,7 +135,9 @@ public class LingxingScheduledSyncService {
             Map<String, Object> listing = listingSyncService.syncTargetListings();
             log.info("领星每周同步：listing 覆盖同步 {}", listing);
 
-            syncRunMapper.finishRun(runId, "SUCCESS", totalUpserted, null);
+            int finalUpserted = totalUpserted;
+            rdsBatchWriteService.executeOne(LingxingSkuDataLayerMapper.class,
+                    mapper -> mapper.finishRun(runId, "SUCCESS", finalUpserted, null));
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("runId", runId);
             out.put("window", startDate + "~" + endDate);
@@ -171,29 +150,18 @@ public class LingxingScheduledSyncService {
             return out;
         } catch (Exception e) {
             log.error("领星每周同步失败：{}", e.getMessage(), e);
-            syncRunMapper.finishRun(runId, "FAILED", totalUpserted, truncate(e.getMessage(), 500));
+            int failedUpserted = totalUpserted;
+            rdsBatchWriteService.executeOne(LingxingSkuDataLayerMapper.class,
+                    mapper -> mapper.finishRun(runId, "FAILED", failedUpserted, truncate(e.getMessage(), 500)));
             throw new RuntimeException("领星每周同步失败: " + e.getMessage(), e);
         }
     }
 
-    /**
-     * 到货看板每日增量同步：每天 00:20 拉昨天的批次到货明细。
-     * 独立于每周同步，令牌桶=1，与其他领星调用错开时间避免争抢。
-     * cron: 秒 分 时 日 月 周。
-     */
-    @Scheduled(cron = "${lingxing.inventory-batch.cron:0 20 0 * * ?}")
-    public void dailyInventoryBatchSync() {
-        if (!scheduledEnabled) {
-            log.debug("领星到货批次每日同步已禁用（LINGXING_SCHEDULED_ENABLED=false），跳过");
-            return;
-        }
-        LocalDate yesterday = LocalDate.now().minusDays(1);
-        String date = yesterday.format(DF);
+    private void sleep(long ms) {
         try {
-            Map<String, Object> r = inventoryBatchService.syncDaily(date, date, null);
-            log.info("到货批次每日同步完成（{}）：{}", date, r);
-        } catch (Exception e) {
-            log.error("到货批次每日同步失败（{}）：{}", date, e.getMessage(), e);
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -218,27 +186,20 @@ public class LingxingScheduledSyncService {
         return s.length() <= max ? s : s.substring(0, max);
     }
 
-    private void sleep(long ms) {
-        try {
-            Thread.sleep(ms);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
     /**
      * Rebuild developer-to-SKU-prefix mapping from the unified table.
      * Each developer gets rows for all distinct first-3-digits of their base_sku.
      */
     private void rebuildPrefixMapping() {
-        prefixMapper.truncate();
+        rdsBatchWriteService.executeOne(
+                LingxingDeveloperSkuPrefixMapper.class, LingxingDeveloperSkuPrefixMapper::truncate);
         List<com.sjzm.product.modules.lingxing.entity.LingxingDeveloperSkuPrefix> prefixes =
                 unifiedMapper.selectDeveloperSkuPrefixes();
-        for (com.sjzm.product.modules.lingxing.entity.LingxingDeveloperSkuPrefix p : prefixes) {
-            if (p.getDeveloper() != null && p.getSkuPrefix() != null) {
-                prefixMapper.upsertPrefix(p);
-            }
-        }
+        List<com.sjzm.product.modules.lingxing.entity.LingxingDeveloperSkuPrefix> validPrefixes = prefixes.stream()
+                .filter(p -> p.getDeveloper() != null && p.getSkuPrefix() != null)
+                .toList();
+        rdsBatchWriteService.execute(LingxingDeveloperSkuPrefixMapper.class, validPrefixes, 500,
+                LingxingDeveloperSkuPrefixMapper::upsertPrefix);
         log.info("开发人前缀映射：truncate 后写入 {} 行", prefixes.size());
     }
 }

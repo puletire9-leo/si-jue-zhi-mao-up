@@ -2,6 +2,7 @@ package com.sjzm.product.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.sjzm.product.modules.lingxing.entity.LingxingDeveloperSkuPrefix;
+import com.sjzm.product.rds.lingxing.LingxingRdsMapper;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
@@ -14,7 +15,7 @@ import java.util.List;
  * Developer SKU prefix mapping — rebuilt weekly from unified table.
  */
 @Mapper
-public interface LingxingDeveloperSkuPrefixMapper extends BaseMapper<LingxingDeveloperSkuPrefix> {
+public interface LingxingDeveloperSkuPrefixMapper extends BaseMapper<LingxingDeveloperSkuPrefix>, LingxingRdsMapper {
 
     /** Truncate and rebuild from unified table. */
     @Delete("DELETE FROM lingxing_developer_sku_prefix")

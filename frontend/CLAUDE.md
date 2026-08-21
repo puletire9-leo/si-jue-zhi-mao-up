@@ -83,8 +83,14 @@ export default {
 | import_export.ts | Python | Excel 处理，保留 |
 | report.ts | Python | 脚本生成，保留 |
 | lingxing.ts | Python | COS 上传，保留 |
+| automationCenter.ts | Java | 自动化任务中心 |
+| lingxingRuntimeCenter.ts | Java（MCP 状态走 Python） | 领星运行中心 |
+| feishuIntegration.ts | Java | 飞书对接中心 |
+| roster.ts | Java | 人员维度配置 |
 
-**Java 后端已实现的前端页面：** 登录/用户管理/竞品分析/评分/ASIN 导入/筛选预设/领星数据对接。
+财务日报与运营物流自动化的当前口径和生产状态，见 `docs/架构/财务与运营自动化任务完整实施记录.md`。
+
+**Java 后端已实现的前端页面：** 登录/用户管理/竞品分析/评分/ASIN 导入/筛选预设/领星数据对接/自动化任务中心/领星运行中心/飞书对接中心/人员维度。
 **仍在 Python 的页面：** 产品管理/选品/定稿/素材库/运营商库/图片管理/导入导出/数据看板/统计/报表/领星导入。
 
 **领星数据对接模块**（menuGroup「领星」，`modules/lingxing-{sellers,products,performance,profit}/`，API `api/lingxingProduct.ts`）：

@@ -30,8 +30,7 @@ const validateConfirm = (_: any, value: string, callback: any) => {
 const rules: FormRules = {
   oldPassword: [{ required: true, message: "请输入当前密码", trigger: "blur" }],
   newPassword: [
-    { required: true, message: "请输入新密码", trigger: "blur" },
-    { min: 6, message: "密码长度不能少于 6 位", trigger: "blur" },
+    { required: true, message: "请输入新密码", trigger: "blur" }
   ],
   confirmPassword: [
     { required: true, validator: validateConfirm, trigger: "blur" },

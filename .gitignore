@@ -12,6 +12,11 @@ frontend/node_modules/
 frontend/dist/
 static/vue-dist/
 
+# Remote deploy runtime (secrets + data stay local; compose itself is tracked)
+deploy-remote/data/
+deploy-remote/config/secrets/*.env
+!deploy-remote/config/secrets/*.env.example
+
 # Env secrets
 .env
 .env.local
@@ -160,3 +165,38 @@ rag参考设计/
 zcode/
 guapai-*.png
 .zcode/
+.agents/
+.codebuddy/
+.grok/
+.codex-tmp/
+backups/
+deploy-remote.zip
+docs/大类榜单/**/*.json
+java-backend/.m2-cache/
+java-backend/_brs_*
+java-backend/test_join.sql
+sandbox/
+skills-lock.json
+excel_structure.txt
+fill_result.txt
+temp_jun.csv
+temp_jun.sql
+test_api_direct.html
+_cnt.sql
+asin_100.tsv
+asin_sample.csv
+asin_sample.txt
+艾为系统.zip
+docs/ai密匙/
+
+# 本地一次性脚本（硬编码密码或临时填表，勿入库）
+scripts/check_db.py
+scripts/fetch_asins.py
+scripts/fill_excel.py
+scripts/fill_excel_100.py
+scripts/fill_excel_full.py
+
+# 领星日报本地产物
+scripts/lingxing_daily/_*.json
+scripts/lingxing_daily/_*.txt
+scripts/lingxing_daily/_feishu_five_tables/

@@ -5,6 +5,7 @@ import com.sjzm.product.modules.lingxing.dto.LingxingShopProductVO;
 import com.sjzm.product.modules.lingxing.dto.LingxingShopQueryRequest;
 import com.sjzm.product.modules.lingxing.entity.LingxingDeveloperSkuPrefix;
 import com.sjzm.product.modules.lingxing.entity.LingxingProductUnified;
+import com.sjzm.product.rds.lingxing.LingxingRdsMapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
@@ -15,7 +16,7 @@ import java.util.Map;
  * 领星产品统一表 Mapper。
  * <p>沿用老约定放在 com.sjzm.product.mapper，已被 ProductApplication.@MapperScan 第一行覆盖，无需改 @MapperScan。
  */
-public interface LingxingProductUnifiedMapper extends BaseMapper<LingxingProductUnified> {
+public interface LingxingProductUnifiedMapper extends BaseMapper<LingxingProductUnified>, LingxingRdsMapper {
 
     /**
      * 增量重算统一表：只 INSERT 新 ASIN（真实上架日期一次写入锁定）。
@@ -38,6 +39,12 @@ public interface LingxingProductUnifiedMapper extends BaseMapper<LingxingProduct
      * @return 更新行数
      */
     int updateMetrics(String cutoffMonth, String unifiedVersion);
+
+    /** 从周表目标 ASIN 刷新 UK/DE 国家关系，供财务按币种分流。 */
+    int upsertMarketplaceRelations();
+
+    /** 将本轮周表已不存在的历史国家关系标为无效；在 upsert 成功后执行。 */
+    int deactivateStaleMarketplaceRelations();
 
     /** 清空统一表（重算前可选调用；rebuildAll 已是幂等 upsert，通常不需要）。 */
     int truncateAll();

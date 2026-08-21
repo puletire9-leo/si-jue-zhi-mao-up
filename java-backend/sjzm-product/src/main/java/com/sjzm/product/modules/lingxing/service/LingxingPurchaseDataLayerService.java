@@ -5,15 +5,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.sjzm.product.mapper.LingxingPurchaseDataLayerMapper;
+import com.sjzm.product.rds.mapper.LingxingPurchaseDataLayerMapper;
+import com.sjzm.product.rds.service.RdsBatchWriteService;
 import com.sjzm.product.mapper.LingxingSkuDataLayerMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,10 +36,11 @@ public class LingxingPurchaseDataLayerService {
 
     private final LingxingClient client;
     private final LingxingPurchaseDataLayerMapper purchaseMapper;
+    private final RdsBatchWriteService rdsBatchWriteService;
     private final LingxingSkuDataLayerMapper runMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Transactional(rollbackFor = Exception.class)
+    // 事实表与 lingxing_data_sync_run 都在 RDS，所有写入统一经过 RDS 写入中心。
     public Map<String, Object> syncPurchasePlans(String startDate,
                                                  String endDate,
                                                  String searchFieldTime,
@@ -58,8 +60,9 @@ public class LingxingPurchaseDataLayerService {
         int fetched = 0;
         int upserted = 0;
         int pages = 0;
-        runMapper.beginRun(runId, "PURCHASE_PLAN", "ALL", dateOnly(startDate), dateOnly(endDate),
-                null, null, json(request));
+        rdsBatchWriteService.executeOne(LingxingSkuDataLayerMapper.class,
+                mapper -> mapper.beginRun(runId, "PURCHASE_PLAN", "ALL",
+                        dateOnly(startDate), dateOnly(endDate), null, null, json(request)));
         try {
             for (int offset = 0; pages < MAX_PAGES; offset += PAGE_SIZE) {
                 ObjectNode body = objectMapper.createObjectNode();
@@ -78,16 +81,20 @@ public class LingxingPurchaseDataLayerService {
 
                 pages++;
                 fetched += data.size();
-                for (JsonNode row : data) {
-                    purchaseMapper.upsertPurchasePlan(mapPlan(row), runId);
-                    upserted++;
-                }
+                List<Map<String, Object>> planRows = new java.util.ArrayList<>(data.size());
+                data.forEach(row -> planRows.add(mapPlan(row)));
+                upserted += rdsBatchWriteService.execute(LingxingPurchaseDataLayerMapper.class,
+                        planRows, PAGE_SIZE, (mapper, row) -> mapper.upsertPurchasePlan(row, runId));
                 if (data.size() < PAGE_SIZE) break;
                 sleep(1_000L);
             }
-            runMapper.finishRun(runId, "SUCCESS", upserted, null);
+            int finalUpserted = upserted;
+            rdsBatchWriteService.executeOne(LingxingSkuDataLayerMapper.class,
+                    mapper -> mapper.finishRun(runId, "SUCCESS", finalUpserted, null));
         } catch (RuntimeException ex) {
-            runMapper.finishRun(runId, "FAILED", upserted, ex.getMessage());
+            int failedUpserted = upserted;
+            rdsBatchWriteService.executeOne(LingxingSkuDataLayerMapper.class,
+                    mapper -> mapper.finishRun(runId, "FAILED", failedUpserted, ex.getMessage()));
             throw ex;
         }
 
@@ -100,7 +107,7 @@ public class LingxingPurchaseDataLayerService {
         return result;
     }
 
-    @Transactional(rollbackFor = Exception.class)
+    // 双数据源改造：去掉 @Transactional，同上。
     public Map<String, Object> syncPurchaseOrders(String startDate,
                                                   String endDate,
                                                   String searchFieldTime,
@@ -121,8 +128,9 @@ public class LingxingPurchaseDataLayerService {
         int upsertedOrders = 0;
         int upsertedItems = 0;
         int pages = 0;
-        runMapper.beginRun(runId, "PURCHASE_ORDER", "ALL", dateOnly(startDate), dateOnly(endDate),
-                null, null, json(request));
+        rdsBatchWriteService.executeOne(LingxingSkuDataLayerMapper.class,
+                mapper -> mapper.beginRun(runId, "PURCHASE_ORDER", "ALL",
+                        dateOnly(startDate), dateOnly(endDate), null, null, json(request)));
         try {
             for (int offset = 0; pages < MAX_PAGES; offset += PAGE_SIZE) {
                 ObjectNode body = objectMapper.createObjectNode();
@@ -141,24 +149,32 @@ public class LingxingPurchaseDataLayerService {
 
                 pages++;
                 fetchedOrders += data.size();
+                List<Map<String, Object>> orderRows = new java.util.ArrayList<>(data.size());
+                List<Map<String, Object>> itemRows = new java.util.ArrayList<>();
                 for (JsonNode order : data) {
                     Map<String, Object> orderRow = mapOrder(order);
-                    purchaseMapper.upsertPurchaseOrder(orderRow, runId);
-                    upsertedOrders++;
+                    orderRows.add(orderRow);
                     JsonNode items = order.path("item_list");
                     if (items.isArray()) {
                         for (JsonNode item : items) {
-                            purchaseMapper.upsertPurchaseOrderItem(mapOrderItem(order, item), runId);
-                            upsertedItems++;
+                            itemRows.add(mapOrderItem(order, item));
                         }
                     }
                 }
+                upsertedOrders += rdsBatchWriteService.execute(LingxingPurchaseDataLayerMapper.class,
+                        orderRows, PAGE_SIZE, (mapper, row) -> mapper.upsertPurchaseOrder(row, runId));
+                upsertedItems += rdsBatchWriteService.execute(LingxingPurchaseDataLayerMapper.class,
+                        itemRows, PAGE_SIZE, (mapper, row) -> mapper.upsertPurchaseOrderItem(row, runId));
                 if (data.size() < PAGE_SIZE) break;
                 sleep(1_000L);
             }
-            runMapper.finishRun(runId, "SUCCESS", upsertedOrders + upsertedItems, null);
+            int finalUpserted = upsertedOrders + upsertedItems;
+            rdsBatchWriteService.executeOne(LingxingSkuDataLayerMapper.class,
+                    mapper -> mapper.finishRun(runId, "SUCCESS", finalUpserted, null));
         } catch (RuntimeException ex) {
-            runMapper.finishRun(runId, "FAILED", upsertedOrders + upsertedItems, ex.getMessage());
+            int failedUpserted = upsertedOrders + upsertedItems;
+            rdsBatchWriteService.executeOne(LingxingSkuDataLayerMapper.class,
+                    mapper -> mapper.finishRun(runId, "FAILED", failedUpserted, ex.getMessage()));
             throw ex;
         }
 
@@ -174,6 +190,27 @@ public class LingxingPurchaseDataLayerService {
 
     public Map<String, Object> stats() {
         return Map.of("stats", purchaseMapper.stats());
+    }
+
+    /**
+     * 艾为系统同口径：7天更新时间滑窗 + 本地长期待签收采购单兜底探查。
+     */
+    public Map<String, Object> syncActivePurchaseOrders() {
+        String endDate = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        String startDate = LocalDateTime.now().minusDays(7)
+                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        Map<String, Object> incremental = syncPurchaseOrders(startDate, endDate,
+                "update_time", List.of(), List.of(), null);
+
+        List<String> activeOrderSns = purchaseMapper.selectActivePurchaseOrderSns();
+        int probed = 0;
+        for (int from = 0; from < activeOrderSns.size(); from += 100) {
+            List<String> batch = activeOrderSns.subList(from, Math.min(from + 100, activeOrderSns.size()));
+            syncPurchaseOrders("1990-01-01", LocalDate.now().plusDays(1).toString(),
+                    "create_time", batch, List.of(), null);
+            probed += batch.size();
+        }
+        return Map.of("incremental", incremental, "activeOrdersProbed", probed);
     }
 
     private Map<String, Object> mapPlan(JsonNode row) {

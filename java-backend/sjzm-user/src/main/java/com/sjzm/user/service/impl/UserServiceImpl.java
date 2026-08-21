@@ -186,14 +186,18 @@ public class UserServiceImpl implements UserService {
         if (role == null || role.isBlank()) {
             return "OPERATOR";
         }
-        if (role.contains("admin") || role.contains("管理员")) {
+        String normalizedRole = role.toLowerCase(java.util.Locale.ROOT);
+        if (normalizedRole.contains("admin") || role.contains("管理员")) {
             return "MANAGER";
         }
-        if (role.contains("开发") || role.contains("developer")) {
+        if (role.contains("开发") || normalizedRole.contains("developer")) {
             return "DEVELOPER";
         }
-        if (role.contains("美术") || role.contains("artist")) {
+        if (role.contains("美术") || normalizedRole.contains("artist")) {
             return "ART_MANAGER";
+        }
+        if (role.contains("采购员") || normalizedRole.contains("purchaser")) {
+            return "PURCHASER";
         }
         return "OPERATOR";
     }

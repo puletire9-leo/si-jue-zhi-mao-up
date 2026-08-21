@@ -11,10 +11,23 @@
       <template #header>
         <div class="card-header">
           <span>数据导入</span>
-          <el-button type="primary" link @click="handleDownloadTemplate">
-            <el-icon><Download /></el-icon>
-            下载模板
-          </el-button>
+          <div class="template-actions">
+            <el-button type="primary" link @click="handleDownloadTemplate">
+              <el-icon><Download /></el-icon>
+              下载模板
+            </el-button>
+            <el-button type="primary" link :loading="uploadingTemplate" @click="triggerUploadTemplate">
+              <el-icon><Edit /></el-icon>
+              修改模板
+            </el-button>
+            <input
+              ref="templateFileInput"
+              type="file"
+              accept=".xlsx"
+              class="hidden-file-input"
+              @change="handleTemplateFileChange"
+            />
+          </div>
         </div>
       </template>
 
@@ -73,6 +86,21 @@
           :closable="false"
           class="preview-alert"
         />
+
+        <el-alert
+          v-if="parseIssues.length > 0"
+          title="表头或列可能不一致，请先核对预览"
+          type="warning"
+          show-icon
+          :closable="false"
+          class="preview-alert parse-issue-alert"
+        >
+          <ul class="parse-issue-list">
+            <li v-for="(issue, index) in parseIssues" :key="index">
+              {{ issue.message }}
+            </li>
+          </ul>
+        </el-alert>
 
         <!-- 开发人选择区域 -->
         <div class="developer-select-area">
@@ -254,6 +282,7 @@ import {
   Loading,
   Refresh,
   Download,
+  Edit,
   User,
   Check,
 } from "@element-plus/icons-vue";
@@ -261,7 +290,7 @@ import type { UploadFile, UploadFiles } from "element-plus";
 import * as XLSX from "xlsx";
 import ProductTable from "./components/ProductTable.vue";
 import SkeletonWrapper from "@/components/SkeletonWrapper/index.vue";
-import { uploadLingxingImage } from "@/api/lingxing";
+import { uploadLingxingImage, uploadLingxingTemplate } from "@/api/lingxing";
 import { fetchMembers } from "@/api/members";
 import { useUserStore } from "@/stores/user";
 import {
@@ -282,6 +311,8 @@ const fileList = ref<UploadFile[]>([]);
 
 // 解析状态
 const parsing = ref(false);
+const uploadingTemplate = ref(false);
+const templateFileInput = ref<HTMLInputElement | null>(null);
 
 // 预览数据
 const previewData = ref<any[]>([]);
@@ -369,15 +400,343 @@ const fieldMapping: Record<string, string[]> = {
   supplierLink: ["供应商链接", "链接", "link", "Link", "采购链接"],
   supplier: ["供应商", "供货方", "supplier", "Supplier"],
   ukCustomsCode: ["英国海关编码", "海关编码", "customsCode", "HS编码"],
-  cnDeclarationName: ["中文报关名", "中文品名", "cnName"],
-  enDeclarationName: ["英文报关名", "英文品名", "enName"],
+  cnMaterial: ["中文材质", "材质"],
+  enMaterial: ["英文材质"],
+  cnUse: ["中文用途"],
+  enUse: ["英文用途"],
+  productAttr: ["产品属性"],
+  cnDeclarationName: ["中文报关名", "中文品名", "报关中文名", "中文报关名称", "申报中文名", "cnName"],
+  enDeclarationName: ["英文报关名", "英文品名", "报关英文名", "英文报关名称", "申报英文名", "enName"],
   imageUrl: ["图片url", "图片URL", "图片地址", "imageUrl", "图片", "图片链接"],
+};
+
+const fieldLabels: Record<string, string> = {
+  sku: "SKU",
+  productName: "产品名称",
+  length: "长cm",
+  width: "宽cm",
+  height: "高cm",
+  weight: "毛重（kg）",
+  purchaseCost: "采购费用",
+  supplierLink: "供应商链接",
+  supplier: "供应商",
+  ukCustomsCode: "英国海关编码",
+  cnMaterial: "中文材质",
+  enMaterial: "英文材质",
+  cnUse: "中文用途",
+  enUse: "英文用途",
+  productAttr: "产品属性",
+  cnDeclarationName: "中文报关名",
+  enDeclarationName: "英文报关名",
+  imageUrl: "图片url",
 };
 
 /**
  * 必需字段列表
  */
 const requiredFields = ["sku", "productName"];
+
+const importantOptionalFields = [
+  "cnDeclarationName",
+  "enDeclarationName",
+  "length",
+  "width",
+  "height",
+  "weight",
+  "purchaseCost",
+  "supplierLink",
+  "supplier",
+  "ukCustomsCode",
+  "imageUrl",
+];
+
+interface ColumnIssue {
+  level: "warning" | "error";
+  message: string;
+}
+
+const parseIssues = ref<ColumnIssue[]>([]);
+
+const emptyHeaderPattern = /^(unnamed.*|__empty.*|#\d+)?$/i;
+const urlPattern = /^https?:\/\//i;
+const chinesePattern = /[\u4e00-\u9fff]/;
+const englishWordPattern = /[A-Za-z]{3,}/;
+
+const cellText = (
+  row: any[],
+  fieldMap: Record<string, string>,
+  field: string,
+): string => {
+  const colIndex = Object.keys(fieldMap).find((idx) => fieldMap[idx] === field);
+  if (colIndex === undefined) return "";
+  const value = row[Number(colIndex)];
+  if (value === undefined || value === null) return "";
+  return String(value).trim();
+};
+
+const majorityCount = (hit: number, total: number): boolean =>
+  hit >= Math.max(2, Math.ceil(total * 0.4));
+
+/**
+ * 检查表头漏列、无法识别的列名、以及数据看起来像列错位。
+ */
+const analyzeColumnIssues = (
+  headers: string[],
+  fieldMap: Record<string, string>,
+  rawRows: any[][],
+): ColumnIssue[] => {
+  const issues: ColumnIssue[] = [];
+  const mappedFields = Object.values(fieldMap);
+  const mappedSet = new Set(mappedFields);
+
+  const firstHeader = String(headers[0] ?? "").trim();
+  if (/^\d{4,}$/.test(firstHeader) || urlPattern.test(firstHeader)) {
+    issues.push({
+      level: "error",
+      message:
+        "第一行不像表头（例如以数字 SKU 或网址开头）。请确认 Excel 第一行是列名，而不是数据行。",
+    });
+  }
+
+  const fieldCounts: Record<string, number> = {};
+  mappedFields.forEach((field) => {
+    fieldCounts[field] = (fieldCounts[field] || 0) + 1;
+  });
+  Object.entries(fieldCounts)
+    .filter(([, count]) => count > 1)
+    .forEach(([field]) => {
+      issues.push({
+        level: "warning",
+        message: `「${fieldLabels[field] || field}」被识别到多列，表头可能重复或整表错位，请对照模板核对。`,
+      });
+    });
+
+  const missingRequired = requiredFields.filter((field) => !mappedSet.has(field));
+  if (missingRequired.length > 0) {
+    issues.push({
+      level: "error",
+      message: `缺少必需列：${missingRequired.map((field) => fieldLabels[field]).join("、")}。请确认没有漏列、列名写错或整表错位，可先点「下载模板」对照。`,
+    });
+  }
+
+  const missingOptional = importantOptionalFields.filter(
+    (field) => !mappedSet.has(field),
+  );
+  if (missingOptional.length > 0) {
+    issues.push({
+      level: "warning",
+      message: `表头缺少：${missingOptional.map((field) => fieldLabels[field]).join("、")}。常见原因是漏列、列名和模板不一致，或列整体错位。这些列将按空值生成。`,
+    });
+  }
+
+  const unrecognized = headers
+    .map((header, index) => ({
+      index,
+      name: String(header ?? "").trim(),
+    }))
+    .filter(
+      (item) =>
+        item.name &&
+        !emptyHeaderPattern.test(item.name) &&
+        !fieldMap[item.index],
+    );
+  if (unrecognized.length > 0) {
+    const samples = unrecognized
+      .slice(0, 6)
+      .map((item) => `第${item.index + 1}列「${item.name}」`);
+    const extra =
+      unrecognized.length > 6 ? ` 等 ${unrecognized.length} 列` : "";
+    issues.push({
+      level: "warning",
+      message: `未能识别：${samples.join("、")}${extra}。可能列名与模板不一致，或该列已错位。请对照系统模板。`,
+    });
+  }
+
+  const dataRows = rawRows.filter((row) =>
+    (row || []).some((cell) => String(cell ?? "").trim() !== ""),
+  );
+  if (dataRows.length === 0) {
+    return issues;
+  }
+
+  let skuLooksName = 0;
+  let nameLooksSku = 0;
+  let dimLooksText = 0;
+  let costLooksText = 0;
+  let linkLooksName = 0;
+  let imageLooksName = 0;
+  let cnDeclLooksEn = 0;
+  let enDeclLooksCn = 0;
+  let emptyCnDecl = 0;
+  let emptyEnDecl = 0;
+
+  dataRows.forEach((row) => {
+    const sku = cellText(row, fieldMap, "sku");
+    const productName = cellText(row, fieldMap, "productName");
+    const supplierLink = cellText(row, fieldMap, "supplierLink");
+    const imageUrl = cellText(row, fieldMap, "imageUrl");
+    const cnDeclarationName = cellText(row, fieldMap, "cnDeclarationName");
+    const enDeclarationName = cellText(row, fieldMap, "enDeclarationName");
+    const purchaseCost = cellText(row, fieldMap, "purchaseCost");
+
+    if (sku && chinesePattern.test(sku) && sku.length >= 6) skuLooksName += 1;
+    if (productName && /^\d{4,}$/.test(productName) && !chinesePattern.test(productName)) {
+      nameLooksSku += 1;
+    }
+    const dimBad = ["length", "width", "height", "weight"].some((field) => {
+      const value = cellText(row, fieldMap, field);
+      return Boolean(
+        value &&
+          (urlPattern.test(value) ||
+            chinesePattern.test(value) ||
+            (englishWordPattern.test(value) && Number.isNaN(Number(value)))),
+      );
+    });
+    if (dimBad) dimLooksText += 1;
+    if (
+      purchaseCost &&
+      (urlPattern.test(purchaseCost) || chinesePattern.test(purchaseCost))
+    ) {
+      costLooksText += 1;
+    }
+    if (
+      supplierLink &&
+      !urlPattern.test(supplierLink) &&
+      chinesePattern.test(supplierLink) &&
+      supplierLink.length >= 4
+    ) {
+      linkLooksName += 1;
+    }
+    if (
+      imageUrl &&
+      !urlPattern.test(imageUrl) &&
+      !imageUrl.includes("/") &&
+      chinesePattern.test(imageUrl)
+    ) {
+      imageLooksName += 1;
+    }
+    if (
+      cnDeclarationName &&
+      !chinesePattern.test(cnDeclarationName) &&
+      englishWordPattern.test(cnDeclarationName)
+    ) {
+      cnDeclLooksEn += 1;
+    }
+    if (
+      enDeclarationName &&
+      chinesePattern.test(enDeclarationName) &&
+      !englishWordPattern.test(enDeclarationName)
+    ) {
+      enDeclLooksCn += 1;
+    }
+    if (mappedSet.has("cnDeclarationName") && !cnDeclarationName) emptyCnDecl += 1;
+    if (mappedSet.has("enDeclarationName") && !enDeclarationName) emptyEnDecl += 1;
+  });
+
+  const total = dataRows.length;
+  if (majorityCount(skuLooksName, total) && majorityCount(nameLooksSku, total)) {
+    issues.push({
+      level: "warning",
+      message:
+        "多数行的「SKU」像中文品名、「产品名称」像纯数字编码，疑似这两列对调或整表错位，请在预览中核对。",
+    });
+  } else if (majorityCount(skuLooksName, total)) {
+    issues.push({
+      level: "warning",
+      message:
+        "多数行的「SKU」像产品名称（含中文）。可能 SKU 列错位，请核对表头是否和模板一致。",
+    });
+  } else if (majorityCount(nameLooksSku, total)) {
+    issues.push({
+      level: "warning",
+      message:
+        "多数行的「产品名称」像 SKU（纯数字）。可能产品名称列错位，请核对表头。",
+    });
+  }
+
+  if (majorityCount(dimLooksText, total)) {
+    issues.push({
+      level: "warning",
+      message:
+        "长/宽/高/毛重列里出现了中文或网址，不像尺寸数值，疑似列错位。请对照模板检查这几列是否整体偏移。",
+    });
+  }
+  if (majorityCount(costLooksText, total)) {
+    issues.push({
+      level: "warning",
+      message: "「采购费用」多数不是数字，疑似该列错位到了名称或链接。",
+    });
+  }
+  if (majorityCount(linkLooksName, total)) {
+    issues.push({
+      level: "warning",
+      message:
+        "「供应商链接」多数不是网址，却像产品名称。疑似链接列和名称列错位。",
+    });
+  }
+  if (majorityCount(imageLooksName, total)) {
+    issues.push({
+      level: "warning",
+      message: "「图片url」多数不是网址，疑似图片列错位或列名对不上。",
+    });
+  }
+  if (majorityCount(cnDeclLooksEn, total) && majorityCount(enDeclLooksCn, total)) {
+    issues.push({
+      level: "warning",
+      message:
+        "「中文报关名」多数是英文、「英文报关名」多数是中文，疑似这两列对调。",
+    });
+  } else if (majorityCount(cnDeclLooksEn, total)) {
+    issues.push({
+      level: "warning",
+      message: "「中文报关名」多数没有中文，疑似填到了英文列或列已错位。",
+    });
+  } else if (majorityCount(enDeclLooksCn, total)) {
+    issues.push({
+      level: "warning",
+      message: "「英文报关名」多数是中文，疑似和中文报关名列对调。",
+    });
+  }
+  if (
+    mappedSet.has("cnDeclarationName") &&
+    emptyCnDecl === total &&
+    total > 0
+  ) {
+    issues.push({
+      level: "warning",
+      message:
+        "已识别到「中文报关名」列，但全部为空。请确认该列是否有值，或表头是否对错列。",
+    });
+  }
+  if (
+    mappedSet.has("enDeclarationName") &&
+    emptyEnDecl === total &&
+    total > 0
+  ) {
+    issues.push({
+      level: "warning",
+      message:
+        "已识别到「英文报关名」列，但全部为空。请确认该列是否有值，或表头是否对错列。",
+    });
+  }
+
+  return issues;
+};
+
+const showColumnIssues = async (issues: ColumnIssue[]) => {
+  if (issues.length === 0) return;
+  issues.forEach((issue) => addLog(issue.message, issue.level));
+  const hasError = issues.some((issue) => issue.level === "error");
+  await ElMessageBox.alert(
+    issues.map((issue) => `• ${issue.message}`).join("\n\n"),
+    hasError ? "表头不一致，无法继续" : "表头或列可能不一致",
+    {
+      type: hasError ? "error" : "warning",
+      confirmButtonText: hasError ? "返回修改" : "我知道了，去预览核对",
+      customClass: "lingxing-column-issue-box",
+    },
+  );
+};
 
 /**
  * 确认选择开发人
@@ -438,6 +797,7 @@ const handlePrevStep = () => {
     activeStep.value--;
     if (activeStep.value === 0) {
       previewData.value = [];
+      parseIssues.value = [];
     }
   }
 };
@@ -584,11 +944,16 @@ const parseExcelFile = async () => {
     // 解析表头
     const headers = jsonData[0] as string[];
     const fieldMap = mapHeadersToFields(headers);
+    const issues = analyzeColumnIssues(headers, fieldMap, jsonData.slice(1));
+    parseIssues.value = issues;
 
     // 检查必需字段
     const missingFields = checkRequiredFields(fieldMap);
     if (missingFields.length > 0) {
-      ElMessage.error(`缺少必需字段: ${missingFields.join(", ")}`);
+      await showColumnIssues(issues);
+      ElMessage.error(
+        `缺少必需列：${missingFields.map((field) => fieldLabels[field] || field).join("、")}。请先对照模板检查漏列或错位。`,
+      );
       parsing.value = false;
       return;
     }
@@ -597,14 +962,22 @@ const parseExcelFile = async () => {
     const parsedData = parseDataRows(jsonData.slice(1), fieldMap);
 
     if (parsedData.length === 0) {
-      ElMessage.error("未能解析到有效数据");
+      ElMessage.error("未能解析到有效数据，请确认表头是否错位、数据是否从第二行开始");
       parsing.value = false;
       return;
     }
 
+    if (issues.length > 0) {
+      await showColumnIssues(issues);
+    }
+
     // 先设置预览数据
     previewData.value = parsedData;
-    ElMessage.success(`成功解析 ${parsedData.length} 条数据`);
+    ElMessage.success(
+      issues.length > 0
+        ? `已解析 ${parsedData.length} 条数据，但表头/列可能不一致，请先在预览中核对`
+        : `成功解析 ${parsedData.length} 条数据`,
+    );
 
     // 尝试从Excel中提取嵌入的图片
     await extractAndUploadImagesFromExcel(data, parsedData);
@@ -762,12 +1135,9 @@ const extractAndUploadImagesFromExcel = async (
  * 执行数据导入 - 调用后端生成领星导入文件
  */
 const executeImport = async () => {
-  importStatus.value = "importing";
-
   // 检查是否选择了开发人
   if (!selectedDeveloper.value) {
     ElMessage.warning("请先选择开发人");
-    importStatus.value = "idle";
     showDeveloperDialog.value = true;
     return;
   }
@@ -781,15 +1151,38 @@ const executeImport = async () => {
     ElMessage.warning(
       `请先填写第 ${rowNums} 行的 SKU，再生成文件（SKU 为空的行会被跳过）`,
     );
-    importStatus.value = "idle";
     return;
   }
+
+  if (parseIssues.value.length > 0) {
+    try {
+      await ElMessageBox.confirm(
+        [
+          "当前文件仍有表头或列不一致提示：",
+          ...parseIssues.value.map((issue) => `• ${issue.message}`),
+          "",
+          "继续生成时，对不上的列会按空值处理，领星表里对应字段可能是空的。是否仍要生成？",
+        ].join("\n"),
+        "列不一致，确认是否继续生成",
+        {
+          type: "warning",
+          confirmButtonText: "仍要生成",
+          cancelButtonText: "返回核对",
+          customClass: "lingxing-column-issue-box",
+        },
+      );
+    } catch {
+      return;
+    }
+  }
+
+  importStatus.value = "importing";
 
   try {
     const token = localStorage.getItem("token");
 
-    // 转换数据格式为Python脚本期望的列名
-    const fieldMapping: Record<string, string> = {
+    // 转换数据格式为Python脚本期望的列名；缺列必须补空，不能靠 Object.entries 省略
+    const exportFieldMapping: Record<string, string> = {
       sku: "SKU",
       productName: "产品名称",
       length: "长cm",
@@ -800,17 +1193,32 @@ const executeImport = async () => {
       supplierLink: "供应商链接",
       supplier: "供应商",
       ukCustomsCode: "英国海关编码",
+      cnMaterial: "中文材质",
+      enMaterial: "英文材质",
+      cnUse: "中文用途",
+      enUse: "英文用途",
+      productAttr: "产品属性",
       cnDeclarationName: "中文报关名",
       enDeclarationName: "英文报关名",
       imageUrl: "图片url",
     };
 
+    const emptyDeclarationRows = previewData.value.filter(
+      (row) => !String(row.cnDeclarationName || "").trim(),
+    );
+    if (emptyDeclarationRows.length > 0 && parseIssues.value.length === 0) {
+      ElMessage.warning(
+        `有 ${emptyDeclarationRows.length} 行缺少中文报关名，将按空值生成；请确认 Excel 是否包含该列或是否错位`,
+      );
+    }
+
     const convertedData = previewData.value.map((row) => {
       const newRow: Record<string, any> = {};
-      for (const [key, value] of Object.entries(row)) {
-        const newKey = fieldMapping[key] || key;
-        newRow[newKey] = value;
+      for (const [key, newKey] of Object.entries(exportFieldMapping)) {
+        newRow[newKey] = row[key] ?? "";
       }
+      if (row.cosImageUrl) newRow.cosImageUrl = row.cosImageUrl;
+      if (row.fileCode) newRow.fileCode = row.fileCode;
       return newRow;
     });
 
@@ -838,7 +1246,15 @@ const executeImport = async () => {
         importResult.errorMessage = "登录已过期";
         return;
       }
-      throw new Error(errorData.detail || "生成文件失败");
+      const rawDetail = errorData.message || errorData.detail || "生成文件失败";
+      const detailText = Array.isArray(rawDetail)
+        ? rawDetail
+            .map((item) =>
+              typeof item === "string" ? item : item?.msg || JSON.stringify(item),
+            )
+            .join("; ")
+        : String(rawDetail);
+      throw new Error(detailText);
     }
 
     // 获取文件名
@@ -889,6 +1305,7 @@ const handleReset = () => {
   activeStep.value = 0;
   fileList.value = [];
   previewData.value = [];
+  parseIssues.value = [];
   importStatus.value = "idle";
 };
 
@@ -1035,6 +1452,40 @@ const handleDownloadTemplate = async () => {
   }
 };
 
+const triggerUploadTemplate = () => {
+  templateFileInput.value?.click();
+};
+
+const handleTemplateFileChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith(".xlsx")) {
+    ElMessage.error("只支持 .xlsx 模板");
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      "将替换当前「下载模板」使用的文件，立即生效，无需重新部署。确定更新？",
+      "修改模板",
+      { type: "warning", confirmButtonText: "更新", cancelButtonText: "取消" },
+    );
+  } catch {
+    return;
+  }
+  uploadingTemplate.value = true;
+  try {
+    await uploadLingxingTemplate(file);
+    ElMessage.success("模板已更新，再点下载模板即可拿到新文件");
+  } catch (error) {
+    console.error("更新模板失败:", error);
+    ElMessage.error("更新模板失败，请重试");
+  } finally {
+    uploadingTemplate.value = false;
+  }
+};
+
 /**
  * 处理行删除
  * @param index 行索引
@@ -1120,6 +1571,16 @@ onMounted(() => {
       justify-content: space-between;
       align-items: center;
       font-weight: 600;
+
+      .template-actions {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .hidden-file-input {
+        display: none;
+      }
     }
 
     .import-steps {
@@ -1168,6 +1629,12 @@ onMounted(() => {
 
       .preview-alert {
         margin-bottom: 20px;
+      }
+
+      .parse-issue-list {
+        margin: 8px 0 0;
+        padding-left: 18px;
+        line-height: 1.6;
       }
 
       .result-success,
@@ -1497,5 +1964,18 @@ html.dark {
       color: var(--el-color-primary);
     }
   }
+}
+</style>
+
+<style>
+.lingxing-column-issue-box {
+  max-width: 560px;
+}
+
+.lingxing-column-issue-box .el-message-box__message {
+  white-space: pre-wrap;
+  line-height: 1.6;
+  max-height: 360px;
+  overflow-y: auto;
 }
 </style>

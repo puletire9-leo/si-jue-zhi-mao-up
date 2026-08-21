@@ -181,10 +181,10 @@ if ($Component -eq "java") {
     }
 }
 
-Invoke-Checked "remove non-hot BuildKit cache unused for 24 hours" {
+Invoke-Checked "remove regular BuildKit cache unused for more than 3 hours" {
     # Maven/pip/npm cache mounts are exec.cachemount records and must survive
     # routine cleanup. Only regular layer records are eligible here.
-    docker buildx prune --force --filter "until=24h" --filter "type=regular"
+    docker buildx prune --force --filter "until=3h" --filter "type=regular"
 }
 
 $obsoleteRefs = @(

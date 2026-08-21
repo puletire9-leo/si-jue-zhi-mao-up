@@ -1,7 +1,6 @@
 package com.sjzm.product.modules.lingxing.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.toolkit.Db;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -9,6 +8,7 @@ import com.sjzm.product.mapper.LingxingListingMapper;
 import com.sjzm.product.mapper.LingxingProductUnifiedMapper;
 import com.sjzm.product.modules.lingxing.entity.LingxingListing;
 import com.sjzm.product.modules.lingxing.entity.LingxingProductUnified;
+import com.sjzm.product.rds.service.RdsBatchWriteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -62,6 +62,7 @@ public class LingxingListingSyncService {
     private final LingxingClient client;
     private final LingxingListingMapper listingMapper;
     private final LingxingProductUnifiedMapper unifiedMapper;
+    private final RdsBatchWriteService rdsBatchWriteService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -126,17 +127,13 @@ public class LingxingListingSyncService {
                         log.warn("领星 listing 缺 sid/seller_sku，跳过: sid={}, row={}", sid, row);
                         continue;
                     }
-                    LingxingListing existing = listingMapper.selectOne(
-                            new LambdaQueryWrapper<LingxingListing>()
-                                    .eq(LingxingListing::getSid, e.getSid())
-                                    .eq(LingxingListing::getSellerSku, e.getSellerSku())
-                                    .last("LIMIT 1"));
-                    if (existing != null) e.setId(existing.getId());
                     pageEntities.add(e);
                 }
+                attachExistingIds(pageEntities);
                 if (!pageEntities.isEmpty()) {
-                    Db.saveOrUpdateBatch(pageEntities, DB_BATCH_SIZE);
-                    upserted += pageEntities.size();
+                    upserted += rdsBatchWriteService.saveOrUpdate(
+                            LingxingListingMapper.class, pageEntities, DB_BATCH_SIZE,
+                            entity -> entity.getId() != null);
                 }
                 fetched += data.size();
 
@@ -177,24 +174,49 @@ public class LingxingListingSyncService {
      * @return {truncated, targetAsins, targetSids, pages, fetched, kept}
      */
     public Map<String, Object> syncTargetListings() {
-        // ① 清空：要最新数据，旧行（含下架/非目标）全清（无 deleted 列，物理删）
-        listingMapper.delete(new LambdaQueryWrapper<>());
-        log.info("领星 listing 覆盖同步：已清空 lingxing_listing");
+        return syncTargetListings(true);
+    }
+
+    /**
+     * 财务日报使用的 Listing 刷新：不清表，只更新本次返回的目标 Listing。
+     * 历史记录仍保留在 RDS，避免同步中断时把财务创建时间事实清空。
+     */
+    public Map<String, Object> refreshTargetListings() {
+        return syncTargetListings(false);
+    }
+
+    private Map<String, Object> syncTargetListings(boolean replaceAll) {
+        long totalStarted = System.nanoTime();
+        Map<String, Long> stageDurationsMs = new LinkedHashMap<>();
+        long cleanupStarted = System.nanoTime();
+        if (replaceAll) {
+            rdsBatchWriteService.executeOne(LingxingListingMapper.class,
+                    mapper -> mapper.delete(new LambdaQueryWrapper<>()));
+            log.info("领星 listing 覆盖同步：已清空 lingxing_listing");
+        } else {
+            log.info("领星 listing 非破坏刷新：保留历史行，本次只做目标 Listing 批量 upsert");
+        }
+        stageDurationsMs.put("cleanup", elapsedMs(cleanupStarted));
 
         // ② 白名单：目标 ASIN 集合 + 实际分布的店铺 sid
+        long loadTargetsStarted = System.nanoTime();
         Set<String> targetAsins = new HashSet<>();
         for (LingxingProductUnified u : unifiedMapper.selectList(
                 new LambdaQueryWrapper<LingxingProductUnified>().select(LingxingProductUnified::getAsin))) {
             if (u.getAsin() != null) targetAsins.add(u.getAsin());
         }
         List<Long> targetSids = listingMapper.selectTargetSids();
+        stageDurationsMs.put("loadTargets", elapsedMs(loadTargetsStarted));
         log.info("领星 listing 覆盖同步：目标 ASIN {} 个，分布店铺 {} 家", targetAsins.size(), targetSids.size());
         if (targetAsins.isEmpty() || targetSids.isEmpty()) {
             Map<String, Object> empty = new LinkedHashMap<>();
-            empty.put("truncated", true);
+            empty.put("truncated", replaceAll);
+            empty.put("mode", replaceAll ? "REPLACE" : "UPSERT");
             empty.put("targetAsins", targetAsins.size());
             empty.put("targetSids", targetSids.size());
             empty.put("kept", 0);
+            stageDurationsMs.put("total", elapsedMs(totalStarted));
+            empty.put("stageDurationsMs", stageDurationsMs);
             return empty;
         }
 
@@ -203,6 +225,7 @@ public class LingxingListingSyncService {
         Map<String, LingxingListing> byKey = new LinkedHashMap<>(); // key: sid|seller_sku(小写归一)
         int pages = 0, fetched = 0;
         int offset = 0;
+        long pullStarted = System.nanoTime();
         for (int p = 0; p < MAX_PAGES; p++) {
             ObjectNode body = objectMapper.createObjectNode();
             body.put("sid", sidCsv);
@@ -233,24 +256,73 @@ public class LingxingListingSyncService {
             offset += PAGE_SIZE;
             sleep(PAGE_INTERVAL_MS);
         }
+        stageDurationsMs.put("pullPages", elapsedMs(pullStarted));
 
-        // 一次性落库（空表 + Map 已按 sid+seller_sku 去重，纯 INSERT 不会撞唯一键）
+        // 覆盖模式用于原周链路；财务模式保留旧数据并按主键批量 upsert。
+        long writeStarted = System.nanoTime();
         int kept = byKey.size();
+        int written = 0;
         if (kept > 0) {
-            Db.saveBatch(new ArrayList<>(byKey.values()), DB_BATCH_SIZE);
+            List<LingxingListing> rows = new ArrayList<>(byKey.values());
+            if (replaceAll) {
+                written = rdsBatchWriteService.insert(
+                        LingxingListingMapper.class, rows, DB_BATCH_SIZE);
+            } else {
+                for (int from = 0; from < rows.size(); from += DB_BATCH_SIZE) {
+                    List<LingxingListing> batch = rows.subList(
+                            from, Math.min(from + DB_BATCH_SIZE, rows.size()));
+                    attachExistingIds(batch);
+                    written += rdsBatchWriteService.saveOrUpdate(
+                            LingxingListingMapper.class, batch, DB_BATCH_SIZE,
+                            entity -> entity.getId() != null);
+                }
+            }
         }
+        stageDurationsMs.put("writeRds", elapsedMs(writeStarted));
 
         log.info("领星 listing 覆盖同步完成：{} 店合并 / {} 页 / 拉取 {} / 目标落库 {} 行",
                 targetSids.size(), pages, fetched, kept);
 
         Map<String, Object> r = new LinkedHashMap<>();
-        r.put("truncated", true);
+        r.put("truncated", replaceAll);
+        r.put("mode", replaceAll ? "REPLACE" : "UPSERT");
         r.put("targetAsins", targetAsins.size());
         r.put("targetSids", targetSids.size());
         r.put("pages", pages);
         r.put("fetched", fetched);
         r.put("kept", kept);
+        r.put("written", written);
+        stageDurationsMs.put("total", elapsedMs(totalStarted));
+        r.put("stageDurationsMs", stageDurationsMs);
         return r;
+    }
+
+    private long elapsedMs(long startedNanos) {
+        return (System.nanoTime() - startedNanos) / 1_000_000L;
+    }
+
+    /** 每页一次读取已有 listing 主键，避免 sid+sellerSku 逐行访问 RDS。 */
+    private void attachExistingIds(List<LingxingListing> entities) {
+        if (entities.isEmpty()) return;
+        Set<Integer> sids = entities.stream().map(LingxingListing::getSid)
+                .filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.toSet());
+        Set<String> sellerSkus = entities.stream().map(LingxingListing::getSellerSku)
+                .filter(java.util.Objects::nonNull).collect(java.util.stream.Collectors.toSet());
+        Map<String, Long> existingIds = listingMapper.selectList(
+                        new LambdaQueryWrapper<LingxingListing>()
+                                .select(LingxingListing::getId, LingxingListing::getSid,
+                                        LingxingListing::getSellerSku)
+                                .in(LingxingListing::getSid, sids)
+                                .in(LingxingListing::getSellerSku, sellerSkus))
+                .stream().collect(java.util.stream.Collectors.toMap(
+                        entity -> listingKey(entity.getSid(), entity.getSellerSku()),
+                        LingxingListing::getId, (left, right) -> left));
+        entities.forEach(entity -> entity.setId(
+                existingIds.get(listingKey(entity.getSid(), entity.getSellerSku()))));
+    }
+
+    private String listingKey(Integer sid, String sellerSku) {
+        return sid + "|" + sellerSku.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
     /** 把领星 listing 单行映射为实体（业务列 + raw_json 整包留底）。 */

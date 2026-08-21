@@ -131,6 +131,12 @@ com.sjzm.gateway/
 | UserFilterPreset | UserFilterPresetMapper | 用户筛选预设 |
 | DeveloperSelectionLibraryItem | DeveloperSelectionLibraryMapper | 开发个人好品/差品人工选品库 |
 | DeveloperSelectionBatch | DeveloperSelectionBatchMapper | 开发个人好品/差品独立人工批次 |
+| AutomationJobConfig | AutomationJobConfigMapper | 自动化任务调度配置 |
+| AutomationRun | AutomationRunMapper | 自动化执行审计 |
+| AutomationRecordBinding | AutomationRecordBindingMapper | 业务键与外部目标记录绑定 |
+| LingxingRequestTask | LingxingRequestTaskMapper | 每一次真实领星请求的队列与审计 |
+| LingxingAutomationRequestRegistry | LingxingAutomationRequestRegistryMapper | 领星自动化请求注册、周期排期与错峰 |
+| PersonRoster | PersonRosterMapper | 开发/运营/产品负责人/采购人及生效日期 |
 
 ## Controller → API 路由
 
@@ -144,6 +150,15 @@ com.sjzm.gateway/
 | FilterConfigController | `/api/v1/filter-config` | sjzm-product |
 | UserFilterPresetController | `/api/v1/filter-presets` | sjzm-product |
 | DeveloperSelectionLibraryController | `/api/v1/modules/developer-selection-library` | sjzm-product |
+| DataProcessingCenterController | `/api/v1/modules/data-processing` | sjzm-product |
+| AutomationCenterController | `/api/v1/modules/automation` | sjzm-product |
+| LingxingRequestCenterController | `/api/v1/modules/lingxing/request-center` | sjzm-product |
+| FeishuController | `/api/v1/modules/feishu` | sjzm-product |
+| RosterController | `/api/v1/modules/roster` | sjzm-product |
+
+财务日报与运营物流自动化的当前口径、算法、RDS 批写、前端三中心、测试和部署状态，统一见 `docs/架构/财务与运营自动化任务完整实施记录.md`。
+
+数据处理与自动化统一规则：外部模块负责 API 协议与来源事实落库；`modules/dataprocessing` 负责标准化、校验、去重、关联和业务表物化；`modules/automation` 负责任务注册、调度、互斥、审计与目标投递。禁止来源模块直接调用飞书，禁止自动化任务直接解析第三方原始 JSON。
 
 人工选品库管理员未显式指定目标开发人时，后端按有效用户记录匹配“刘淼”作为默认真实 owner；普通开发仍只能写入自己的 `user_id`。
 
@@ -176,6 +191,10 @@ Amazon 以图识图任务构造 StyleSnap/Shop the Look URL 前必须移除 Amaz
 
 生产数据库保护：product Hikari 默认 min 3/max 15，user 默认 min 2/max 5，连接等待 5 秒；MySQL 硬上限 60。统一店铺聚合等大型查询必须通过 `DatabaseWorkloadGate`（并发 2），全量 CSV 并发 1，八爪鱼导入DB、文件导入、评分重算和 clean 层批量写入并发 1。普通分页/详情/小型 CRUD 不进入门禁；卖家精灵请求中心保持现有单线程。
 
+领星数据源：现有周请求/周加工/统一表/模型查询一律使用 RDS，本地库仅保留历史副本。周、日产品表现采集均保持 UK/DE 完整请求，并在请求阶段固定传 `currency_code=GBP`；RDS 保留来源站点用于白名单和审计，但所有金额统一按 GBP 计算。财务加工分别应用 UK/DE ASIN 白名单，再跨站点按 ASIN 合并，飞书只输出一套 ALL/GBP 报表。
+
+RDS 写入铁律：所有 RDS insert/update/delete/upsert 必须通过 `rds/service/RdsBatchWriteService`；业务 Service 禁止直接提交 RDS Mapper 写操作，禁止对 RDS 实体使用 `Db.saveBatch` / `Db.saveOrUpdateBatch`。读取可直接调用 Mapper。详见 `sjzm-product/src/main/java/com/sjzm/product/rds/README.md`。
+
 ## 网关路由映射
 
 网关 (sjzm-gateway:9000) 将外部请求转发到内部微服务：
@@ -201,7 +220,7 @@ Amazon 以图识图任务构造 StyleSnap/Shop the Look URL 前必须移除 Amaz
 | 筛选预设 | ✅ 完成 | 用户级 5 槽位预设管理 |
 | 网关鉴权 | ✅ 完成 | JWT + RBAC + 公开路径白名单 |
 
-**仍在 Python 后端的功能：** 产品/选品/定稿/素材/运营商的 CRUD、图片管理、导入导出、报表、领星对接。
+**仍在 Python 后端的功能：** 产品/选品/定稿/素材/运营商的 CRUD、图片管理、导入导出、报表、领星 Excel/COS 导入。领星 OpenAPI 批量任务、财务日报和运营物流自动化已在 Java。
 
 ## Agent 修改规则
 
@@ -215,4 +234,4 @@ Amazon 以图识图任务构造 StyleSnap/Shop the Look URL 前必须移除 Amaz
 8. 新增/修改 `@TableName` Entity 必须同步 `java-backend/sql/*.sql` 迁移；`prod-java-product` 启动时 `SchemaGuard` 会校验表/列，缺失会启动失败
 9. 新增 Java `/api/v1/{resource}` Controller 必须同步 `frontend/nginx.conf` Java 路由，并在部署前运行 `scripts/deploy/prod_preflight_check.ps1`
 10. 生产发布必须完整遵循 `docs/docker使用经验/部署流程.md`，统一运行 `scripts/deploy/deploy_prod.ps1 -Component java`；禁止直接 `docker compose build/up`、`--no-cache` 或分别重复构建三个 Java 服务
-11. 测试优先复用 Maven/BuildKit 缓存，先跑受影响模块最小测试；发布任务中 Java 生产镜像只构建一次，验证后只保留最新两条源码编译缓存
+11. 测试优先复用 Maven/BuildKit 缓存，先跑受影响模块最小测试；发布任务中 Java 生产镜像只构建一次，验证后成品只保留 `current`，源码编译缓存只保留最新一条

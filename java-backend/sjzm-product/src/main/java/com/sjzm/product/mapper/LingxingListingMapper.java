@@ -2,6 +2,7 @@ package com.sjzm.product.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.sjzm.product.modules.lingxing.entity.LingxingListing;
+import com.sjzm.product.rds.lingxing.LingxingRdsMapper;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
@@ -11,7 +12,7 @@ import java.util.List;
  * 领星亚马逊 Listing Mapper。
  * <p>沿用老约定放在 com.sjzm.product.mapper，已被 ProductApplication.@MapperScan 第一行覆盖，无需改 @MapperScan。
  */
-public interface LingxingListingMapper extends BaseMapper<LingxingListing> {
+public interface LingxingListingMapper extends BaseMapper<LingxingListing>, LingxingRdsMapper {
 
     /**
      * 取「统一表目标 ASIN 实际分布的店铺 sid」列表（去重）。

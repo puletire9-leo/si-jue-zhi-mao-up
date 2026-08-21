@@ -4,10 +4,10 @@ import com.sjzm.common.PageResult;
 import com.sjzm.product.mapper.LingxingProductUnifiedMapper;
 import com.sjzm.product.modules.lingxing.dto.LingxingShopProductVO;
 import com.sjzm.product.modules.lingxing.dto.LingxingShopQueryRequest;
+import com.sjzm.product.rds.service.RdsBatchWriteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,6 +40,7 @@ public class LingxingProductUnifiedService {
     public static final String UNIFIED_VERSION = "UNIFIED_V4_2026-08-11";
 
     private final LingxingProductUnifiedMapper mapper;
+    private final RdsBatchWriteService rdsBatchWriteService;
 
     /**
      * 增量重算产品统一表：新 ASIN INSERT（真实上架日期一次写入）+ 已有 ASIN UPDATE（只刷新经营指标）。
@@ -47,17 +48,27 @@ public class LingxingProductUnifiedService {
      * @param cutoffMonth 数据覆盖截止月（如 2026-07，写入元数据列；可空）
      * @return {inserted, updated, version}
      */
-    @Transactional
     public Map<String, Object> rebuild(String cutoffMonth) {
         long t0 = System.currentTimeMillis();
-        int inserted = mapper.rebuildAll(cutoffMonth, UNIFIED_VERSION);
-        int updated = mapper.updateMetrics(cutoffMonth, UNIFIED_VERSION);
+        int[] affected = rdsBatchWriteService.executeOne(LingxingProductUnifiedMapper.class, rdsMapper ->
+                new int[]{
+                        rdsMapper.rebuildAll(cutoffMonth, UNIFIED_VERSION),
+                        rdsMapper.updateMetrics(cutoffMonth, UNIFIED_VERSION),
+                        rdsMapper.upsertMarketplaceRelations(),
+                        rdsMapper.deactivateStaleMarketplaceRelations()
+                });
+        int inserted = affected[0];
+        int updated = affected[1];
+        int marketplaceUpserted = affected[2];
+        int marketplaceDeactivated = affected[3];
         long ms = System.currentTimeMillis() - t0;
         log.info("领星产品统一表重算完成：新ASIN {} 行（真实上架日期已锁定），刷新经营指标 {} 行，耗时 {}ms，version={}",
                 inserted, updated, ms, UNIFIED_VERSION);
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("inserted", inserted);
         r.put("updated", updated);
+        r.put("marketplaceUpserted", marketplaceUpserted);
+        r.put("marketplaceDeactivated", marketplaceDeactivated);
         r.put("version", UNIFIED_VERSION);
         r.put("costMs", ms);
         return r;

@@ -1,12 +1,12 @@
 package com.sjzm.product.modules.lingxing.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.toolkit.Db;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sjzm.product.mapper.LingxingLocalProductMapper;
 import com.sjzm.product.modules.lingxing.entity.LingxingLocalProduct;
+import com.sjzm.product.rds.service.RdsBatchWriteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 领星本地产品同步服务。
@@ -42,6 +43,7 @@ public class LingxingLocalProductSyncService {
 
     private final LingxingClient client;
     private final LingxingLocalProductMapper productMapper;
+    private final RdsBatchWriteService rdsBatchWriteService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -72,17 +74,13 @@ public class LingxingLocalProductSyncService {
                     log.warn("领星本地产品缺 id，跳过: {}", row);
                     continue;
                 }
-                // 幂等：按 lingxing_id 查存在 → 命中回填 id，saveOrUpdate 走更新
-                LingxingLocalProduct existing = productMapper.selectOne(
-                        new LambdaQueryWrapper<LingxingLocalProduct>()
-                                .eq(LingxingLocalProduct::getLingxingId, e.getLingxingId())
-                                .last("LIMIT 1"));
-                if (existing != null) e.setId(existing.getId());
                 pageEntities.add(e);
             }
+            attachExistingIds(pageEntities);
             if (!pageEntities.isEmpty()) {
-                Db.saveOrUpdateBatch(pageEntities, DB_BATCH_SIZE);
-                upserted += pageEntities.size();
+                upserted += rdsBatchWriteService.saveOrUpdate(
+                        LingxingLocalProductMapper.class, pageEntities, DB_BATCH_SIZE,
+                        entity -> entity.getId() != null);
             }
             fetched += data.size();
 
@@ -113,7 +111,8 @@ public class LingxingLocalProductSyncService {
             r.put("pruneSkipped", "统一表目标开发人为空，未删除");
             return r;
         }
-        int deleted = productMapper.deleteNonTargetDevelopers();
+        int deleted = rdsBatchWriteService.executeOne(
+                LingxingLocalProductMapper.class, LingxingLocalProductMapper::deleteNonTargetDevelopers);
         log.info("领星本地产品清理：目标开发人 {} 人，删除非目标 {} 行", targetCount, deleted);
         r.put("targetDevelopers", targetCount);
         r.put("prunedNonTarget", deleted);
@@ -197,20 +196,35 @@ public class LingxingLocalProductSyncService {
             for (JsonNode row : data) {
                 LingxingLocalProduct e = mapRow(row);
                 if (e.getLingxingId() == null) continue;
-                LingxingLocalProduct existing = productMapper.selectOne(
-                        new LambdaQueryWrapper<LingxingLocalProduct>()
-                                .eq(LingxingLocalProduct::getLingxingId, e.getLingxingId())
-                                .last("LIMIT 1"));
-                if (existing != null) e.setId(existing.getId());
                 entities.add(e);
             }
-            if (!entities.isEmpty()) Db.saveOrUpdateBatch(entities, DB_BATCH_SIZE);
+            attachExistingIds(entities);
+            if (!entities.isEmpty()) {
+                rdsBatchWriteService.saveOrUpdate(
+                        LingxingLocalProductMapper.class, entities, DB_BATCH_SIZE,
+                        entity -> entity.getId() != null);
+            }
             return entities.size();
         } catch (Exception ex) {
             // 回拉失败不影响写回结果（领星侧已改成功），仅记日志
             log.warn("领星产品写回后按 SKU {} 回拉刷新失败: {}", sku, ex.getMessage());
             return 0;
         }
+    }
+
+    /** 每页一次查出已有主键，避免逐行请求远程 RDS。 */
+    private void attachExistingIds(List<LingxingLocalProduct> entities) {
+        if (entities.isEmpty()) return;
+        List<Long> lingxingIds = entities.stream()
+                .map(LingxingLocalProduct::getLingxingId).distinct().toList();
+        Map<Long, Long> existingIds = productMapper.selectList(
+                        new LambdaQueryWrapper<LingxingLocalProduct>()
+                                .select(LingxingLocalProduct::getId, LingxingLocalProduct::getLingxingId)
+                                .in(LingxingLocalProduct::getLingxingId, lingxingIds))
+                .stream().collect(Collectors.toMap(
+                        LingxingLocalProduct::getLingxingId, LingxingLocalProduct::getId,
+                        (left, right) -> left));
+        entities.forEach(entity -> entity.setId(existingIds.get(entity.getLingxingId())));
     }
 
     /** 把领星 productList 单行映射为实体（业务列 + raw_json 整包留底）。 */

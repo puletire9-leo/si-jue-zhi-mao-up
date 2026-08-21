@@ -6,6 +6,11 @@ spring:
     name: sjzm-product
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  # Spring Cloud 4 requires an explicit Nacos config import when the
+  # configuration client is on the classpath. Keep it optional so the
+  # service can still start when Nacos config is disabled.
+  config:
+    import: "optional:nacos:sjzm-product.yaml"
   main:
     allow-bean-definition-overriding: true
   servlet:
@@ -46,6 +51,19 @@ spring:
         namespace: ${NACOS_NAMESPACE:}
         enabled: ${NACOS_CONFIG_ENABLED:false}
         file-extension: yaml
+
+# 运营物流专用远程 RDS 数据源（只绑定 com.sjzm.product.rds.mapper 包）
+# dev 环境 RDS_* 缺省时回退本地 MySQL，双源退化为都连本地，不阻塞开发
+rds:
+  datasource:
+    url: jdbc:mysql://${RDS_HOST:${MYSQL_HOST:localhost}}:${RDS_PORT:${MYSQL_PORT:13338}}/${RDS_DATABASE:${MYSQL_DATABASE:sijuelishi_dev}}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+    username: ${RDS_USERNAME:${MYSQL_USERNAME:sijue}}
+    password: ${RDS_PASSWORD:${MYSQL_PASSWORD:}}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  hikari:
+    minimum-idle: ${RDS_POOL_MIN_IDLE:2}
+    maximum-pool-size: ${RDS_POOL_MAX_SIZE:8}
+    connection-timeout: ${MYSQL_POOL_CONNECTION_TIMEOUT_MS:5000}
 
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
@@ -89,6 +107,27 @@ lingxing:
     enabled: ${LINGXING_SCHEDULED_ENABLED:false}
     # 每周一 03:30（错开整点避开限流高峰）。秒 分 时 日 月 周。
     cron: ${LINGXING_SCHEDULED_CRON:0 30 3 ? * MON}
+
+feishu:
+  base-url: ${FEISHU_BASE_URL:https://open.feishu.cn}
+  app-id: ${FEISHU_APP_ID:}
+  app-secret: ${FEISHU_APP_SECRET:}
+  connect-timeout: 10s
+  read-timeout: 30s
+
+automation:
+  operations-logistics:
+    feishu-app-token: ${OPERATIONS_LOGISTICS_FEISHU_APP_TOKEN:}
+    feishu-table-id: ${OPERATIONS_LOGISTICS_FEISHU_TABLE_ID:}
+  finance-daily-report:
+    # 财务日报飞书目标：app token + 5 张数据表 ID（总/运营/开发/非标品/上架时间）。
+    # 一律走环境变量，禁止硬编码。
+    feishu-app-token: ${FINANCE_DAILY_REPORT_FEISHU_APP_TOKEN:}
+    feishu-table-total: ${FINANCE_DAILY_REPORT_TABLE_TOTAL:}
+    feishu-table-operations: ${FINANCE_DAILY_REPORT_TABLE_OPERATIONS:}
+    feishu-table-developer: ${FINANCE_DAILY_REPORT_TABLE_DEVELOPER:}
+    feishu-table-nonstandard: ${FINANCE_DAILY_REPORT_TABLE_NONSTANDARD:}
+    feishu-table-listing-time: ${FINANCE_DAILY_REPORT_TABLE_LISTING_TIME:}
 
 features:
   ai-selection:

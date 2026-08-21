@@ -110,6 +110,47 @@ function Invoke-MysqlAdminScalarList {
     }
 }
 
+function Test-BuildKitCacheIntegrity {
+    Write-Host "[preflight] checking BuildKit cache integrity ..."
+
+    # buildx can retain metadata after a Docker Desktop storage failure.
+    # This read-only command also walks the underlying snapshot storage.
+    # docker writes this recoverable image-store warning to stderr. The script-wide
+    # Stop preference would throw before we can classify it, so capture it locally.
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $dfOutput = @(& docker system df -v 2>&1)
+        $dfExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    $orphanImageSnapshot = $dfOutput -match 'failed to calculate image disk usage:.*snapshots/\d+/fs: no such file or directory'
+    if ($dfExitCode -ne 0) {
+        if ($orphanImageSnapshot) {
+            Write-Warning "Docker image store contains an orphan snapshot record; active BuildKit storage will be verified separately."
+        } else {
+            $details = (($dfOutput | Select-Object -Last 5) -join " ").Trim()
+            throw "Docker cache integrity check failed. Repair Docker storage before deployment. $details"
+        }
+    }
+    if ($dfOutput -match 'input/output error|read-only file system') {
+        throw "Docker cache integrity check found an invalid or unavailable snapshot. Repair Docker storage before deployment."
+    }
+
+    $builderOutput = @(& docker buildx inspect --bootstrap 2>&1)
+    if ($LASTEXITCODE -ne 0) {
+        $details = (($builderOutput | Select-Object -Last 5) -join " ").Trim()
+        throw "BuildKit builder is not healthy. Repair Docker Desktop before deployment. $details"
+    }
+    $cacheOutput = @(& docker buildx du 2>&1)
+    if ($LASTEXITCODE -ne 0 -or $cacheOutput -match 'no such file or directory|input/output error|read-only file system') {
+        $details = (($cacheOutput | Select-Object -Last 5) -join " ").Trim()
+        throw "BuildKit cache integrity check failed. Repair Docker storage before deployment. $details"
+    }
+    Write-Host "[preflight] BuildKit cache integrity: OK"
+}
+
 if (-not $MysqlContainer) {
     if ($Env -eq "dev") {
         $MysqlContainer = "dev-mysql"
@@ -137,6 +178,14 @@ $failures = New-Object System.Collections.Generic.List[string]
 
 Write-Host "[preflight] repository: $(Get-Location)"
 Write-Host "[preflight] env: $Env"
+
+if ($Env -eq "prod") {
+    try {
+        Test-BuildKitCacheIntegrity
+    } catch {
+        $failures.Add($_.Exception.Message)
+    }
+}
 
 if (-not $SkipDockerDisk) {
     $dockerSettingsPath = Join-Path $env:APPDATA "Docker/settings-store.json"

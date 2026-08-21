@@ -21,7 +21,7 @@ from lingxing_model_paths import ASIN_START_BASELINE, ROOT
 
 
 TEAM_DEVELOPERS = frozenset(
-    {"蒋舒", "陈杨", "宋凤莉", "刘淼", "龙梦临", "周沁仪", "张子轩", "黄雨珊"}
+    {"蒋舒", "陈杨", "宋凤莉", "刘淼", "龙梦临", "周沁仪", "黄雨珊", "夏浩宇"}
 )
 
 

@@ -14,6 +14,11 @@ export interface ProductData {
   supplierLink?: string
   supplier?: string
   ukCustomsCode?: string
+  cnMaterial?: string
+  enMaterial?: string
+  cnUse?: string
+  enUse?: string
+  productAttr?: string
   cnDeclarationName?: string
   enDeclarationName?: string
   imageUrl?: string
@@ -162,6 +167,10 @@ const generateProductSheet = (products: ProductData[], config: FixedConfig): any
     BG: '英文报关名',
     BP: '英国海关编码',
     V: '图片URL',
+    M: '产品材质',
+    BH: '报关清关材质',
+    BI: '报关清关用途',
+    BM: '特殊属性',
   }
   
   // 添加表头行
@@ -208,6 +217,14 @@ const generateProductSheet = (products: ProductData[], config: FixedConfig): any
     row[65] = product.ukCustomsCode || ''
     // V: 图片URL (第21列)
     row[21] = product.imageUrl || ''
+    // M: 产品材质 (第12列)
+    row[12] = product.cnMaterial || ''
+    // BH: 报关清关材质 (第59列)
+    row[59] = product.cnMaterial || product.enMaterial || ''
+    // BI: 报关清关用途 (第60列)
+    row[60] = product.cnUse || product.enUse || ''
+    // BM: 特殊属性 (第64列)
+    row[64] = product.productAttr || ''
     
     data.push(row)
   })

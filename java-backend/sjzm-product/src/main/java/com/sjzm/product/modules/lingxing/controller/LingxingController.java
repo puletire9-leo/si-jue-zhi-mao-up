@@ -38,6 +38,7 @@ import com.sjzm.product.modules.lingxing.service.LingxingSkuDataLayerService;
 import com.sjzm.product.modules.lingxing.service.LingxingOverviewService;
 import com.sjzm.product.modules.lingxing.service.LingxingProfitAsinSyncService;
 import com.sjzm.product.modules.lingxing.service.LingxingPurchaseDataLayerService;
+import com.sjzm.product.modules.lingxing.service.LingxingShipmentDataService;
 import com.sjzm.product.modules.lingxing.service.LingxingSellerSyncService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -87,6 +88,7 @@ public class LingxingController {
     private final LingxingScheduledSyncService scheduledSyncService;
     private final LingxingSkuDataLayerService skuDataLayerService;
     private final LingxingInventoryBatchService inventoryBatchService;
+    private final LingxingShipmentDataService shipmentDataService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @PostMapping("/ping")
@@ -246,6 +248,28 @@ public class LingxingController {
         return Result.success(purchaseDataLayerService.stats());
     }
 
+    @PostMapping("/shipments/sync-tracked")
+    @Operation(summary = "同步当前采购SKU的领星发货计划与实际SP明细")
+    public Result<Map<String, Object>> syncTrackedShipments() {
+        return Result.success(shipmentDataService.syncTrackedSkus());
+    }
+
+    @PostMapping("/shipments/plans/{seq}/sync")
+    @Operation(summary = "按RP批次号同步领星发货计划")
+    public Result<Map<String, Object>> syncShipmentPlansBySeq(@PathVariable String seq) {
+        return Result.success(Map.of("written", shipmentDataService.syncPlansBySeq(seq)));
+    }
+
+    @PostMapping("/shipments/plans/{ispId}/bind")
+    @Operation(summary = "将发货计划明细绑定到采购单和采购计划")
+    public Result<Map<String, Object>> bindShipmentPlan(
+            @PathVariable long ispId,
+            @RequestBody Map<String, Object> request) {
+        int updated = shipmentDataService.bindPlan(ispId,
+                readStr(request, "purchaseOrderSn"), readStr(request, "purchasePlanSn"));
+        return Result.success(Map.of("updated", updated));
+    }
+
     // ============================================================
     // 利润统计-ASIN
     // ============================================================
@@ -321,7 +345,7 @@ public class LingxingController {
     // ============================================================
 
     @PostMapping("/product-performance/sync")
-    @Operation(summary = "手动触发：按店铺+时间窗(≤92天)同步产品表现（双写+幂等）")
+    @Operation(summary = "手动触发：按店铺+时间窗(≤92天)同步 GBP 产品表现（双写+幂等）")
     public Result<Map<String, Object>> syncProductPerformance(@RequestBody Map<String, Object> req) {
         return Result.success(performanceSyncService.sync(
                 readLongList(req, "sids"),

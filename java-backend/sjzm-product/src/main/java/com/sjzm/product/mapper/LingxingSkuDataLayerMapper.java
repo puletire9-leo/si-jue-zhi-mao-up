@@ -1,5 +1,6 @@
 package com.sjzm.product.mapper;
 
+import com.sjzm.product.rds.lingxing.LingxingRdsMapper;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -12,13 +13,15 @@ import java.util.Map;
 /**
  * 数据同步运行记录 Mapper。
  *
- * <p>2026-07 数据库整理后，本 Mapper 只保留 lingxing_data_sync_run 表的 begin/finish 方法。
- * 原有的 sku_store_snapshot / target_sku_pool / weekly / monthly 相关方法已删除，
- * 因为其对应的 lingxing_product_performance / target_sku_pool / sku_store_snapshot 表已全部删除。
- * SKU 周表(lingxing_sku_weekly_performance) 未来若需从 API 直接同步，应新建独立的 Mapper。</p>
+ * <p>2026-07 数据库整理后，本 Mapper 只保留 lingxing_data_sync_run 表的 begin/finish 方法，
+ * 原本挂在这里的 snapshot/weekly/monthly 加工方法已移除（本 Mapper 不再承载它们）。
+ * 注意（2026-08-13 实地对账修正）：以下表**仍然存在且在用**，此前注释误称"已全部删除"是错的——
+ * lingxing_product_performance（6.9万行）、lingxing_target_sku_pool（6451 行，被 LingxingPurchaseDataLayerMapper
+ * / LingxingSkuWeeklyMapper.xml 大量引用）、lingxing_sku_weekly_performance（49万行）均为活表。
+ * 生产库确实不存在的是 sku_store_snapshot / sku_pool（只有废弃建表脚本，从未建表）。</p>
  */
 @Mapper
-public interface LingxingSkuDataLayerMapper {
+public interface LingxingSkuDataLayerMapper extends LingxingRdsMapper {
 
     @Insert("""
             INSERT INTO lingxing_data_sync_run (

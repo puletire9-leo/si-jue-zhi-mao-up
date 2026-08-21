@@ -7,6 +7,8 @@
 - ORM：Java 侧 MyBatis-Plus，Python 侧 SQLAlchemy/AIOMySQL
 - ID 策略：Java 业务明细表多用雪花 ID（ASSIGN_ID），统计/汇总表可用自增，Python 侧自增/UUID
 
+财务日报、运营物流、自动化中心、领星请求队列和人员维度相关表/SQL，统一见 [财务与运营自动化任务完整实施记录](../架构/财务与运营自动化任务完整实施记录.md)。
+
 ## 核心表
 
 | 表名 | 说明 | Java Entity | Python Model |
@@ -33,6 +35,7 @@
 | backup_records | 备份记录 | - | - |
 | bazhuayu_task_mapping | 八爪鱼平级命名任务，同功能同站点允许多个任务，并保存分类/初筛开关 | BazhuayuTaskMapping.java | - |
 | premium_products | 精品榜独立商品数据；复制卖家精灵商品字段，不进入新品榜初筛与 clean 层 | PremiumProduct.java | - |
+| person_roster | 统一人员维度配置；按职能、生效日期和失效日期维护 | PersonRoster.java | - |
 
 ## 通用字段
 
@@ -107,6 +110,15 @@ PURGE BINARY LOGS BEFORE DATE_SUB(NOW(), INTERVAL 7 DAY);
 | `create_shop_collection_tables.sql` | 店铺全集商品与观察池表 |
 | `create_shop_candidate_tables.sql` | 店铺候选池与抓取运行记录表 |
 | `create_sellersprite_request_center_tables.sql` | 卖家精灵请求中心与精品店铺池表 |
+| `create_lingxing_request_center_tables.sql` | 领星请求中心统一任务表 |
+| `create_data_processing_automation_center.sql` | 数据处理中心与自动化中心基础设施（任务配置/运行审计/绑定表） |
+| `create_lingxing_automation_request_registry.sql` | 领星自动化请求注册、周期排期与错峰槽位 |
+| `seed_lingxing_automation_request_registry.sql` | 运营物流默认注册项（默认停用，验证后启用） |
+| `seed_finance_daily_report_automation.sql` | 财务日报自动化任务与领星请求注册项（默认停用，待飞书权限验证） |
+| `create_person_roster.sql` | 统一开发/运营/产品负责人/采购人员名单 |
+| `seed_person_roster_finance_dimensions.sql` | 财务日报运营名单及 2026-08 开发人员生效区间 |
+| `create_operations_logistics_purchase_progress.sql` | 运营物流采购进度业务标准表 |
+| `expand_lingxing_shipment_tables_full_fields.sql` | 补齐艾为完整实际 SP / 发货计划字段 |
 | `create_material_carrier_tables.sql` | 素材库 + 运营商库 |
 | `create_developer_selection_library.sql` | 开发个人好品/差品人工选品库 |
 | `create_scoring_tables.sql` | 评分系统 |
@@ -128,6 +140,7 @@ PURGE BINARY LOGS BEFORE DATE_SUB(NOW(), INTERVAL 7 DAY);
 | `add_bazhuayu_task_initial_filter.sql` | 八爪鱼命名任务增加是否初筛开关；历史精品任务默认关闭 |
 | `add_bazhuayu_task_category_and_import_metadata.sql` | 八爪鱼任务增加分类；导入任务记录来源、初筛和目标表 |
 | `add_asin_import_completed_at.sql` | 导入任务增加真实终态完成时间；必须在发布新 Java 实体前执行 |
+| `alter_person_roster_effective_dates.sql` | 人员名单增加 `effective_from/effective_to` 报表日期区间 |
 
 ### 八爪鱼榜单任务分流
 
@@ -201,11 +214,33 @@ PURGE BINARY LOGS BEFORE DATE_SUB(NOW(), INTERVAL 7 DAY);
 
 ## 数据库连接
 
+### 领星周链路与财务日链路（2026-08-20）
+
+- 周、日产品表现请求均固定传 `currency_code=GBP`，UK/DE 金额由领星在请求阶段统一换算；周加工只消费 GBP 来源事实。相关表以 RDS 为主数据源，本地库仅保留历史副本。
+- 首轮迁移通过 `scripts/migrate_lingxing_weekly_to_rds.py` 幂等 upsert 完成，不删除 RDS 现有数据，所有表均已按源/目标行数校验。
+- `lingxing_product_unified_marketplace` 物化统一表 ASIN 与 UK/DE 的多对多来源关系，不改变原统一表“一 ASIN 一行”主键；两站的 `currency_code` 均记录为 GBP。
+- 财务日事实使用 `lingxing_product_performance_daily.marketplace` 保留 UK/DE。自动化在日事实落库后，按当天日事实重算 `lingxing_product_unified_daily`（国家+ASIN）；SKU 总量等于该日快照，不用最新统一表覆盖历史日。飞书仍输出 ALL/GBP。
+- DDL：`create_lingxing_product_unified_daily.sql`。
+- 历史事实不原地改写币种；历史周/日数据只有经领星按 GBP 重拉后才能进入新的统一 GBP 口径。
+- `lingxing_finance_asin_status_snapshot` 主键为 `(snapshot_date, marketplace, asin)`，相同 ASIN 跨站点的状态互不继承。
+- DDL：`create_lingxing_product_unified_marketplace.sql` 和 `migrate_finance_daily_marketplace.sql`。
+
+### RDS 连接（同一实例，两个库，四份 env）
+
+实例 `rm-bp1ft07y37887765cqo`，公网 IP `101.37.51.239`，不是两套 RDS。
+
+| 变量 | 文件 | 库 | 谁连 |
+|------|------|----|------|
+| `USER_MYSQL_*` | `config/public/user-prod.env` + `config/secrets/user-prod.env` | `ai_platform` | java-user；backend/celery 也会加载 |
+| `RDS_*` | `config/public/prod.env` + `config/secrets/prod.env` | `sijuelishi` | java-product（领星/财务/运营物流） |
+| `MYSQL_*` | `config/public/prod.env` + `config/secrets/prod.env` | 本机 Docker `sijuelishi` | product / Python / Celery 主库 |
+
+`application.yml` 只读环境变量。`config/secrets/finance_rds.env` 只给本机离线脚本，Docker 不读。
+
 ### RDS 统一用户表
 
 `ai_platform.users` 同时保留平台字符串主键 `id` 和思觉智贸数字主键
-`numeric_id`。Java 用户服务通过专属的 `config/public/user-prod.env` 和
-`config/secrets/user-prod.env` 中 `USER_MYSQL_*` 配置连接该库，以
+`numeric_id`。Java 用户服务通过 `USER_MYSQL_*` 连接该库，以
 `numeric_id` 生成 JWT，并兼容平台明文密码与历史 BCrypt 密码。账号合并按
 `username` 去重，目标库已有账号、密码、角色和状态全部保留；只新增缺失的有效
 账号。迁移脚本见 `java-backend/sql/merge_users_into_ai_platform.sql`。

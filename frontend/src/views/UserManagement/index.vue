@@ -56,7 +56,7 @@
                     size="small"
                     style="margin-right: 4px"
                   >
-                    {{ r.trim() }}
+                    {{ normalizeRole(r) }}
                   </el-tag>
                 </template>
               </el-table-column>
@@ -248,6 +248,34 @@ const isEdit = ref(false);
 const searchKeyword = ref("");
 const activeTab = ref("all");
 
+type RoleLabel = "管理员" | "开发" | "美术" | "仓库" | "运营" | "采购员";
+
+const ROLE_ALIASES: Record<string, RoleLabel> = {
+  管理员: "管理员",
+  ADMIN: "管理员",
+  MANAGER: "管理员",
+  开发: "开发",
+  DEVELOPER: "开发",
+  美术: "美术",
+  ARTIST: "美术",
+  ART_MANAGER: "美术",
+  EDITOR: "美术",
+  仓库: "仓库",
+  WAREHOUSE: "仓库",
+  运营: "运营",
+  OPERATOR: "运营",
+  USER: "运营",
+  VIEWER: "运营",
+  采购员: "采购员",
+  PURCHASER: "采购员",
+};
+
+function normalizeRole(role: unknown): string {
+  const value = String(role ?? "").trim();
+  if (!value) return "";
+  return ROLE_ALIASES[value] || ROLE_ALIASES[value.toUpperCase()] || value;
+}
+
 // 角色分组定义(顺序即 tab 显示顺序)
 const ROLE_TABS: {
   key: string;
@@ -269,10 +297,10 @@ const ROLE_TABS: {
 ];
 
 // 判断用户是否属于某角色(逗号分隔多角色兼容)
-function hasRole(user: any, role: string): boolean {
+function hasRole(user: any, role: RoleLabel): boolean {
   return (user.role || "")
     .split(",")
-    .map((r: string) => r.trim())
+    .map((r: string) => normalizeRole(r))
     .includes(role);
 }
 
@@ -361,7 +389,7 @@ const handleEdit = (row) => {
   roleSelection.value = (row.role || "")
     .split(",")
     .filter(Boolean)
-    .map((s: string) => s.trim());
+    .map((s: string) => normalizeRole(s));
   dialogVisible.value = true;
 };
 
@@ -440,8 +468,8 @@ const openResetDialog = (row) => {
 const submitReset = async () => {
   if (!resetTarget.value) return;
 
-  if (!resetForm.newPassword || resetForm.newPassword.length < 6) {
-    ElMessage.warning("新密码长度不能少于 6 位");
+  if (!resetForm.newPassword) {
+    ElMessage.warning("请输入新密码");
     return;
   }
   if (resetForm.newPassword !== resetForm.confirmPassword) {
@@ -474,7 +502,7 @@ const getRoleType = (role) => {
     运营: "info",
     采购员: "",
   };
-  return roleTypes[role] || "";
+  return roleTypes[normalizeRole(role)] || "";
 };
 
 const formatDate = (date) => {

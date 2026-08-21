@@ -2,6 +2,7 @@ package com.sjzm.product.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.sjzm.product.modules.lingxing.entity.LingxingLocalProduct;
+import com.sjzm.product.rds.lingxing.LingxingRdsMapper;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
@@ -11,7 +12,7 @@ import org.apache.ibatis.annotations.Select;
  * 放 com.sjzm.product.mapper（@MapperScan 只扫这个包）。
  */
 @Mapper
-public interface LingxingLocalProductMapper extends BaseMapper<LingxingLocalProduct> {
+public interface LingxingLocalProductMapper extends BaseMapper<LingxingLocalProduct>, LingxingRdsMapper {
 
     /** 统一表目标开发人数量（distinct，排除逗号组合名）。删非目标前的空集保护用。 */
     @Select("""

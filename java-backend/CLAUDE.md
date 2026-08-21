@@ -22,13 +22,14 @@
 - ✅ 筛选预设（用户 5 槽位 CRUD）
 - ✅ 网关（JWT + RBAC + 公开路径白名单）
 - ✅ 领星对接（店铺/本地产品/产品表现/利润 4 数据域落库 + 本地产品写回）
+- ✅ 财务日报 / 运营物流自动化（UK+DE 统一 GBP、RDS 批写、三中心前端；最新 Listing 增量待生产发布，见 `docs/架构/财务与运营自动化任务完整实施记录.md`）
 - ✅ analysis-baseline 层骨架（店铺画像实时聚合 + 物化快照、店铺基线 CRUD + 定位、商品族证据 CRUD、method_product_hit 命中缓存表预留）；自动聚类 / M06 消费待补
 
 **仍在 Python 后端：** 产品/选品/定稿/素材/运营商的 CRUD（已核实 Java 端无对应 Controller）。
 
 ## 功能模块（modules/）
 
-路径：`java-backend/sjzm-product/src/main/java/com/sjzm/product/modules/`，当前 6 个：
+路径：`java-backend/sjzm-product/src/main/java/com/sjzm/product/modules/`
 
 | 模块 | 说明 | 详情 |
 |------|------|------|
@@ -37,7 +38,12 @@
 | bazhuayu | 八爪鱼云采集 + 以图识图 | `modules/bazhuayu/` |
 | lingxing | 领星开放平台对接（token/签名 + 4 数据域 + 写回） | [README](sjzm-product/src/main/java/com/sjzm/product/modules/lingxing/README.md) |
 | categorytree | 类目树 | `modules/categorytree/` |
-| roster | 人员花名册 | `modules/roster/` |
+| roster | 人员花名册（含生效/失效日期） | `modules/roster/` |
+| automation | 自动化中心：财务日报 / 运营物流排期、互斥、运行审计 | `modules/automation/` |
+| dataprocessing | 数据处理中心：运营物流 FIFO 与三状态物化 | `modules/dataprocessing/` |
+| feishu | 飞书对接：凭证、token、多维表格幂等投递 | `modules/feishu/` |
+
+财务日报与运营物流自动化的当前口径、RDS 批写、前端三中心和生产发布状态，见 `docs/架构/财务与运营自动化任务完整实施记录.md`。
 
 ## 包结构约定
 

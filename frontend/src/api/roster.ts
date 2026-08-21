@@ -12,7 +12,9 @@ export interface PersonRoster {
   roleType: string
   sortOrder: number
   enabled: number
-  remark?: string
+  effectiveFrom?: string | null
+  effectiveTo?: string | null
+  remark?: string | null
 }
 
 const BASE = '/api/v1/modules/roster'
@@ -29,14 +31,22 @@ export const getRosterNames = async (roleType: string): Promise<string[]> => {
 }
 
 /** 按职能取完整记录（含 id，管理用） */
-export const getRosterList = async (roleType?: string): Promise<PersonRoster[]> => {
-  const res = await request({ url: `${BASE}/list`, method: 'get', params: roleType ? { roleType } : {} })
+export const getRosterList = async (roleType?: string, includeDisabled = false): Promise<PersonRoster[]> => {
+  const res = await request({
+    url: `${BASE}/list`,
+    method: 'get',
+    params: { ...(roleType ? { roleType } : {}), includeDisabled }
+  })
   return ((res as unknown as ApiResponse<PersonRoster[]>).data) ?? []
 }
 
 /** 新增/更新一条 */
 export const saveRoster = (person: Partial<PersonRoster>): Promise<ApiResponse<string>> =>
   request({ url: BASE, method: 'post', data: person }) as unknown as Promise<ApiResponse<string>>
+
+/** 按 id 更新一条 */
+export const updateRoster = (id: number, person: Partial<PersonRoster>): Promise<ApiResponse<string>> =>
+  request({ url: `${BASE}/${id}`, method: 'put', data: person }) as unknown as Promise<ApiResponse<string>>
 
 /** 删除一条 */
 export const deleteRoster = (id: number): Promise<ApiResponse<string>> =>
@@ -46,4 +56,4 @@ export const deleteRoster = (id: number): Promise<ApiResponse<string>> =>
 export const batchSetRoster = (roleType: string, names: string[]): Promise<ApiResponse<string>> =>
   request({ url: `${BASE}/batch`, method: 'put', params: { roleType }, data: names }) as unknown as Promise<ApiResponse<string>>
 
-export default { getRosterNames, getRosterList, saveRoster, deleteRoster, batchSetRoster }
+export default { getRosterNames, getRosterList, saveRoster, updateRoster, deleteRoster, batchSetRoster }

@@ -27,6 +27,7 @@
 | 系统架构 | [docs/architecture/README.md](docs/architecture/README.md) | 双后端架构、服务拓扑、数据流 |
 | API 路由分流 | [docs/api/README.md](docs/api/README.md) | Nginx 路由规则、Java/Python 职责划分 |
 | 数据库设计 | [docs/database/README.md](docs/database/README.md) | 表结构、迁移记录、ER 关系 |
+| 财务/运营自动化 | [docs/架构/财务与运营自动化任务完整实施记录.md](docs/架构/财务与运营自动化任务完整实施记录.md) | 财务日报与运营物流自动化统一实施索引 |
 | 开发规范 | [docs/development/standards.md](docs/development/standards.md) | 编码规范、提交规范、分支策略 |
 | 生产部署唯一流程 | [docs/docker使用经验/部署流程.md](docs/docker使用经验/部署流程.md) | 唯一权威，其他文档不得覆盖 |
 | 部署索引 | [DOCKER_DEPLOY.md](DOCKER_DEPLOY.md) | 只做入口索引 |
@@ -36,9 +37,9 @@
 
 | 模块 | AGENTS.md | 说明 |
 |------|-----------|------|
-| Java 后端 | [java-backend/AGENTS.md](java-backend/AGENTS.md) | 认证/用户 + 竞品分析/评分/ASIN导入/筛选预设 |
+| Java 后端 | [java-backend/AGENTS.md](java-backend/AGENTS.md) | 认证/用户 + 竞品分析/评分/ASIN导入/筛选预设 + 领星/财务运营自动化 |
 | Python 后端 | [backend/AGENTS.md](backend/AGENTS.md) | AI 功能（向量检索/图像识别/评分/LLM） |
-| 前端 | [frontend/AGENTS.md](frontend/AGENTS.md) | Vue 3 管理后台（27 个页面） |
+| 前端 | [frontend/AGENTS.md](frontend/AGENTS.md) | Vue 3 管理后台（含自动化/领星运行/飞书对接中心） |
 
 ## 铁律（Agent 必须遵守）
 
@@ -51,7 +52,7 @@
 7. **保持文档同步** — 代码变更后同步更新相关文档
 8. **PowerShell 编码禁令** — 禁止用 PowerShell here-string/管道传递含中文路径或中文内容的 Python/Node 源码；必须使用脚本文件、UTF-8 文件或 ASCII/Unicode escape 路径，并设置 UTF-8 输出环境
 9. **生产部署不得跳过主流程** — 部署前必须完整读取 `docs/docker使用经验/部署流程.md`；禁止从 README、日志、问题记录或旧架构文档复制生产命令
-10. **生产发布只走统一脚本** — 使用 `scripts/deploy/deploy_prod.ps1 -Component <java|frontend|backend|ai-center>`；禁止直接 `up -d --build`、`--no-cache`、重复 build 或临时添加 `-p`
+10. **生产分线下/线上** — 线下本机必须 `scripts/deploy/deploy_prod.ps1`；线上改 `/root/woeau_web/ai-selection-deploy/.env` 后 `docker compose up -d`。命令只从 `docs/docker使用经验/部署流程.md` 抄，禁止混用
 11. **验证优先复用缓存** — Agent/模型测试先跑最小范围静态检查和单测；确需 Docker 编译时只做一次正常缓存构建，禁止为“更干净”清 Maven/npm/pip 热缓存
 
 ## 快速命令

@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -30,6 +31,12 @@ public class PersonRoster {
 
     /** 是否启用 1启用 0停用 */
     private Integer enabled;
+
+    /** 生效日期（含）；为空表示不限制开始日期。 */
+    private LocalDate effectiveFrom;
+
+    /** 失效日期（含）；为空表示长期有效。 */
+    private LocalDate effectiveTo;
 
     /** 备注 */
     private String remark;

@@ -7,8 +7,8 @@
       等 Java LingxingController 实现对应功能后再删除。
 
 涉及前端：
-  - frontend/src/api/lingxing.ts (upload-image, download-template)
-  - frontend/src/views/Lingxing/Import/index.vue (generate-import-file, download-template)
+  - frontend/src/api/lingxing.ts (upload-image, download-template, upload-template)
+  - frontend/src/views/Lingxing/Import/index.vue (generate-import-file, download-template, upload-template)
 """
 
 """
@@ -33,47 +33,80 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/lingxing", tags=["领星导入"])
 
+_BACKEND_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+_BUNDLED_TEMPLATE = os.path.join(
+    _BACKEND_ROOT, "领星", "导入领星", "读取文件信息", "产品汇总表-模版 .xlsx"
+)
+_OVERRIDE_DIR = os.environ.get(
+    "LINGXING_TEMPLATE_DIR",
+    os.path.join(_BACKEND_ROOT, "下载缓存", "lingxing_templates"),
+)
+_OVERRIDE_TEMPLATE = os.path.join(_OVERRIDE_DIR, "产品汇总表-模版.xlsx")
+_DOWNLOAD_NAME = "产品汇总表-模版.xlsx"
+_XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _resolve_template_path() -> str:
+    if os.path.isfile(_OVERRIDE_TEMPLATE):
+        return _OVERRIDE_TEMPLATE
+    return _BUNDLED_TEMPLATE
+
 
 @router.get("/download-template", summary="下载领星导入模板")
 async def download_template(
     request: Request,
     user_info: dict = Depends(require_auth)
 ):
-    """
-    下载领星导入模板文件
-    
-    Returns:
-        FileResponse: Excel模板文件
-    """
+    """下载领星导入模板。优先用「修改模板」上传的文件，没有则用镜像内置模板。"""
     try:
-        # 模板文件路径（动态计算项目根目录）
-        _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        template_path = os.path.join(_project_root, '领星', '导入领星', '读取文件信息', '产品汇总表-模版 .xlsx')
-        
-        # 检查文件是否存在
+        template_path = _resolve_template_path()
         if not os.path.exists(template_path):
             logger.error(f"模板文件不存在: {template_path}")
-            raise HTTPException(
-                status_code=404,
-                detail="模板文件不存在"
-            )
-        
+            raise HTTPException(status_code=404, detail="模板文件不存在")
+
         logger.info(f"下载模板文件: {template_path}")
-        
         return FileResponse(
             path=template_path,
-            filename="产品汇总表-模版.xlsx",
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            filename=_DOWNLOAD_NAME,
+            media_type=_XLSX_TYPE,
         )
-        
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"下载模板失败: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"下载模板失败: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"下载模板失败: {str(e)}")
+
+
+@router.post("/upload-template", summary="上传并替换领星导入模板")
+async def upload_template(
+    request: Request,
+    file: UploadFile = File(..., description="产品汇总表 Excel 模板"),
+    user_info: dict = Depends(require_auth),
+):
+    """把新模板写到下载缓存卷，立刻生效，不需要重新部署。"""
+    filename = (file.filename or "").strip()
+    if not filename.lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="只支持 .xlsx 模板")
+
+    content = await file.read()
+    if len(content) < 4 or content[:2] != b"PK":
+        raise HTTPException(status_code=400, detail="文件不是有效的 Excel 模板")
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="模板不能超过 20MB")
+
+    os.makedirs(_OVERRIDE_DIR, exist_ok=True)
+    tmp_path = _OVERRIDE_TEMPLATE + ".tmp"
+    with open(tmp_path, "wb") as f:
+        f.write(content)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, _OVERRIDE_TEMPLATE)
+    logger.info("领星导入模板已更新: user=%s size=%s", user_info.get("username") or user_info.get("id"), len(content))
+    return {
+        "code": 200,
+        "message": "模板已更新，下载模板将使用新文件",
+        "data": {"filename": _DOWNLOAD_NAME, "size": len(content)},
+    }
 
 
 @router.post("/upload-image", summary="上传图片到领星COS")
@@ -194,6 +227,18 @@ async def generate_import_file(
         # 将前端数据转换为DataFrame并保存为临时Excel文件
         try:
             df = pd.DataFrame(file_data)
+            # 源表缺列时补空列，避免脚本因「缺失关键列」直接失败
+            # （例如部分开发人 Excel 没有中文/英文报关名）
+            required_source_columns = [
+                "SKU", "产品名称", "长cm", "宽cm", "高cm", "毛重（kg）",
+                "采购费用", "供应商链接", "供应商", "英国海关编码",
+                "中文报关名", "英文报关名", "图片url",
+            ]
+            missing_source_cols = [c for c in required_source_columns if c not in df.columns]
+            if missing_source_cols:
+                logger.warning(f"源数据缺少列，已补空列: {missing_source_cols}")
+                for col in missing_source_cols:
+                    df[col] = ""
             logger.info(f"DataFrame列: {df.columns.tolist()}")
             logger.info(f"DataFrame形状: {df.shape}")
         except Exception as e:
@@ -309,9 +354,17 @@ async def generate_import_file(
             shutil.rmtree(temp_dir, ignore_errors=True)
             error_msg = stderr if stderr else stdout
             logger.error(f"脚本执行失败: {error_msg}")
+            summary = "未知错误"
+            for line in reversed((error_msg or "").splitlines()):
+                stripped = line.strip()
+                if stripped.startswith(("ValueError:", "KeyError:", "FileNotFoundError:", "OSError:")):
+                    summary = stripped.split(":", 1)[-1].strip() or stripped
+                    break
+            else:
+                summary = (error_msg or "")[:300]
             raise HTTPException(
                 status_code=500,
-                detail=f"脚本执行失败: {error_msg[:500] if error_msg else '未知错误'}"
+                detail=f"生成文件失败: {summary}"
             )
         
         # 读取生成的文件路径

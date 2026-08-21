@@ -2,6 +2,7 @@ package com.sjzm.product.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.sjzm.product.modules.lingxing.entity.LingxingFbaFeeCompare;
+import com.sjzm.product.rds.lingxing.LingxingRdsMapper;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
@@ -11,7 +12,7 @@ import java.util.Map;
  * FBA 配送费对比表 Mapper。
  * <p>资格 ASIN = 统一表目标 ASIN ∩ 近3月(5/6/7)合计销量>30 ∩ 近3月合计正利润。</p>
  */
-public interface LingxingFbaFeeCompareMapper extends BaseMapper<LingxingFbaFeeCompare> {
+public interface LingxingFbaFeeCompareMapper extends BaseMapper<LingxingFbaFeeCompare>, LingxingRdsMapper {
 
     /**
      * 查合格 ASIN 对应的 listing sid+msku（给 getPrices 拉 FBA 预估费）。

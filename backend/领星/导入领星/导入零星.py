@@ -94,6 +94,11 @@ def get_column_mappings():
         '中文报关名': ['中文报关名'],
         '英文报关名': ['英文报关名'],
         '图片url': ['图片url'],
+        '中文材质': ['中文材质', '材质'],
+        '英文材质': ['英文材质'],
+        '中文用途': ['中文用途'],
+        '英文用途': ['英文用途'],
+        '产品属性': ['产品属性'],
     }
 
 
@@ -140,8 +145,14 @@ def process_lingxing_import():
                             '采购费用', '供应商链接', '供应商', '英国海关编码',
                             '中文报关名', '英文报关名', '图片url']
         missing_cols = [col for col in required_columns if col not in source_df.columns]
+        hard_required = {'SKU', '产品名称'}
+        hard_missing = [col for col in missing_cols if col in hard_required]
+        if hard_missing:
+            raise ValueError(f"源文件缺失关键列：{', '.join(hard_missing)}")
         if missing_cols:
-            raise ValueError(f"源文件缺失关键列：{', '.join(missing_cols)}")
+            print(f"[WARN] 源文件缺少列，按空值补齐: {', '.join(missing_cols)}")
+            for col in missing_cols:
+                source_df[col] = ''
 
         sku_count = len(source_df)
         print(f"[OK] 源数据读取成功，共 {sku_count} 条SKU记录")
@@ -157,6 +168,8 @@ def process_lingxing_import():
             if actual_name:
                 actual_columns[target_name] = actual_name
                 print(f"[OK] {target_name} -> {actual_name}（匹配成功）")
+            elif target_name in ('中文材质', '英文材质', '中文用途', '英文用途', '产品属性'):
+                print(f"[SKIP] {target_name} 源文件无此列，跳过")
             else:
                 raise ValueError(f"列 {target_name} 未在源文件中找到")
 
@@ -169,7 +182,7 @@ def process_lingxing_import():
 
         # 先清空所有可能需要填充的列（从第2行开始）
         all_cols_to_clear = ['A', 'B', 'S', 'T', 'W', 'X', 'AG', 'AI', 'AJ', 'AK',
-                             'BB', 'Y', 'BF', 'BG', 'BP', 'V']
+                             'BB', 'Y', 'BF', 'BG', 'BP', 'V', 'M', 'BH', 'BI', 'BM']
         for col in all_cols_to_clear:
             clear_column_content(ws_product, col)
             print(f"[OK] 清空【产品】工作表{col}列所有内容")
@@ -252,6 +265,23 @@ def process_lingxing_import():
                 # 图片url
                 image_url = row[actual_columns['图片url']]
                 ws_product[f'V{row_idx}'] = image_url if pd.notna(image_url) else ''
+
+                def opt(field):
+                    col = actual_columns.get(field)
+                    if not col:
+                        return ''
+                    v = row[col]
+                    return v if pd.notna(v) and str(v).strip() else ''
+
+                cn_mat = opt('中文材质')
+                en_mat = opt('英文材质')
+                cn_use = opt('中文用途')
+                en_use = opt('英文用途')
+                attr = opt('产品属性')
+                ws_product[f'M{row_idx}'] = cn_mat  # 产品材质
+                ws_product[f'BH{row_idx}'] = cn_mat or en_mat  # 报关清关材质
+                ws_product[f'BI{row_idx}'] = cn_use or en_use  # 报关清关用途
+                ws_product[f'BM{row_idx}'] = attr  # 特殊属性
 
         print(f"[OK] 【产品】工作表填充完成，仅填充 {sku_count} 行（SKU对应行）")
 

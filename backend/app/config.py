@@ -64,6 +64,18 @@ class Settings(BaseSettings):
     MYSQL_WORKER_MAX_OVERFLOW: int = 0
 
     # ========================================
+    # RDS MySQL (用户中心 ai_platform库)
+    # ========================================
+    USER_MYSQL_HOST: str = os.getenv("USER_MYSQL_HOST", "rm-bp1ft07y37887765cqo.mysql.rds.aliyuncs.com")
+    USER_MYSQL_PORT: int = int(os.getenv("USER_MYSQL_PORT", "3306"))
+    USER_MYSQL_USERNAME: str = os.getenv("USER_MYSQL_USERNAME", "ai_platform_app")
+    USER_MYSQL_PASSWORD: str = os.getenv("USER_MYSQL_PASSWORD", "")
+    USER_MYSQL_DATABASE: str = os.getenv("USER_MYSQL_DATABASE", "ai_platform")
+    USER_MYSQL_POOL_MIN_SIZE: int = 2
+    USER_MYSQL_POOL_SIZE: int = 5
+    USER_MYSQL_MAX_OVERFLOW: int = 3
+
+    # ========================================
     # Redis
     # ========================================
     REDIS_HOST: str = "redis"
@@ -144,6 +156,14 @@ class Settings(BaseSettings):
     LINGXING_COS_BUCKET: str = "lingxing-1328246743"
     LINGXING_COS_REGION: str = "ap-guangzhou"
     LINGXING_COS_PREFIX: str = "uploads/"
+
+    # ========================================
+    # 领星 MCP（AI 实时查询）
+    # ========================================
+    LINGXING_MCP_URL: str = ""
+    LINGXING_MCP_KEY: str = ""
+    LINGXING_MCP_TIMEOUT: int = 60
+    LINGXING_MCP_PROTOCOL_VERSION: str = "2025-06-18"
 
     # ========================================
     # 产品数据

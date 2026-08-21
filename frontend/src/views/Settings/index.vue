@@ -1094,10 +1094,14 @@ const saveSellerspriteConfig = async (): Promise<void> => {
 // 加载 users 表按角色分组的候选人员,供 3 个下拉使用
 const loadMemberOptions = async (): Promise<void> => {
   try {
+    console.log('[Settings] 开始加载人员名单...');
     const members = await fetchMembers();
+    console.log('[Settings] 人员名单响应:', members);
     memberOptions.developers = members.developers || [];
     memberOptions.operators = members.operators || [];
     memberOptions.purchasers = members.purchasers || [];
+    console.log('[Settings] 运营人员数量:', memberOptions.operators.length);
+    console.log('[Settings] 运营人员列表:', memberOptions.operators);
   } catch (error) {
     console.error("加载人员名单失败:", error);
   }

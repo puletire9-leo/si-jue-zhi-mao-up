@@ -39,7 +39,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 docker compose -f docker-compose.prod.yml ps
 ```
 
-统一脚本强制执行：生产预检、清理旧临时回退版、`current -> previous`、单次缓存构建、`--no-build` 重建、运行状态检查、成功后删除临时 `previous`、Java 编译缓存只保留最新一条，并清理 24 小时以上未使用的普通冷缓存。禁止直接使用 `up -d --build` 或 `--no-cache` 绕过。
+统一脚本强制执行：生产预检、清理旧临时回退版、`current -> previous`、单次缓存构建、`--no-build` 重建、运行状态检查、成功后删除临时 `previous`、Java 编译缓存只保留最新一条，并清理超过 3 小时未使用的普通 `regular` 构建层。禁止直接使用 `up -d --build`、`--no-cache` 或原命令盲目重复构建。
 
 ## 生产 MySQL 资源保护
 

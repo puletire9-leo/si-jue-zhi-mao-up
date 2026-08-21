@@ -1,10 +1,10 @@
 package com.sjzm.product.modules.lingxing.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.toolkit.Db;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sjzm.product.mapper.LingxingSellerMapper;
 import com.sjzm.product.modules.lingxing.entity.LingxingSeller;
+import com.sjzm.product.rds.service.RdsBatchWriteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 领星亚马逊店铺同步服务。
@@ -34,6 +35,7 @@ public class LingxingSellerSyncService {
 
     private final LingxingClient client;
     private final LingxingSellerMapper sellerMapper;
+    private final RdsBatchWriteService rdsBatchWriteService;
 
     /**
      * 全量同步领星亚马逊店铺。
@@ -48,25 +50,32 @@ public class LingxingSellerSyncService {
         List<LingxingSeller> entities = new ArrayList<>();
         if (data.isArray()) {
             for (JsonNode row : data) {
-                LingxingSeller e = mapRow(row);
-                if (e.getSid() == null) {
+                LingxingSeller entity = mapRow(row);
+                if (entity.getSid() == null) {
                     log.warn("领星店铺缺 sid，跳过: {}", row);
                     continue;
                 }
-                // 幂等：按 sid 查存在 → 命中回填 id，saveOrUpdate 走更新
-                LingxingSeller existing = sellerMapper.selectOne(
-                        new LambdaQueryWrapper<LingxingSeller>()
-                                .eq(LingxingSeller::getSid, e.getSid())
-                                .last("LIMIT 1"));
-                if (existing != null) e.setId(existing.getId());
-                entities.add(e);
+                entities.add(entity);
             }
+        }
+
+        if (!entities.isEmpty()) {
+            Map<Long, Long> existingIds = sellerMapper.selectList(
+                            new LambdaQueryWrapper<LingxingSeller>()
+                                    .select(LingxingSeller::getId, LingxingSeller::getSid)
+                                    .in(LingxingSeller::getSid,
+                                            entities.stream().map(LingxingSeller::getSid).toList()))
+                    .stream().collect(Collectors.toMap(
+                            LingxingSeller::getSid, LingxingSeller::getId,
+                            (left, right) -> left));
+            entities.forEach(entity -> entity.setId(existingIds.get(entity.getSid())));
         }
 
         int upserted = 0;
         if (!entities.isEmpty()) {
-            Db.saveOrUpdateBatch(entities, DB_BATCH_SIZE);
-            upserted = entities.size();
+            upserted = rdsBatchWriteService.saveOrUpdate(
+                    LingxingSellerMapper.class, entities, DB_BATCH_SIZE,
+                    entity -> entity.getId() != null);
         }
 
         int fetched = data.isArray() ? data.size() : 0;

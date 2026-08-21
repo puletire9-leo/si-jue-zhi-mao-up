@@ -171,7 +171,7 @@ public class AuthServiceImpl implements AuthService {
             case "MANAGER" -> "admin";
             case "DEVELOPER" -> "developer";
             case "ART_MANAGER", "ARTIST" -> "editor";
-            case "OPERATOR" -> "user";
+            case "OPERATOR", "PURCHASER" -> "user";
             default -> role;
         };
     }

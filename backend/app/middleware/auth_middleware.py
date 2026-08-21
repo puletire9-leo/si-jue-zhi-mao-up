@@ -9,6 +9,29 @@ from fastapi import HTTPException, Request, Depends
 from typing import Dict, Any
 
 
+ROLE_ALIASES = {
+    "admin": "admin",
+    "manager": "admin",
+    "管理员": "admin",
+    "developer": "developer",
+    "开发": "developer",
+}
+
+
+def normalize_roles(role: Any) -> set[str]:
+    """将数据库中文角色、JWT 英文角色和平台枚举归一为内部角色。"""
+    if role is None:
+        return set()
+
+    normalized_roles: set[str] = set()
+    for raw_role in str(role).split(","):
+        role_name = raw_role.strip()
+        if not role_name:
+            continue
+        normalized_roles.add(ROLE_ALIASES.get(role_name.lower(), role_name.lower()))
+    return normalized_roles
+
+
 async def require_auth(request: Request) -> Dict[str, Any]:
     """从 Gateway 头或 Authorization 头获取用户信息"""
     # 优先：Gateway 注入的 X-User-* 头
@@ -36,8 +59,7 @@ async def require_auth(request: Request) -> Dict[str, Any]:
 
 def is_admin(user: dict) -> bool:
     """判断是否管理员（兼容多角色逗号分隔）"""
-    role = user.get("role", "")
-    return "管理员" in role or "admin" in role.lower()
+    return "admin" in normalize_roles(user.get("role"))
 
 
 async def require_write_role(request: Request, user: Dict[str, Any] = Depends(require_auth)) -> Dict[str, Any]:
@@ -48,6 +70,6 @@ async def require_write_role(request: Request, user: Dict[str, Any] = Depends(re
     if request.method in ("GET", "HEAD", "OPTIONS"):
         return user
     role = user.get("role", "")
-    if "管理员" in role or "admin" in role.lower() or "开发" in role:
+    if normalize_roles(role) & {"admin", "developer"}:
         return user
     raise HTTPException(status_code=403, detail=f"角色 '{role}' 没有写操作权限")

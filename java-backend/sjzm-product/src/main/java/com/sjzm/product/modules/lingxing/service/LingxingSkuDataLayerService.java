@@ -1,10 +1,10 @@
 package com.sjzm.product.modules.lingxing.service;
 
 import com.sjzm.product.mapper.LingxingSkuDataLayerMapper;
+import com.sjzm.product.rds.service.RdsBatchWriteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
@@ -19,7 +19,8 @@ import java.util.Map;
  * 从 raw_json 展开加工进周表 {@code lingxing_sku_weekly_performance}（SKU×店铺×周 一行）。</p>
  *
  * <p>加工 SQL 见 mapper/LingxingSkuWeeklyMapper.xml；限定 mid IN(4,5)=UK/DE，SHA256 幂等。
- * 历史的 snapshot/monthly/sku_pool 加工（依赖表已删）不在本次需求内，故不实现。</p>
+ * 历史的 snapshot/monthly/sku_pool 加工不在本次需求内，故不实现（sku_store_snapshot/sku_pool
+ * 生产库从未建表，仅有废弃建表脚本；product_performance/sku_weekly 均为活表）。</p>
  */
 @Slf4j
 @Service
@@ -27,6 +28,7 @@ import java.util.Map;
 public class LingxingSkuDataLayerService {
 
     private final LingxingSkuDataLayerMapper mapper;
+    private final RdsBatchWriteService rdsBatchWriteService;
 
     /**
      * 把指定时间窗的产品表现加工进周表。
@@ -37,7 +39,6 @@ public class LingxingSkuDataLayerService {
      * @param sourceRunId  来源 run_id（周表 source_run_id 记来源；空则自动加 -weekly 后缀）
      * @return {rows, snapshotWeek, runId}
      */
-    @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> upsertWeeklyFromExistingPerformance(String startDate,
                                                                    String endDate,
                                                                    String snapshotWeek,
@@ -46,7 +47,9 @@ public class LingxingSkuDataLayerService {
         String runId = StringUtils.hasText(sourceRunId) ? sourceRunId.trim() + "-weekly"
                 : "sku-weekly-" + System.currentTimeMillis();
 
-        int rows = mapper.upsertWeeklyFromPerformance(emptyToNull(startDate), emptyToNull(endDate), week, runId);
+        int rows = rdsBatchWriteService.executeOne(LingxingSkuDataLayerMapper.class,
+                rdsMapper -> rdsMapper.upsertWeeklyFromPerformance(
+                        emptyToNull(startDate), emptyToNull(endDate), week, runId));
         int total = mapper.countWeekly(emptyToNull(startDate), emptyToNull(endDate));
         log.info("周表加工完成：窗口 {}~{}，本次影响 {} 行，窗口内共 {} 行，week={}, runId={}",
                 startDate, endDate, rows, total, week, runId);

@@ -1,0 +1,207 @@
+# 思觉智贸线上（/root/woeau_web/ai-selection-deploy）
+# 镜像：registry.cn-shanghai.aliyuncs.com/suezon/selection:*
+# 更新：改本目录 .env 的 *_IMAGE → docker compose up -d
+# Web 容器：frontend / prod-frontend
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "3"
+
+x-host-gateway: &host-gateway
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
+services:
+
+  mysql:
+    logging: *default-logging
+    image: mysql:8.0
+    container_name: prod-mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --innodb-buffer-pool-size=${MYSQL_INNODB_BUFFER_POOL_SIZE:-1G}
+      - --max-connections=${MYSQL_MAX_CONNECTIONS:-60}
+      - --binlog-expire-logs-seconds=${MYSQL_BINLOG_EXPIRE_SECONDS:-604800}
+    mem_limit: ${MYSQL_MEMORY_LIMIT:-2g}
+    ports:
+      - "127.0.0.1:3310:3306"
+    env_file:
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
+    environment:
+      MYSQL_HOST: localhost
+      MYSQL_USER: sijue
+      MYSQL_USERNAME: sijue
+      MYSQL_DATABASE: sijuelishi
+      MYSQL_PASSWORD: sijue123456
+      MYSQL_ROOT_PASSWORD: root123456
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_PASSWORD}\" mysql --protocol=TCP -h 127.0.0.1 -u\"$${MYSQL_USER}\" -D \"$${MYSQL_DATABASE}\" --connect-timeout=1 -Nse 'SELECT 1' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 2s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+
+  redis:
+    logging: *default-logging
+    image: redis:7-alpine
+    container_name: prod-redis
+    command: redis-server --port 6379
+    ports:
+      - "127.0.0.1:6383:6379"
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  nacos:
+    logging: *default-logging
+    image: nacos/nacos-server:v2.3.1
+    container_name: prod-nacos
+    ports:
+      - "127.0.0.1:8852:8848"
+      - "127.0.0.1:9852:9848"
+    environment:
+      - MODE=standalone
+      - PREFER_HOST_MODE=hostname
+    volumes:
+      - ./data/nacos-logs:/home/nacos/logs
+      - ./data/nacos-data:/home/nacos/data
+    restart: unless-stopped
+
+  backend:
+    logging: *default-logging
+    <<: *host-gateway
+    image: ${BACKEND_IMAGE:-registry.cn-shanghai.aliyuncs.com/suezon/selection:backend-v1.0}
+    container_name: prod-backend
+    ports:
+      - "127.0.0.1:7093:8090"
+    env_file:
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
+      - ./config/public/user-prod.env
+      - ./config/secrets/user-prod.env
+    environment:
+      - IMAGE_READ_MODE=cloud
+    volumes:
+      - ./data/logs:/app/logs
+      - ./data/models:/app/model_cache
+      - ./data/download-cache:/app/下载缓存
+    restart: unless-stopped
+
+  celery-download:
+    logging: *default-logging
+    <<: *host-gateway
+    image: ${BACKEND_IMAGE:-registry.cn-shanghai.aliyuncs.com/suezon/selection:backend-v1.0}
+    container_name: prod-celery-download
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=10 -Q download_tasks
+    env_file:
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
+      - ./config/public/user-prod.env
+      - ./config/secrets/user-prod.env
+    volumes:
+      - ./data/download-cache:/app/下载缓存
+      - ./data/logs:/app/logs
+    restart: unless-stopped
+
+  ai-center:
+    logging: *default-logging
+    image: ${AI_CENTER_IMAGE:-registry.cn-shanghai.aliyuncs.com/suezon/selection:ai-center-v1.0}
+    container_name: prod-ai-center
+    env_file:
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8012/health')\""]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  java-user:
+    logging: *default-logging
+    <<: *host-gateway
+    image: ${JAVA_IMAGE:-registry.cn-shanghai.aliyuncs.com/suezon/selection:java-v1.0}
+    container_name: prod-java-user
+    ports:
+      - "127.0.0.1:8014:8001"
+    env_file:
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
+      - ./config/public/user-prod.env
+      - ./config/secrets/user-prod.env
+    environment:
+      SERVICE_MODULE: user
+      SPRING_PROFILES_ACTIVE: prod
+      REDISSON_ADDRESS: redis://host.docker.internal:6379
+    depends_on:
+      nacos:
+        condition: service_started
+    restart: unless-stopped
+
+  java-product:
+    logging: *default-logging
+    <<: *host-gateway
+    image: ${JAVA_IMAGE:-registry.cn-shanghai.aliyuncs.com/suezon/selection:java-v1.0}
+    container_name: prod-java-product
+    ports:
+      - "127.0.0.1:8025:8002"
+    env_file:
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
+    environment:
+      SERVICE_MODULE: product
+      SPRING_PROFILES_ACTIVE: prod
+      REDISSON_ADDRESS: redis://host.docker.internal:6379
+      JAVA_OPTS: "-Xms1024m -Xmx2048m"
+      AI_SELECTION_ENABLED: "true"
+    depends_on:
+      nacos:
+        condition: service_started
+    restart: unless-stopped
+
+  gateway:
+    logging: *default-logging
+    <<: *host-gateway
+    image: ${JAVA_IMAGE:-registry.cn-shanghai.aliyuncs.com/suezon/selection:java-v1.0}
+    container_name: prod-gateway
+    ports:
+      - "127.0.0.1:9003:9000"
+    env_file:
+      - ./config/public/prod.env
+      - ./config/secrets/prod.env
+    environment:
+      SERVICE_MODULE: gateway
+      SPRING_PROFILES_ACTIVE: prod
+      GATEWAY_AUTH_ENABLED: "true"
+    depends_on:
+      java-user:
+        condition: service_started
+      java-product:
+        condition: service_started
+      nacos:
+        condition: service_started
+    restart: unless-stopped
+
+  frontend:
+    logging: *default-logging
+    image: ${FRONTEND_IMAGE:-registry.cn-shanghai.aliyuncs.com/suezon/selection:frontend-v1.0}
+    container_name: prod-frontend
+    ports:
+      - "127.0.0.1:5173:80"
+    depends_on:
+      - backend
+      - gateway
+    restart: unless-stopped

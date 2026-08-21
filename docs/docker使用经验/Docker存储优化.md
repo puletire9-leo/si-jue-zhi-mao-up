@@ -18,9 +18,8 @@
 为 36.44 GiB，下降约 5.43 GiB。主要来源是新镜像、唯一上一版镜像和刚生成的热构建缓存，
 不是容器可写层：当前各应用容器可写层都小于 100 KB，Nacos 约 13.7 MB。
 
-Backend 的旧源码 COPY 构建缓存约 2.031 GB，目前不足 24 小时，按热缓存规则暂不清理；它在超过
-24 小时后会被下一次单组件发布的冷缓存收尾回收。旧 backend 成品镜像是唯一 `previous`，必须保留到
-下一次 backend 成功发布，不得为了立刻腾空间破坏回滚能力。
+普通源码 COPY、旧 JAR 和历史编译构建层只保留最近 3 小时；超过 3 小时未使用后，由下一次
+单组件发布自动回收。Maven/pip/npm 的 `exec.cachemount` 热依赖仓库不受该时间规则影响。
 
 ## 2. 不可违反的边界
 
@@ -76,7 +75,7 @@ docker volume ls --format '{{.Name}}'
 1. 先看 D 盘可用空间和 VHDX 文件大小。
 2. 再看应用仓库是否除 `current` 外还残留其他标签。
 3. 再看 Java `mvn clean package` 是否超过一条。
-4. 再看 BuildKit 中 24 小时以上未使用的冷缓存。
+4. 再看 BuildKit 中超过 3 小时未使用的普通 `regular` 构建层。
 5. 最后检查容器可写层和日志；业务数据卷只统计和备份，不自动删除。
 
 `docker system df` 若报 containerd snapshot `no such file or directory`，不要因此执行全局 prune。
@@ -97,7 +96,7 @@ powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Compone
 
 ```text
 预检 -> 轮换 current/previous -> 一次缓存构建 -> --no-deps --no-build 重建
--> 健康验证 -> 删除临时 previous -> Java 编译缓存保留一条 -> 回收 24 小时冷缓存 -> 标签校验
+-> 健康验证 -> 删除临时 previous -> Java 编译缓存保留一条 -> 回收超过 3 小时的普通构建层 -> 标签校验
 ```
 
 所有容器日志已使用 `json-file` 轮转，每个容器最多 `3 x 20 MB`。Backend 的 `.dockerignore`
@@ -118,20 +117,14 @@ powershell -ExecutionPolicy Bypass -File scripts/deploy/prune_java_build_cache.p
 
 ### 其他冷缓存
 
-正常情况下只清理 24 小时以上未使用的缓存：
+普通 `regular` 构建层只保留最近 3 小时，超过 3 小时未使用的记录必须清理：
 
 ```powershell
-docker buildx prune --force --filter "until=24h"
+docker buildx prune --force --filter "until=3h" --filter "type=regular"
 ```
 
-只有 D 盘空间紧急、常规发布已停止且已核对受保护卷时，才允许缩短到 6 小时：
-
-```powershell
-docker buildx prune --force --filter "until=6h"
-```
-
-刚构建完成的缓存属于热缓存。立即清理会让下一次构建重新下载或重新编译，且不会必然让 Windows
-上的 VHDX 文件立刻变小。
+最近 3 小时内刚构建完成的普通层暂时保留，便于短时间修复和验证；超过窗口后不再长期保存。
+该命令不会选择 `exec.cachemount`，不得去掉 `type=regular` 过滤条件。
 
 ### 成品镜像
 
@@ -201,7 +194,7 @@ $vhdx = Get-Item -LiteralPath "D:\Docker数据\DockerDesktopWSL\disk\docker_data
 
 | D 盘可用空间 | 处置 |
 |---:|---|
-| 大于 30 GiB | 正常，只做单组件发布和 24 小时冷缓存维护 |
+| 大于 30 GiB | 正常，只做单组件发布和 3 小时普通构建层维护 |
 | 20–30 GiB | 暂停非必要全量测试，检查是否残留非 `current` 应用镜像和普通冷缓存 |
 | 15–20 GiB | 禁止多组件连续构建，先完成备份并安排清理 |
 | 小于 15 GiB | 生产预检阻止构建；停止发布，人工分析后再处理 |

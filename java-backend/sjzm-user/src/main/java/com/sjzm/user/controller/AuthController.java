@@ -86,8 +86,8 @@ public class AuthController {
         if (oldPassword == null || oldPassword.isBlank()) {
             return Result.error(400, "旧密码不能为空");
         }
-        if (newPassword == null || newPassword.length() < 6) {
-            return Result.error(400, "新密码长度不能少于6位");
+        if (newPassword == null || newPassword.isBlank()) {
+            return Result.error(400, "新密码不能为空");
         }
         userService.updatePassword(userId, oldPassword, newPassword);
         return Result.success("密码修改成功");

@@ -386,6 +386,86 @@
         </template>
       </el-table-column>
 
+      <!-- 中文材质列 -->
+      <el-table-column prop="cnMaterial" label="中文材质" width="120">
+        <template #default="{ row, $index }">
+          <el-input
+            v-if="editingCell.row === $index && editingCell.col === 'cnMaterial'"
+            v-model="row.cnMaterial"
+            size="small"
+            @blur="stopEditing"
+            @keyup.enter="stopEditing"
+          />
+          <div v-else class="editable-cell" @click="startEditing($index, 'cnMaterial')">
+            {{ row.cnMaterial || "-" }}
+          </div>
+        </template>
+      </el-table-column>
+
+      <!-- 英文材质列 -->
+      <el-table-column prop="enMaterial" label="英文材质" width="120">
+        <template #default="{ row, $index }">
+          <el-input
+            v-if="editingCell.row === $index && editingCell.col === 'enMaterial'"
+            v-model="row.enMaterial"
+            size="small"
+            @blur="stopEditing"
+            @keyup.enter="stopEditing"
+          />
+          <div v-else class="editable-cell" @click="startEditing($index, 'enMaterial')">
+            {{ row.enMaterial || "-" }}
+          </div>
+        </template>
+      </el-table-column>
+
+      <!-- 中文用途列 -->
+      <el-table-column prop="cnUse" label="中文用途" width="160">
+        <template #default="{ row, $index }">
+          <el-input
+            v-if="editingCell.row === $index && editingCell.col === 'cnUse'"
+            v-model="row.cnUse"
+            size="small"
+            @blur="stopEditing"
+            @keyup.enter="stopEditing"
+          />
+          <div v-else class="editable-cell" @click="startEditing($index, 'cnUse')">
+            {{ row.cnUse || "-" }}
+          </div>
+        </template>
+      </el-table-column>
+
+      <!-- 英文用途列 -->
+      <el-table-column prop="enUse" label="英文用途" width="180">
+        <template #default="{ row, $index }">
+          <el-input
+            v-if="editingCell.row === $index && editingCell.col === 'enUse'"
+            v-model="row.enUse"
+            size="small"
+            @blur="stopEditing"
+            @keyup.enter="stopEditing"
+          />
+          <div v-else class="editable-cell" @click="startEditing($index, 'enUse')">
+            {{ row.enUse || "-" }}
+          </div>
+        </template>
+      </el-table-column>
+
+      <!-- 产品属性列 -->
+      <el-table-column prop="productAttr" label="产品属性" width="120">
+        <template #default="{ row, $index }">
+          <el-input
+            v-if="editingCell.row === $index && editingCell.col === 'productAttr'"
+            v-model="row.productAttr"
+            size="small"
+            @blur="stopEditing"
+            @keyup.enter="stopEditing"
+          />
+          <div v-else class="editable-cell" @click="startEditing($index, 'productAttr')">
+            {{ row.productAttr || "-" }}
+          </div>
+        </template>
+      </el-table-column>
+
       <!-- 中文报关名列 -->
       <el-table-column prop="cnDeclarationName" label="中文报关名" width="150">
         <template #default="{ row, $index }">
@@ -569,6 +649,16 @@ interface ProductData {
   supplier?: string;
   /** 英国海关编码 */
   ukCustomsCode?: string;
+  /** 中文材质 */
+  cnMaterial?: string;
+  /** 英文材质 */
+  enMaterial?: string;
+  /** 中文用途 */
+  cnUse?: string;
+  /** 英文用途 */
+  enUse?: string;
+  /** 产品属性 */
+  productAttr?: string;
   /** 中文报关名 */
   cnDeclarationName?: string;
   /** 英文报关名 */
@@ -1012,6 +1102,11 @@ const addRow = (row?: Partial<ProductData>) => {
     supplierLink: row?.supplierLink,
     supplier: row?.supplier,
     ukCustomsCode: row?.ukCustomsCode,
+    cnMaterial: row?.cnMaterial,
+    enMaterial: row?.enMaterial,
+    cnUse: row?.cnUse,
+    enUse: row?.enUse,
+    productAttr: row?.productAttr,
     cnDeclarationName: row?.cnDeclarationName,
     enDeclarationName: row?.enDeclarationName,
     fileCode: row?.fileCode,

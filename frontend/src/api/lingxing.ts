@@ -28,6 +28,23 @@ export const uploadLingxingImage = async (file: File): Promise<ApiResponse<Lingx
 }
 
 /**
+ * 上传并替换领星导入模板（写入后端缓存卷，立刻生效）
+ */
+export const uploadLingxingTemplate = async (file: File): Promise<ApiResponse<{ filename: string; size: number }>> => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post<ApiResponse<{ filename: string; size: number }>, ApiResponse<{ filename: string; size: number }>>(
+    '/api/v1/lingxing/upload-template',
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    }
+  )
+}
+
+/**
  * 下载领星导入模板
  */
 export const downloadTemplate = async (): Promise<void> => {
@@ -49,5 +66,6 @@ export const downloadTemplate = async (): Promise<void> => {
 
 export default {
   uploadLingxingImage,
+  uploadLingxingTemplate,
   downloadTemplate
 }

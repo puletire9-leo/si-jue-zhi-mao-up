@@ -52,6 +52,12 @@ frontend/src/
 | 选品回收站 | /selection-recycle | selection.ts |
 | 定稿回收站 | /final-draft-recycle | finalDrafts.ts |
 | 运营商回收站 | /carrier-recycle | carrierLibrary.ts |
+| 自动化任务中心 | /automation-center | automationCenter.ts |
+| 领星运行中心 | /lingxing-runtime-center | lingxingRuntimeCenter.ts |
+| 飞书对接中心 | /feishu-integration-center | feishuIntegration.ts |
+| 人员维度配置 | /person-roster | roster.ts |
+
+财务日报与运营物流自动化的当前口径、算法、RDS 批写和生产发布状态，统一见 `docs/架构/财务与运营自动化任务完整实施记录.md`。上述四个中心均为 `src/modules/` 即插即用模块，不改 `router/index.ts`。
 
 ## API 文件 → 后端映射
 
@@ -71,6 +77,13 @@ frontend/src/
 | systemConfig.ts | `/api/v1/system-config/`、`/api/v1/sellersprite-config` | 混合：Python 为主，`sellersprite-config` 走 Java |
 | ai-selection.ts | `/api/v1/ai-selection/` | Python；JWT 鉴权，按用户隔离的 Redis 投递会话 |
 | product-line.ts | `/api/v1/product-line/` | 混合：Java 与 Selection Agent 共存，必须结合代理规则判断 |
+| automationCenter.ts | `/api/v1/modules/automation/`、`/api/v1/modules/lingxing/request-center/` | Java：自动化 Job/运行审计，手动启动走领星入队 |
+| lingxingRuntimeCenter.ts | `/api/v1/modules/lingxing/request-center/`、`/api/v1/lingxing-mcp/` | Java 队列/注册项；MCP 状态/工具走 Python 只读入口 |
+| feishuIntegration.ts | `/api/v1/modules/feishu/` | Java：凭证掩码、token 自检、业务资源检查 |
+| roster.ts | `/api/v1/modules/roster/` | Java：人员维度及生效/失效日期 |
+
+用户管理读取独立 `ai_platform` 用户库，角色主要返回平台枚举 `MANAGER / DEVELOPER / ART_MANAGER / ARTIST / OPERATOR`。
+页面展示、页签筛选和编辑回显必须先统一映射为中文业务角色，同时兼容历史中文角色和逗号分隔多角色；禁止直接用中文页签值匹配接口原始角色。
 
 拓品·竞品店铺使用独立页面和 `/api/v1/modules/shop-collection/expansion-products`，读取 `shop_products` 当前批次商品全集；不复用 `views/AllSelection` 的页面框架。销量字段使用 `shop_products.units`（页面展示为月销量）。
 

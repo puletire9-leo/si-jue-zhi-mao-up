@@ -32,20 +32,36 @@ async def get_members(
         "purchasers": ["王亚成"]
     }
 
-    查询方式：role LIKE '%开发%' 等，兼容一人多角色（逗号分隔）。
+    查询方式：兼容中文角色（role LIKE '%运营%'）和英文枚举（role='OPERATOR'）。
+
+    数据源：优先使用RDS用户中心（ai_platform库），回退到本地MySQL。
     """
     try:
-        mysql_repo = request.app.state.mysql
+        # 优先使用RDS用户中心，回退到本地MySQL
+        user_mysql = getattr(request.app.state, 'user_mysql', None)
+        mysql_repo = user_mysql if user_mysql else request.app.state.mysql
 
+        if mysql_repo is None:
+            logger.error("无可用的MySQL连接")
+            from fastapi import HTTPException
+            raise HTTPException(status_code=500, detail="数据库连接不可用")
+
+        # 记录使用的数据源
+        data_source = "RDS用户中心" if user_mysql else "本地MySQL"
+        logger.info(f"[Members] 使用数据源: {data_source}")
+
+        # 兼容中文角色（本地MySQL）和英文枚举（RDS）
         developers = await mysql_repo.execute_query(
-            "SELECT username FROM users WHERE role LIKE '%开发%' ORDER BY id ASC"
+            "SELECT username FROM users WHERE (role LIKE '%开发%' OR role = 'DEVELOPER') AND status=1 ORDER BY id ASC"
         )
         operators = await mysql_repo.execute_query(
-            "SELECT username FROM users WHERE role LIKE '%运营%' ORDER BY id ASC"
+            "SELECT username FROM users WHERE (role LIKE '%运营%' OR role = 'OPERATOR') AND status=1 ORDER BY id ASC"
         )
         purchasers = await mysql_repo.execute_query(
-            "SELECT username FROM users WHERE role LIKE '%采购员%' AND status=1 ORDER BY id ASC"
+            "SELECT username FROM users WHERE (role LIKE '%采购员%' OR role = 'PURCHASER') AND status=1 ORDER BY id ASC"
         )
+
+        logger.info(f"[Members] 查询结果 - 开发: {len(developers)}, 运营: {len(operators)}, 采购: {len(purchasers)}")
 
         return {
             "code": 200,
@@ -58,6 +74,6 @@ async def get_members(
         }
 
     except Exception as e:
-        logger.error(f"获取人员名单失败: {e}")
+        logger.error(f"获取人员名单失败: {e}", exc_info=True)
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=f"获取人员名单失败: {str(e)}")

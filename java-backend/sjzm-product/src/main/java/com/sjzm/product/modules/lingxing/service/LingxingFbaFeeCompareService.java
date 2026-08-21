@@ -1,10 +1,10 @@
 package com.sjzm.product.modules.lingxing.service;
 
 import com.sjzm.product.mapper.LingxingFbaFeeCompareMapper;
+import com.sjzm.product.rds.service.RdsBatchWriteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,8 +27,8 @@ public class LingxingFbaFeeCompareService {
 
     private final LingxingFbaFeeCompareMapper compareMapper;
     private final LingxingListingFeeService listingFeeService;
+    private final RdsBatchWriteService rdsBatchWriteService;
 
-    @Transactional
     public Map<String, Object> rebuild() {
         long t0 = System.currentTimeMillis();
 
@@ -40,8 +40,10 @@ public class LingxingFbaFeeCompareService {
         Map<String, Object> feeResult = listingFeeService.syncFees(sidMskus);
 
         // ③ 重算对比表
-        compareMapper.truncateAll();
-        int affected = compareMapper.rebuildAll();
+        int affected = rdsBatchWriteService.executeOne(LingxingFbaFeeCompareMapper.class, mapper -> {
+            mapper.truncateAll();
+            return mapper.rebuildAll();
+        });
 
         long ms = System.currentTimeMillis() - t0;
         log.info("FBA费对比重算完成：对比 {} 行，getPrices {}，耗时 {}ms", affected, feeResult, ms);

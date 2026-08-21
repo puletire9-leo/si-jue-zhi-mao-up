@@ -1,5 +1,6 @@
 package com.sjzm.product.mapper;
 
+import com.sjzm.product.rds.lingxing.LingxingRdsMapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 
@@ -8,7 +9,7 @@ import org.apache.ibatis.annotations.Select;
  * 独立文件放在 @MapperScan 扫描的包下，避免嵌套接口的注册问题。
  */
 @Mapper
-public interface LingxingOverviewCountMapper {
+public interface LingxingOverviewCountMapper extends LingxingRdsMapper {
 
     @Select("SELECT COUNT(*) FROM lingxing_asin_monthly_performance")
     long countMonthlyPerformance();

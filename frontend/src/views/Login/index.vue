@@ -154,8 +154,7 @@ const loginRules = reactive<FormRules<LoginForm>>({
     { required: true, message: '请输入用户名', trigger: 'blur' }
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+    { required: true, message: '请输入密码', trigger: 'blur' }
   ]
 })
 
@@ -183,10 +182,6 @@ const handleLogin = async (): Promise<void> => {
     
     if (isRegister.value) {
       // 注册
-      if (loginForm.password.length < 6) {
-        ElMessage.error('密码至少6个字符')
-        loading.value = false; isSubmitting.value = false; return
-      }
       const res = await fetch('/api/v1/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

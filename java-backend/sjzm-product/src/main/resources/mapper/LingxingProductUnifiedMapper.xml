@@ -376,6 +376,72 @@
             u.synced_at = NOW()
     </update>
 
+    <!-- 保持统一表一 ASIN 一行不变，额外物化 ASIN×来源站点关系；两站金额统一为 GBP。 -->
+    <insert id="upsertMarketplaceRelations">
+        INSERT INTO lingxing_product_unified_marketplace (
+            asin, marketplace, currency_code, latest_sid,
+            first_seen_date, last_seen_date, source_week_end, active, updated_at
+        )
+        SELECT
+            stats.asin,
+            stats.marketplace,
+            'GBP',
+            latest.sid,
+            stats.first_seen_date,
+            stats.last_seen_date,
+            stats.last_seen_date,
+            1,
+            NOW()
+        FROM (
+            SELECT w.asin, w.marketplace,
+                   MIN(w.week_start) AS first_seen_date,
+                   MAX(w.week_end) AS last_seen_date
+            FROM lingxing_sku_weekly_performance w
+            INNER JOIN lingxing_product_unified u ON u.asin = w.asin
+            WHERE w.marketplace IN ('UK', 'DE')
+              AND w.asin IS NOT NULL AND w.asin != ''
+            GROUP BY w.asin, w.marketplace
+        ) stats
+        LEFT JOIN (
+            SELECT ranked.asin, ranked.marketplace, ranked.sid
+            FROM (
+                SELECT w.asin, w.marketplace, w.sid,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY w.asin, w.marketplace
+                           ORDER BY w.week_end DESC, w.sid DESC
+                       ) AS row_num
+                FROM lingxing_sku_weekly_performance w
+                INNER JOIN lingxing_product_unified u ON u.asin = w.asin
+                WHERE w.marketplace IN ('UK', 'DE')
+                  AND w.asin IS NOT NULL AND w.asin != ''
+            ) ranked
+            WHERE ranked.row_num = 1
+        ) latest ON latest.asin = stats.asin AND latest.marketplace = stats.marketplace
+        ON DUPLICATE KEY UPDATE
+            currency_code = VALUES(currency_code),
+            latest_sid = VALUES(latest_sid),
+            first_seen_date = VALUES(first_seen_date),
+            last_seen_date = VALUES(last_seen_date),
+            source_week_end = VALUES(source_week_end),
+            active = 1,
+            updated_at = NOW()
+    </insert>
+
+    <update id="deactivateStaleMarketplaceRelations">
+        UPDATE lingxing_product_unified_marketplace r
+        LEFT JOIN (
+            SELECT DISTINCT w.asin, w.marketplace
+            FROM lingxing_sku_weekly_performance w
+            INNER JOIN lingxing_product_unified u ON u.asin = w.asin
+            WHERE w.marketplace IN ('UK', 'DE')
+              AND w.asin IS NOT NULL AND w.asin != ''
+        ) current_relation
+          ON current_relation.asin = r.asin
+         AND current_relation.marketplace = r.marketplace
+        SET r.active = 0, r.updated_at = NOW()
+        WHERE current_relation.asin IS NULL AND r.active = 1
+    </update>
+
     <!-- 查询店铺产品列表 -->
     <select id="selectShopProducts" resultType="com.sjzm.product.modules.lingxing.dto.LingxingShopProductVO">
         SELECT

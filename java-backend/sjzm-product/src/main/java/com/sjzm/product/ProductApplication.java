@@ -1,6 +1,5 @@
 package com.sjzm.product;
 
-import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -13,23 +12,13 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.ThreadPoolExecutor;
 
+// @MapperScan 已拆分到 PrimaryDataSourceConfig（本地库）与 RdsDataSourceConfig（运营物流 RDS）
+// 两个配置类，各自绑定不同的 SqlSessionFactory，故此处不再集中声明。
 @SpringBootApplication(scanBasePackages = "com.sjzm")
 @EnableDiscoveryClient
 @EnableFeignClients
 @EnableAsync
 @EnableScheduling
-@MapperScan({
-        "com.sjzm.product.mapper",
-        "com.sjzm.product.modules.analysisbaseline.shopprofile.mapper",
-        "com.sjzm.product.modules.analysisbaseline.productfamily.mapper",
-        "com.sjzm.product.modules.analysisbaseline.methodevidence.mapper",
-        "com.sjzm.product.modules.shopcollection.mapper",
-        "com.sjzm.product.modules.shopcandidate.mapper",
-        "com.sjzm.product.modules.bazhuayu.mapper",
-        "com.sjzm.product.modules.requestcenter.mapper",
-        "com.sjzm.product.modules.shoppremium.mapper",
-        "com.sjzm.product.modules.developerselection.mapper"
-})
 public class ProductApplication {
 
     @Value("${BAZHUAYU_EXECUTOR_CORE:3}")

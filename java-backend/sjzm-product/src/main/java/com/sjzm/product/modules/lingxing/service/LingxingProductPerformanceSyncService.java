@@ -1,13 +1,13 @@
 package com.sjzm.product.modules.lingxing.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.toolkit.Db;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sjzm.product.mapper.LingxingProductPerformanceMapper;
 import com.sjzm.product.modules.lingxing.entity.LingxingProductPerformance;
+import com.sjzm.product.rds.service.RdsBatchWriteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,6 +39,7 @@ import java.util.stream.Collectors;
 public class LingxingProductPerformanceSyncService {
 
     private static final String PATH = "/bd/productPerformance/openApi/asinList";
+    private static final String REPORTING_CURRENCY = "GBP";
     private static final int PAGE_SIZE = 1000;          // 文档上限 10000，保守取 1000
     private static final int MAX_PAGES = 1000;
     private static final int MAX_SPAN_DAYS = 92;
@@ -46,6 +47,7 @@ public class LingxingProductPerformanceSyncService {
 
     private final LingxingClient client;
     private final LingxingProductPerformanceMapper mapper;
+    private final RdsBatchWriteService rdsBatchWriteService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -55,7 +57,7 @@ public class LingxingProductPerformanceSyncService {
      * @param startDate    时间窗开始 YYYY-MM-DD（与结束跨度 ≤ 92 天）
      * @param endDate      时间窗结束 YYYY-MM-DD
      * @param summaryField 汇总维度 asin/parent_asin/msku/sku（默认 asin）
-     * @param currencyCode 币种 USD/CNY（可空，空为原币种）
+     * @param currencyCode 仅允许 GBP；可空，空值也按 GBP 请求
      * @return 同步结果统计 {pages, fetched, upserted}
      */
     public Map<String, Object> sync(List<Long> sids, String startDate, String endDate,
@@ -67,6 +69,7 @@ public class LingxingProductPerformanceSyncService {
             throw new IllegalArgumentException("sid 上限 200，当前 " + sids.size());
         }
         validateSpan(startDate, endDate, MAX_SPAN_DAYS);
+        String normalizedCurrency = normalizeCurrency(currencyCode);
         String summary = (summaryField == null || summaryField.isBlank()) ? "asin" : summaryField;
         // 店铺集合排序后拼接，作为业务键的一部分（同一集合聚合为一行口径）。
         // 多店铺时拼接串很长会撑爆 biz_key/sid_scope 列，超过阈值改用 SHA-256 摘要（定长、稳定）。
@@ -89,9 +92,7 @@ public class LingxingProductPerformanceSyncService {
             sids.forEach(sidArr::add);
             body.put("start_date", startDate);
             body.put("end_date", endDate);
-            if (currencyCode != null && !currencyCode.isBlank()) {
-                body.put("currency_code", currencyCode);
-            }
+            body.put("currency_code", normalizedCurrency);
 
             JsonNode resp = client.post(PATH, body);
             JsonNode list = resp.path("data").path("list");
@@ -101,28 +102,32 @@ public class LingxingProductPerformanceSyncService {
             // 按 bizKey 去重：多店铺聚合时 API 偶发返回重复 msku 行，同批 insert 会撞 uk_biz_key
             Map<String, LingxingProductPerformance> byKey = new LinkedHashMap<>();
             for (JsonNode row : list) {
-                LingxingProductPerformance e = mapRow(row, summary, sidScope, startDate, endDate, currencyCode);
+                validateResponseCurrency(row);
+                LingxingProductPerformance e = mapRow(row, summary, sidScope, startDate, endDate, normalizedCurrency);
                 if (e.getBizKey() == null || e.getBizKey().isBlank()) continue;
                 byKey.put(e.getBizKey(), e); // 后写覆盖前写
             }
-            List<LingxingProductPerformance> entities = new ArrayList<>(byKey.size());
-            for (LingxingProductPerformance e : byKey.values()) {
-                LingxingProductPerformance existing = mapper.selectOne(
-                        new LambdaQueryWrapper<LingxingProductPerformance>()
-                                .eq(LingxingProductPerformance::getBizKey, e.getBizKey())
-                                .last("LIMIT 1"));
-                if (existing != null) e.setId(existing.getId());
-                entities.add(e);
-            }
+            Map<String, Long> existingIds = byKey.isEmpty() ? Map.of() : mapper.selectList(
+                                    new LambdaQueryWrapper<LingxingProductPerformance>()
+                                            .select(LingxingProductPerformance::getId,
+                                                    LingxingProductPerformance::getBizKey)
+                                            .in(LingxingProductPerformance::getBizKey, byKey.keySet()))
+                            .stream().collect(Collectors.toMap(
+                                    LingxingProductPerformance::getBizKey,
+                                    LingxingProductPerformance::getId,
+                                    (left, right) -> left));
+            List<LingxingProductPerformance> entities = new ArrayList<>(byKey.values());
+            entities.forEach(entity -> entity.setId(existingIds.get(entity.getBizKey())));
             if (!entities.isEmpty()) {
-                Db.saveOrUpdateBatch(entities, DB_BATCH_SIZE);
-                upserted += entities.size();
+                upserted += rdsBatchWriteService.saveOrUpdate(
+                        LingxingProductPerformanceMapper.class, entities, DB_BATCH_SIZE,
+                        entity -> entity.getId() != null);
             }
             fetched += list.size();
 
             if (list.size() < PAGE_SIZE) break;
             offset += PAGE_SIZE;
-            // 令牌桶容量 1（文档 §附加说明）：多店铺间隔 10s，单店铺 1s
+            // 正式全页请求保持已验证成功的业务节奏；客户端时间轴负责跨入口兜底。
             sleep(sids.size() > 1 ? 10_000L : 1_000L);
         }
 
@@ -132,7 +137,26 @@ public class LingxingProductPerformanceSyncService {
         r.put("pages", pages);
         r.put("fetched", fetched);
         r.put("upserted", upserted);
+        r.put("currencyCode", normalizedCurrency);
         return r;
+    }
+
+    private String normalizeCurrency(String currencyCode) {
+        if (currencyCode == null || currencyCode.isBlank()) {
+            return REPORTING_CURRENCY;
+        }
+        String normalized = currencyCode.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!REPORTING_CURRENCY.equals(normalized)) {
+            throw new IllegalArgumentException("领星产品表现统一使用 GBP，拒绝币种: " + normalized);
+        }
+        return normalized;
+    }
+
+    private void validateResponseCurrency(JsonNode row) {
+        String responseCurrency = asText(row, "currency_code");
+        if (responseCurrency != null && !REPORTING_CURRENCY.equalsIgnoreCase(responseCurrency.trim())) {
+            throw new IllegalStateException("领星产品表现返回非 GBP 数据，拒绝入库: " + responseCurrency);
+        }
     }
 
     private LingxingProductPerformance mapRow(JsonNode row, String summary, String sidScope,
@@ -154,9 +178,7 @@ public class LingxingProductPerformanceSyncService {
         e.setSku(sku);
         e.setItemName(asText(row, "item_name"));
 
-        String currency = (currencyCode != null && !currencyCode.isBlank())
-                ? currencyCode : asText(row, "currency_code");
-        e.setCurrencyCode(currency);
+        e.setCurrencyCode(currencyCode);
 
         String summaryValue = switch (summary) {
             case "parent_asin" -> parentAsin;
@@ -181,7 +203,7 @@ public class LingxingProductPerformanceSyncService {
         // 业务幂等键：维度值 + 店铺集合 + 时间窗 + 币种
         // 列长 varchar(255)：超长时整键 SHA-256，避免截断导致假撞键
         String fullKey = summary + ":" + safe(summaryValue) + "|" + sidScope + "|"
-                + startDate + "|" + endDate + "|" + safe(currency);
+                + startDate + "|" + endDate + "|" + safe(currencyCode);
         e.setBizKey(fullKey.length() <= 250 ? fullKey : "sha256:" + sha256(fullKey));
         return e;
     }

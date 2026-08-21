@@ -4,14 +4,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sjzm.product.mapper.LingxingDeveloperSkuPrefixMapper;
-import com.sjzm.product.mapper.LingxingInventoryBatchMapper;
+import com.sjzm.product.rds.mapper.LingxingInventoryBatchMapper;
+import com.sjzm.product.rds.service.RdsBatchWriteService;
 import com.sjzm.product.mapper.LingxingSkuDataLayerMapper;
 import com.sjzm.product.modules.lingxing.entity.LingxingDeveloperSkuPrefix;
 import com.sjzm.product.modules.lingxing.entity.LingxingInventoryBatchDetail;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -37,6 +37,7 @@ public class LingxingInventoryBatchService {
 
     private final LingxingClient client;
     private final LingxingInventoryBatchMapper batchMapper;
+    private final RdsBatchWriteService rdsBatchWriteService;
     private final LingxingDeveloperSkuPrefixMapper prefixMapper;
     private final LingxingSkuDataLayerMapper runMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -49,12 +50,13 @@ public class LingxingInventoryBatchService {
      * @param developerFilter optional developer filter (null = all)
      * @return summary map
      */
-    @Transactional(rollbackFor = Exception.class)
+    // 事实表与运行审计都在 RDS，写入统一通过 RDS 写入中心。
     public Map<String, Object> syncDaily(String startDate, String endDate, String developerFilter) {
         String runId = "inventory-batch-daily-" + System.currentTimeMillis();
-        runMapper.beginRun(runId, "INVENTORY_BATCH_DAILY", null,
-                startDate, endDate, null, null,
-                "{\"developer\":" + (developerFilter != null ? "\"" + developerFilter + "\"" : "null") + "}");
+        rdsBatchWriteService.executeOne(LingxingSkuDataLayerMapper.class,
+                mapper -> mapper.beginRun(runId, "INVENTORY_BATCH_DAILY", null,
+                        startDate, endDate, null, null,
+                        "{\"developer\":" + (developerFilter != null ? "\"" + developerFilter + "\"" : "null") + "}"));
 
         // 1. Load developer prefix map (prefix → list of developer names)
         List<LingxingDeveloperSkuPrefix> allPrefixes = prefixMapper.selectAllPrefixes();
@@ -68,7 +70,8 @@ public class LingxingInventoryBatchService {
                 allPrefixes.size(), prefixToDevs.size());
 
         if (prefixToDevs.isEmpty()) {
-            runMapper.finishRun(runId, "SUCCESS", 0, "无前缀映射，跳过");
+            rdsBatchWriteService.executeOne(LingxingSkuDataLayerMapper.class,
+                    mapper -> mapper.finishRun(runId, "SUCCESS", 0, "无前缀映射，跳过"));
             return Map.of("runId", runId, "fetched", 0, "upserted", 0, "skippedNoPrefix", 0);
         }
 
@@ -97,7 +100,8 @@ public class LingxingInventoryBatchService {
             int batchUpserted = 0;
             int batchSkipped = 0;
 
-            // 3. Match prefix → upsert
+            List<LingxingInventoryBatchDetail> details = new ArrayList<>();
+            // 3. Match prefix → batch upsert
             for (JsonNode row : data) {
                 String sku = row.path("sku").asText(null);
                 String batchNo = row.path("batch_no").asText(null);
@@ -147,9 +151,10 @@ public class LingxingInventoryBatchService {
                 detail.setPlanSn(jsonArrayToString(row, "plan_sn"));
                 detail.setRawJson(row.toString());
 
-                batchMapper.upsert(detail);
-                batchUpserted++;
+                details.add(detail);
             }
+            batchUpserted = rdsBatchWriteService.execute(LingxingInventoryBatchMapper.class,
+                    details, PAGE_SIZE, LingxingInventoryBatchMapper::upsert);
 
             totalFetched += batchFetched;
             totalUpserted += batchUpserted;
@@ -164,7 +169,9 @@ public class LingxingInventoryBatchService {
             }
         }
 
-        runMapper.finishRun(runId, "SUCCESS", totalUpserted, null);
+        int finalUpserted = totalUpserted;
+        rdsBatchWriteService.executeOne(LingxingSkuDataLayerMapper.class,
+                mapper -> mapper.finishRun(runId, "SUCCESS", finalUpserted, null));
 
         if (!skippedSkuSamples.isEmpty()) {
             log.warn("库存批次同步：前10个跳过的SKU样本: {}", skippedSkuSamples);

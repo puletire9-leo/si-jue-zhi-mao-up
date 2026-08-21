@@ -1,4 +1,4 @@
-package com.sjzm.product.mapper;
+package com.sjzm.product.rds.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.sjzm.product.modules.lingxing.entity.LingxingInventoryBatchDetail;

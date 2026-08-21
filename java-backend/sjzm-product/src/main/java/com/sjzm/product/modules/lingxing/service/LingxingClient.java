@@ -21,6 +21,8 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * 领星开放平台 API 客户端（Java 移植）。
@@ -53,6 +55,14 @@ public class LingxingClient {
     private volatile String accessToken = "";
     private volatile String refreshToken = "";
     private volatile long expiresAt = 0L; // access_token 过期时间戳（毫秒）
+
+    /**
+     * 账号级串行化门禁：领星按「账号 + 接口」限令牌桶，多个同步入口（产品表现/利润/Listing/请求中心等）
+     * 共享同一账号时，所有 post/get 必须跨入口串行，否则并发请求会互相触发限流甚至 token 竞争。
+     * 以 appId 为键维护一把公平 ReentrantLock，把整段「取 token → 签名 → 发送 → 重试」纳入临界区。
+     */
+    private final ConcurrentHashMap<String, ReentrantLock> accountLocks = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Long> requestCompletedAt = new ConcurrentHashMap<>();
 
     // ============================================================
     // Token 管理
@@ -142,6 +152,21 @@ public class LingxingClient {
      * @return 接口响应 JSON
      */
     public JsonNode post(String path, JsonNode body) {
+        return withAccountGate(() -> doPost(path, body));
+    }
+
+    /**
+     * 产品表现限流探针专用调用。仍经过账号级串行门禁、统一 token/签名和请求时间轴，
+     * 但不执行普通业务请求的限流重试，便于在短时间预算内观察真实 103。
+     */
+    public ProbeCallResult postRateProbe(String path, JsonNode body, long intervalMs) {
+        if (intervalMs < 500L || intervalMs > 60_000L) {
+            throw new IllegalArgumentException("探针请求间隔必须在 500~60000ms");
+        }
+        return withAccountGate(() -> doPostRateProbe(path, body, intervalMs));
+    }
+
+    private JsonNode doPost(String path, JsonNode body) {
         ObjectNode bodyNode = (body != null && body.isObject())
                 ? (ObjectNode) body : objectMapper.createObjectNode();
         String payload;
@@ -189,6 +214,10 @@ public class LingxingClient {
      * @param queryParams 业务查询参数（可空）
      */
     public JsonNode get(String path, Map<String, Object> queryParams) {
+        return withAccountGate(() -> doGet(path, queryParams));
+    }
+
+    private JsonNode doGet(String path, Map<String, Object> queryParams) {
         for (int tokenRetry = 0; ; tokenRetry++) {
             ensureToken();
             String timestamp = String.valueOf(System.currentTimeMillis() / 1000L);
@@ -289,61 +318,186 @@ public class LingxingClient {
     }
 
     private static final int RATE_LIMIT_RETRIES = 8;
-    private static final long RATE_LIMIT_BACKOFF_MS = 30_000L;
+    /**
+     * 采用艾为的请求前主动节流思路：普通请求 500ms；产品表现接口保持正式全页链路
+     * 已验证成功的响应完成后 10s。小页探针用于观测边界，不能直接替代正式全页参数。
+     */
+    private static final long DEFAULT_REQUEST_INTERVAL_MS = 500L;
+    private static final long PRODUCT_PERFORMANCE_REQUEST_INTERVAL_MS = 10_000L;
+    /** 主动节流后限流只做短退避，避免 30/60/90 秒递增造成任务长时间空等。 */
+    private static final long RATE_LIMIT_BACKOFF_MS = 2_000L;
 
     // ============================================================
     // HTTP 底层
     // ============================================================
 
     private JsonNode send(HttpRequest req) {
-        return sendWithRetry(req, 0);
-    }
+        RuntimeException lastFailure = null;
+        for (int attempt = 0; attempt <= RATE_LIMIT_RETRIES; attempt++) {
+            paceBeforeRequest(req);
 
-    private JsonNode sendWithRetry(HttpRequest req, int attempt) {
-        try {
-            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-            JsonNode body = objectMapper.readTree(resp.body());
-            // 领星错误：code 非 0/200 视为失败（业务接口 code=0，token 接口 code="200"）
+            JsonNode body;
+            try {
+                HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+                body = objectMapper.readTree(resp.body());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("领星 API 调用被中断", e);
+            } catch (Exception e) {
+                lastFailure = new RuntimeException("领星 API 临时失败: " + e.getMessage(), e);
+                if (attempt >= RATE_LIMIT_RETRIES) break;
+                waitBeforeRetry(lastFailure.getMessage(), attempt);
+                continue;
+            } finally {
+                markRequestCompleted(req);
+            }
+
             String code = body.path("code").asText("");
-            // token 失效：不白等重试，抛专用异常让 post/get 强制刷新 token 重拼重发
             if (isTokenInvalidCode(code)) {
-                String msg = body.has("msg") ? body.path("msg").asText("")
-                        : body.path("message").asText("");
+                String msg = responseMessage(body);
                 throw new TokenInvalidException("[" + code + "] " + msg);
             }
             if (isRateLimitCode(code)) {
-                // 令牌桶限流：等待后重试。领星不同接口会返回 3001008 或 103。
-                if (attempt < RATE_LIMIT_RETRIES) {
-                    waitBeforeRetry("领星限流(" + code + ")", attempt);
-                    return sendWithRetry(req, attempt + 1);
-                }
-                throw new RuntimeException("领星 API 限流，重试" + RATE_LIMIT_RETRIES + "次后仍失败");
+                lastFailure = new RuntimeException("领星 API 限流(" + code + ")");
+                if (attempt >= RATE_LIMIT_RETRIES) break;
+                waitBeforeRetry(lastFailure.getMessage(), attempt);
+                continue;
             }
             if (!"0".equals(code) && !"200".equals(code)) {
-                String msg = body.has("msg") ? body.path("msg").asText("")
-                        : body.path("message").asText("");
-                throw new RuntimeException("领星 API 错误 [" + code + "] " + msg
+                throw new RuntimeException("领星 API 错误 [" + code + "] " + responseMessage(body)
                         + " (request_id: " + body.path("request_id").asText("") + ")");
             }
             return body;
-        } catch (TokenInvalidException tie) {
-            throw tie; // 透传，不进通用重试
-        } catch (Exception e) {
-            if (attempt < RATE_LIMIT_RETRIES) {
-                waitBeforeRetry("领星 API 临时失败: " + e.getMessage(), attempt);
-                return sendWithRetry(req, attempt + 1);
-            }
-            throw new RuntimeException("领星 API 调用失败: " + e.getMessage(), e);
         }
+        throw new RuntimeException("领星 API 调用失败，重试" + RATE_LIMIT_RETRIES + "次后仍未恢复",
+                lastFailure);
+    }
+
+    private ProbeCallResult sendProbeOnce(HttpRequest req, long intervalMs) {
+        long pacingWaitMs = paceBeforeRequest(req, intervalMs);
+        long startedAt = System.currentTimeMillis();
+        JsonNode body;
+        try {
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            body = objectMapper.readTree(resp.body());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("领星 API 探针被中断", e);
+        } catch (Exception e) {
+            throw new RuntimeException("领星 API 探针失败: " + e.getMessage(), e);
+        } finally {
+            markRequestCompleted(req);
+        }
+        long completedAt = System.currentTimeMillis();
+        String code = body.path("code").asText("");
+        if (isTokenInvalidCode(code)) {
+            throw new TokenInvalidException("[" + code + "] " + responseMessage(body));
+        }
+        return new ProbeCallResult(body, code, isRateLimitCode(code), pacingWaitMs,
+                startedAt, completedAt, completedAt - startedAt);
+    }
+
+    public record ProbeCallResult(
+            JsonNode response,
+            String code,
+            boolean rateLimited,
+            long pacingWaitMs,
+            long startedAtEpochMs,
+            long completedAtEpochMs,
+            long responseDurationMs
+    ) { }
+
+    private String responseMessage(JsonNode body) {
+        return body.has("msg") ? body.path("msg").asText("")
+                : body.path("message").asText("");
+    }
+
+    private void paceBeforeRequest(HttpRequest req) {
+        paceBeforeRequest(req, requestIntervalMs(req.uri().getPath()));
+    }
+
+    private long paceBeforeRequest(HttpRequest req, long interval) {
+        String path = req.uri().getPath();
+        String key = requestPacingKey(path);
+        long now = System.currentTimeMillis();
+        long lastCompleted = requestCompletedAt.getOrDefault(key, 0L);
+        long wait = interval - (now - lastCompleted);
+        if (wait > 0) sleep(wait);
+        return Math.max(0L, wait);
+    }
+
+    private void markRequestCompleted(HttpRequest req) {
+        requestCompletedAt.put(requestPacingKey(req.uri().getPath()), System.currentTimeMillis());
+    }
+
+    private String requestPacingKey(String path) {
+        return accountKey() + ":" + requestFamily(path);
+    }
+
+    long requestIntervalMs(String path) {
+        return path != null && path.contains("/bd/productPerformance/")
+                ? PRODUCT_PERFORMANCE_REQUEST_INTERVAL_MS
+                : DEFAULT_REQUEST_INTERVAL_MS;
+    }
+
+    private String requestFamily(String path) {
+        return path != null && path.contains("/bd/productPerformance/")
+                ? "product-performance"
+                : "default";
     }
 
     private void waitBeforeRetry(String reason, int attempt) {
         long wait = RATE_LIMIT_BACKOFF_MS * (attempt + 1);
         log.warn("{}，第{}次重试，等待{}ms", reason, attempt + 1, wait);
+        sleep(wait);
+    }
+
+    private void sleep(long wait) {
         try {
             Thread.sleep(wait);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            throw new RuntimeException("领星请求等待被中断", e);
+        }
+    }
+
+    private ProbeCallResult doPostRateProbe(String path, JsonNode body, long intervalMs) {
+        ObjectNode bodyNode = (body != null && body.isObject())
+                ? (ObjectNode) body : objectMapper.createObjectNode();
+        String payload;
+        try {
+            payload = objectMapper.writeValueAsString(bodyNode);
+        } catch (Exception e) {
+            throw new RuntimeException("领星请求序列化失败: " + e.getMessage(), e);
+        }
+        for (int tokenRetry = 0; ; tokenRetry++) {
+            ensureToken();
+            String timestamp = String.valueOf(System.currentTimeMillis() / 1000L);
+            TreeMap<String, Object> signParams = new TreeMap<>();
+            signParams.put("access_token", accessToken);
+            signParams.put("app_key", configService.getAppId());
+            signParams.put("timestamp", timestamp);
+            bodyNode.fields().forEachRemaining(e -> signParams.put(e.getKey(), e.getValue()));
+            String sign = generateSign(signParams);
+            String url = config.getBaseUrl() + path
+                    + "?access_token=" + enc(accessToken)
+                    + "&app_key=" + enc(configService.getAppId())
+                    + "&timestamp=" + timestamp
+                    + "&sign=" + enc(sign);
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("Content-Type", "application/json")
+                    .timeout(config.getReadTimeout())
+                    .POST(HttpRequest.BodyPublishers.ofString(payload))
+                    .build();
+            try {
+                return sendProbeOnce(req, intervalMs);
+            } catch (TokenInvalidException tie) {
+                if (tokenRetry >= 1) {
+                    throw new RuntimeException("领星 token 反复失效: " + tie.getMessage(), tie);
+                }
+                forceRefreshToken();
+            }
         }
     }
 
@@ -362,5 +516,28 @@ public class LingxingClient {
 
     private String enc(String s) {
         return URLEncoder.encode(s == null ? "" : s, StandardCharsets.UTF_8);
+    }
+
+    // ============================================================
+    // 账号级串行化门禁
+    // ============================================================
+
+    private String accountKey() {
+        String appId = configService.getAppId();
+        return (appId == null || appId.isBlank()) ? "default" : appId;
+    }
+
+    private ReentrantLock accountLock() {
+        return accountLocks.computeIfAbsent(accountKey(), ignored -> new ReentrantLock(true));
+    }
+
+    private <T> T withAccountGate(java.util.function.Supplier<T> action) {
+        ReentrantLock lock = accountLock();
+        lock.lock();
+        try {
+            return action.get();
+        } finally {
+            lock.unlock();
+        }
     }
 }

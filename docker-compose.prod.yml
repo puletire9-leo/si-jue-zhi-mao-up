@@ -89,6 +89,8 @@ services:
     env_file:
       - ./config/public/prod.env
       - ./config/secrets/prod.env
+      - ./config/public/user-prod.env
+      - ./config/secrets/user-prod.env
     environment:
       - IMAGE_READ_MODE=cloud
     volumes:
@@ -113,6 +115,8 @@ services:
     env_file:
       - ./config/public/prod.env
       - ./config/secrets/prod.env
+      - ./config/public/user-prod.env
+      - ./config/secrets/user-prod.env
     volumes:
       - prod-download-cache:/app/下载缓存
       - prod-logs:/app/logs

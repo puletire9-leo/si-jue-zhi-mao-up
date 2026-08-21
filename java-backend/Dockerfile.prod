@@ -4,7 +4,7 @@
 # ============================================
 
 # ═══ Stage 1: 编译 ═══
-FROM maven:3.9-eclipse-temurin-21 AS builder
+FROM maven:3.9-eclipse-temurin-21 AS dependency-base
 WORKDIR /build
 
 # 配置阿里云 Maven 镜像源加速依赖下载
@@ -27,8 +27,13 @@ COPY java-backend/sjzm-gateway/pom.xml ./java-backend/sjzm-gateway/pom.xml
 COPY java-backend/sjzm-user/pom.xml ./java-backend/sjzm-user/pom.xml
 COPY java-backend/sjzm-product/pom.xml ./java-backend/sjzm-product/pom.xml
 
-# 下载依赖（利用缓存，源码不变时不重下）
-RUN mvn -f java-backend/pom.xml dependency:go-offline -T 4 || true
+# 正式构建只离线校验依赖；联网预热必须由独立授权脚本显式开启
+ARG MAVEN_OFFLINE=true
+RUN --mount=type=cache,id=sjzm-maven-repository,target=/root/.m2/repository,sharing=locked \
+    if [ "$MAVEN_OFFLINE" = "true" ]; then MAVEN_NETWORK_MODE="--offline"; else MAVEN_NETWORK_MODE=""; fi && \
+    mvn -f java-backend/pom.xml $MAVEN_NETWORK_MODE dependency:go-offline -T 4
+
+FROM dependency-base AS builder
 
 # 复制源码并编译
 COPY java-backend/sjzm-common/src ./java-backend/sjzm-common/src
@@ -39,7 +44,8 @@ COPY java-backend/sjzm-product/src ./java-backend/sjzm-product/src
 RUN md5sum java-backend/sjzm-product/src/main/resources/mapper/LingxingFbaFeeCompareMapper.xml && \
     head -3 java-backend/sjzm-product/src/main/resources/mapper/LingxingFbaFeeCompareMapper.xml
 
-RUN mvn -f java-backend/pom.xml clean package -Dmaven.test.skip=true -T 4 && \
+RUN --mount=type=cache,id=sjzm-maven-repository,target=/root/.m2/repository,sharing=locked \
+    MAVEN_OPTS="-Xmx1536m" mvn -f java-backend/pom.xml --offline clean package -Dmaven.test.skip=true -T 1 && \
     mv java-backend/sjzm-gateway/target/sjzm-gateway-*.jar java-backend/sjzm-gateway/target/app.jar && \
     mv java-backend/sjzm-user/target/sjzm-user-*.jar java-backend/sjzm-user/target/app.jar && \
     mv java-backend/sjzm-product/target/sjzm-product-*.jar java-backend/sjzm-product/target/app.jar && \

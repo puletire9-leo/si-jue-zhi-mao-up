@@ -83,6 +83,29 @@ async def lifespan(app: FastAPI):
             logger.error(f"[FAIL] MySQL连接失败: {e}（数据库功能不可用）")
             app.state.mysql = None
             return None
+
+    async def init_user_mysql():
+        """初始化RDS用户中心MySQL连接（ai_platform库）"""
+        try:
+            app.state.user_mysql = MySQLRepository(
+                host=settings.USER_MYSQL_HOST,
+                port=settings.USER_MYSQL_PORT,
+                user=settings.USER_MYSQL_USERNAME,
+                password=settings.USER_MYSQL_PASSWORD,
+                database=settings.USER_MYSQL_DATABASE,
+                min_size=settings.USER_MYSQL_POOL_MIN_SIZE,
+                pool_size=settings.USER_MYSQL_POOL_SIZE,
+                pool_recycle=14400,
+                pool_timeout=5,
+                max_overflow=settings.USER_MYSQL_MAX_OVERFLOW,
+                echo=False
+            )
+            await app.state.user_mysql.connect()
+            return app.state.user_mysql
+        except Exception as e:
+            logger.warning(f"[WARN] RDS用户中心连接失败: {e}（将使用本地MySQL用户表）")
+            app.state.user_mysql = None
+            return None
     
     async def init_redis():
         """初始化Redis连接"""
@@ -166,19 +189,23 @@ async def lifespan(app: FastAPI):
         
         # 并行执行初始化任务
         mysql_task = asyncio.create_task(init_mysql())
+        user_mysql_task = asyncio.create_task(init_user_mysql())
         redis_task = asyncio.create_task(init_redis())
         qdrant_task = asyncio.create_task(init_qdrant())
-        
+
         # 等待任务完成
         mysql_result = await mysql_task
+        user_mysql_result = await user_mysql_task
         redis_result = await redis_task
         qdrant_result = await qdrant_task
-        
+
         monitor.end("数据库连接初始化")
-        
+
         # 记录连接结果
         if mysql_result:
             logger.info("[OK] MySQL连接成功")
+        if user_mysql_result:
+            logger.info("[OK] RDS用户中心连接成功")
         if redis_result:
             logger.info("[OK] Redis连接成功")
         if qdrant_result:

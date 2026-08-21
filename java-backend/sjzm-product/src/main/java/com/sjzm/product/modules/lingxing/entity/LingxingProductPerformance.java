@@ -49,7 +49,7 @@ public class LingxingProductPerformance {
     /** 标题 */
     private String itemName;
 
-    /** 币种编码（USD/CNY/原币种） */
+    /** 币种编码；现行周/日产品表现采集固定为 GBP。 */
     private String currencyCode;
 
     /** 查询时间窗-开始（双闭区间） */
