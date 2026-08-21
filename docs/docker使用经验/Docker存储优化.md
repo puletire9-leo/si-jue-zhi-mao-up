@@ -9,7 +9,7 @@
 |---|---:|---|
 | D 盘可用空间 | 36.44 GiB | 高于生产构建门禁 15 GiB，但需要持续观察 |
 | `docker_data.vhdx` | 57.51 GiB | VHDX 只会自动扩张，内部删除后通常不会自动缩小 |
-| Java 编译缓存 | 2 条，共约 923.6 MB | 符合 current + previous 构建链规则 |
+| Java 编译缓存 | 常态 1 条，约 460 MB | 只保留最新生产构建链 |
 | Backend 当前镜像 | 1.23 GB | 已排除本地 SQL 备份，属于优化后的镜像 |
 | Backend 上一版镜像 | 3.26 GB | 唯一回滚版本，下一次 backend 发布时轮换删除 |
 | 受保护业务卷 | 15 个 | 部署和缓存清理都不得删除 |
@@ -28,8 +28,8 @@ Backend 的旧源码 COPY 构建缓存约 2.031 GB，目前不足 24 小时，�
 2. 禁止执行 `docker system prune --volumes`、`docker volume prune`。
 3. 禁止执行无过滤条件的 `docker buildx prune --all` 或 `docker builder prune --all`。
 4. 禁止删除正在运行容器引用的镜像。
-5. `prod-java`、`prod-frontend`、`prod-backend`、`prod-ai-center` 常态都保留
-   `current + previous`；新构建期间允许短暂出现第三版，验证后恢复两版。
+5. `prod-java`、`prod-frontend`、`prod-backend`、`prod-ai-center` 常态只保留
+   `current`；发布期间临时生成的 `previous` 仅用于失败回退，成功验证后立即删除。
 6. 不要把 Docker 数据盘硬限制为 50 GB。达到硬上限时 MySQL、Redis 和日志可能停止写入。
 7. VHDX 压缩前必须完成数据库备份、确认备份可读，并完全退出 Docker Desktop。
 
@@ -74,8 +74,8 @@ docker volume ls --format '{{.Name}}'
 判断顺序：
 
 1. 先看 D 盘可用空间和 VHDX 文件大小。
-2. 再看应用仓库是否超过 `current + previous` 两个标签。
-3. 再看 Java `mvn clean package` 是否超过两条。
+2. 再看应用仓库是否除 `current` 外还残留其他标签。
+3. 再看 Java `mvn clean package` 是否超过一条。
 4. 再看 BuildKit 中 24 小时以上未使用的冷缓存。
 5. 最后检查容器可写层和日志；业务数据卷只统计和备份，不自动删除。
 
@@ -97,7 +97,7 @@ powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Compone
 
 ```text
 预检 -> 轮换 current/previous -> 一次缓存构建 -> --no-deps --no-build 重建
--> 健康验证 -> Java 编译缓存保留两条 -> 回收 24 小时冷缓存 -> 标签校验
+-> 健康验证 -> 删除临时 previous -> Java 编译缓存保留一条 -> 回收 24 小时冷缓存 -> 标签校验
 ```
 
 所有容器日志已使用 `json-file` 轮转，每个容器最多 `3 x 20 MB`。Backend 的 `.dockerignore`
@@ -113,7 +113,7 @@ Java 发布后统一脚本会自动调用：
 powershell -ExecutionPolicy Bypass -File scripts/deploy/prune_java_build_cache.ps1
 ```
 
-该脚本只匹配本项目 `mvn clean package` 编译记录，并保护最新两条。不得手工复制缓存 ID 后批量删除，
+该脚本只匹配本项目含在线或 `--offline` 参数的 `mvn clean package` 编译记录，并保护最新一条。不得手工复制缓存 ID 后批量删除，
 不得删除 Maven `dependency:go-offline` 热依赖层。
 
 ### 其他冷缓存
@@ -144,8 +144,8 @@ foreach ($repo in $repos) {
 }
 ```
 
-每个仓库只有 `current + previous` 时不做人工删除。出现第三个历史标签时，应先确认它不被任何容器
-引用，再按 [部署流程.md](部署流程.md) 的双版本轮换处理；禁止用 `docker image prune -a` 代替判断。
+每个仓库常态只允许 `current`。发现残留 `previous` 或其他历史标签时，应先确认发布是否仍在进行、
+镜像是否被容器引用，再按 [部署流程.md](部署流程.md) 的临时回退轮换处理；禁止用 `docker image prune -a` 代替判断。
 
 ## 6. MySQL 与业务数据
 
@@ -202,10 +202,10 @@ $vhdx = Get-Item -LiteralPath "D:\Docker数据\DockerDesktopWSL\disk\docker_data
 | D 盘可用空间 | 处置 |
 |---:|---|
 | 大于 30 GiB | 正常，只做单组件发布和 24 小时冷缓存维护 |
-| 20–30 GiB | 暂停非必要全量测试，检查镜像双版本和冷缓存 |
+| 20–30 GiB | 暂停非必要全量测试，检查是否残留非 `current` 应用镜像和普通冷缓存 |
 | 15–20 GiB | 禁止多组件连续构建，先完成备份并安排清理 |
 | 小于 15 GiB | 生产预检阻止构建；停止发布，人工分析后再处理 |
 | 小于 5 GiB | 高风险，不再写入大文件；优先保障 MySQL，安排维护窗口 |
 
-日常目标不是让 VHDX 永远小于 50 GB，而是确保：数据卷安全、应用严格双版本、Java 编译记录两条、
+日常目标不是让 VHDX 永远小于 50 GB，而是确保：数据卷安全、应用常态只留 current、Java 编译记录一条、
 冷缓存按时间回收、日志轮转生效、D 盘始终保留足够构建和数据库写入空间。

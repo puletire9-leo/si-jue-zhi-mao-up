@@ -1,6 +1,6 @@
 param(
-    [ValidateRange(2, 2)]
-    [int]$Keep = 2
+    [ValidateRange(1, 1)]
+    [int]$Keep = 1
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,7 +10,7 @@ $records = @(
         ForEach-Object { $_ | ConvertFrom-Json } |
         Where-Object {
             $_.Reclaimable -eq $true -and
-            $_.Description -match 'mvn -f java-backend/pom\.xml clean package'
+            $_.Description -match 'mvn -f java-backend/pom\.xml .*clean package'
         } |
         Sort-Object CreatedAt -Descending
 )
@@ -65,7 +65,7 @@ $remaining = @(
         ForEach-Object { $_ | ConvertFrom-Json } |
         Where-Object {
             $_.Reclaimable -eq $true -and
-            $_.Description -match 'mvn -f java-backend/pom\.xml clean package'
+            $_.Description -match 'mvn -f java-backend/pom\.xml .*clean package'
         }
 )
 

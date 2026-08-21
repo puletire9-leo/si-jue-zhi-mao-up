@@ -22,6 +22,12 @@ function Invoke-Checked {
     }
 }
 
+function Test-DockerImageExists {
+    param([Parameter(Mandatory = $true)][string]$Reference)
+    docker image inspect $Reference *> $null
+    return $LASTEXITCODE -eq 0
+}
+
 function Start-ProdImageRotation {
     param([Parameter(Mandatory = $true)][string]$Repository)
 
@@ -34,12 +40,25 @@ function Start-ProdImageRotation {
         return $true
     }
 
+    $currentId = (& docker image inspect $currentRef --format '{{.Id}}').Trim()
+
     $oldPreviousId = $null
     if ($repositoryRefs -contains $previousRef) {
         $oldPreviousId = (& docker image inspect $previousRef --format '{{.Id}}').Trim()
     }
     if ($oldPreviousId) {
         $null = Invoke-Checked "remove old rollback tag $previousRef" { docker image rm $previousRef }
+        if ($oldPreviousId -ne $currentId -and (Test-DockerImageExists -Reference $oldPreviousId)) {
+            $containersUsingOldPrevious = @(
+                & docker ps -a --filter "ancestor=$oldPreviousId" --format '{{.ID}} {{.Names}}'
+            )
+            if ($containersUsingOldPrevious.Count -gt 0) {
+                throw "Old rollback image is still used by containers: $($containersUsingOldPrevious -join ', ')"
+            }
+            $null = Invoke-Checked "remove old rollback image $oldPreviousId" {
+                docker image rm $oldPreviousId
+            }
+        }
     }
 
     $null = Invoke-Checked "save $currentRef as rollback image" { docker image tag $currentRef $previousRef }
@@ -82,8 +101,6 @@ Invoke-Checked "production preflight" {
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy/prod_preflight_check.ps1
 }
 
-$firstRelease = Start-ProdImageRotation -Repository $repository
-
 if ($Component -eq "frontend") {
     Push-Location frontend
     try {
@@ -93,8 +110,17 @@ if ($Component -eq "frontend") {
     }
 }
 
+# Frontend dist must exist before creating the temporary rollback tag.
+$firstRelease = Start-ProdImageRotation -Repository $repository
+
 Invoke-Checked "cached Docker build for $buildService (once)" {
-    docker compose --progress plain -f docker-compose.prod.yml build $buildService
+    $buildArgs = @("compose", "--progress", "plain", "-f", "docker-compose.prod.yml", "build")
+    if ($Component -eq "java") {
+        # Production deployment must never download Maven dependencies implicitly.
+        $buildArgs += @("--build-arg", "MAVEN_OFFLINE=true")
+    }
+    $buildArgs += $buildService
+    docker @buildArgs
 }
 
 $upArgs = @("compose", "-f", "docker-compose.prod.yml", "up", "-d", "--no-build")
@@ -129,33 +155,49 @@ foreach ($service in $services) {
     Write-Host "[deploy] verified ${service}: state=$state health=$health ($containerId)" -ForegroundColor Green
 }
 
-if ($firstRelease) {
-    Invoke-Checked "create first-release rollback baseline $repository`:previous" {
-        docker image tag "${repository}:current" "${repository}:previous"
+if (-not $firstRelease) {
+    $temporaryRollbackRef = "${repository}:previous"
+    $temporaryRollbackId = (& docker image inspect $temporaryRollbackRef --format '{{.Id}}').Trim()
+    $currentImageId = (& docker image inspect "${repository}:current" --format '{{.Id}}').Trim()
+    $null = Invoke-Checked "remove temporary rollback tag $temporaryRollbackRef after successful verification" {
+        docker image rm $temporaryRollbackRef
+    }
+    if ($temporaryRollbackId -ne $currentImageId -and (Test-DockerImageExists -Reference $temporaryRollbackId)) {
+        $containersUsingRollback = @(
+            & docker ps -a --filter "ancestor=$temporaryRollbackId" --format '{{.ID}} {{.Names}}'
+        )
+        if ($containersUsingRollback.Count -gt 0) {
+            throw "Temporary rollback image is still used by containers: $($containersUsingRollback -join ', ')"
+        }
+        $null = Invoke-Checked "remove temporary rollback image $temporaryRollbackId" {
+            docker image rm $temporaryRollbackId
+        }
     }
 }
 
 if ($Component -eq "java") {
-    Invoke-Checked "retain only the newest two Java compile cache records" {
+    Invoke-Checked "retain only the newest Java compile cache record" {
         powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy/prune_java_build_cache.ps1
     }
 }
 
-Invoke-Checked "remove BuildKit cache unused for 24 hours" {
-    docker buildx prune --force --filter "until=24h"
+Invoke-Checked "remove non-hot BuildKit cache unused for 24 hours" {
+    # Maven/pip/npm cache mounts are exec.cachemount records and must survive
+    # routine cleanup. Only regular layer records are eligible here.
+    docker buildx prune --force --filter "until=24h" --filter "type=regular"
 }
 
 $obsoleteRefs = @(
     & docker image ls $repository --format '{{.Repository}}:{{.Tag}}' |
-        Where-Object { $_ -notin @("${repository}:current", "${repository}:previous") -and $_ -notmatch ':<none>$' }
+        Where-Object { $_ -ne "${repository}:current" -and $_ -notmatch ':<none>$' }
 )
 foreach ($obsoleteRef in $obsoleteRefs) {
     Invoke-Checked "remove obsolete production tag $obsoleteRef" { docker image rm $obsoleteRef }
 }
 
 $tags = @(& docker image ls $repository --format '{{.Tag}}' | Where-Object { $_ -ne "<none>" } | Sort-Object -Unique)
-if ($tags.Count -ne 2 -or $tags -notcontains "current" -or $tags -notcontains "previous") {
-    throw "Image policy violation for ${repository}: expected exactly current + previous."
+if ($tags.Count -ne 1 -or $tags -notcontains "current") {
+    throw "Image policy violation for ${repository}: expected exactly one current image."
 }
 
-Write-Host "[deploy] SUCCESS: $Component; current + previous retained; no volume operation performed." -ForegroundColor Green
+Write-Host "[deploy] SUCCESS: $Component; only current retained; no volume operation performed." -ForegroundColor Green

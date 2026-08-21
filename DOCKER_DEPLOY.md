@@ -3,10 +3,12 @@
 > **唯一权威流程**：[docs/docker使用经验/部署流程.md](docs/docker使用经验/部署流程.md)。本文件只做索引，任何冲突均以该文件为准。生产部署不得跳过预检，不得从 README、日志、问题记录或旧架构文档复制命令。
 > Docker 容量巡检、缓存清理和 VHDX 压缩见：[Docker存储优化.md](docs/docker使用经验/Docker存储优化.md)。
 
+生产分两套：线下本机走 `deploy_prod.ps1`；线上 `/root/woeau_web/ai-selection-deploy` 改 `.env` 镜像变量后 `docker compose up -d`。不要混用。
+
 ## 快速启动
 
 ```bash
-# 生产发布：按实际变更范围只选一个组件；不要连续执行四条命令
+# 线下生产发布：按实际变更范围只选一个组件；不要连续执行四条命令
 powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component java
 powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component frontend
 powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component backend
@@ -28,8 +30,8 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 - **Java 多阶段构建**：`Dockerfile.prod` 已改为多阶段构建，`mvn package` 在 Docker 镜像内自动执行，无需宿主机手动编译
 - **Celery Worker**：新增 `celery-download` 服务处理异步下载任务
 - **旧配置标记**：`docker-compose.base.yml` 仅用于构建 Python 基础镜像
-- **生产镜像双版本**：应用镜像使用 `current` + `previous`，构建时短暂出现第三版，验证后只保留当前版和上一版；完整步骤见生产部署流程
-- **Java 编译缓存双版本**：BuildKit 中本项目 `mvn clean package` 记录常态只保留最新 2 条；发布验证后必须运行 `scripts/deploy/prune_java_build_cache.ps1`
+- **生产镜像单版本常态**：应用镜像平时只保留 `current`；发布期间临时创建 `previous` 用于失败回退，成功验证后立即删除
+- **Java 编译缓存单记录**：BuildKit 中本项目 `mvn clean package` 记录常态只保留最新 1 条；发布验证后必须运行 `scripts/deploy/prune_java_build_cache.ps1`
 
 ## 验证
 
@@ -37,7 +39,7 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 docker compose -f docker-compose.prod.yml ps
 ```
 
-统一脚本强制执行：生产预检、删除最老回退版、`current -> previous`、单次缓存构建、`--no-build` 重建、运行状态检查、Java 编译缓存保留两条及 24 小时冷缓存清理。禁止直接使用 `up -d --build` 或 `--no-cache` 绕过。
+统一脚本强制执行：生产预检、清理旧临时回退版、`current -> previous`、单次缓存构建、`--no-build` 重建、运行状态检查、成功后删除临时 `previous`、Java 编译缓存只保留最新一条，并清理 24 小时以上未使用的普通冷缓存。禁止直接使用 `up -d --build` 或 `--no-cache` 绕过。
 
 ## 生产 MySQL 资源保护
 
