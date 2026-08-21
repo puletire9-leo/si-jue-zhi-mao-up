@@ -7,10 +7,14 @@ import argparse
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
-BASE_TOKEN = "QBc8bH86oayGgssalfhcXqKLnwc"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from config_env import load_project_env, require  # noqa: E402
+
+BASE_TOKEN = require(load_project_env(), "FINANCE_DAILY_REPORT_FEISHU_APP_TOKEN")
 SCRIPT_DIR = Path(__file__).resolve().parent
 MANIFEST = SCRIPT_DIR / "_feishu_five_tables" / "manifest.json"
 STATE = SCRIPT_DIR / "_feishu_five_tables" / "import_state.json"

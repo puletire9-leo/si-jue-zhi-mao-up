@@ -15,6 +15,7 @@ import os
 import sys
 import time
 from collections import Counter
+from pathlib import Path
 from urllib.parse import quote
 
 import pymysql
@@ -22,15 +23,21 @@ import requests
 from Crypto.Cipher import AES
 
 sys.stdout.reconfigure(encoding="utf-8")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from config_env import load_project_env, require  # noqa: E402
 
-APP_ID = "ak_ES5erBvWHXiwq"
-APP_SECRET = "xCqy31808f5iSaIHgq+97w=="
+_ENV = load_project_env()
+APP_ID = require(_ENV, "LINGXING_APP_ID")
+APP_SECRET = require(_ENV, "LINGXING_APP_SECRET")
 BASE_URL = "https://openapi.lingxing.com"
 
 RDS = dict(
-    host="101.37.51.239", port=3306,
-    user="ai_platform_app", password="Zl@13873979376",
-    database="sijuelishi", charset="utf8mb4",
+    host=_ENV.get("RDS_HOST", "127.0.0.1"),
+    port=int(_ENV.get("RDS_PORT", "3306")),
+    user=_ENV.get("RDS_USERNAME", "ai_platform_app"),
+    password=require(_ENV, "RDS_PASSWORD"),
+    database=_ENV.get("RDS_DATABASE", "sijuelishi"),
+    charset="utf8mb4",
 )
 
 DATA_DATE = "2026-08-14"

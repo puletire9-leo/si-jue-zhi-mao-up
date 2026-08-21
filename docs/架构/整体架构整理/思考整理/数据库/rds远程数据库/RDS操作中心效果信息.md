@@ -22,9 +22,9 @@
 | 端口 | `3306` |
 | 库 | `ai_platform` |
 
-**账号（凭证总账见 system_config 表）：**
-- 读写 `ai_platform_app` / `Zl@13873979376` —— `@%` 超权（含 GRANT/DROP/CREATE USER），仅本服务用，**勿外发**
-- 只读 `feishu_ro` / `Feishu2026ro` —— 仅 `SELECT ai_platform.*`，给飞书等外部只读方（已验证可读不可写）
+**账号（凭证总账见 system_config 表，明文密码只在 `config/secrets`）：**
+- 读写 `ai_platform_app` —— `@%` 超权（含 GRANT/DROP/CREATE USER），密码 `RDS_PASSWORD` / `USER_MYSQL_PASSWORD`，仅本服务用，**勿外发、勿写入文档**
+- 只读 `feishu_ro` —— 仅 `SELECT ai_platform.*`，密码 `FEISHU_RDS_READONLY_PASSWORD`，给飞书等外部只读方（已验证可读不可写）
 
 **RDS 现有业务库（2026-08-14）：**
 
@@ -87,7 +87,7 @@
 ```powershell
 $sql | Out-File -FilePath ".\_x.sql" -Encoding utf8 -NoNewline
 docker cp ".\_x.sql" prod-mysql:/tmp/_x.sql
-docker exec prod-mysql sh -c "mysql -h rm-bp1ft07y37887765cqo.mysql.rds.aliyuncs.com -P 3306 -u ai_platform_app -p'Zl@13873979376' ai_platform < /tmp/_x.sql 2>&1"
+docker exec prod-mysql sh -c 'mysql -h rm-bp1ft07y37887765cqo.mysql.rds.aliyuncs.com -P 3306 -u ai_platform_app -p"$RDS_PASSWORD" ai_platform < /tmp/_x.sql 2>&1'
 # 用完清理宿主机 + 容器临时文件
 ```
 

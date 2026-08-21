@@ -8,12 +8,21 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
 
-DEFAULT_BASE_TOKEN = "QBc8bH86oayGgssalfhcXqKLnwc"
-DEFAULT_TABLE_ID = "tblJeUS0YgBCJYUh"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from config_env import load_project_env, require  # noqa: E402
+
+_ENV = load_project_env()
+DEFAULT_BASE_TOKEN = require(_ENV, "FINANCE_DAILY_REPORT_FEISHU_APP_TOKEN")
+DEFAULT_TABLE_ID = (
+    os.getenv("FINANCE_FEISHU_TABLE_ID")
+    or _ENV.get("FINANCE_DAILY_REPORT_TABLE_TOTAL")
+    or ""
+)
 
 
 def lark_command() -> list[str]:
@@ -46,10 +55,12 @@ def run_cli(arguments: list[str], cwd: Path | None = None) -> dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--report", required=True)
-    parser.add_argument("--base-token", default=os.getenv("FINANCE_FEISHU_BASE_TOKEN", DEFAULT_BASE_TOKEN))
-    parser.add_argument("--table-id", default=os.getenv("FINANCE_FEISHU_TABLE_ID", DEFAULT_TABLE_ID))
+    parser.add_argument("--base-token", default=os.getenv("FINANCE_FEISHU_BASE_TOKEN") or DEFAULT_BASE_TOKEN)
+    parser.add_argument("--table-id", default=DEFAULT_TABLE_ID or None)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+    if not args.table_id:
+        raise RuntimeError("缺少 --table-id 或 config/public 中的 FINANCE_DAILY_REPORT_TABLE_TOTAL")
 
     report_path = Path(args.report).resolve()
     records = json.loads(report_path.read_text(encoding="utf-8"))["create_records"]

@@ -32,7 +32,16 @@ cp config/secrets/prod.env.example config/secrets/prod.env
 | `MYSQL_PASSWORD` | sijue 用户密码 | 自己定义 |
 | `COS_SECRET_ID` | 腾讯云 COS 密钥 ID | 腾讯云控制台 |
 | `COS_SECRET_KEY` | 腾讯云 COS 密钥 KEY | 腾讯云控制台 |
+| `RDS_PASSWORD` | RDS 领星/财务库密码（对应 public 的 RDS_HOST 等） | 阿里云 RDS |
+| `USER_MYSQL_PASSWORD` | 登录库密码，写在 `user-prod.env` | 阿里云 RDS |
 | `SELLERSPRITE_SECRET_KEY` | 卖家精灵 API key | 卖家精灵后台 |
+| `LINGXING_APP_ID` / `LINGXING_APP_SECRET` | 领星开放平台 | 领星后台「设置 > 全局 > 开放接口」 |
+| `LINGXING_MCP_URL` / `LINGXING_MCP_KEY` | 领星 MCP | 领星 ERP「AI助手 > 管理MCP」 |
+| `BAZHUAYU_USERNAME` / `BAZHUAYU_PASSWORD` | 八爪鱼开放平台 | 八爪鱼控制台 |
+| `FEISHU_APP_ID` / `FEISHU_APP_SECRET` | 飞书自建应用（Java 换 token） | 飞书开放平台 |
+| `OPERATIONS_LOGISTICS_FEISHU_APP_TOKEN` | 运营物流多维表格 App Token | 飞书多维表格 URL |
+| `FINANCE_DAILY_REPORT_FEISHU_APP_TOKEN` | 财务日报多维表格 App Token | 飞书多维表格 URL |
+| `FEISHU_RDS_READONLY_PASSWORD` | 飞书连 RDS 只读账号密码 | 仅 `feishu_ro`，不要给飞书 `RDS_PASSWORD` |
 | `DEEPSEEK_API_KEY` | DeepSeek 上游 API key (仅 ai-center 持有) | DeepSeek 平台 |
 | `AI_CENTER_INTERNAL_KEY` | AI 请求中心内部鉴权 key (调用方持有, 与上游密钥隔离) | 本地生成: `openssl rand -hex 32` |
 | `NACOS_AUTH_TOKEN` | Nacos 鉴权 token (可选) | Nacos 控制台 |

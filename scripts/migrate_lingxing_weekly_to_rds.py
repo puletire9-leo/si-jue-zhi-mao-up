@@ -2,15 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import time
-from pathlib import Path
 from typing import Iterable
 
 import pymysql
 
-
-ROOT = Path(__file__).resolve().parents[1]
+from config_env import load_project_env, require
 
 TABLES = (
     "lingxing_seller",
@@ -30,27 +27,14 @@ TABLES = (
 )
 
 
-def read_env(path: Path) -> dict[str, str]:
-    values: dict[str, str] = {}
-    if not path.exists():
-        return values
-    for line in path.read_text(encoding="utf-8").splitlines():
-        text = line.strip()
-        if text and not text.startswith("#") and "=" in text:
-            key, value = text.split("=", 1)
-            values[key.strip()] = value.strip().strip('"').strip("'")
-    return values
-
-
 def local_config() -> dict:
-    public = read_env(ROOT / "config/public/prod.env")
-    secret = read_env(ROOT / "config/secrets/prod.env")
+    values = load_project_env()
     return {
         "host": "127.0.0.1",
-        "port": int(public.get("MYSQL_PORT_EXTERNAL", "3310")),
-        "user": public.get("MYSQL_USER", "sijue"),
-        "password": secret["MYSQL_PASSWORD"],
-        "database": public.get("MYSQL_DATABASE", "sijuelishi"),
+        "port": int(values.get("MYSQL_PORT_EXTERNAL", "3310")),
+        "user": values.get("MYSQL_USER", "sijue"),
+        "password": require(values, "MYSQL_PASSWORD"),
+        "database": values.get("MYSQL_DATABASE", "sijuelishi"),
         "charset": "utf8mb4",
         "cursorclass": pymysql.cursors.SSCursor,
         "autocommit": True,
@@ -58,14 +42,18 @@ def local_config() -> dict:
 
 
 def rds_config() -> dict:
-    values = read_env(ROOT / "config/secrets/finance_rds.env")
-    values.update({k: v for k, v in os.environ.items() if k.startswith("FINANCE_RDS_")})
+    values = load_project_env()
+    host = values.get("RDS_HOST") or values.get("FINANCE_RDS_HOST") or ""
+    user = values.get("RDS_USERNAME") or values.get("FINANCE_RDS_USER") or ""
+    password = values.get("RDS_PASSWORD") or values.get("FINANCE_RDS_PASSWORD") or ""
+    if not host or not user or not password:
+        raise RuntimeError("缺少 RDS_HOST / RDS_USERNAME / RDS_PASSWORD，请写入 config/public 与 config/secrets")
     return {
-        "host": values["FINANCE_RDS_HOST"],
-        "port": int(values.get("FINANCE_RDS_PORT", "3306")),
-        "user": values["FINANCE_RDS_USER"],
-        "password": values["FINANCE_RDS_PASSWORD"],
-        "database": values.get("FINANCE_RDS_DATABASE", "sijuelishi"),
+        "host": host,
+        "port": int(values.get("RDS_PORT") or values.get("FINANCE_RDS_PORT") or "3306"),
+        "user": user,
+        "password": password,
+        "database": values.get("RDS_DATABASE") or values.get("FINANCE_RDS_DATABASE") or "sijuelishi",
         "charset": "utf8mb4",
         "cursorclass": pymysql.cursors.Cursor,
         "autocommit": False,

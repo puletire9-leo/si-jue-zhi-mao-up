@@ -31,7 +31,8 @@ config/
 | 类型 | 加在哪 |
 |------|--------|
 | 服务端口、超时、白名单 | `config/public/{dev,prod}.env` |
-| API key、密码、JWT secret | `config/secrets/{dev,prod}.env` |
+| API key、密码、JWT secret、飞书 App Token | `config/secrets/{dev,prod}.env` |
+| 飞书多维表格 **表 ID**（非 Token） | `config/public/{dev,prod}.env` |
 
 生产数据库连接与门禁配置统一放在 `config/public/prod.env`：
 `MYSQL_*_POOL_*` 控制各服务连接池，`DB_HEAVY_QUERY_MAX_CONCURRENCY`、

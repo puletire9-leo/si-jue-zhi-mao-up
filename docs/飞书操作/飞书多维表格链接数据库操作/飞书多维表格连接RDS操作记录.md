@@ -10,7 +10,7 @@
 | 端口 | `3306` | |
 | 数据库名 | `ai_platform` | |
 | 用户名 | `feishu_ro` | ⚠️ **开头结尾不能有空格**（见坑 2） |
-| 密码 | `Feishu2026ro` | 纯字母数字，避免特殊符号填写出错 |
+| 密码 | 见 `config/secrets` 的 `FEISHU_RDS_READONLY_PASSWORD` | 纯字母数字，避免特殊符号填写出错 |
 
 > 账号只读（仅 `SELECT ai_platform.*`），已服务端验证可读不可写。凭证总账见 RDS `system_config` 表（category=rds）。
 
@@ -40,7 +40,7 @@
 生产读写账号 `ai_platform_app` 是 `@%` + 含 GRANT/DROP/CREATE USER 的超权账号，给飞书太危险。单独建只读账号：
 
 ```sql
-CREATE USER IF NOT EXISTS 'feishu_ro'@'%' IDENTIFIED BY 'Feishu2026ro';
+CREATE USER IF NOT EXISTS 'feishu_ro'@'%' IDENTIFIED BY '<FEISHU_RDS_READONLY_PASSWORD>';
 GRANT SELECT ON ai_platform.* TO 'feishu_ro'@'%';
 FLUSH PRIVILEGES;
 ```
@@ -49,7 +49,7 @@ FLUSH PRIVILEGES;
 ```powershell
 $sql | Out-File -FilePath ".\_x.sql" -Encoding utf8 -NoNewline
 docker cp ".\_x.sql" prod-mysql:/tmp/_x.sql
-docker exec prod-mysql sh -c "mysql -h rm-bp1ft07y37887765cqo.mysql.rds.aliyuncs.com -P 3306 -u ai_platform_app -p'Zl@13873979376' ai_platform < /tmp/_x.sql 2>&1"
+docker exec prod-mysql sh -c 'mysql -h rm-bp1ft07y37887765cqo.mysql.rds.aliyuncs.com -P 3306 -u ai_platform_app -p"$RDS_PASSWORD" ai_platform < /tmp/_x.sql 2>&1'
 ```
 
 **验证只读**（读成功 + 写被拒 1142）：

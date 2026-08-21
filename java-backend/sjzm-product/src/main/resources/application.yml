@@ -120,8 +120,7 @@ automation:
     feishu-app-token: ${OPERATIONS_LOGISTICS_FEISHU_APP_TOKEN:}
     feishu-table-id: ${OPERATIONS_LOGISTICS_FEISHU_TABLE_ID:}
   finance-daily-report:
-    # 财务日报飞书目标：app token + 5 张数据表 ID（总/运营/开发/非标品/上架时间）。
-    # 一律走环境变量，禁止硬编码。
+    # App Token 走 secrets；表 ID 走 public。禁止硬编码。
     feishu-app-token: ${FINANCE_DAILY_REPORT_FEISHU_APP_TOKEN:}
     feishu-table-total: ${FINANCE_DAILY_REPORT_TABLE_TOTAL:}
     feishu-table-operations: ${FINANCE_DAILY_REPORT_TABLE_OPERATIONS:}
