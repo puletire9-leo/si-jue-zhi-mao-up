@@ -52,3 +52,21 @@ def require(values: dict[str, str], key: str) -> str:
     if not value:
         raise RuntimeError(f"缺少配置 {key}，请写入 config/secrets 对应 env 文件，不要写在脚本或文档里")
     return value
+
+
+def local_mysql_config() -> dict:
+    """Host-side connection to Docker MySQL. Password comes from secrets."""
+    values = load_project_env()
+    host = values.get("MYSQL_HOST_EXTERNAL") or "127.0.0.1"
+    if host in {"mysql", "prod-mysql"}:
+        host = "127.0.0.1"
+    database = values.get("MYSQL_DATABASE") or "sijuelishi"
+    default_port = "13338" if database.endswith("_dev") else "3310"
+    return {
+        "host": host,
+        "port": int(values.get("MYSQL_PORT_EXTERNAL") or default_port),
+        "user": values.get("MYSQL_USER") or values.get("MYSQL_USERNAME") or "sijue",
+        "password": require(values, "MYSQL_PASSWORD"),
+        "database": database,
+        "charset": "utf8mb4",
+    }
