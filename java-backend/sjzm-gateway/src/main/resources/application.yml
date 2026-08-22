@@ -107,6 +107,7 @@ rbac:
     "/api/v1/modules/automation/**": "automation:manage"
     "/api/v1/modules/lingxing/request-center/**": "automation:manage"
     "/api/v1/modules/feishu/**": "automation:manage"
+    "/api/v1/modules/rds-center/**": "automation:manage"
 
 gateway:
   auth:

@@ -37,6 +37,7 @@ config/
 生产数据库连接与门禁配置统一放在 `config/public/prod.env`：
 `MYSQL_*_POOL_*` 控制各服务连接池，`DB_HEAVY_QUERY_MAX_CONCURRENCY`、
 `DB_EXPORT_MAX_CONCURRENCY`、`DB_HEAVY_WRITE_MAX_CONCURRENCY` 控制重负载并发。
+变量分组与谁连哪套库见 [docs/database/connection-registry.md](../docs/database/connection-registry.md)。
 
 ### 2. docker-compose 引用
 

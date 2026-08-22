@@ -254,6 +254,23 @@ class Settings(BaseSettings):
         self.LOG_LEVEL = "INFO"
         self.RATE_LIMIT_ENABLED = True
 
+        # 生产业务库优先 RDS_*；MYSQL_* 仍给 Docker mysql 容器，不要改 MYSQL_HOST。
+        rds_host = os.getenv("RDS_HOST", "").strip()
+        if rds_host:
+            self.MYSQL_HOST = rds_host
+            rds_port = os.getenv("RDS_PORT", "").strip()
+            if rds_port:
+                self.MYSQL_PORT = int(rds_port)
+            rds_user = os.getenv("RDS_USERNAME", "").strip()
+            if rds_user:
+                self.MYSQL_USER = rds_user
+            rds_password = os.getenv("RDS_PASSWORD", "")
+            if rds_password:
+                self.MYSQL_PASSWORD = rds_password
+            rds_database = os.getenv("RDS_DATABASE", "").strip()
+            if rds_database:
+                self.MYSQL_DATABASE = rds_database
+
         # 确保关键目录存在
         for d in [
             self.UPLOAD_DIR,

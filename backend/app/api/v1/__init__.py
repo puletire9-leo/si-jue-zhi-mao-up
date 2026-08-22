@@ -47,6 +47,7 @@ from .lingxing_mcp import router as lingxing_mcp_router
 from .members import router as members_router
 from .announcement import router as announcement_router
 from .ai_selection import router as ai_selection_router
+from .rds_center import router as rds_center_router
 
 api_router = APIRouter()
 
@@ -77,5 +78,6 @@ api_router.include_router(lingxing_mcp_router)
 api_router.include_router(members_router)
 api_router.include_router(announcement_router)
 api_router.include_router(ai_selection_router)
+api_router.include_router(rds_center_router)
 
 __all__ = ["api_router"]

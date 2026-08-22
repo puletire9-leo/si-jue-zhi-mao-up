@@ -186,6 +186,7 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  # 业务库走 RDS_*（prod.env）；MYSQL_* 只给上面的 mysql 服务
   java-product:
     logging: *default-logging
     build:

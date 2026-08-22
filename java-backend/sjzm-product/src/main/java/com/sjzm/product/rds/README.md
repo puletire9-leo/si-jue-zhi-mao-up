@@ -2,7 +2,7 @@
 
 > 财务日报、运营物流和 Listing 非破坏刷新的完整实施记录，见 `docs/架构/财务与运营自动化任务完整实施记录.md`。
 
-`rds` 包是 Java product 服务访问远程 MySQL RDS 的边界。
+`rds` 包是 Java product 服务访问远程 MySQL RDS 的边界。仓库级现状总账：`docs/rds中心/README.md`。
 
 ## 写入唯一入口
 
@@ -25,6 +25,13 @@ SqlSession 选择主数据源，既可能写错库，也无法保证远程 RDS �
 - `rds.mapper` 与 `rds.finance.mapper` 直接绑定 RDS。
 - 历史上位于 `com.sjzm.product.mapper` 的领星 Mapper，通过
   `LingxingRdsMapper` 标记接口绑定 RDS。
+
+## 连接收束与管理中心
+
+生产业务库连接只登记在 `config/`（见 `docs/database/connection-registry.md`）。
+`RdsCenterCatalog` + `GET /api/v1/modules/rds-center/overview` 列出接口绑定；
+Python `GET /api/v1/rds-center/status` 提供 FastAPI/Celery 池实况。前端模块
+`frontend/src/modules/rds-management-center/`。
 
 ## 批次与观测
 

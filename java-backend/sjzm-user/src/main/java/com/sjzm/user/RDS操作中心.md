@@ -1,16 +1,17 @@
 # RDS 操作中心（sjzm-user）
 
-> 2026-08-13 建。sjzm-user 是全系统唯一直连阿里云 RDS `ai_platform` 库的服务，
-> RDS 相关操作代码沉淀在此，长期复用。
+> 2026-08-13 建。sjzm-user **只**直连 RDS `ai_platform`（登录/用户/凭证总账）。
+> 2026-08-22 起 sjzm-product / Python / Celery 在配置 `RDS_HOST` 后直连同一实例的 `sijuelishi`。
+> 全系统连接登记见 `docs/database/connection-registry.md`；新旧文件与缺口见 `docs/rds中心/README.md`；运行中绑定见 RDS 管理中心。
 
 ## 一、连接隔离（铁律）
 
 | 服务 | 连什么库 | 说明 |
 |------|---------|------|
-| **sjzm-user** | **RDS ai_platform** | 唯一连 RDS。走 `USER_MYSQL_*`（见 application.yml + config/*/user-prod.env）|
-| sjzm-product / gateway / Python / Celery | Docker 本地 MySQL | 都**不**加载 user-prod.env |
+| **sjzm-user** | **RDS ai_platform** | 走 `USER_MYSQL_*`（见 application.yml + config/*/user-prod.env）|
+| sjzm-product / Python / Celery | **RDS sijuelishi**（有 `RDS_HOST`） | 走 `RDS_*`；`MYSQL_*` 只给 Docker mysql 容器 |
 
-> 只有 `prod-java-user` 容器在 docker-compose.prod.yml 里多加载 `config/public/user-prod.env` + `config/secrets/user-prod.env`。改 RDS 连接只重启 java-user，别动别的。登录兼容明文 + 历史 BCrypt。
+> `prod-java-user` 额外加载 `user-prod.env`。改登录库重启 java-user；改业务库重启 java-product + backend + celery。登录兼容明文 + 历史 BCrypt。
 
 ## 二、RDS 连接信息
 

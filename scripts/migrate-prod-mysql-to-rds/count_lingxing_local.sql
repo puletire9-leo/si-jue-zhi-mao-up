@@ -1,0 +1,26 @@
+SELECT 'lingxing_asin_monthly_performance' AS t, COUNT(*) AS n FROM lingxing_asin_monthly_performance
+UNION ALL SELECT 'lingxing_automation_request_registry', COUNT(*) FROM lingxing_automation_request_registry
+UNION ALL SELECT 'lingxing_data_sync_run', COUNT(*) FROM lingxing_data_sync_run
+UNION ALL SELECT 'lingxing_developer_fba', COUNT(*) FROM lingxing_developer_fba
+UNION ALL SELECT 'lingxing_developer_sku_prefix', COUNT(*) FROM lingxing_developer_sku_prefix
+UNION ALL SELECT 'lingxing_fba_fee_compare', COUNT(*) FROM lingxing_fba_fee_compare
+UNION ALL SELECT 'lingxing_inventory_batch_detail', COUNT(*) FROM lingxing_inventory_batch_detail
+UNION ALL SELECT 'lingxing_listing', COUNT(*) FROM lingxing_listing
+UNION ALL SELECT 'lingxing_listing_fba_fee', COUNT(*) FROM lingxing_listing_fba_fee
+UNION ALL SELECT 'lingxing_local_product', COUNT(*) FROM lingxing_local_product
+UNION ALL SELECT 'lingxing_product_performance', COUNT(*) FROM lingxing_product_performance
+UNION ALL SELECT 'lingxing_product_performance_daily', COUNT(*) FROM lingxing_product_performance_daily
+UNION ALL SELECT 'lingxing_product_unified', COUNT(*) FROM lingxing_product_unified
+UNION ALL SELECT 'lingxing_product_unified_daily', COUNT(*) FROM lingxing_product_unified_daily
+UNION ALL SELECT 'lingxing_profit_asin', COUNT(*) FROM lingxing_profit_asin
+UNION ALL SELECT 'lingxing_purchase_order', COUNT(*) FROM lingxing_purchase_order
+UNION ALL SELECT 'lingxing_purchase_order_item', COUNT(*) FROM lingxing_purchase_order_item
+UNION ALL SELECT 'lingxing_purchase_plan', COUNT(*) FROM lingxing_purchase_plan
+UNION ALL SELECT 'lingxing_request_task', COUNT(*) FROM lingxing_request_task
+UNION ALL SELECT 'lingxing_seller', COUNT(*) FROM lingxing_seller
+UNION ALL SELECT 'lingxing_shipment_actual', COUNT(*) FROM lingxing_shipment_actual
+UNION ALL SELECT 'lingxing_shipment_plan', COUNT(*) FROM lingxing_shipment_plan
+UNION ALL SELECT 'lingxing_sku_weekly_performance', COUNT(*) FROM lingxing_sku_weekly_performance
+UNION ALL SELECT 'lingxing_sync_cursor', COUNT(*) FROM lingxing_sync_cursor
+UNION ALL SELECT 'lingxing_target_sku_pool', COUNT(*) FROM lingxing_target_sku_pool
+UNION ALL SELECT 'operations_logistics_purchase_progress', COUNT(*) FROM operations_logistics_purchase_progress;

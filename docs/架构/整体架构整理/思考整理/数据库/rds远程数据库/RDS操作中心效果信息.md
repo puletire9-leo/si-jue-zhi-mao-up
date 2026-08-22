@@ -1,17 +1,19 @@
 # RDS 操作中心 效果信息
 
-> 2026-08-13 建。sjzm-user 是全系统唯一直连阿里云 RDS `ai_platform` 库的服务，
-> RDS 相关操作代码集中在此。本文记录建成效果、接口、验证结果，供后续复用。
+> 2026-08-13 建。sjzm-user 是登录库 `ai_platform` 的唯一 Java 入口。
+> 2026-08-22 起业务库 `sijuelishi` 由 product / Python / Celery 经 `RDS_*` 直连同一实例。
 > 代码级说明另见：`java-backend/sjzm-user/src/main/java/com/sjzm/user/RDS操作中心.md`
+> 连接登记：`docs/database/connection-registry.md`。新旧文件总账：`docs/rds中心/README.md`。
 
 ## 一、连接隔离（铁律）
 
 | 服务 | 连什么库 | 是否加载 user-prod.env |
 |------|---------|----------------------|
-| **sjzm-user** | **RDS ai_platform** | ✅ 唯一，走 `USER_MYSQL_*` |
-| sjzm-product / gateway / Python / Celery | Docker 本地 `prod-mysql` | ❌ 都不加载 |
+| **sjzm-user** | **RDS ai_platform** | ✅ 加载 user-prod.env |
+| sjzm-product / Python / Celery | **RDS sijuelishi** | ✅ 加载 prod.env 的 `RDS_*`（应用侧优先于 `MYSQL_*`） |
+| Docker `prod-mysql` | 本地 `sijuelishi` 容器 | MYSQL_* 仅初始化该容器 |
 
-只有 `prod-java-user` 容器在 `docker-compose.prod.yml` 多加载 `config/public/user-prod.env` + `config/secrets/user-prod.env`。**改 RDS 连接只重启 java-user，别动别的。**
+登录库改连接只重启 java-user。业务库改连接需重建/重启 java-product、backend、celery。
 
 ## 二、RDS 连接信息
 
@@ -31,9 +33,9 @@
 | 库 | 内容 | 谁在连 |
 |----|------|-------|
 | `ai_platform` | users 39 行 + system_config 17 行 | sjzm-user（唯一） |
-| `sijuelishi` | 107 张业务表结构（**空壳，只迁结构未搬数据**） | 暂无（后续业务后端逐步改连） |
+| `sijuelishi` | 业务表（2026-08-22 已从 Docker 迁入） | java-product 主库 + 领星/财务池；Python/Celery |
 
-> `sijuelishi` 专用库 2026-08-14 建：从本地 Docker `prod-mysql` 的 sijuelishi 库导出 107 张干净表结构（`mysqldump --no-data --no-tablespaces`，清洗 AUTO_INCREMENT，SHA 双向校验），DROP 掉 RDS 上残留的旧版 130 表快照后重灌。逐表比对零差异。**连库切换（sjzm-product / Python / Celery 改连此库）是独立后续步骤，今天只备空壳。** 详见 `docs/日志/2026-08/8.14.md`。DDL 源：`backend/database/backup/sijuelishi_schema_20260814_clean.sql`。
+> `sijuelishi` 表结构 2026-08-14 灌入；2026-08-22 已从 Docker 迁业务数据，应用改连 `RDS_*`。DDL 源：`backend/database/backup/sijuelishi_schema_20260814_clean.sql`。
 
 ## 三、system_config 凭证总账表
 

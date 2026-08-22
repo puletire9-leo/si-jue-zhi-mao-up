@@ -45,6 +45,7 @@ backend/
 | logs.py | `/api/v1/logs` | 日志文档 | CRUD |
 | download_tasks.py | `/api/v1/download-tasks` | 下载任务 | ZIP 打包 |
 | lingxing.py | `/api/v1/lingxing` | 领星导入 | COS 上传 |
+| rds_center.py | `/api/v1/rds-center` | 业务库/用户库连接实况 | 不含密码；有 `RDS_HOST` 时业务池改连远程 |
 | lingxing_mcp.py | `/api/v1/lingxing-mcp` | 领星 MCP 即时查询 | Streamable HTTP，只读排障入口；财务/运营批量任务必须走 Java 领星运行中心，见 `docs/架构/财务与运营自动化任务完整实施记录.md` |
 | file_links.py | `/api/v1/file-links` | 文件链接 | CRUD |
 | ai_selection.py | `/api/v1/ai-selection` | AI Agent 投递 ASIN、实时查两张市场表并按用户会话展示 | 查询/会话逻辑在 `AiSelectionService`，写接口要求管理员/开发 |

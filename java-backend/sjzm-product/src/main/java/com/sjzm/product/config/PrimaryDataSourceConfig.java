@@ -20,7 +20,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import javax.sql.DataSource;
 
 /**
- * 主数据源（本地 MySQL）配置。
+ * 主数据源配置。生产有 {@code RDS_*} 时连远程 sijuelishi；否则连 {@code MYSQL_*}。
  *
  * <p>双数据源改造后，MyBatis-Plus 自动配置因检测到自定义 SqlSessionFactory 而退避，
  * 因此主库的 DataSource / SqlSessionFactory / SqlSessionTemplate 必须在此显式声明并标 @Primary。

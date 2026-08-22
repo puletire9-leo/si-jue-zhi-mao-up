@@ -4,6 +4,8 @@
 
 - 数据库：MySQL 8.0
 - 字符集：utf8mb4_unicode_ci
+- RDS 现状总账（新旧文件、系统有/没有）：[../rds中心/README.md](../rds中心/README.md)
+- 连接登记（谁连哪套库）：[connection-registry.md](connection-registry.md)；运行中绑定见前端 RDS 管理中心
 - ORM：Java 侧 MyBatis-Plus，Python 侧 SQLAlchemy/AIOMySQL
 - ID 策略：Java 业务明细表多用雪花 ID（ASSIGN_ID），统计/汇总表可用自增，Python 侧自增/UUID
 
@@ -232,8 +234,10 @@ PURGE BINARY LOGS BEFORE DATE_SUB(NOW(), INTERVAL 7 DAY);
 | 变量 | 文件 | 库 | 谁连 |
 |------|------|----|------|
 | `USER_MYSQL_*` | `config/public/user-prod.env` + `config/secrets/user-prod.env` | `ai_platform` | java-user；backend/celery 也会加载 |
-| `RDS_*` | `config/public/prod.env` + `config/secrets/prod.env` | `sijuelishi` | java-product（领星/财务/运营物流） |
-| `MYSQL_*` | `config/public/prod.env` + `config/secrets/prod.env` | 本机 Docker `sijuelishi` | product / Python / Celery 主库 |
+| `RDS_*` | `config/public/prod.env` + `config/secrets/prod.env` | 远程 `sijuelishi` | java-product 主库与领星/财务池；Python/Celery 在存在 `RDS_HOST` 时覆盖业务库 |
+| `MYSQL_*` | `config/public/prod.env` + `config/secrets/prod.env` | Docker `prod-mysql` | **仅容器初始化与宿主机脚本**，应用不再以 `MYSQL_HOST=mysql` 作为生产业务库 |
+
+完整登记与接口绑定见 [connection-registry.md](connection-registry.md) 和前端 **RDS 管理中心**。
 
 `application.yml` 只读环境变量。`config/secrets/finance_rds.env` 只给本机离线脚本，Docker 不读。
 
@@ -245,15 +249,18 @@ PURGE BINARY LOGS BEFORE DATE_SUB(NOW(), INTERVAL 7 DAY);
 `username` 去重，目标库已有账号、密码、角色和状态全部保留；只新增缺失的有效
 账号。迁移脚本见 `java-backend/sql/merge_users_into_ai_platform.sql`。
 
-### Java 后端
+### Java 后端（sjzm-product）
 ```
-jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DATABASE}
+jdbc:mysql://${RDS_HOST:${MYSQL_HOST}}:${RDS_PORT:${MYSQL_PORT}}/${RDS_DATABASE:${MYSQL_DATABASE}}
 ```
+
+领星/财务专用池始终读 `RDS_*`。sjzm-user 读 `USER_MYSQL_*`。
 
 ### Python 后端
 ```
 mysql+aiomysql://${MYSQL_USER}:${MYSQL_PASSWORD}@${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DATABASE}
 ```
+`RDS_HOST` 有值时，启动时把上述 `MYSQL_*` 改写为 `RDS_*`。
 
 ## 注意事项
 

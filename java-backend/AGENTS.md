@@ -154,6 +154,7 @@ com.sjzm.gateway/
 | AutomationCenterController | `/api/v1/modules/automation` | sjzm-product |
 | LingxingRequestCenterController | `/api/v1/modules/lingxing/request-center` | sjzm-product |
 | FeishuController | `/api/v1/modules/feishu` | sjzm-product |
+| RdsCenterController | `/api/v1/modules/rds-center` | sjzm-product |
 | RosterController | `/api/v1/modules/roster` | sjzm-product |
 
 财务日报与运营物流自动化的当前口径、算法、RDS 批写、前端三中心、测试和部署状态，统一见 `docs/架构/财务与运营自动化任务完整实施记录.md`。
@@ -193,7 +194,7 @@ Amazon 以图识图任务构造 StyleSnap/Shop the Look URL 前必须移除 Amaz
 
 领星数据源：现有周请求/周加工/统一表/模型查询一律使用 RDS，本地库仅保留历史副本。周、日产品表现采集均保持 UK/DE 完整请求，并在请求阶段固定传 `currency_code=GBP`；RDS 保留来源站点用于白名单和审计，但所有金额统一按 GBP 计算。财务加工分别应用 UK/DE ASIN 白名单，再跨站点按 ASIN 合并，飞书只输出一套 ALL/GBP 报表。
 
-RDS 写入铁律：所有 RDS insert/update/delete/upsert 必须通过 `rds/service/RdsBatchWriteService`；业务 Service 禁止直接提交 RDS Mapper 写操作，禁止对 RDS 实体使用 `Db.saveBatch` / `Db.saveOrUpdateBatch`。读取可直接调用 Mapper。详见 `sjzm-product/src/main/java/com/sjzm/product/rds/README.md`。
+RDS 写入铁律：所有 RDS insert/update/delete/upsert 必须通过 `rds/service/RdsBatchWriteService`；业务 Service 禁止直接提交 RDS Mapper 写操作，禁止对 RDS 实体使用 `Db.saveBatch` / `Db.saveOrUpdateBatch`。读取可直接调用 Mapper。详见 `sjzm-product/src/main/java/com/sjzm/product/rds/README.md`。生产主库与 Python 业务库在配置了 `RDS_HOST` 后也连远程 `sijuelishi`，连接登记见 `docs/database/connection-registry.md`。
 
 ## 网关路由映射
 

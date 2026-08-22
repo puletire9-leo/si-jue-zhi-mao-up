@@ -55,9 +55,10 @@ frontend/src/
 | 自动化任务中心 | /automation-center | automationCenter.ts |
 | 领星运行中心 | /lingxing-runtime-center | lingxingRuntimeCenter.ts |
 | 飞书对接中心 | /feishu-integration-center | feishuIntegration.ts |
+| RDS 管理中心 | /rds-management-center | rdsManagement.ts |
 | 人员维度配置 | /person-roster | roster.ts |
 
-财务日报与运营物流自动化的当前口径、算法、RDS 批写和生产发布状态，统一见 `docs/架构/财务与运营自动化任务完整实施记录.md`。上述四个中心均为 `src/modules/` 即插即用模块，不改 `router/index.ts`。
+财务日报与运营物流自动化的当前口径、算法、RDS 批写和生产发布状态，统一见 `docs/架构/财务与运营自动化任务完整实施记录.md`。上述中心均为 `src/modules/` 即插即用模块，不改 `router/index.ts`。
 
 ## API 文件 → 后端映射
 
@@ -80,6 +81,7 @@ frontend/src/
 | automationCenter.ts | `/api/v1/modules/automation/`、`/api/v1/modules/lingxing/request-center/` | Java：自动化 Job/运行审计，手动启动走领星入队 |
 | lingxingRuntimeCenter.ts | `/api/v1/modules/lingxing/request-center/`、`/api/v1/lingxing-mcp/` | Java 队列/注册项；MCP 状态/工具走 Python 只读入口 |
 | feishuIntegration.ts | `/api/v1/modules/feishu/` | Java：凭证掩码、token 自检、业务资源检查 |
+| rdsManagement.ts | `/api/v1/modules/rds-center/`、`/api/v1/rds-center/` | Java 连接清单 + Python 池实况 |
 | roster.ts | `/api/v1/modules/roster/` | Java：人员维度及生效/失效日期 |
 
 用户管理读取独立 `ai_platform` 用户库，角色主要返回平台枚举 `MANAGER / DEVELOPER / ART_MANAGER / ARTIST / OPERATOR`。

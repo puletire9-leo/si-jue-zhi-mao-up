@@ -19,9 +19,11 @@ spring:
       max-request-size: 200MB
 
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:sijuelishi}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
-    username: ${MYSQL_USERNAME:sijue}
-    password: ${MYSQL_PASSWORD:}
+    # 优先 RDS_*（远程 sijuelishi）；未配置时回退 MYSQL_*（Docker mysql 容器）。
+    # MYSQL_* 只给 Docker mysql 初始化，不要把 MYSQL_HOST 改成公网 IP。
+    url: jdbc:mysql://${RDS_HOST:${MYSQL_HOST:localhost}}:${RDS_PORT:${MYSQL_PORT:3306}}/${RDS_DATABASE:${MYSQL_DATABASE:sijuelishi}}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+    username: ${RDS_USERNAME:${MYSQL_USERNAME:sijue}}
+    password: ${RDS_PASSWORD:${MYSQL_PASSWORD:}}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       minimum-idle: ${MYSQL_PRODUCT_POOL_MIN_IDLE:3}

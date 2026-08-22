@@ -18,7 +18,7 @@
 | Python 后端 | FastAPI + Celery + Qdrant | Python 3.11 |
 | 前端 | Vue 3 + TypeScript + Element Plus + Vite | Node 20 |
 | 数据库 | MySQL 8.0 + Redis 7 | - |
-| 部署 | Docker Compose（dev/prod override） | - |
+| 部署 | Docker Compose 生产栈 | - |
 
 ## 文档导航
 
@@ -27,6 +27,7 @@
 | 系统架构 | [docs/architecture/README.md](docs/architecture/README.md) | 双后端架构、服务拓扑、数据流 |
 | API 路由分流 | [docs/api/README.md](docs/api/README.md) | Nginx 路由规则、Java/Python 职责划分 |
 | 数据库设计 | [docs/database/README.md](docs/database/README.md) | 表结构、迁移记录、ER 关系 |
+| RDS 中心 | [docs/rds中心/README.md](docs/rds中心/README.md) | 远程库现状：已有/过时/未落地文件总账 |
 | 财务/运营自动化 | [docs/架构/财务与运营自动化任务完整实施记录.md](docs/架构/财务与运营自动化任务完整实施记录.md) | 财务日报与运营物流自动化统一实施索引 |
 | 开发规范 | [docs/development/standards.md](docs/development/standards.md) | 编码规范、提交规范、分支策略 |
 | 生产部署唯一流程 | [docs/docker使用经验/部署流程.md](docs/docker使用经验/部署流程.md) | 唯一权威，其他文档不得覆盖 |
