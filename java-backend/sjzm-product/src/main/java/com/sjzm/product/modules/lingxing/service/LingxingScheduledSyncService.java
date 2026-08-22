@@ -106,13 +106,19 @@ public class LingxingScheduledSyncService {
                 }
             }
 
-            // ③ 清洗：产品表现 → 周表 → 产品统一表
+            // ③ 清洗：产品表现 → 周表 → 只留团队标签原始行 → 产品统一表 → 冻结本周切片
             Map<String, Object> weekly = skuDataLayerService.upsertWeeklyFromExistingPerformance(
                     startDate, endDate, null, runId);
             log.info("领星每周同步：周表加工 {}", weekly);
 
+            Map<String, Object> pruned = skuDataLayerService.pruneNonTeamWindow(startDate, endDate);
+            log.info("领星每周同步：非团队原始周数据清理 {}", pruned);
+
             Map<String, Object> unified = unifiedService.rebuild(null);
             log.info("领星每周同步：统一表重算 {}", unified);
+
+            Map<String, Object> weeklySlice = unifiedService.freezeWeeklySlice(startDate, endDate);
+            log.info("领星每周同步：统一表周切片 {}", weeklySlice);
 
             // ④ 重建开发人前缀映射表（从统一表提取 developer + base_sku 前3位）
             rebuildPrefixMapping();
@@ -121,10 +127,10 @@ public class LingxingScheduledSyncService {
             // ④.5 删本地产品非目标开发人（用刚重建的统一表 distinct developer；空集保护防删光全表）
             int targetDevs = localProductMapper.countTargetDevelopers();
             if (targetDevs > 0) {
-                int pruned = rdsBatchWriteService.executeOne(
+                int prunedLocal = rdsBatchWriteService.executeOne(
                         com.sjzm.product.mapper.LingxingLocalProductMapper.class,
                         com.sjzm.product.mapper.LingxingLocalProductMapper::deleteNonTargetDevelopers);
-                log.info("领星每周同步：本地产品清理，目标开发人 {} 人，删非目标 {} 行", targetDevs, pruned);
+                log.info("领星每周同步：本地产品清理，目标开发人 {} 人，删非目标 {} 行", targetDevs, prunedLocal);
             } else {
                 log.warn("领星每周同步：统一表无目标开发人，跳过本地产品清理（防删光全表）");
             }
@@ -145,7 +151,9 @@ public class LingxingScheduledSyncService {
             out.put("fetched", totalFetched);
             out.put("upserted", totalUpserted);
             out.put("weekly", weekly);
+            out.put("prunedRaw", pruned);
             out.put("unified", unified);
+            out.put("weeklySlice", weeklySlice);
             out.put("listing", listing);
             return out;
         } catch (Exception e) {

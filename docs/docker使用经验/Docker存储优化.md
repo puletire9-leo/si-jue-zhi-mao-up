@@ -28,7 +28,7 @@
 3. 禁止执行无过滤条件的 `docker buildx prune --all` 或 `docker builder prune --all`。
 4. 禁止删除正在运行容器引用的镜像。
 5. `prod-java`、`prod-frontend`、`prod-backend`、`prod-ai-center` 常态只保留
-   `current`；发布期间临时生成的 `previous` 仅用于失败回退，成功验证后立即删除。
+   `current` 加一份 `previous` 回退。构建前删除更老的成品；验证成功后必须留下这一份 `previous`，不得堆第三份。
 6. 不要把 Docker 数据盘硬限制为 50 GB。达到硬上限时 MySQL、Redis 和日志可能停止写入。
 7. VHDX 压缩前必须完成数据库备份、确认备份可读，并完全退出 Docker Desktop。
 
@@ -96,7 +96,7 @@ powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Compone
 
 ```text
 预检 -> 轮换 current/previous -> 一次缓存构建 -> --no-deps --no-build 重建
--> 健康验证 -> 删除临时 previous -> Java 编译缓存保留一条 -> 回收超过 3 小时的普通构建层 -> 标签校验
+-> 健康验证 -> 保留一份 previous 回退并删除多余标签 -> Java 编译缓存保留一条 -> 回收超过 3 小时的普通构建层 -> 标签校验
 ```
 
 所有容器日志已使用 `json-file` 轮转，每个容器最多 `3 x 20 MB`。Backend 的 `.dockerignore`
@@ -137,8 +137,8 @@ foreach ($repo in $repos) {
 }
 ```
 
-每个仓库常态只允许 `current`。发现残留 `previous` 或其他历史标签时，应先确认发布是否仍在进行、
-镜像是否被容器引用，再按 [部署流程.md](部署流程.md) 的临时回退轮换处理；禁止用 `docker image prune -a` 代替判断。
+每个仓库常态只允许 `current` 加一份 `previous`。发现 `latest`、第三份成品或无标签旧镜像时，应先确认发布是否仍在进行、
+镜像是否被容器引用，再按 [日常更新docker.md](日常更新docker.md) 清理；禁止用 `docker image prune -a` 代替判断。
 
 ## 6. MySQL 与业务数据
 

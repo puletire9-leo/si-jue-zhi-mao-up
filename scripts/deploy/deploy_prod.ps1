@@ -110,7 +110,7 @@ if ($Component -eq "frontend") {
     }
 }
 
-# Frontend dist must exist before creating the temporary rollback tag.
+# Frontend dist must exist before rotating current to the single previous rollback.
 $firstRelease = Start-ProdImageRotation -Repository $repository
 
 Invoke-Checked "cached Docker build for $buildService (once)" {
@@ -155,24 +155,10 @@ foreach ($service in $services) {
     Write-Host "[deploy] verified ${service}: state=$state health=$health ($containerId)" -ForegroundColor Green
 }
 
+$allowedRefs = @("${repository}:current")
 if (-not $firstRelease) {
-    $temporaryRollbackRef = "${repository}:previous"
-    $temporaryRollbackId = (& docker image inspect $temporaryRollbackRef --format '{{.Id}}').Trim()
-    $currentImageId = (& docker image inspect "${repository}:current" --format '{{.Id}}').Trim()
-    $null = Invoke-Checked "remove temporary rollback tag $temporaryRollbackRef after successful verification" {
-        docker image rm $temporaryRollbackRef
-    }
-    if ($temporaryRollbackId -ne $currentImageId -and (Test-DockerImageExists -Reference $temporaryRollbackId)) {
-        $containersUsingRollback = @(
-            & docker ps -a --filter "ancestor=$temporaryRollbackId" --format '{{.ID}} {{.Names}}'
-        )
-        if ($containersUsingRollback.Count -gt 0) {
-            throw "Temporary rollback image is still used by containers: $($containersUsingRollback -join ', ')"
-        }
-        $null = Invoke-Checked "remove temporary rollback image $temporaryRollbackId" {
-            docker image rm $temporaryRollbackId
-        }
-    }
+    $allowedRefs += "${repository}:previous"
+    Write-Host "[deploy] keeping single rollback image ${repository}:previous" -ForegroundColor Yellow
 }
 
 if ($Component -eq "java") {
@@ -189,15 +175,19 @@ Invoke-Checked "remove regular BuildKit cache unused for more than 3 hours" {
 
 $obsoleteRefs = @(
     & docker image ls $repository --format '{{.Repository}}:{{.Tag}}' |
-        Where-Object { $_ -ne "${repository}:current" -and $_ -notmatch ':<none>$' }
+        Where-Object { $_ -and ($_ -notmatch ':<none>$') -and ($allowedRefs -notcontains $_) }
 )
 foreach ($obsoleteRef in $obsoleteRefs) {
-    Invoke-Checked "remove obsolete production tag $obsoleteRef" { docker image rm $obsoleteRef }
+    Invoke-Checked "remove extra production tag $obsoleteRef" { docker image rm $obsoleteRef }
 }
 
 $tags = @(& docker image ls $repository --format '{{.Tag}}' | Where-Object { $_ -ne "<none>" } | Sort-Object -Unique)
-if ($tags.Count -ne 1 -or $tags -notcontains "current") {
-    throw "Image policy violation for ${repository}: expected exactly one current image."
+if ($firstRelease) {
+    if ($tags.Count -ne 1 -or $tags -notcontains "current") {
+        throw "Image policy violation for ${repository}: first release must keep only current."
+    }
+} elseif ($tags.Count -ne 2 -or $tags -notcontains "current" -or $tags -notcontains "previous") {
+    throw "Image policy violation for ${repository}: expected current plus one previous rollback."
 }
 
-Write-Host "[deploy] SUCCESS: $Component; only current retained; no volume operation performed." -ForegroundColor Green
+Write-Host "[deploy] SUCCESS: $Component; retained current and at most one previous; no volume operation performed." -ForegroundColor Green

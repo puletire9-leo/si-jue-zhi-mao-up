@@ -2,7 +2,7 @@
 
 Java sjzm-product 内的领星 ERP 开放平台对接模块。参照 `产品数据/领星数据api/lingxing_api.py`（Python 移植蓝本）与 `docs/参考/张总系统可借鉴设计.md`（落库范式蓝本）。
 
-财务日报、运营物流、UK+DE 统一 GBP、Listing 非破坏刷新和领星运行中心，见 `docs/架构/财务与运营自动化任务完整实施记录.md`。批量任务必须进入 `requestcenter/`，禁止业务 Service 直接打领星 HTTP。
+财务日报、运营物流、UK+DE 统一 GBP、Listing 非破坏刷新、统一表（周/日同一张）和领星运行中心，见 `docs/架构/财务与运营自动化任务完整实施记录.md` 与 `docs/架构/领星统一表切片口径.md`。批量任务必须进入 `requestcenter/`，禁止业务 Service 直接打领星 HTTP。
 
 ## 设计范式（张总蓝本）
 

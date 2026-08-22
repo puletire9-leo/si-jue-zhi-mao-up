@@ -4,6 +4,7 @@ import com.sjzm.common.PageResult;
 import com.sjzm.product.mapper.LingxingProductUnifiedMapper;
 import com.sjzm.product.modules.lingxing.dto.LingxingShopProductVO;
 import com.sjzm.product.modules.lingxing.dto.LingxingShopQueryRequest;
+import com.sjzm.product.rds.finance.mapper.FinanceRdsUnifiedPeriodMapper;
 import com.sjzm.product.rds.service.RdsBatchWriteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +28,8 @@ import java.util.Map;
  *   <li>信号4 真实上架日（listing.open_date），再兜底 product_create_time</li>
  * </ul>
  *
- * <p>经营指标（销量/利润/快照）每周全量刷新。</p>
+ * <p>经营指标（销量/利润/快照）每周全量刷新。时间窗成品写进同一张统一表
+ * {@code lingxing_product_unified_period}：周行时间窗跨一周，日行起止为同一天。</p>
  *
  * <p>每周产品表现同步后由 {@link LingxingScheduledSyncService} 调用。</p>
  */
@@ -71,6 +73,23 @@ public class LingxingProductUnifiedService {
         r.put("marketplaceDeactivated", marketplaceDeactivated);
         r.put("version", UNIFIED_VERSION);
         r.put("costMs", ms);
+        return r;
+    }
+
+    /**
+     * 把这一周写入统一表（与日行同一张、同一套字段）。时间窗 = 周起始到周结束。
+     */
+    public Map<String, Object> freezeWeeklySlice(String weekStart, String weekEnd) {
+        int[] affected = rdsBatchWriteService.executeOne(FinanceRdsUnifiedPeriodMapper.class, rdsMapper -> {
+            rdsMapper.deletePeriod(weekStart, weekEnd);
+            return new int[]{rdsMapper.insertFromWeeklyWindow(weekStart, weekEnd)};
+        });
+        int inserted = affected[0];
+        log.info("统一表写入周窗口：{}~{} 行={}", weekStart, weekEnd, inserted);
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("periodStart", weekStart);
+        r.put("periodEnd", weekEnd);
+        r.put("rows", inserted);
         return r;
     }
 

@@ -397,6 +397,20 @@ class LingxingFinanceDailyReportServiceTest {
         return fact;
     }
 
+    @Test
+    void pulledFactsWithTeamTagsKeepsOnlyTeamListingTags() {
+        LingxingProductPerformanceDaily team = new LingxingProductPerformanceDaily();
+        team.setAsin("B0TEAM");
+        team.setTagNames("欧洲精铺2025,绿标");
+        LingxingProductPerformanceDaily other = new LingxingProductPerformanceDaily();
+        other.setAsin("B0OTHER");
+        other.setTagNames("普通产品");
+
+        assertThat(service.pulledFactsWithTeamTags(List.of(team, other)))
+                .extracting(LingxingProductPerformanceDaily::getAsin)
+                .containsExactly("B0TEAM");
+    }
+
     private FinanceDailyReportRow totalRow(List<FinanceDailyReportRow> rows) {
         return rows.stream().filter(row -> "总".equals(row.dimension())).findFirst().orElseThrow();
     }

@@ -62,6 +62,25 @@ public class LingxingSkuDataLayerService {
         return r;
     }
 
+    /**
+     * 本周窗口：先按 6 个团队标签收缩周表，再删掉产品表现里不再需要的原始行。
+     * 历史其它周不动，作为以前统计底表保留。
+     */
+    public Map<String, Object> pruneNonTeamWindow(String startDate, String endDate) {
+        int weeklyDeleted = rdsBatchWriteService.executeOne(LingxingSkuDataLayerMapper.class,
+                rdsMapper -> rdsMapper.pruneWeeklyNonTeam(startDate, endDate));
+        int rawDeleted = rdsBatchWriteService.executeOne(LingxingSkuDataLayerMapper.class,
+                rdsMapper -> rdsMapper.pruneWeeklyRawPerformance(startDate, endDate));
+        int kept = mapper.countWeekly(emptyToNull(startDate), emptyToNull(endDate));
+        log.info("周原始数据清理：窗口 {}~{}，删周表 {} 行，删产品表现 {} 行，保留 {} 行",
+                startDate, endDate, weeklyDeleted, rawDeleted, kept);
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("weeklyDeleted", weeklyDeleted);
+        r.put("rawDeleted", rawDeleted);
+        r.put("keptWeeklyRows", kept);
+        return r;
+    }
+
     /** 按 startDate 推导 ISO 周标记 yyyy-Www（快照周缺省时用）。 */
     private String deriveIsoWeek(String startDate) {
         if (!StringUtils.hasText(startDate)) return null;

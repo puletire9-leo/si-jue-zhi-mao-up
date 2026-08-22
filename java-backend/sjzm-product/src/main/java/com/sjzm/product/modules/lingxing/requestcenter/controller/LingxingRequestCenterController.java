@@ -2,6 +2,7 @@ package com.sjzm.product.modules.lingxing.requestcenter.controller;
 
 import com.sjzm.common.PageResult;
 import com.sjzm.common.Result;
+import com.sjzm.product.modules.lingxing.requestcenter.dto.UnifiedPeriodBackfillRequest;
 import com.sjzm.product.modules.lingxing.requestcenter.entity.LingxingRequestTask;
 import com.sjzm.product.modules.lingxing.requestcenter.entity.LingxingAutomationRequestRegistry;
 import com.sjzm.product.modules.lingxing.requestcenter.service.LingxingAutomationRegistryService;
@@ -71,6 +72,13 @@ public class LingxingRequestCenterController {
     @Operation(summary = "入队领星任务（PENDING 后自动执行）")
     public Result<LingxingRequestTask> enqueue(@RequestBody EnqueueRequest req) {
         return Result.success(centerService.enqueue(req.taskType(), req.payloadJson(), req.operator()));
+    }
+
+    @PostMapping("/unified-period-backfill")
+    @Operation(summary = "入队统一表完整回补：财务日 GBP 重拉 + 周窗口，串行执行")
+    public Result<Map<String, Object>> enqueueUnifiedPeriodBackfill(
+            @RequestBody(required = false) UnifiedPeriodBackfillRequest request) {
+        return Result.success(centerService.enqueueUnifiedPeriodBackfill(request));
     }
 
     @GetMapping("/tasks/{taskId}")

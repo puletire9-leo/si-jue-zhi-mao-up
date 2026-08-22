@@ -12,7 +12,7 @@ UNION ALL SELECT 'lingxing_local_product', COUNT(*) FROM lingxing_local_product
 UNION ALL SELECT 'lingxing_product_performance', COUNT(*) FROM lingxing_product_performance
 UNION ALL SELECT 'lingxing_product_performance_daily', COUNT(*) FROM lingxing_product_performance_daily
 UNION ALL SELECT 'lingxing_product_unified', COUNT(*) FROM lingxing_product_unified
-UNION ALL SELECT 'lingxing_product_unified_daily', COUNT(*) FROM lingxing_product_unified_daily
+UNION ALL SELECT 'lingxing_product_unified_period', COUNT(*) FROM lingxing_product_unified_period
 UNION ALL SELECT 'lingxing_product_unified_marketplace', COUNT(*) FROM lingxing_product_unified_marketplace
 UNION ALL SELECT 'lingxing_profit_asin', COUNT(*) FROM lingxing_profit_asin
 UNION ALL SELECT 'lingxing_purchase_order', COUNT(*) FROM lingxing_purchase_order

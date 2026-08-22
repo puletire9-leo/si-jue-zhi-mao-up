@@ -4,7 +4,8 @@ export default {
   id: 'person-roster',
   name: '人员维度配置',
   icon: 'UserFilled',
-  menuOrder: 215,
+  menuGroup: '配置',
+  menuOrder: 93,
   route: {
     path: 'person-roster',
     name: 'PersonRoster',

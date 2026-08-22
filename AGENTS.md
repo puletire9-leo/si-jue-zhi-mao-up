@@ -31,6 +31,7 @@
 | 财务/运营自动化 | [docs/架构/财务与运营自动化任务完整实施记录.md](docs/架构/财务与运营自动化任务完整实施记录.md) | 财务日报与运营物流自动化统一实施索引 |
 | 开发规范 | [docs/development/standards.md](docs/development/standards.md) | 编码规范、提交规范、分支策略 |
 | 生产部署唯一流程 | [docs/docker使用经验/部署流程.md](docs/docker使用经验/部署流程.md) | 唯一权威，其他文档不得覆盖 |
+| 日常更新 Docker | [docs/docker使用经验/日常更新docker.md](docs/docker使用经验/日常更新docker.md) | 已在跑的栈只更新单个组件 |
 | 部署索引 | [DOCKER_DEPLOY.md](DOCKER_DEPLOY.md) | 只做入口索引 |
 | AI 能力分析 | [docs/AI能力差距综合分析报告.md](docs/AI能力差距综合分析报告.md) | 岗位差距与学习路线 |
 

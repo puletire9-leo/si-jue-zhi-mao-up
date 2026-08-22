@@ -192,7 +192,7 @@ Amazon 以图识图任务构造 StyleSnap/Shop the Look URL 前必须移除 Amaz
 
 生产数据库保护：product Hikari 默认 min 3/max 15，user 默认 min 2/max 5，连接等待 5 秒；MySQL 硬上限 60。统一店铺聚合等大型查询必须通过 `DatabaseWorkloadGate`（并发 2），全量 CSV 并发 1，八爪鱼导入DB、文件导入、评分重算和 clean 层批量写入并发 1。普通分页/详情/小型 CRUD 不进入门禁；卖家精灵请求中心保持现有单线程。
 
-领星数据源：现有周请求/周加工/统一表/模型查询一律使用 RDS，本地库仅保留历史副本。周、日产品表现采集均保持 UK/DE 完整请求，并在请求阶段固定传 `currency_code=GBP`；RDS 保留来源站点用于白名单和审计，但所有金额统一按 GBP 计算。财务加工分别应用 UK/DE ASIN 白名单，再跨站点按 ASIN 合并，飞书只输出一套 ALL/GBP 报表。
+领星数据源：现有周请求/周加工/统一表/模型查询一律使用 RDS，本地库仅保留历史副本。周、日产品表现采集均保持 UK/DE 完整请求，并在请求阶段固定传 `currency_code=GBP`；RDS 保留来源站点用于白名单和审计，但所有金额统一按 GBP 计算。财务加工分别应用 UK/DE ASIN 白名单，再跨站点按 ASIN 合并，飞书只输出一套 ALL/GBP 报表。统一表周/日同一张时间窗表 `lingxing_product_unified_period`，见 `docs/架构/领星统一表切片口径.md`。
 
 RDS 写入铁律：所有 RDS insert/update/delete/upsert 必须通过 `rds/service/RdsBatchWriteService`；业务 Service 禁止直接提交 RDS Mapper 写操作，禁止对 RDS 实体使用 `Db.saveBatch` / `Db.saveOrUpdateBatch`。读取可直接调用 Mapper。详见 `sjzm-product/src/main/java/com/sjzm/product/rds/README.md`。生产主库与 Python 业务库在配置了 `RDS_HOST` 后也连远程 `sijuelishi`，连接登记见 `docs/database/connection-registry.md`。
 

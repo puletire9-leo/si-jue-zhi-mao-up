@@ -4,7 +4,8 @@ export default {
   id: 'rds-management-center',
   name: 'RDS 管理中心',
   icon: 'Coin',
-  menuOrder: 214,
+  menuGroup: '配置',
+  menuOrder: 92,
   route: {
     path: 'rds-management-center',
     name: 'RdsManagementCenter',

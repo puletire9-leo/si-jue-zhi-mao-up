@@ -46,7 +46,7 @@ public interface LingxingProductUnifiedMapper extends BaseMapper<LingxingProduct
     /** 将本轮周表已不存在的历史国家关系标为无效；在 upsert 成功后执行。 */
     int deactivateStaleMarketplaceRelations();
 
-    /** 清空统一表（重算前可选调用；rebuildAll 已是幂等 upsert，通常不需要）。 */
+    /** 清空统一表当前锁表（重算前可选调用；rebuildAll 已是幂等 upsert，通常不需要）。 */
     int truncateAll();
 
     // ============================================================

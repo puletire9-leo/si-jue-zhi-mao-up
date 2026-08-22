@@ -221,8 +221,8 @@ PURGE BINARY LOGS BEFORE DATE_SUB(NOW(), INTERVAL 7 DAY);
 - 周、日产品表现请求均固定传 `currency_code=GBP`，UK/DE 金额由领星在请求阶段统一换算；周加工只消费 GBP 来源事实。相关表以 RDS 为主数据源，本地库仅保留历史副本。
 - 首轮迁移通过 `scripts/migrate_lingxing_weekly_to_rds.py` 幂等 upsert 完成，不删除 RDS 现有数据，所有表均已按源/目标行数校验。
 - `lingxing_product_unified_marketplace` 物化统一表 ASIN 与 UK/DE 的多对多来源关系，不改变原统一表“一 ASIN 一行”主键；两站的 `currency_code` 均记录为 GBP。
-- 财务日事实使用 `lingxing_product_performance_daily.marketplace` 保留 UK/DE。自动化在日事实落库后，按当天日事实重算 `lingxing_product_unified_daily`（国家+ASIN）；SKU 总量等于该日快照，不用最新统一表覆盖历史日。飞书仍输出 ALL/GBP。
-- DDL：`create_lingxing_product_unified_daily.sql`。
+- 财务日事实使用 `lingxing_product_performance_daily.marketplace` 保留 UK/DE。周、日统一表是同一张 `lingxing_product_unified_period`：日窗口 `period_start=period_end=当天`，周窗口为该周起止。SKU 总量按对应时间窗行数计。口径见 [领星统一表切片口径.md](../架构/领星统一表切片口径.md)。
+- DDL：`create_lingxing_product_unified_period.sql`；已有旧日表则执行 `alter_lingxing_product_unified_period.sql`。
 - 历史事实不原地改写币种；历史周/日数据只有经领星按 GBP 重拉后才能进入新的统一 GBP 口径。
 - `lingxing_finance_asin_status_snapshot` 主键为 `(snapshot_date, marketplace, asin)`，相同 ASIN 跨站点的状态互不继承。
 - DDL：`create_lingxing_product_unified_marketplace.sql` 和 `migrate_finance_daily_marketplace.sql`。

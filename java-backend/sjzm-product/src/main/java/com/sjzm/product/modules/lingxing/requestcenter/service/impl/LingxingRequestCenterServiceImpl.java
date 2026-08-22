@@ -5,7 +5,9 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sjzm.common.PageResult;
+import com.sjzm.product.modules.automation.job.FinanceDailyReportJob;
 import com.sjzm.product.modules.automation.service.AutomationCenterService;
+import com.sjzm.product.modules.lingxing.requestcenter.dto.UnifiedPeriodBackfillRequest;
 import com.sjzm.product.modules.lingxing.requestcenter.entity.LingxingRequestTask;
 import com.sjzm.product.modules.lingxing.requestcenter.handler.LingxingTaskExecutionContext;
 import com.sjzm.product.modules.lingxing.requestcenter.handler.LingxingTaskHandler;
@@ -14,6 +16,7 @@ import com.sjzm.product.modules.lingxing.requestcenter.handler.LingxingTaskResul
 import com.sjzm.product.modules.lingxing.requestcenter.mapper.LingxingRequestTaskMapper;
 import com.sjzm.product.modules.lingxing.requestcenter.mapper.LingxingAutomationRequestRegistryMapper;
 import com.sjzm.product.modules.lingxing.requestcenter.service.LingxingRequestCenterService;
+import com.sjzm.product.modules.lingxing.requestcenter.service.UnifiedPeriodBackfillPlanner;
 import com.sjzm.product.modules.lingxing.service.LingxingClient;
 import com.sjzm.product.modules.lingxing.service.LingxingConfigService;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +29,9 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -111,6 +117,39 @@ public class LingxingRequestCenterServiceImpl implements LingxingRequestCenterSe
         log.info("领星请求中心任务已入队: taskId={}, taskType={}, operator={}", task.getTaskId(), normalizedType, operator);
         startAutoConsumeAfterCommit();
         return task;
+    }
+
+    @Override
+    public Map<String, Object> enqueueUnifiedPeriodBackfill(UnifiedPeriodBackfillRequest request) {
+        UnifiedPeriodBackfillRequest req = request == null ? new UnifiedPeriodBackfillRequest() : request;
+        List<UnifiedPeriodBackfillPlanner.Spec> specs = UnifiedPeriodBackfillPlanner.plan(
+                req.getWeeklyFrom(),
+                req.getWeeklyTo(),
+                req.getDailyFrom(),
+                req.getDailyTo(),
+                req.getPublishToFeishu(),
+                req.getAllowRepull());
+        if (specs.isEmpty()) {
+            throw new IllegalArgumentException("没有可入队的时间窗");
+        }
+        String operator = StringUtils.hasText(req.getOperator()) ? req.getOperator() : "unified-period-backfill";
+        List<String> taskIds = new ArrayList<>();
+        int dailyCount = 0;
+        int weeklyCount = 0;
+        for (UnifiedPeriodBackfillPlanner.Spec spec : specs) {
+            taskIds.add(enqueue(spec.taskType(), spec.payloadJson(), operator).getTaskId());
+            if (FinanceDailyReportJob.CODE.equals(spec.taskType())) {
+                dailyCount++;
+            } else {
+                weeklyCount++;
+            }
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("queued", taskIds.size());
+        result.put("dailyCount", dailyCount);
+        result.put("weeklyCount", weeklyCount);
+        result.put("taskIds", taskIds);
+        return result;
     }
 
     @Override

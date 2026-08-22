@@ -1,6 +1,7 @@
 package com.sjzm.product.modules.lingxing.requestcenter.service;
 
 import com.sjzm.common.PageResult;
+import com.sjzm.product.modules.lingxing.requestcenter.dto.UnifiedPeriodBackfillRequest;
 import com.sjzm.product.modules.lingxing.requestcenter.entity.LingxingRequestTask;
 
 import java.util.Map;
@@ -19,6 +20,9 @@ public interface LingxingRequestCenterService {
      * @param operator    操作人（可空）
      */
     LingxingRequestTask enqueue(String taskType, String payloadJson, String operator);
+
+    /** 入队财务日 GBP 重拉 + 周窗口，全部走领星串行队列。 */
+    Map<String, Object> enqueueUnifiedPeriodBackfill(UnifiedPeriodBackfillRequest request);
 
     /** 由自动化注册表入队，并保留注册来源和队列优先级。 */
     LingxingRequestTask enqueueRegistered(Long registryId, String registrationCode,

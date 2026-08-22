@@ -144,7 +144,8 @@ Vite 自动导入的 `auto-import.d.ts` 和 `components.d.ts` 只在 development
 
 ## Agent 修改规则
 
-侧边栏模块通过 `manifest.ts` 的 `menuGroup` 组织二级目录；长业务分组使用 `menuSection` 和 `menuSectionOrder` 组织三级目录。三级目录只改变菜单信息架构，不得改变模块 URL、路由名称或权限标识。
+侧边栏模块通过 `manifest.ts` 的 `menuGroup` 组织二级目录（例如「选品中心」「配置」）；长业务分组使用 `menuSection` 和 `menuSectionOrder` 组织三级目录。三级目录只改变菜单信息架构，不得改变模块 URL、路由名称或权限标识。
+「配置」分组下为自动化任务中心、飞书对接中心、RDS 管理中心、人员维度配置；不要再把这四个模块写成侧栏根项。
 侧边栏允许多个一级目录和三级分组同时展开，禁止启用 Element Plus 菜单的 `unique-opened` 单展开限制。
 店铺请求中心必须把“正常店铺请求”和“非标店铺上新”作为独立模式：正常模式读取 `shop_candidate_pool` 并写 `shop_products`；非标模式读取 `deng_zong_shop_seller`，只通过 `/api/v1/deng-zong-shop/sync/batch` 创建 `DENG_ZONG_SHOP_SYNC`，结果只写 `deng_zong_shop`。非标商品页只读展示，不得再维护第二套卖家管理弹窗。
 

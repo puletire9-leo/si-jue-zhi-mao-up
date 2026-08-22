@@ -1,6 +1,7 @@
 package com.sjzm.product.mapper;
 
 import com.sjzm.product.rds.lingxing.LingxingRdsMapper;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -106,4 +107,47 @@ public interface LingxingSkuDataLayerMapper extends LingxingRdsMapper {
             </script>
             """)
     int countWeekly(@Param("startDate") String startDate, @Param("endDate") String endDate);
+
+    /**
+     * 只保留本周命中 6 个团队标签的 ASIN 原始周行，删掉其余以省空间。
+     * 标签 ID 与统一表准入一致。
+     */
+    @Delete("""
+            DELETE w FROM lingxing_sku_weekly_performance w
+            LEFT JOIN (
+                SELECT DISTINCT asin
+                FROM lingxing_sku_weekly_performance
+                WHERE week_start = #{startDate}
+                  AND week_end = #{endDate}
+                  AND tag_ids IS NOT NULL AND tag_ids <> ''
+                  AND (
+                        FIND_IN_SET('907563170455592213', tag_ids)
+                     OR FIND_IN_SET('907654877317203632', tag_ids)
+                     OR FIND_IN_SET('907585631391968576', tag_ids)
+                     OR FIND_IN_SET('907585847123066054', tag_ids)
+                     OR FIND_IN_SET('907596133278666918', tag_ids)
+                     OR FIND_IN_SET('907657425150046095', tag_ids)
+                  )
+            ) keep ON keep.asin = w.asin
+            WHERE w.week_start = #{startDate}
+              AND w.week_end = #{endDate}
+              AND keep.asin IS NULL
+            """)
+    int pruneWeeklyNonTeam(@Param("startDate") String startDate, @Param("endDate") String endDate);
+
+    /** 本周窗口的产品表现原始行，只留仍在周表里的 ASIN。 */
+    @Delete("""
+            DELETE p FROM lingxing_product_performance p
+            LEFT JOIN (
+                SELECT DISTINCT asin
+                FROM lingxing_sku_weekly_performance
+                WHERE week_start = #{startDate}
+                  AND week_end = #{endDate}
+                  AND asin IS NOT NULL AND asin <> ''
+            ) keep ON keep.asin = p.asin
+            WHERE p.start_date = #{startDate}
+              AND p.end_date = #{endDate}
+              AND keep.asin IS NULL
+            """)
+    int pruneWeeklyRawPerformance(@Param("startDate") String startDate, @Param("endDate") String endDate);
 }

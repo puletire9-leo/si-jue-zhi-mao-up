@@ -64,4 +64,22 @@ public interface FinanceRdsDailyMapper extends BaseMapper<LingxingProductPerform
 
     @Delete("DELETE FROM lingxing_product_performance_daily WHERE data_date = #{date}")
     int deleteByDate(@Param("date") LocalDate date);
+
+    /** 只保留当天命中 6 个团队中文标签的日事实。 */
+    @Delete("""
+            DELETE FROM lingxing_product_performance_daily
+            WHERE data_date = #{date}
+              AND (
+                    tag_names IS NULL OR tag_names = ''
+                 OR NOT (
+                        FIND_IN_SET('欧洲精铺2025', tag_names)
+                     OR FIND_IN_SET('欧洲精铺2025非标品', tag_names)
+                     OR FIND_IN_SET('欧洲精铺2025淘汰', tag_names)
+                     OR FIND_IN_SET('欧洲精铺2025待淘汰', tag_names)
+                     OR FIND_IN_SET('欧洲精铺2025季节性断货', tag_names)
+                     OR FIND_IN_SET('绿标', tag_names)
+                    )
+              )
+            """)
+    int pruneNonTeamByDate(@Param("date") LocalDate date);
 }

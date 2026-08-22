@@ -37,11 +37,8 @@ function Read-EnvFileValue {
 }
 
 function Get-EntityTables {
-    $roots = @(
-        "java-backend/sjzm-product/src/main/java",
-        "java-backend/sjzm-user/src/main/java"
-    )
-    Get-ChildItem -Path $roots -Recurse -Filter "*.java" |
+    param([string[]]$Roots)
+    Get-ChildItem -Path $Roots -Recurse -Filter "*.java" |
         Select-String -Pattern '@TableName\("([^"]+)"\)' |
         ForEach-Object { $_.Matches.Groups[1].Value } |
         Sort-Object -Unique
@@ -96,6 +93,17 @@ function Get-ViteJavaRoots {
 function Invoke-MysqlScalarList {
     param([string]$Sql)
     docker exec -e MYSQL_PWD="$Password" $MysqlContainer mysql "-u$User" -N -e $Sql 2>$null
+}
+
+function Invoke-RemoteMysqlScalarList {
+    param(
+        [string]$HostName,
+        [string]$Port,
+        [string]$UserName,
+        [string]$Pass,
+        [string]$Sql
+    )
+    docker run --rm -e MYSQL_PWD="$Pass" mysql:8.0 mysql --protocol=TCP -h "$HostName" -P "$Port" -u "$UserName" -N --connect-timeout=10 -e $Sql 2>$null
 }
 
 function Invoke-MysqlAdminScalarList {
@@ -215,11 +223,61 @@ if (-not $SkipDockerDisk) {
 }
 
 if (-not $SkipDatabase) {
-    if (-not $Database -or -not $User -or -not $Password) {
+    $rdsHost = Read-EnvFileValue "config/public/$Env.env" "RDS_HOST"
+    $rdsPort = Read-EnvFileValue "config/public/$Env.env" "RDS_PORT"
+    if (-not $rdsPort) { $rdsPort = "3306" }
+    $rdsDatabase = Read-EnvFileValue "config/public/$Env.env" "RDS_DATABASE"
+    $rdsUser = Read-EnvFileValue "config/public/$Env.env" "RDS_USERNAME"
+    $rdsPassword = Read-EnvFileValue "config/secrets/$Env.env" "RDS_PASSWORD"
+    $userHost = Read-EnvFileValue "config/public/user-$Env.env" "USER_MYSQL_HOST"
+    $userPort = Read-EnvFileValue "config/public/user-$Env.env" "USER_MYSQL_PORT"
+    if (-not $userPort) { $userPort = "3306" }
+    $userDatabase = Read-EnvFileValue "config/public/user-$Env.env" "USER_MYSQL_DATABASE"
+    $userName = Read-EnvFileValue "config/public/user-$Env.env" "USER_MYSQL_USERNAME"
+    $userPassword = Read-EnvFileValue "config/secrets/user-$Env.env" "USER_MYSQL_PASSWORD"
+
+    function Test-RemoteEntityTables {
+        param(
+            [string]$Label,
+            [string]$HostName,
+            [string]$Port,
+            [string]$UserName,
+            [string]$Pass,
+            [string]$Schema,
+            [string[]]$Tables
+        )
+        if (-not $HostName -or -not $UserName -or -not $Pass -or -not $Schema) {
+            $failures.Add("Incomplete $Label credentials for entity-table preflight.")
+            return
+        }
+        Write-Host "[preflight] checking $Label entity tables on ${HostName}/${Schema} ..."
+        $sql = "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = '$Schema' ORDER BY TABLE_NAME"
+        $dbTables = @(Invoke-RemoteMysqlScalarList -HostName $HostName -Port $Port -UserName $UserName -Pass $Pass -Sql $sql)
+        $dbSet = New-Object System.Collections.Generic.HashSet[string] ([StringComparer]::OrdinalIgnoreCase)
+        foreach ($table in $dbTables) {
+            [void]$dbSet.Add($table)
+        }
+        foreach ($table in $Tables) {
+            if (-not $dbSet.Contains($table)) {
+                $failures.Add("Missing $Label table for @TableName: $table")
+            }
+        }
+        Write-Host "[preflight] $Label tables required=$($Tables.Count), existing=$($dbTables.Count)"
+    }
+
+    if ($rdsHost) {
+        $productTables = @(Get-EntityTables -Roots @("java-backend/sjzm-product/src/main/java"))
+        $userTables = @(Get-EntityTables -Roots @("java-backend/sjzm-user/src/main/java"))
+        Test-RemoteEntityTables -Label "RDS business" -HostName $rdsHost -Port $rdsPort -UserName $rdsUser -Pass $rdsPassword -Schema $rdsDatabase -Tables $productTables
+        Test-RemoteEntityTables -Label "RDS user" -HostName $userHost -Port $userPort -UserName $userName -Pass $userPassword -Schema $userDatabase -Tables $userTables
+    } elseif (-not $Database -or -not $User -or -not $Password) {
         $failures.Add("Database credentials incomplete. Provide -Database/-User/-Password or config/public+secrets $Env env files.")
     } else {
         Write-Host "[preflight] checking entity tables in $MysqlContainer/$Database ..."
-        $entityTables = @(Get-EntityTables)
+        $entityTables = @(Get-EntityTables -Roots @(
+            "java-backend/sjzm-product/src/main/java",
+            "java-backend/sjzm-user/src/main/java"
+        ))
         $sql = "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = '$Database' ORDER BY TABLE_NAME"
         $dbTables = @(Invoke-MysqlScalarList $sql)
         $dbSet = New-Object System.Collections.Generic.HashSet[string] ([StringComparer]::OrdinalIgnoreCase)

@@ -5,10 +5,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.sjzm.product.modules.lingxing.LingxingTeamListingTags;
 import com.sjzm.product.rds.finance.mapper.FinanceRdsDailyMapper;
 import com.sjzm.product.rds.finance.mapper.FinanceRdsHistoryMapper;
 import com.sjzm.product.rds.finance.mapper.FinanceRdsSellerMapper;
-import com.sjzm.product.rds.finance.mapper.FinanceRdsUnifiedDailyMapper;
+import com.sjzm.product.rds.finance.mapper.FinanceRdsUnifiedPeriodMapper;
 import com.sjzm.product.rds.finance.mapper.FinanceRdsUnifiedMapper;
 import com.sjzm.product.rds.finance.model.FinanceMarketplaceAsinRow;
 import com.sjzm.product.rds.finance.model.FinanceStatusSnapshotRow;
@@ -44,11 +45,12 @@ import java.util.stream.Collectors;
  * <ol>
  *   <li>完整请求在售 UK/DE 店铺数据（status=1 且 mid IN(4,5)），由领星统一换算为 GBP 后落 RDS；</li>
  *   <li>按 sid 上限 200 分批拉 productPerformance/asinList（summary=asin，单日窗口，
- *       多店铺请求页间/批间间隔 10s，令牌桶=1），当天返回行整包落库（含 raw_json），拉取时不筛统一表；</li>
+ *       多店铺请求页间/批间间隔 10s，令牌桶=1），当天返回行整包落库（含 raw_json），
+ *       落库前只保留 6 个团队 listing 标签的 ASIN；</li>
  *   <li>首次成功日事实只写一次；已存在日期默认拒绝覆盖，仅当显式 allowRepull 时按需删除该日旧行再写入；</li>
  *   <li>从 RDS 周历史与既往日事实读取“历史曾出单”状态，复刻工作簿累计销量公式；</li>
- *   <li>日事实落库后，按当天 RDS 日事实重算该日统一表快照（国家+ASIN）；
- *       SKU 总量等于该日快照行数。禁止用最新统一表覆盖历史日。</li>
+ *   <li>日事实落库后，按当天日事实写入统一表时间窗（period_start=period_end=当天，国家+ASIN）；
+ *       SKU 总量等于该日时间窗行数。禁止用其它时间窗覆盖这一天。</li>
  * </ol>
  *
  * <p>本服务只负责数据侧（拉取/清洗/落库/加工），飞书发布由 automation 层 Job 编排，
@@ -100,7 +102,7 @@ public class LingxingFinanceDailyReportService {
     private final FinanceRdsDailyMapper dailyMapper;
     private final FinanceRdsHistoryMapper queryMapper;
     private final FinanceRdsUnifiedMapper unifiedMapper;
-    private final FinanceRdsUnifiedDailyMapper unifiedDailyMapper;
+    private final FinanceRdsUnifiedPeriodMapper unifiedPeriodMapper;
     private final RdsBatchWriteService rdsBatchWriteService;
     private final PersonRosterService personRosterService;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -166,14 +168,15 @@ public class LingxingFinanceDailyReportService {
                 fetchedRows += pulled.fetchedRows();
             }
             result.setFetchedRows(fetchedRows);
-            result.setTeamRows(facts.size()); // 兼容旧审计字段；当前语义为统一表目标来源行数。
+            List<LingxingProductPerformanceDaily> teamFacts = pulledFactsWithTeamTags(facts);
+            result.setTeamRows(teamFacts.size());
 
-            // ③ 可选落库（首次写入；禁止删除覆盖）
-            List<LingxingProductPerformanceDaily> pulledFacts = facts;
+            // ③ 可选落库（首次写入；禁止删除覆盖）；只存团队标签原始行
             int stored = persistFacts
-                    ? timed("storeDailyFacts", durations, () -> storeDailyFacts(reportDate, pulledFacts))
+                    ? timed("storeDailyFacts", durations, () -> storeDailyFacts(reportDate, teamFacts))
                     : 0;
             result.setStoredRows(stored);
+            facts = teamFacts;
         } else {
             // 复用阶段：不调用领星，直接读取 RDS 日事实。
             facts = timed("loadStoredDailyFacts", durations,
@@ -181,14 +184,17 @@ public class LingxingFinanceDailyReportService {
             if (facts.isEmpty()) {
                 throw new IllegalStateException("RDS 无目标日期日事实，无法复用: " + reportDate);
             }
+            timed("pruneStoredNonTeamFacts", durations, () -> pruneStoredNonTeamFacts(reportDate));
+            facts = timed("reloadTeamDailyFacts", durations,
+                    () -> dailyMapper.selectFinanceFacts(reportDate, null));
             result.setFetchedRows(facts.size());
             result.setTeamRows(facts.size());
             result.setStoredRows(0);
         }
-        timed("snapshotUnifiedDaily", durations, () -> rebuildUnifiedDailyFromFacts(reportDate));
+        timed("snapshotUnifiedPeriod", durations, () -> rebuildUnifiedPeriodFromFacts(reportDate));
 
         Map<String, Set<String>> reportAllowedAsins = timed("loadReportAsinWhitelist", durations,
-                () -> loadUnifiedDailyWhitelist(reportDate));
+                () -> loadUnifiedPeriodWhitelist(reportDate));
         boolean hasDailyUnified = reportAllowedAsins.values().stream().anyMatch(set -> !set.isEmpty());
         List<LingxingProductPerformanceDaily> reportFacts = facts.stream()
                 .filter(f -> f.getMarketplace() != null)
@@ -421,6 +427,19 @@ public class LingxingFinanceDailyReportService {
         return inserted;
     }
 
+    List<LingxingProductPerformanceDaily> pulledFactsWithTeamTags(
+            List<LingxingProductPerformanceDaily> facts) {
+        return facts.stream()
+                .filter(f -> LingxingTeamListingTags.matchesTagNames(f.getTagNames()))
+                .toList();
+    }
+
+    int pruneStoredNonTeamFacts(LocalDate reportDate) {
+        Integer deleted = rdsBatchWriteService.executeOne(
+                FinanceRdsDailyMapper.class, mapper -> mapper.pruneNonTeamByDate(reportDate));
+        return deleted == null ? 0 : deleted;
+    }
+
     // ============================================================
     // ④ 国家+ASIN 去重 + 上一期状态快照
     // ============================================================
@@ -466,9 +485,9 @@ public class LingxingFinanceDailyReportService {
         return new ArrayList<>(consolidated.values());
     }
 
-    int rebuildUnifiedDailyFromFacts(LocalDate reportDate) {
+    int rebuildUnifiedPeriodFromFacts(LocalDate reportDate) {
         Integer inserted = rdsBatchWriteService.executeOne(
-                FinanceRdsUnifiedDailyMapper.class,
+                FinanceRdsUnifiedPeriodMapper.class,
                 mapper -> {
                     mapper.deleteByDate(reportDate);
                     return mapper.insertFromDailyFacts(reportDate);
@@ -476,12 +495,12 @@ public class LingxingFinanceDailyReportService {
         return inserted == null ? 0 : inserted;
     }
 
-    Map<String, Set<String>> loadUnifiedDailyWhitelist(LocalDate reportDate) {
+    Map<String, Set<String>> loadUnifiedPeriodWhitelist(LocalDate reportDate) {
         Map<String, Set<String>> allowed = new LinkedHashMap<>();
         for (String marketplace : REQUEST_MARKETPLACES) {
             allowed.put(marketplace, new HashSet<>());
         }
-        for (FinanceMarketplaceAsinRow row : unifiedDailyMapper.selectMarketplaceAsins(reportDate)) {
+        for (FinanceMarketplaceAsinRow row : unifiedPeriodMapper.selectMarketplaceAsins(reportDate)) {
             String marketplace = normalizeMarketplace(row.getMarketplace());
             if (allowed.containsKey(marketplace) && row.getAsin() != null && !row.getAsin().isBlank()) {
                 allowed.get(marketplace).add(row.getAsin());

@@ -155,7 +155,7 @@ function runDuration(value: unknown): string {
 const STAGE_LABELS: Record<string, string> = {
   validateTarget: '检查飞书目标',
   refreshListing: 'Listing 非破坏刷新',
-  snapshotUnifiedDaily: '按日事实重算当天统一表',
+  snapshotUnifiedPeriod: '按当天日事实写入统一表时间窗',
   resolveSellersUK: '解析 UK 店铺',
   resolveSellersDE: '解析 DE 店铺',
   pullAsinListUK: '领星 UK 日数据拉取',
@@ -194,7 +194,7 @@ const STAGE_LABELS: Record<string, string> = {
 const STAGE_ORDER = [
   'validateTarget', 'refreshListing',
   'resolveSellersUK', 'pullAsinListUK', 'resolveSellersDE', 'pullAsinListDE', 'storeDailyFacts',
-  'snapshotUnifiedDaily',
+  'snapshotUnifiedPeriod',
   'loadStoredDailyFacts', 'loadReportAsinWhitelistUK', 'loadReportAsinWhitelistDE',
   'loadEffectiveDevelopers', 'loadEffectiveOperators', 'consolidateAsinsAll',
   'loadListingDatesAll', 'loadUnifiedAll', 'loadPriorPositiveAsinsAll',

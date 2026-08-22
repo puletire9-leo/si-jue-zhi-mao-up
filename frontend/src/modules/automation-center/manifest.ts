@@ -4,7 +4,8 @@ export default {
   id: 'automation-center',
   name: '自动化任务中心',
   icon: 'Connection',
-  menuOrder: 212,
+  menuGroup: '配置',
+  menuOrder: 90,
   route: {
     path: 'automation-center',
     name: 'AutomationCenter',

@@ -14,7 +14,7 @@
 
 | 你要做的事 | 打开 |
 |---|---|
-| 线下生产构建 / 更新 / 回滚 | **[部署流程.md](部署流程.md)** 线下节 + `scripts/deploy/deploy_prod.ps1` |
+| 线下生产构建 / 更新 / 回滚 | **[部署流程.md](部署流程.md)**；日常单组件见 **[日常更新docker.md](日常更新docker.md)** |
 | 线上更新（对方服务器） | **[部署流程.md](部署流程.md)** 线上节：改 `/root/woeau_web/ai-selection-deploy/.env` 后 `docker compose up -d` |
 | Docker 磁盘、VHDX、卷保护 | [Docker存储优化.md](Docker存储优化.md) |
 | SSH / 阿里云镜像仓库 / 远程机 | [ssh服务器链接.md](../ssh服务器链接/ssh服务器链接.md) |
