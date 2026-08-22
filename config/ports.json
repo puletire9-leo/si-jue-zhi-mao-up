@@ -1,17 +1,10 @@
 {
-  "base": {
-    "mysql": 13338,
-    "redis": 6379
-  },
-  "dev": {
-    "python_backend": 18090,
-    "frontend": 6175,
-    "java_user": 18001,
-    "java_product": 18002,
-    "selection_agent": 18011
-  },
-  "prod": {
-    "python_backend": 7090,
-    "frontend": 5173
-  }
+  "mysql": 3310,
+  "redis": 6383,
+  "python_backend": 7093,
+  "frontend": 5173,
+  "gateway": 9003,
+  "java_user": 8014,
+  "java_product": 8025,
+  "nacos": 8852
 }

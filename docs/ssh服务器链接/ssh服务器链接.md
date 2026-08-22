@@ -60,6 +60,41 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINzvaNCIYD/aSNc8yuC/ZYaJfUQdRtxYaesjWH+X2Rhk
 Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub
 ```
 
+### 第二台电脑 `PULETIRE`（2026-08-22）
+
+这台 Windows 用户是 `puletire`，没有 `C:\Users\Admin`，也没有 8.21 那把私钥。不要把 Admin 机的私钥拷进 Git。
+
+本机已生成自己的无 passphrase 密钥，OpenSSH 配置已写好：
+
+| 项 | 值 |
+|---|---|
+| 私钥 | `C:\Users\puletire\.ssh\id_ed25519` |
+| 公钥 | `C:\Users\puletire\.ssh\id_ed25519.pub` |
+| config | `C:\Users\puletire\.ssh\config`（`Host selection` → `root@8.148.188.93`） |
+| 公钥指纹 | `SHA256:eUtFfT1vWXpEwJfDbKXog516ZgbxFR0E29lveBA/Nvc` |
+| 本机公钥 | `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID700fR94plRy+htKL8K/jjJPiI2aLgXhY7gWLv9e+6j puletire@PULETIRE` |
+
+服务器主机指纹已核验，与 8.21 记录一致：`SHA256:Un1lGUNW7m44JhbaCNA3Gwzi9YjAag14x8gYsi/8ckg`。  
+当前登录结果：`Permission denied (publickey)` —— 这台公钥还没写入服务器 `authorized_keys`。
+
+在阿里云网页终端以 root **追加**（不要删掉 Admin 那一行）：
+
+```bash
+mkdir -p /root/.ssh
+chmod 700 /root/.ssh
+printf '%s\n' 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID700fR94plRy+htKL8K/jjJPiI2aLgXhY7gWLv9e+6j puletire@PULETIRE' >> /root/.ssh/authorized_keys
+chmod 600 /root/.ssh/authorized_keys
+chown -R root:root /root/.ssh
+```
+
+追加后在这台电脑执行：
+
+```powershell
+ssh selection
+# 或
+ssh root@8.148.188.93
+```
+
 ---
 
 ## 四、服务器 `8.148.188.93`

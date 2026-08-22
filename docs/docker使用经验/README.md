@@ -16,12 +16,9 @@
 |---|---|
 | 线下生产构建 / 更新 / 回滚 | **[部署流程.md](部署流程.md)** 线下节 + `scripts/deploy/deploy_prod.ps1` |
 | 线上更新（对方服务器） | **[部署流程.md](部署流程.md)** 线上节：改 `/root/woeau_web/ai-selection-deploy/.env` 后 `docker compose up -d` |
-| 开发环境怎么起、怎么热更新 | [开发流程.md](开发流程.md) + `docker-compose.dev.yml` |
 | Docker 磁盘、VHDX、卷保护 | [Docker存储优化.md](Docker存储优化.md) |
-| 生产库往开发库拷数据 | [MySQL跨环境数据复制.md](MySQL跨环境数据复制.md) |
 | SSH / 阿里云镜像仓库 / 远程机 | [ssh服务器链接.md](../ssh服务器链接/ssh服务器链接.md) |
 | 给对方的远程部署包 | [deploy-remote/README.md](../../deploy-remote/README.md) |
-| Dev 和 Prod 差异对照 | [开发规范-Dev与Prod差异.md](../development/开发规范-Dev与Prod差异.md) |
 | 宿主端口 | [端口.md](../架构/端口.md) |
 
 本目录不再保留历史方案、旧 README、旧踩坑总结。过时命令以 git 历史为准，不要再抄。
@@ -79,22 +76,6 @@ docker push registry.cn-shanghai.aliyuncs.com/suezon/selection:java-v1.1
 ```
 
 线上：改 `/root/woeau_web/ai-selection-deploy/.env` 对应 `*_IMAGE`，然后 `docker compose up -d`。不要四个镜像每次全推。
-
-### 开发（`docker-compose.dev.yml`）
-
-入口 `http://localhost:6175`。默认不启 Gateway / Nacos，Java 直连。  
-不要把服务绑到 Windows 排除段 `7998-8197`（所以宿主用 6175 / 18090 / 18001 / 18002 / 13338）。
-
-| 服务 | 宿主端口 |
-|---|---|
-| 前端 Vite | 6175 |
-| Python | 18090 |
-| Java user | 18001 |
-| Java product | 18002 |
-| MySQL | 13338 |
-| Redis | 6379 |
-
----
 
 ## 铁律（短）
 

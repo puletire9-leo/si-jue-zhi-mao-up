@@ -22,8 +22,7 @@ import javax.sql.DataSource;
  * <p>只绑定 {@code com.sjzm.product.rds.mapper} 包下的 Mapper（领星采购/库存/SP 事实表、
  * 运营进度结果表、同步游标表），其余 Mapper 走 {@link PrimaryDataSourceConfig} 的本地库。
  *
- * <p>dev 环境未配置 {@code RDS_*} 环境变量时，application.yml 的占位默认值回退到本地 MySQL，
- * 双数据源退化为都连本地，不阻塞本地开发。生产通过 config/secrets/prod.env 注入真实 RDS 连接。
+ * <p>未配置 {@code RDS_*} 时回退 {@code MYSQL_*}。生产通过 config/secrets/prod.env 注入真实 RDS 连接。
  */
 @Configuration
 @MapperScan(basePackages = {"com.sjzm.product.rds.mapper", "com.sjzm.product.rds.finance.mapper"},

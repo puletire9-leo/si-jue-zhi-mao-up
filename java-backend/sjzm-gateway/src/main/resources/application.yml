@@ -5,7 +5,7 @@ spring:
   application:
     name: sjzm-gateway
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
+    active: ${SPRING_PROFILES_ACTIVE:prod}
   main:
     web-application-type: reactive
     allow-bean-definition-overriding: true

@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     # ========================================
     # 环境
     # ========================================
-    ENVIRONMENT: str = "production"  # production / development
+    ENVIRONMENT: str = "production"
 
     # ========================================
     # 应用信息
@@ -248,18 +248,11 @@ class Settings(BaseSettings):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # 根据环境自动调整行为
-        if self.ENVIRONMENT == "development":
-            self.DEBUG = True
-            self.HOT_RELOAD_ENABLED = True
-            self.LOG_LEVEL = "DEBUG"
-            self.RATE_LIMIT_ENABLED = False
-            self.CORS_ORIGINS = ["*"]
-        else:
-            self.DEBUG = False
-            self.HOT_RELOAD_ENABLED = False
-            self.LOG_LEVEL = "INFO"
-            self.RATE_LIMIT_ENABLED = True
+        # 生产环境固定行为
+        self.DEBUG = False
+        self.HOT_RELOAD_ENABLED = False
+        self.LOG_LEVEL = "INFO"
+        self.RATE_LIMIT_ENABLED = True
 
         # 确保关键目录存在
         for d in [

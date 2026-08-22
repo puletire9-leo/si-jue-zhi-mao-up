@@ -58,20 +58,15 @@
 ## 快速命令
 
 ```bash
-# 开发环境启动（默认最小集，更快）
-docker compose -f docker-compose.dev.yml up -d
-
-# 当前 dev compose 不包含 gateway / nacos profile；需要联调时先补 compose 服务定义
-
 # 生产发布（必须先读 docs/docker使用经验/部署流程.md）
 powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component java
 
 # 查看服务状态
-docker compose ps
+docker compose -f docker-compose.prod.yml ps
 
 # 查看日志
-docker compose logs -f java-backend
-docker compose logs -f backend
+docker compose -f docker-compose.prod.yml logs -f java-backend
+docker compose -f docker-compose.prod.yml logs -f backend
 ```
 
 ## 环境变量

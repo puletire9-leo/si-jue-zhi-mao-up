@@ -2,7 +2,7 @@
 
 > 本文同时描述“当前必须遵守的规则”和“迁移期附加规则”。
 >
-> 若文档与实现冲突，以代码事实为准：模块约束先看对应 `AGENTS.md`，开发态路由先看 `frontend/vite.config.js`，再回写本文档。
+> 若文档与实现冲突，以代码事实为准：模块约束先看对应 `AGENTS.md`，生产路由先看 `frontend/nginx.conf`，再回写本文档。
 >
 > 生产部署例外：生产操作不从本文复制命令，唯一权威是 `docs/docker使用经验/部署流程.md`，统一入口是 `scripts/deploy/deploy_prod.ps1`。
 
@@ -70,10 +70,10 @@ powershell -ExecutionPolicy Bypass -File scripts/deploy/prod_preflight_check.ps1
 
 ### 路由与拥有者
 
-1. 开发态请求去向以 `frontend/vite.config.js` 为准，不以 README 口头说明为准。
+1. 请求去向以 `frontend/nginx.conf` 为准，不以 README 口头说明为准。
 2. 新增前端接口前，必须先确认它属于 `Java`、`Python` 还是 `Selection Agent`。
-3. 只有当 `vite.config.js`、`src/api/*.ts`、后端真实路由三者一致时，接口才算接入完成。
-4. 新增精确代理规则时，必须同时补上真实后端实现，禁止只配代理不落接口。
+3. 只有当 `nginx.conf`、`src/api/*.ts`、后端真实路由三者一致时，接口才算接入完成。
+4. 新增 Java `/api/v1/{resource}` 必须同步 Gateway 路由和 Nginx Java 白名单，禁止只改前端。
 
 ### 前端 API 设计
 

@@ -23,7 +23,7 @@ public class MetricsConfig {
     public MeterRegistryCustomizer<MeterRegistry> metricsCommonTags() {
         return registry -> registry.config()
                 .commonTags("application", applicationName)
-                .commonTags("environment", "${SPRING_PROFILES_ACTIVE:dev}")
+                .commonTags("environment", "${SPRING_PROFILES_ACTIVE:prod}")
                 .commonTags("region", "${REGION:default}");
     }
 

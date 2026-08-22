@@ -42,7 +42,7 @@
 
 ```bash
 git status --short              # 当前分支和未提交变更
-docker compose ps               # Docker 服务状态
+docker compose -f docker-compose.prod.yml ps
 ```
 如 Docker 未运行，先启动对应环境再继续。
 

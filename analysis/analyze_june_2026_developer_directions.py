@@ -42,7 +42,7 @@ def mysql_config() -> dict[str, Any]:
     config = mysql_env()
     if not os.environ.get("MYSQL_PORT_EXTERNAL"):
         ports = json.loads((ROOT / "config" / "ports.json").read_text(encoding="utf-8"))
-        config["port"] = int(ports["base"]["mysql"])
+        config["port"] = int(ports["mysql"])
     return config
 
 

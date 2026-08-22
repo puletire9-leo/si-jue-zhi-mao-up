@@ -10,11 +10,11 @@ spring:
   application:
     name: sjzm-user
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
+    active: ${SPRING_PROFILES_ACTIVE:prod}
   main:
     allow-bean-definition-overriding: true
   datasource:
-    url: jdbc:mysql://${USER_MYSQL_HOST:${MYSQL_HOST:localhost}}:${USER_MYSQL_PORT:${MYSQL_PORT:13338}}/${USER_MYSQL_DATABASE:${MYSQL_DATABASE:sijuelishi_dev}}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://${USER_MYSQL_HOST:${MYSQL_HOST:localhost}}:${USER_MYSQL_PORT:${MYSQL_PORT:3306}}/${USER_MYSQL_DATABASE:${MYSQL_DATABASE:sijuelishi}}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: ${USER_MYSQL_USERNAME:${MYSQL_USERNAME:sijue}}
     password: ${USER_MYSQL_PASSWORD:${MYSQL_PASSWORD:}}
     driver-class-name: com.mysql.cj.jdbc.Driver

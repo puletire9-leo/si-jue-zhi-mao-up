@@ -11,15 +11,15 @@ config/
 ├── README.md                   # 本文件
 │
 ├── public/                     # 非敏感配置 (进 git)
-│   ├── dev.env                 # 开发环境
-│   └── prod.env                # 生产环境
+│   ├── prod.env                # 生产环境
+│   └── user-prod.env           # 登录库连接（非密码）
 │
 └── secrets/                    # 真实密钥 (不进 git, 仅在部署机存在)
     ├── README.md
-    ├── dev.env.example         # 开发密钥模板
-    ├── dev.env                 # ⛔ 不进 git
     ├── prod.env.example        # 生产密钥模板
-    └── prod.env                # ⛔ 不进 git
+    ├── user-prod.env.example
+    ├── prod.env                # ⛔ 不进 git
+    └── user-prod.env           # ⛔ 不进 git
 ```
 
 ---
@@ -30,9 +30,9 @@ config/
 
 | 类型 | 加在哪 |
 |------|--------|
-| 服务端口、超时、白名单 | `config/public/{dev,prod}.env` |
-| API key、密码、JWT secret、飞书 App Token | `config/secrets/{dev,prod}.env` |
-| 飞书多维表格 **表 ID**（非 Token） | `config/public/{dev,prod}.env` |
+| 服务端口、超时、白名单 | `config/public/prod.env` |
+| API key、密码、JWT secret、飞书 App Token | `config/secrets/prod.env` |
+| 飞书多维表格 **表 ID**（非 Token） | `config/public/prod.env` |
 
 生产数据库连接与门禁配置统一放在 `config/public/prod.env`：
 `MYSQL_*_POOL_*` 控制各服务连接池，`DB_HEAVY_QUERY_MAX_CONCURRENCY`、
@@ -87,20 +87,6 @@ config/secrets/*.env
 
 ---
 
-## 迁移自旧配置
-
-| 旧位置 | 新位置 |
-|--------|--------|
-| `.env` (根目录) | `config/public/dev.env` + `config/secrets/dev.env` |
-| `.env.local` | `config/public/dev.env` + `config/secrets/dev.env` |
-| `.env.prod` | `config/public/prod.env` |
-| `.env.prod.secrets` | `config/secrets/prod.env` |
-| `backend/.env` | 已合入 `config/secrets/dev.env` |
-| `backend/.env.production` | 已合入 `config/{public,secrets}/prod.env` |
-
----
-
 ## 相关文档
 
 - [部署流程](../docs/docker使用经验/部署流程.md)
-- [开发规范-Dev与Prod差异](../docs/development/开发规范-Dev与Prod差异.md)

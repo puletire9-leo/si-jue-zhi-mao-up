@@ -14,7 +14,7 @@ LINGXING_MCP_URL=https://...
 LINGXING_MCP_KEY=...
 ```
 
-开发环境使用 `config/secrets/dev.env`，生产环境使用 `config/secrets/prod.env`。禁止把真实 URL 或密钥写入源码、前端或 Git。
+写入 `config/secrets/prod.env`。禁止把真实 URL 或密钥写入源码、前端或 Git。
 
 ## API
 

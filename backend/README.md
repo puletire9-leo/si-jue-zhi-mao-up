@@ -164,14 +164,12 @@ CREATE DATABASE image_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 #### 启动FastAPI应用
 
-**开发模式（热重载）:**
-```bash
-python -m scripts.startup.start_with_hot_reload
-```
+#### 启动 FastAPI
 
-**生产模式:**
+生产容器内由 `docker-compose.prod.yml` 启动。宿主机仅在排障时：
+
 ```bash
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8090
 ```
 
 #### 启动Celery Worker（可选）

@@ -66,12 +66,6 @@ powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Compone
 | Redis | prod-redis | 6383 → 6379 |
 | Nacos | prod-nacos | 8852 → 8848 |
 
-### 开发环境
-
-```bash
-docker compose -f docker-compose.dev.yml up -d
-```
-
 ### 构建与更新
 
 统一脚本根据 `-Component java|frontend|backend|ai-center` 完成预检、双版本轮换、单次缓存构建、无隐式构建重建、验证和旧缓存收尾。具体命令与回滚方法只在主部署流程维护。

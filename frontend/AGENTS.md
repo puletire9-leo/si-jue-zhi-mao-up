@@ -21,7 +21,7 @@ frontend/src/
 
 ## 页面视图
 
-> 页面实际请求去向不要只看页面名判断，先看对应 `src/api/*.ts`，再看 `vite.config.js` 代理规则。
+> 页面实际请求去向不要只看页面名判断，先看对应 `src/api/*.ts`，再看 `frontend/nginx.conf` 路由。
 
 | 页面 | 路径 | API 文件 |
 |------|------|---------|
@@ -63,7 +63,7 @@ frontend/src/
 
 | API 文件 | 主要调用路径 | 后端 |
 |----------|------------|------|
-| product.ts | `/api/v1/products/`、`/api/v1/product-recycle/` | Python（开发态走 `^/api` 兜底） |
+| product.ts | `/api/v1/products/`、`/api/v1/product-recycle/` | Python（Nginx `/api/` 兜底） |
 | selection.ts | `/api/v1/selection/`、`/api/v1/scoring/` | 混合：Python 为主，`scoring` 走 Java |
 | finalDrafts.ts | `/api/v1/final-drafts/` | Python（迁移中） |
 | materialLibrary.ts | `/api/v1/material-library/` | Python |
@@ -153,6 +153,6 @@ Vite 自动导入的 `auto-import.d.ts` 和 `components.d.ts` 只在 development
 3. 新增组件放 `components/` 下，PascalCase 命名
 4. 新增类型放 `types/` 下，禁止使用 `any`
 5. 样式用 SCSS，变量在 `styles/variables.scss`
-6. 注意：开发态真实请求去向优先看 `vite.config.js`；混合模块（如 `selection.ts`、`systemConfig.ts`、`product-line.ts`）必须结合代理规则判断
+6. 注意：请求去向优先看 `frontend/nginx.conf`；混合模块（如 `selection.ts`、`systemConfig.ts`、`product-line.ts`）必须结合 Nginx Java 白名单判断
 7. 生产发布必须完整遵循 `docs/docker使用经验/部署流程.md`，统一运行 `scripts/deploy/deploy_prod.ps1 -Component frontend`；禁止直接 `up -d --build`、生产 `--no-cache` 或重复 Vite/Docker 构建
 8. 前端测试优先复用现有 `node_modules`，先跑受影响模块的 Vitest/type-check；正式构建只执行一次，禁止为测试清空依赖缓存

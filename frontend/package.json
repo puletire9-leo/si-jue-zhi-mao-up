@@ -4,12 +4,9 @@
   "description": "思觉智贸 - Vue 3前端",
   "type": "module",
   "scripts": {
-    "dev": "node --max-old-space-size=4096 node_modules/vite/bin/vite.js --mode development",
-    "dev:clean": "node scripts/cleanup.js && node --max-old-space-size=4096 node_modules/vite/bin/vite.js --mode development",
-    "dev:force": "node --max-old-space-size=4096 node_modules/vite/bin/vite.js --mode development --force",
     "build": "vite build --mode production",
     "build:analyze": "vite build --mode production && npx vite-bundle-visualizer",
-    "preview": "vite preview",
+    "preview": "vite preview --mode production",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
@@ -25,11 +22,7 @@
     "check-naming:incremental": "python ../check/check_naming_convention_advanced.py --incremental",
     "check-naming:watch": "python ../check/check_naming_convention_advanced.py --watch",
     "check-naming:report": "python ../check/check_naming_convention_advanced.py --report naming-report.md",
-    "dev:development": "vite --mode development",
-    "dev:production": "vite --mode production",
-    "build:development": "vite build --mode development",
     "build:production": "vite build --mode production",
-    "preview:development": "vite preview --mode development",
     "preview:production": "vite preview --mode production"
   },
   "dependencies": {

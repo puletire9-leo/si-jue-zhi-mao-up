@@ -5,7 +5,7 @@ spring:
   application:
     name: sjzm-product
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
+    active: ${SPRING_PROFILES_ACTIVE:prod}
   # Spring Cloud 4 requires an explicit Nacos config import when the
   # configuration client is on the classpath. Keep it optional so the
   # service can still start when Nacos config is disabled.
@@ -19,7 +19,7 @@ spring:
       max-request-size: 200MB
 
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:13338}/${MYSQL_DATABASE:sijuelishi_dev}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:sijuelishi}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
     username: ${MYSQL_USERNAME:sijue}
     password: ${MYSQL_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -53,10 +53,9 @@ spring:
         file-extension: yaml
 
 # 运营物流专用远程 RDS 数据源（只绑定 com.sjzm.product.rds.mapper 包）
-# dev 环境 RDS_* 缺省时回退本地 MySQL，双源退化为都连本地，不阻塞开发
 rds:
   datasource:
-    url: jdbc:mysql://${RDS_HOST:${MYSQL_HOST:localhost}}:${RDS_PORT:${MYSQL_PORT:13338}}/${RDS_DATABASE:${MYSQL_DATABASE:sijuelishi_dev}}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+    url: jdbc:mysql://${RDS_HOST:${MYSQL_HOST:localhost}}:${RDS_PORT:${MYSQL_PORT:3306}}/${RDS_DATABASE:${MYSQL_DATABASE:sijuelishi}}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
     username: ${RDS_USERNAME:${MYSQL_USERNAME:sijue}}
     password: ${RDS_PASSWORD:${MYSQL_PASSWORD:}}
     driver-class-name: com.mysql.cj.jdbc.Driver

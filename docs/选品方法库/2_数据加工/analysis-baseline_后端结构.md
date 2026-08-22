@@ -344,8 +344,10 @@ baselineAvgAbcRatio -> baseline_avg_abc_ratio
 
 已通过：
 
+Java 生产镜像内编译（`java-backend/Dockerfile.prod`），发布入口：
+
 ```text
-docker compose -f docker-compose.dev.yml run --rm --no-deps java-product sh -c "mvn -pl sjzm-product -am -DskipTests compile"
+powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component java
 ```
 
 结果：

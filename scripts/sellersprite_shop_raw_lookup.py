@@ -32,7 +32,7 @@ def load_secret_key() -> str:
     if env_key:
         return env_key.strip()
 
-    for rel in ("config/secrets/prod.env", "config/secrets/dev.env"):
+    for rel in ("config/secrets/prod.env",):
         path = ROOT / rel
         if not path.exists():
             continue

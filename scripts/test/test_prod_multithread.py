@@ -260,8 +260,7 @@ def main():
             return
     except Exception as e:
         print(f"❌ 无法连接到服务: {e}")
-        print("请确保生产模式服务正在运行:")
-        print("  python scripts/startup/start_with_hot_reload.py --mode prod --multithread")
+        print("请确保生产服务正在运行: docker compose -f docker-compose.prod.yml ps")
         return
     
     # 运行稳定性测试

@@ -55,24 +55,15 @@ resp = client.chat.completions.create(
 
 ### 本地调试
 
-```bash
-# 本地端口临时开放（不提交 compose 修改）
-# docker-compose.dev.yml 中取消注释 ports: ["127.0.0.1:18012:8012"]
-
-curl http://localhost:18012/health
-curl http://localhost:18012/v1/chat/completions \
-  -H "Authorization: Bearer dev-ai-center-internal-key-change-me" \
-  -H "Content-Type: application/json" \
-  -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"hi"}]}'
-```
+AI Center 不对外暴露宿主端口，只在容器网络内访问 `http://ai-center:8012`。
 
 ### 接入 docker-compose
 
 ```yaml
 your-new-agent:
   env_file:
-    - ./config/public/dev.env     # 含 AI_CENTER_BASE_URL
-    - ./config/secrets/dev.env    # 含 AI_CENTER_INTERNAL_KEY
+    - ./config/public/prod.env     # 含 AI_CENTER_BASE_URL
+    - ./config/secrets/prod.env    # 含 AI_CENTER_INTERNAL_KEY
   depends_on:
     ai-center:
       condition: service_healthy

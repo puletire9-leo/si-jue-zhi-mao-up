@@ -6,13 +6,6 @@
 
 ## 部署流程
 
-### 开发环境
-
-```bash
-cp config/secrets/dev.env.example config/secrets/dev.env
-# 编辑 dev.env, 填入开发用的密钥/test 密钥
-```
-
 ### 生产环境
 
 ```bash

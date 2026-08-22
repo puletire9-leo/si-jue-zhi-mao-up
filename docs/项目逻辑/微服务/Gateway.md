@@ -17,9 +17,9 @@
 
 - `sjzm-gateway` 模块代码完整
 - 路由配置覆盖所有 API：`asin-import`, `competitor`, `scoring`, `filter-config`, `products`, `selections`, `product-sales`
-- JWT 鉴权过滤器 `JwtAuthGatewayFilter`（开发环境可关闭 `gateway.auth.enabled: false`）
+- JWT 鉴权过滤器 `JwtAuthGatewayFilter`（`gateway.auth.enabled`，生产默认开启）
 - RBAC 权限映射
-- Docker Compose 集成（容器名 `dev-gateway`，端口 9000）
+- Docker Compose 集成（容器名 `prod-gateway`）
 - JAR 可正常构建
 
 ## 遇到的问题
@@ -73,5 +73,5 @@ java.lang.NoSuchMethodError: 'java.util.Set org.springframework.http.HttpHeaders
 | `java-backend/sjzm-gateway/pom.xml` | 依赖（已注释 Nacos/LoadBalancer） |
 | `java-backend/sjzm-gateway/src/main/resources/application.yml` | 路由配置 + JWT |
 | `java-backend/sjzm-gateway/src/main/java/com/sjzm/gateway/JwtAuthGatewayFilter.java` | JWT 过滤器 |
-| `docker-compose.dev.yml` | Gateway 服务定义 |
-| `frontend/vite.config.js` | 代理配置（当前直连 java-product） |
+| `docker-compose.prod.yml` | Gateway 服务定义 |
+| `frontend/nginx.conf` | 生产 API 路由 |

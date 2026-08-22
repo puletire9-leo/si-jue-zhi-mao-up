@@ -79,7 +79,11 @@ def read_csv(path: Path) -> list[dict[str, str]]:
 
 def mysql_env() -> dict[str, object]:
     values: dict[str, str] = {}
-    for path in (ROOT / ".env", ROOT / "config/public/dev.env", ROOT / "config/secrets/dev.env"):
+    for path in (
+        ROOT / ".env",
+        ROOT / "config/public/prod.env",
+        ROOT / "config/secrets/prod.env",
+    ):
         if not path.exists():
             continue
         for line in path.read_text(encoding="utf-8").splitlines():
@@ -93,10 +97,10 @@ def mysql_env() -> dict[str, object]:
         host = values.get("MYSQL_HOST_EXTERNAL", "127.0.0.1")
     return {
         "host": host,
-        "port": int(values.get("MYSQL_PORT_EXTERNAL", values.get("MYSQL_PORT", "13338"))),
+        "port": int(values.get("MYSQL_PORT_EXTERNAL", values.get("MYSQL_PORT", "3310"))),
         "user": values.get("MYSQL_USERNAME", values.get("MYSQL_USER", "sijue")),
         "password": values["MYSQL_PASSWORD"],
-        "database": values.get("MYSQL_DATABASE", "sijuelishi_dev"),
+        "database": values.get("MYSQL_DATABASE", "sijuelishi"),
         "charset": "utf8mb4",
     }
 

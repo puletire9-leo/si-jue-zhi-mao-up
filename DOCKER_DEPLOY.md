@@ -13,17 +13,13 @@ powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Compone
 powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component frontend
 powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component backend
 powershell -ExecutionPolicy Bypass -File scripts/deploy/deploy_prod.ps1 -Component ai-center
-
-# 开发环境
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 ```
 
 ## 配置
 
 | 环境 | 配置文件 | 文档 |
 |------|---------|------|
-| 开发 | `docker-compose.yml` + `docker-compose.dev.yml` | — |
-| 生产 | `docker-compose.prod.yml`（独立完整配置） | [部署流程.md](docs/docker使用经验/部署流程.md) |
+| 生产 | `docker-compose.prod.yml` | [部署流程.md](docs/docker使用经验/部署流程.md) |
 
 ## 关键变更
 
